@@ -42,7 +42,13 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
     void window.api.codeServer.ensureRunning().then((result) => {
       if ('error' in result) {
         setStatus({ status: 'error', port: null, error: result.error })
+        return
       }
+      // acquire resolves with the port only once the shared server is ready. A
+      // pane mounting after another worktree already started the server never
+      // receives a 'ready' broadcast (acquire returns early without emitting),
+      // so seed ready state from the result or it hangs on "Starting VS Code…".
+      setStatus((prev) => (prev.status === 'ready' ? prev : { status: 'ready', port: result.port }))
     })
     return () => {
       if (!released) {
@@ -100,7 +106,11 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
     void window.api.codeServer.retry().then((result) => {
       if ('error' in result) {
         setStatus({ status: 'error', port: null, error: result.error })
+        return
       }
+      // Same as the mount path: if retry finds the server already ready it
+      // resolves without a broadcast, so seed ready from the result.
+      setStatus((prev) => (prev.status === 'ready' ? prev : { status: 'ready', port: result.port }))
     })
   }
 
