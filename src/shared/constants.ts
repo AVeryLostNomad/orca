@@ -59,6 +59,9 @@ export const ONBOARDING_FINAL_STEP = 5
 export const ONBOARDING_FLOW_VERSION = 4
 
 export const ORCA_BROWSER_PARTITION = 'persist:orca-browser'
+// Dedicated Electron session partition for the embedded code-server webview.
+// Isolated from browser tabs so VS Code's localStorage/state never collides.
+export const ORCA_VSCODE_PARTITION = 'persist:orca-vscode'
 // Why: blank browser tabs must start from an inert guest URL that does not
 // navigate the privileged main window to about:blank. Renderer and main both
 // need the exact same value so the attach policy can allow only this one safe
