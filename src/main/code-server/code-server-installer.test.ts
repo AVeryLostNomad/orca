@@ -73,4 +73,29 @@ describe('ensureCodeServerInstalled', () => {
       expect.objectContaining({ stdio: expect.anything() })
     )
   })
+
+  it('classifies unsupported-arch by the install.sh sentinel message', async () => {
+    resolveExeMock.mockReturnValue(null)
+    resolveScriptMock.mockReturnValue('/res/code-server/install.sh')
+    spawnMock.mockImplementation(() => {
+      return {
+        stdout: { on: vi.fn() },
+        stderr: {
+          on: (event: string, cb: (chunk: Buffer) => void) => {
+            if (event === 'data') {
+              setTimeout(() => cb(Buffer.from('There are no standalone releases for riscv64')), 0)
+            }
+          }
+        },
+        on: (event: string, cb: (arg: number) => void) => {
+          if (event === 'close') {
+            setTimeout(() => cb(1), 10)
+          }
+        }
+      }
+    })
+    await expect(ensureCodeServerInstalled()).rejects.toMatchObject({
+      code: 'unsupported-arch'
+    })
+  })
 })

@@ -78,7 +78,9 @@ async function runInstall(onProgress?: InstallProgress): Promise<string> {
         return
       }
       const message = stderr.trim() || `installer exited with code ${code}`
-      const errorCode: InstallErrorCode = /architecture|arch/i.test(message)
+      // install.sh's real sentinel for an unsupported CPU arch (i686, armv7l, riscv64, s390x, ...)
+      // is "no standalone releases for $ARCH" — none of those values contain "arch" itself.
+      const errorCode: InstallErrorCode = /no standalone releases for/i.test(message)
         ? 'unsupported-arch'
         : /curl|tar|wget|command not found/i.test(message)
           ? 'missing-prereq'
@@ -103,6 +105,8 @@ async function runInstall(onProgress?: InstallProgress): Promise<string> {
   onProgress?.(1)
   const exe = resolveCodeServerExecutable()
   if (!exe) {
+    // Mirror the spawn-failure cleanup so a botched install doesn't wedge future retries.
+    await rm(prefix, { recursive: true, force: true }).catch(() => {})
     throw new CodeServerInstallError('download-failed', 'code-server missing after install.')
   }
   return exe
