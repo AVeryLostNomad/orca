@@ -105,6 +105,8 @@ export function useTabGroupWorkspaceModel({
   const createEmptySplitGroup = useAppStore((state) => state.createEmptySplitGroup)
   const setTabCustomTitle = useAppStore((state) => state.setTabCustomTitle)
   const setTabColor = useAppStore((state) => state.setTabColor)
+  const setActiveCodeServerTab = useAppStore((state) => state.setActiveCodeServerTab)
+  const closeCodeServerTab = useAppStore((state) => state.closeCodeServerTab)
 
   const group = useMemo(
     () => worktreeState.groups.find((item) => item.id === groupId) ?? null,
@@ -283,6 +285,10 @@ export function useTabGroupWorkspaceModel({
         closeUnifiedTab(item.id)
       } else if (item.contentType === 'simulator') {
         closeUnifiedTab(item.id)
+      } else if (item.contentType === 'vscode') {
+        // Why: closeCodeServerTab already removes the matching unified tab
+        // internally, so we must not also call closeUnifiedTab (double-close).
+        closeCodeServerTab(item.entityId)
       } else {
         const canCloseTab = closeEditorIfUnreferenced(item.entityId, item.id)
         if (!canCloseTab) {
@@ -296,6 +302,7 @@ export function useTabGroupWorkspaceModel({
     },
     [
       closeBrowserTab,
+      closeCodeServerTab,
       closeEditorIfUnreferenced,
       closeUnifiedTab,
       groupTabs,
@@ -348,6 +355,10 @@ export function useTabGroupWorkspaceModel({
           closeTab(item.entityId)
         } else if (item.contentType === 'simulator') {
           closeUnifiedTab(item.id)
+        } else if (item.contentType === 'vscode') {
+          // Why: closeCodeServerTab removes the matching unified tab internally,
+          // so calling closeUnifiedTab too would double-close.
+          closeCodeServerTab(item.entityId)
         } else {
           const canCloseTab = closeEditorIfUnreferenced(item.entityId, item.id)
           if (canCloseTab) {
@@ -356,7 +367,15 @@ export function useTabGroupWorkspaceModel({
         }
       }
     },
-    [closeBrowserTab, closeEditorIfUnreferenced, closeTab, closeUnifiedTab, groupTabs, worktreeId]
+    [
+      closeBrowserTab,
+      closeCodeServerTab,
+      closeEditorIfUnreferenced,
+      closeTab,
+      closeUnifiedTab,
+      groupTabs,
+      worktreeId
+    ]
   )
 
   const activateTerminal = useCallback(
@@ -470,6 +489,30 @@ export function useTabGroupWorkspaceModel({
     [activateTab, focusGroup, groupId, groupTabs, setActiveBrowserTab, setActiveTabType, worktreeId]
   )
 
+  const activateCodeServer = useCallback(
+    (codeServerTabId: string) => {
+      const item = groupTabs.find(
+        (candidate) => candidate.entityId === codeServerTabId && candidate.contentType === 'vscode'
+      )
+      if (!item) {
+        return
+      }
+      focusGroup(worktreeId, groupId)
+      activateTab(item.id)
+      setActiveCodeServerTab(codeServerTabId)
+      setActiveTabType('vscode')
+    },
+    [
+      activateTab,
+      focusGroup,
+      groupId,
+      groupTabs,
+      setActiveCodeServerTab,
+      setActiveTabType,
+      worktreeId
+    ]
+  )
+
   const createSplitGroup = useCallback(
     (direction: 'left' | 'right' | 'up' | 'down') => {
       focusGroup(worktreeId, groupId)
@@ -571,7 +614,9 @@ export function useTabGroupWorkspaceModel({
         if (!item) {
           return itemId
         }
-        return item.contentType === 'terminal' || item.contentType === 'browser'
+        return item.contentType === 'terminal' ||
+          item.contentType === 'browser' ||
+          item.contentType === 'vscode'
           ? item.entityId
           : item.id
       }),
@@ -592,6 +637,7 @@ export function useTabGroupWorkspaceModel({
         focusGroup(worktreeId, groupId)
       },
       activateBrowser,
+      activateCodeServer,
       activateEditor,
       activateTerminal,
       closeAllEditorTabsInGroup,
