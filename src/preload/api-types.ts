@@ -334,6 +334,7 @@ import type {
   SpeechModelState,
   SpeechTranscriptEvent
 } from '../shared/speech-types'
+import type { CodeServerStatusEvent } from '../shared/code-server-types'
 import type {
   WorkspaceSpaceAnalyzeResult,
   WorkspaceSpaceScanProgress
@@ -2973,6 +2974,12 @@ export type PreloadApi = {
     onReady: (callback: (data: SpeechLifecycleEvent) => void) => () => void
     onStopped: (callback: (data: SpeechLifecycleEvent) => void) => () => void
     onError: (callback: (data: SpeechErrorEvent) => void) => () => void
+  }
+  codeServer: {
+    ensureRunning: () => Promise<{ port: number } | { error: string }>
+    release: () => Promise<void>
+    getStatus: () => Promise<CodeServerStatusEvent>
+    onStatusChanged: (callback: (event: CodeServerStatusEvent) => void) => () => void
   }
 }
 

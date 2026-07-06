@@ -135,6 +135,7 @@ import type {
   SpeechModelState,
   SpeechTranscriptEvent
 } from '../shared/speech-types'
+import type { CodeServerStatusEvent } from '../shared/code-server-types'
 import type { TelemetryConsentState } from '../shared/telemetry-consent-types'
 import type { PreflightRuntimeContext, RefreshAgentsResult } from './api-types'
 import type { AgentKind, LaunchSource, RequestKind } from '../shared/telemetry-events'
@@ -4175,6 +4176,19 @@ const api = {
         callback(data)
       ipcRenderer.on('speech:error', listener)
       return () => ipcRenderer.removeListener('speech:error', listener)
+    }
+  },
+
+  codeServer: {
+    ensureRunning: (): Promise<{ port: number } | { error: string }> =>
+      ipcRenderer.invoke('codeServer:ensureRunning'),
+    release: (): Promise<void> => ipcRenderer.invoke('codeServer:release'),
+    getStatus: (): Promise<CodeServerStatusEvent> => ipcRenderer.invoke('codeServer:getStatus'),
+    onStatusChanged: (callback: (event: CodeServerStatusEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: CodeServerStatusEvent): void =>
+        callback(data)
+      ipcRenderer.on('codeServer:statusChanged', listener)
+      return () => ipcRenderer.removeListener('codeServer:statusChanged', listener)
     }
   }
 }
