@@ -8,11 +8,14 @@ import { linkVsCodeUserSettings } from './code-server-vscode-settings-link'
 import {
   getCodeServerExtensionsDir,
   getCodeServerPidFilePath,
-  getCodeServerUserDataDir
+  getCodeServerUserDataDir,
+  resolveCodeServerExecutable
 } from './code-server-paths'
 
 const READY_TIMEOUT_MS = 20_000
 const READY_POLL_MS = 200
+// Cap retained stderr so a chatty code-server can't grow this unbounded while running.
+const STDERR_TAIL_MAX_BYTES = 8 * 1024
 
 export function buildCodeServerArgs(port: number): string[] {
   return [
@@ -81,9 +84,14 @@ export class CodeServerManager implements CodeServerProvider {
   private port: number | null = null
   private refCount = 0
   private quitting = false
-  private status: CodeServerStatus = 'stopped'
+  // Reachable 'not-installed' start state (fix: was hardcoded 'stopped', hiding the
+  // real state machine's entry point from callers that check status before acquire()).
+  private status: CodeServerStatus = resolveCodeServerExecutable() ? 'stopped' : 'not-installed'
   private errorMessage: string | undefined
   private readonly listeners = new Set<(e: CodeServerStatusEvent) => void>()
+  // Single-flight guard: overlapping acquire() calls before the first reaches 'ready'
+  // must share one start sequence, or each spawns its own untracked child process.
+  private starting: Promise<{ port: number }> | null = null
 
   onStatusChanged(cb: (e: CodeServerStatusEvent) => void): () => void {
     this.listeners.add(cb)
@@ -108,15 +116,36 @@ export class CodeServerManager implements CodeServerProvider {
     if (this.child && this.port && this.status === 'ready') {
       return { port: this.port }
     }
+    // Overlapping callers (e.g. session restore reopening several tabs) share this one
+    // in-flight start instead of each racing startProcess() and leaking a child.
+    if (!this.starting) {
+      this.starting = this.startSequence().finally(() => {
+        this.starting = null
+      })
+    }
+    try {
+      return await this.starting
+    } catch (error) {
+      this.refCount = Math.max(0, this.refCount - 1)
+      throw error
+    }
+  }
+
+  private async startSequence(): Promise<{ port: number }> {
     try {
       this.reapOrphan()
-      this.emit('installing', { progress: 0 })
-      await ensureCodeServerInstalled((fraction) => this.emit('installing', { progress: fraction }))
+      // Only pass through 'installing' when an install will actually happen —
+      // otherwise a normal start flashes "installing 0%" for an already-installed binary.
+      if (!resolveCodeServerExecutable()) {
+        this.emit('installing', { progress: 0 })
+        await ensureCodeServerInstalled((fraction) =>
+          this.emit('installing', { progress: fraction })
+        )
+      }
       await linkVsCodeUserSettings()
       const port = await this.startProcess()
       return { port }
     } catch (error) {
-      this.refCount = Math.max(0, this.refCount - 1)
       const message = error instanceof Error ? error.message : String(error)
       this.emit('error', { error: message })
       throw error
@@ -136,10 +165,20 @@ export class CodeServerManager implements CodeServerProvider {
     writeFileSync(getCodeServerPidFilePath(), String(child.pid ?? ''))
     child.on('exit', () => this.handleUnexpectedExit())
 
+    let stderrTail = ''
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_MAX_BYTES)
+    })
+
     const ready = await waitForHealthz(port)
     if (!ready) {
       this.killChild()
-      throw new Error('code-server did not become ready in time')
+      const detail = stderrTail.trim()
+      throw new Error(
+        detail
+          ? `code-server did not become ready in time: ${detail}`
+          : 'code-server did not become ready in time'
+      )
     }
     this.emit('ready')
     return port
