@@ -6,6 +6,7 @@ import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-
 import { ensureCodeServerInstalled } from './code-server-installer'
 import { linkVsCodeUserSettings } from './code-server-vscode-settings-link'
 import { disableExtensionSignatureVerification } from './code-server-signature-verification'
+import { setCodeServerPid } from './code-server-process-registry'
 import {
   getCodeServerExtensionsDir,
   getCodeServerPidFilePath,
@@ -195,6 +196,9 @@ export class CodeServerManager implements CodeServerProvider {
     this.child = child
     this.port = port
     writeFileSync(getCodeServerPidFilePath(), String(child.pid ?? ''))
+    // Publish the pid so the memory collector can attribute the editor's whole
+    // process subtree (extension host, LSPs, ripgrep) to Orca's footprint.
+    setCodeServerPid(child.pid ?? null)
     let exited = false
     child.on('exit', () => {
       exited = true
@@ -223,6 +227,7 @@ export class CodeServerManager implements CodeServerProvider {
   private handleUnexpectedExit(): void {
     this.child = null
     this.port = null
+    setCodeServerPid(null)
     // An exit before the server ever reached 'ready' is a failed start: the
     // awaiting startProcess() reports it as an error, so don't auto-restart
     // here (which would race that caller and can loop). Only a server that
@@ -253,6 +258,7 @@ export class CodeServerManager implements CodeServerProvider {
     const child = this.child
     this.child = null
     this.port = null
+    setCodeServerPid(null)
     if (child && !child.killed) {
       child.removeAllListeners('exit')
       child.kill('SIGTERM')

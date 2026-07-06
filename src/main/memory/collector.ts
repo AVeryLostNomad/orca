@@ -34,11 +34,13 @@ import type {
   MemorySnapshot,
   HostMemory,
   SessionMemory,
+  UsageValues,
   WorktreeMemory
 } from '../../shared/types'
 import type { Store } from '../persistence'
 import { ORPHAN_WORKTREE_ID } from '../../shared/constants'
 import { listRegisteredPtys } from './pty-registry'
+import { getCodeServerPid } from '../code-server/code-server-process-registry'
 
 export type MemorySnapshotStore = Pick<Store, 'getRepo' | 'getWorktreeMeta'>
 
@@ -113,7 +115,7 @@ function hostMetrics(): HostMemory {
 function emptySnapshot(): MemorySnapshot {
   const zero = { cpu: 0, memory: 0 }
   return {
-    app: { ...zero, main: zero, renderer: zero, other: zero, history: [] },
+    app: { ...zero, main: zero, renderer: zero, other: zero, editor: zero, history: [] },
     worktrees: [],
     host: hostMetrics(),
     totalCpu: 0,
@@ -318,7 +320,10 @@ export function collectSubtree(index: ProcIndex, root: number): number[] {
 
 // ─── Electron app process bucketing ─────────────────────────────────
 
-type AppBucketsRaw = Omit<AppMemory, 'history'>
+// Electron-only buckets from app.getAppMetrics(); the `editor` bucket (the
+// code-server subtree) is added in runSnapshot from the host `ps` sweep, since
+// code-server is a plain spawned child, not one of Electron's own processes.
+type AppBucketsRaw = Omit<AppMemory, 'history' | 'editor'>
 
 function electronMetricMemoryBytes(
   proc: ReturnType<typeof app.getAppMetrics>[number],
@@ -364,6 +369,35 @@ function bucketElectronMetrics(processIndex: ProcIndex): AppBucketsRaw {
     cpu: main.cpu + renderer.cpu + other.cpu,
     memory: main.memory + renderer.memory + other.memory
   }
+}
+
+// ─── Embedded editor (code-server) attribution ──────────────────────
+
+// Sum the shared code-server process subtree: the server plus its extension
+// host, language servers, and ripgrep are all descendants of its root pid, so
+// the same subtree walk used for PTYs captures them. `claimed` dedupes against
+// pids already attributed to a PTY (they never overlap in practice, but keeps
+// the invariant that each pid is counted once).
+function collectEditorBucket(index: ProcIndex, claimed: Set<number>): UsageValues {
+  const rootPid = getCodeServerPid()
+  if (rootPid == null) {
+    return { cpu: 0, memory: 0 }
+  }
+  let cpu = 0
+  let memory = 0
+  for (const pid of collectSubtree(index, rootPid)) {
+    if (claimed.has(pid)) {
+      continue
+    }
+    const row = index.byPid.get(pid)
+    if (!row) {
+      continue
+    }
+    claimed.add(pid)
+    cpu += row.cpu
+    memory += row.memory
+  }
+  return { cpu: clampNumber(cpu), memory: clampNumber(memory) }
 }
 
 // ─── Worktree attribution ───────────────────────────────────────────
@@ -478,6 +512,17 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
     bucket.sessions.push(session)
   }
 
+  // Fold the shared code-server subtree into the app bucket: it's one process
+  // across all VS Code tabs, so it belongs to Orca's footprint rather than any
+  // single worktree. Computed after the PTY loop so `claimed` is populated.
+  const editor = collectEditorBucket(processIndex, claimed)
+  const appTotals: AppBucketsRaw & { editor: UsageValues } = {
+    ...appBuckets,
+    editor,
+    cpu: appBuckets.cpu + editor.cpu,
+    memory: appBuckets.memory + editor.memory
+  }
+
   const bucketList: WorktreeBucket[] = [...worktreeBuckets.values()]
   if (orphan.sessions.length > 0) {
     bucketList.push(orphan)
@@ -487,7 +532,7 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
   // returned arrays end with the freshly-collected value. Each write also
   // acts as a keep-alive so active worktrees survive the staleness sweep.
   const now = Date.now()
-  pushHistorySample(APP_HISTORY_KEY, appBuckets.memory, now)
+  pushHistorySample(APP_HISTORY_KEY, appTotals.memory, now)
   for (const bucket of bucketList) {
     pushHistorySample(bucket.worktreeId, bucket.memory, now)
   }
@@ -506,11 +551,11 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
   }
 
   return {
-    app: { ...appBuckets, history: readHistory(APP_HISTORY_KEY) },
+    app: { ...appTotals, history: readHistory(APP_HISTORY_KEY) },
     worktrees,
     host: hostMetrics(),
-    totalCpu: appBuckets.cpu + sessionCpuTotal,
-    totalMemory: appBuckets.memory + sessionMemoryTotal,
+    totalCpu: appTotals.cpu + sessionCpuTotal,
+    totalMemory: appTotals.memory + sessionMemoryTotal,
     collectedAt: now
   }
 }

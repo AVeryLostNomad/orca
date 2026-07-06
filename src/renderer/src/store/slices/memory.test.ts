@@ -12,6 +12,7 @@ function makeMemorySnapshot(overrides: Partial<MemorySnapshot> = {}): MemorySnap
       main: { cpu: 1, memory: 512 },
       renderer: { cpu: 0, memory: 256 },
       other: { cpu: 0, memory: 256 },
+      editor: { cpu: 0, memory: 0 },
       history: [1024]
     },
     worktrees: [],

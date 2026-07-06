@@ -13,6 +13,7 @@ function emptyAppMemory() {
     main: { cpu: 0, memory: 0 },
     renderer: { cpu: 0, memory: 0 },
     other: { cpu: 0, memory: 0 },
+    editor: { cpu: 0, memory: 0 },
     history: []
   }
 }

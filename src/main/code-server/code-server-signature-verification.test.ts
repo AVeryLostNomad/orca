@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { readFileMock, writeFileMock, productJsonPathMock } = vi.hoisted(() => ({
   readFileMock: vi.fn(),
-  writeFileMock: vi.fn(() => Promise.resolve()),
+  writeFileMock: vi.fn<(path: string, contents: string) => Promise<void>>(() => Promise.resolve()),
   productJsonPathMock: vi.fn<() => string | null>(() => '/root/lib/vscode/product.json')
 }))
 

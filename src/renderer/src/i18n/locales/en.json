@@ -2866,6 +2866,7 @@
             "0f9e50eb07": "Other",
             "d406915b78": "Renderer",
             "81cd37af99": "Main",
+            "407fa7afe0": "VS Code",
             "fa6d36758d": "Kill session {{value0}}",
             "b8f4a2c1d0e3": "{{value0}} orphans",
             "c7e3b1a0d9f2": "Kill {{value0}} orphan terminal",

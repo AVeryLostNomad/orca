@@ -295,6 +295,15 @@ function AppSection({
             )}
             values={app.renderer}
           />
+          {(app.editor.cpu > 0 || app.editor.memory > 0) && (
+            <AppSubRow
+              label={translate(
+                'auto.components.status.bar.ResourceUsageStatusSegment.407fa7afe0',
+                'VS Code'
+              )}
+              values={app.editor}
+            />
+          )}
           {(app.other.cpu > 0 || app.other.memory > 0) && (
             <AppSubRow
               label={translate(

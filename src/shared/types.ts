@@ -3665,11 +3665,17 @@ export type UsageValues = {
   memory: number
 }
 
-/** The top-level cpu/memory are the sum of main + renderer + other. */
+/** The top-level cpu/memory are the sum of main + renderer + other + editor. */
 export type AppMemory = UsageValues & {
   main: UsageValues
   renderer: UsageValues
   other: UsageValues
+  /** The embedded VS Code (code-server) process subtree — the server plus its
+   *  extension host, language servers, and ripgrep. It's one shared,
+   *  reference-counted process across all VS Code tabs/worktrees, so it's
+   *  tracked once here (folded into Orca's footprint) rather than per-worktree.
+   *  Zero when no VS Code tab is open. */
+  editor: UsageValues
   /** Oldest-first memory samples (bytes) for the whole Orca app, one per
    *  successful collection. Used to render the sparkline in the dashboard.
    *  Empty before the first snapshot is recorded. */

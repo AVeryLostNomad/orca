@@ -8,11 +8,14 @@ type AppMetricFixture = {
   memory: { workingSetSize: number }
 }
 
-const { appMetricsMock, execMock, listRegisteredPtysMock } = vi.hoisted(() => ({
-  appMetricsMock: vi.fn<() => AppMetricFixture[]>(() => []),
-  execMock: vi.fn(),
-  listRegisteredPtysMock: vi.fn()
-}))
+const { appMetricsMock, execMock, listRegisteredPtysMock, getCodeServerPidMock } = vi.hoisted(
+  () => ({
+    appMetricsMock: vi.fn<() => AppMetricFixture[]>(() => []),
+    execMock: vi.fn(),
+    listRegisteredPtysMock: vi.fn(),
+    getCodeServerPidMock: vi.fn<() => number | null>(() => null)
+  })
+)
 
 vi.mock('electron', () => ({
   app: {
@@ -27,6 +30,10 @@ vi.mock('child_process', () => ({
 
 vi.mock('./pty-registry', () => ({
   listRegisteredPtys: listRegisteredPtysMock
+}))
+
+vi.mock('../code-server/code-server-process-registry', () => ({
+  getCodeServerPid: getCodeServerPidMock
 }))
 
 async function loadCollector() {
@@ -214,6 +221,8 @@ describe('collectMemorySnapshot', () => {
     execMock.mockReset()
     listRegisteredPtysMock.mockReset()
     listRegisteredPtysMock.mockReturnValue([])
+    getCodeServerPidMock.mockReset()
+    getCodeServerPidMock.mockReturnValue(null)
   })
 
   function mockPsResponse(stdout: string) {
@@ -386,6 +395,67 @@ describe('collectMemorySnapshot', () => {
     expect(snap.worktrees).toHaveLength(1)
     expect(snap.worktrees[0].worktreeId).toBe('__orphan__')
     expect(snap.worktrees[0].memory).toBe(2048 * 1024)
+  })
+
+  it('folds the code-server subtree into the app editor bucket', async () => {
+    // Why: the embedded editor is one shared process across all VS Code tabs,
+    // so its whole subtree (server + extension host + LSPs + ripgrep) belongs
+    // to Orca's own footprint, not any single worktree.
+    mockPsResponse(
+      [
+        '10 1 1.5 1000', // Electron main (also reported via getAppMetrics)
+        '500 1 2 2048', // code-server root
+        '501 500 3 1024', // extension host
+        '502 501 4 512' // an LSP under the extension host
+      ].join('\n')
+    )
+    appMetricsMock.mockReturnValue([
+      { pid: 10, type: 'Browser', cpu: { percentCPUUsage: 1.5 }, memory: { workingSetSize: 0 } }
+    ])
+    getCodeServerPidMock.mockReturnValue(500)
+
+    const { collectMemorySnapshot } = await loadCollector()
+    const snap = await collectMemorySnapshot(emptyStore)
+
+    // editor = 500 + 501 + 502 subtree.
+    expect(snap.app.editor.memory).toBe((2048 + 1024 + 512) * 1024)
+    // app total = main (1000) + editor (3584).
+    expect(snap.app.memory).toBe((1000 + 2048 + 1024 + 512) * 1024)
+    expect(snap.totalMemory).toBe((1000 + 2048 + 1024 + 512) * 1024)
+  })
+
+  it('reports a zero editor bucket when code-server is not running', async () => {
+    mockPsResponse('10 1 1.5 1000')
+    appMetricsMock.mockReturnValue([
+      { pid: 10, type: 'Browser', cpu: { percentCPUUsage: 1.5 }, memory: { workingSetSize: 0 } }
+    ])
+    getCodeServerPidMock.mockReturnValue(null)
+
+    const { collectMemorySnapshot } = await loadCollector()
+    const snap = await collectMemorySnapshot(emptyStore)
+
+    expect(snap.app.editor).toEqual({ cpu: 0, memory: 0 })
+    expect(snap.app.memory).toBe(1000 * 1024)
+  })
+
+  it('does not double-count a code-server descendant already claimed by a PTY', async () => {
+    // Why: editor attribution runs after the PTY loop and shares the same
+    // `claimed` set, so a pid a PTY already booked is not summed twice into
+    // the app total. (They don't overlap in practice, but the invariant holds.)
+    mockPsResponse(['500 1 0 2048', '501 500 0 1024'].join('\n'))
+    listRegisteredPtysMock.mockReturnValue([
+      { ptyId: 'pty-a', worktreeId: 'repo-1::/wt/a', sessionId: 's-a', paneKey: 'p-a', pid: 501 }
+    ])
+    getCodeServerPidMock.mockReturnValue(500)
+
+    const { collectMemorySnapshot } = await loadCollector()
+    const snap = await collectMemorySnapshot(emptyStore)
+
+    // 501 is claimed by pty-a, so the editor bucket only books the root (500).
+    expect(snap.app.editor.memory).toBe(2048 * 1024)
+    expect(snap.worktrees[0].memory).toBe(1024 * 1024)
+    // Each pid counted once overall.
+    expect(snap.totalMemory).toBe((2048 + 1024) * 1024)
   })
 
   it('returns an empty snapshot when ps fails', async () => {
