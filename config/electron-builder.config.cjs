@@ -14,6 +14,12 @@ const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
 }
+// Why: the embedded VSCode feature is hidden on Windows, so the installer
+// script is only packaged for mac and linux extraResources.
+const codeServerInstallScriptResource = {
+  from: 'resources/code-server/install.sh',
+  to: 'code-server/install.sh'
+}
 // Why: SSH relay deploy resolves bundles from process.resourcesPath in packaged
 // apps. Keeping relay assets as extraResources makes them real directories
 // instead of paths hidden inside app.asar.
@@ -227,7 +233,8 @@ module.exports = {
         from: 'native/computer-use-macos/.build/release/Orca Computer Use.app',
         to: 'Orca Computer Use.app'
       },
-      featureWallResources
+      featureWallResources,
+      codeServerInstallScriptResource
     ],
     target: [
       {
@@ -275,7 +282,8 @@ module.exports = {
         from: 'native/computer-use-linux/runtime.py',
         to: 'computer-use-linux/runtime.py'
       },
-      featureWallResources
+      featureWallResources,
+      codeServerInstallScriptResource
     ],
     target: ['AppImage', 'deb'],
     maintainer: 'stablyai',
