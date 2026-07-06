@@ -19,6 +19,7 @@ import type { ClaudeUsageSlice } from './slices/claude-usage'
 import type { CodexUsageSlice } from './slices/codex-usage'
 import type { OpenCodeUsageSlice } from './slices/opencode-usage'
 import type { BrowserSlice } from './slices/browser'
+import type { CodeServerSlice } from './slices/code-server'
 import type { RateLimitSlice } from './slices/rate-limits'
 import type { SshSlice } from './slices/ssh'
 import type { AgentStatusSlice } from './slices/agent-status'
@@ -54,6 +55,7 @@ export type AppState = RepoSlice &
   CodexUsageSlice &
   OpenCodeUsageSlice &
   BrowserSlice &
+  CodeServerSlice &
   RateLimitSlice &
   SshSlice &
   AgentStatusSlice &

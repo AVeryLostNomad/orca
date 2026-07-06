@@ -1888,6 +1888,9 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
     const liveBrowserIds = new Set(
       (state.browserTabsByWorktree[worktreeId] ?? []).map((browserTab) => browserTab.id)
     )
+    const liveCodeServerIds = new Set(
+      (state.codeServerTabsByWorktree[worktreeId] ?? []).map((codeServerTab) => codeServerTab.id)
+    )
 
     const isRenderableTab = (tab: Tab): boolean => {
       if (tab.contentType === 'terminal') {
@@ -1895,6 +1898,9 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
       }
       if (tab.contentType === 'browser') {
         return liveBrowserIds.has(tab.entityId)
+      }
+      if (tab.contentType === 'vscode') {
+        return liveCodeServerIds.has(tab.entityId)
       }
       if (tab.contentType === 'simulator') {
         return true

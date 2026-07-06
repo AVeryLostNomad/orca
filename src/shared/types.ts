@@ -767,8 +767,9 @@ export type TabContentType =
   | 'check-details'
   | 'browser'
   | 'simulator'
+  | 'vscode'
 
-export type WorkspaceVisibleTabType = 'terminal' | 'editor' | 'browser' | 'simulator'
+export type WorkspaceVisibleTabType = 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode'
 export type CtrlTabOrderMode = 'mru' | 'sequential'
 
 export type Tab = {
@@ -942,6 +943,14 @@ export type BrowserWorkspace = {
 
 export type BrowserTab = BrowserWorkspace
 
+// Embedded VS Code (code-server) tab. Flat — VS Code has no sub-pages.
+export type CodeServerTab = {
+  id: string
+  worktreeId: string
+  folderPath: string // the worktree working dir, opened via ?folder=
+  label: string
+}
+
 export type BrowserSessionProfileScope = 'default' | 'isolated' | 'imported'
 
 export type BrowserSessionProfileSource = {
@@ -1051,6 +1060,10 @@ export type WorkspaceSessionState = {
   browserPagesByWorkspace?: Record<string, BrowserPage[]>
   /** Per-worktree active browser workspace ID at shutdown. */
   activeBrowserTabIdByWorktree?: Record<string, string | null>
+  /** Persisted VSCode tabs, keyed by worktree ID. */
+  codeServerTabsByWorktree?: Record<string, CodeServerTab[]>
+  /** Per-worktree active VSCode tab ID at shutdown. */
+  activeCodeServerTabIdByWorktree?: Record<string, string | null>
   /** Per-worktree active tab type (terminal vs editor vs browser) at shutdown. */
   activeTabTypeByWorktree?: Record<string, WorkspaceVisibleTabType>
   /** Global browser URL history for address bar autocomplete. */

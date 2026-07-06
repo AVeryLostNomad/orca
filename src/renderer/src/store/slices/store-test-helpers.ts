@@ -29,6 +29,7 @@ import { createClaudeUsageSlice } from './claude-usage'
 import { createCodexUsageSlice } from './codex-usage'
 import { createOpenCodeUsageSlice } from './opencode-usage'
 import { createBrowserSlice } from './browser'
+import { createCodeServerSlice } from './code-server'
 import { createRateLimitSlice } from './rate-limits'
 import { createSshSlice } from './ssh'
 import { createAgentStatusSlice } from './agent-status'
@@ -75,6 +76,7 @@ export function createTestStore() {
     ...createCodexUsageSlice(...a),
     ...createOpenCodeUsageSlice(...a),
     ...createBrowserSlice(...a),
+    ...createCodeServerSlice(...a),
     ...createRateLimitSlice(...a),
     ...createSshSlice(...a),
     ...createAgentStatusSlice(...a),

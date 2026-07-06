@@ -1,6 +1,4 @@
 import type {
-  BrowserPage,
-  BrowserWorkspace,
   PersistedOpenFile,
   WorkspaceSessionState,
   WorkspaceVisibleTabType
@@ -12,6 +10,8 @@ import type { OpenFile } from '../store/slices/editor'
 import { buildPersistedUnifiedTabSessionData } from './workspace-session-unified-tabs'
 import { buildLastVisitedAtByWorktreeId } from './workspace-session-focus-recency'
 import { buildSleepingAgentSessionData } from './workspace-session-sleeping-agents'
+import { buildCodeServerSessionData } from './workspace-session-code-server'
+import { buildBrowserSessionData } from './workspace-session-browser'
 
 /** Why (issue #1158): the debounced + shutdown session writers share this
  *  gate so a hydration failure cannot overwrite orca-data.json with the
@@ -48,6 +48,8 @@ export type WorkspaceSessionSnapshot = Pick<
   | 'browserTabsByWorktree'
   | 'browserPagesByWorkspace'
   | 'activeBrowserTabIdByWorktree'
+  | 'codeServerTabsByWorktree'
+  | 'activeCodeServerTabIdByWorktree'
   | 'browserUrlHistory'
   | 'unifiedTabsByWorktree'
   | 'groupsByWorktree'
@@ -86,6 +88,8 @@ export const SESSION_RELEVANT_FIELDS = [
   'browserTabsByWorktree',
   'browserPagesByWorkspace',
   'activeBrowserTabIdByWorktree',
+  'codeServerTabsByWorktree',
+  'activeCodeServerTabIdByWorktree',
   'browserUrlHistory',
   'unifiedTabsByWorktree',
   'groupsByWorktree',
@@ -187,46 +191,6 @@ export function buildEditorSessionData(
     activeTabTypeByWorktree: persistedActiveTabTypeByWorktree,
     markdownFrontmatterVisible: persistedMarkdownFrontmatterVisible
   }
-}
-
-export function buildBrowserSessionData(
-  browserTabsByWorktree: Record<string, BrowserWorkspace[]>,
-  browserPagesByWorkspace: Record<string, BrowserPage[]>,
-  activeBrowserTabIdByWorktree: Record<string, string | null>
-): Pick<
-  WorkspaceSessionState,
-  'browserTabsByWorktree' | 'browserPagesByWorkspace' | 'activeBrowserTabIdByWorktree'
-> {
-  return {
-    // Why: browser tabs persist only lightweight chrome state. Live guest
-    // webContents are recreated on restore, so loading is reset to false and
-    // transient errors are preserved only as last-known tab metadata.
-    browserTabsByWorktree: buildPersistedBrowserTabsByWorktree(browserTabsByWorktree),
-    browserPagesByWorkspace: buildPersistedBrowserPagesByWorkspace(browserPagesByWorkspace),
-    activeBrowserTabIdByWorktree
-  }
-}
-
-export function buildPersistedBrowserTabsByWorktree(
-  browserTabsByWorktree: Record<string, BrowserWorkspace[]>
-): WorkspaceSessionState['browserTabsByWorktree'] {
-  return Object.fromEntries(
-    Object.entries(browserTabsByWorktree).map(([worktreeId, tabs]) => [
-      worktreeId,
-      tabs.map((tab) => ({ ...tab, loading: false }))
-    ])
-  )
-}
-
-export function buildPersistedBrowserPagesByWorkspace(
-  browserPagesByWorkspace: Record<string, BrowserPage[]>
-): WorkspaceSessionState['browserPagesByWorkspace'] {
-  return Object.fromEntries(
-    Object.entries(browserPagesByWorkspace).map(([workspaceId, pages]) => [
-      workspaceId,
-      pages.map((page) => ({ ...page, loading: false }))
-    ])
-  )
 }
 
 export function buildSanitizedTabsByWorktree(
@@ -357,6 +321,7 @@ export function buildWorkspaceSessionPayload(
       snapshot.browserPagesByWorkspace,
       snapshot.activeBrowserTabIdByWorktree
     ),
+    ...buildCodeServerSessionData(snapshot),
     // Why: browser history is user-lifetime state. Enforce the storage cap at
     // the payload boundary so stale renderer state cannot make every session
     // write stringify an oversized legacy history array.

@@ -98,10 +98,17 @@ const tabContentTypeSchema = z.enum([
   'conflict-review',
   'check-details',
   'browser',
-  'simulator'
+  'simulator',
+  'vscode'
 ])
 
-const workspaceVisibleTabTypeSchema = z.enum(['terminal', 'editor', 'browser', 'simulator'])
+const workspaceVisibleTabTypeSchema = z.enum([
+  'terminal',
+  'editor',
+  'browser',
+  'simulator',
+  'vscode'
+])
 
 const tabSchema = z.object({
   id: z.string(),
@@ -229,6 +236,15 @@ const browserPageSchema = z.object({
   viewportPresetId: browserViewportPresetIdSchema.nullable().optional()
 })
 
+// ─── Code Server (embedded VS Code) ──────────────────────────────────
+
+const codeServerTabSchema = z.object({
+  id: z.string(),
+  worktreeId: z.string(),
+  folderPath: z.string(),
+  label: z.string()
+})
+
 const browserHistoryEntrySchema = z.object({
   url: z.string(),
   normalizedUrl: z.string(),
@@ -257,6 +273,8 @@ export const workspaceSessionStateSchema: z.ZodType<WorkspaceSessionState> = z.o
   browserTabsByWorktree: z.record(z.string(), z.array(browserWorkspaceSchema)).optional(),
   browserPagesByWorkspace: z.record(z.string(), z.array(browserPageSchema)).optional(),
   activeBrowserTabIdByWorktree: z.record(z.string(), z.string().nullable()).optional(),
+  codeServerTabsByWorktree: z.record(z.string(), z.array(codeServerTabSchema)).optional(),
+  activeCodeServerTabIdByWorktree: z.record(z.string(), z.string().nullable()).optional(),
   activeTabTypeByWorktree: z.record(z.string(), workspaceVisibleTabTypeSchema).optional(),
   browserUrlHistory: browserHistoryEntriesSchema.optional(),
   activeTabIdByWorktree: z.record(z.string(), z.string().nullable()).optional(),

@@ -54,6 +54,8 @@ const FIELD_OWNERSHIP = {
   openFilesByWorktree: 'worktreeKeyed',
   activeFileIdByWorktree: 'worktreeKeyed',
   activeBrowserTabIdByWorktree: 'worktreeKeyed',
+  codeServerTabsByWorktree: 'worktreeKeyed',
+  activeCodeServerTabIdByWorktree: 'worktreeKeyed',
   activeTabTypeByWorktree: 'worktreeKeyed',
   activeTabIdByWorktree: 'worktreeKeyed',
   browserTabsByWorktree: 'worktreeKeyed',

@@ -21,6 +21,8 @@ describe('SESSION_RELEVANT_FIELDS', () => {
     browserTabsByWorktree: true,
     browserPagesByWorkspace: true,
     activeBrowserTabIdByWorktree: true,
+    codeServerTabsByWorktree: true,
+    activeCodeServerTabIdByWorktree: true,
     browserUrlHistory: true,
     unifiedTabsByWorktree: true,
     groupsByWorktree: true,

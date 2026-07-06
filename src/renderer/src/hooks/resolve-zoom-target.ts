@@ -12,7 +12,7 @@ export function resolveZoomTarget(args: {
     | 'space'
     | 'skills'
     | 'mobile'
-  activeTabType: 'terminal' | 'editor' | 'browser' | 'simulator'
+  activeTabType: 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode'
   activeElement: unknown
 }): 'terminal' | 'editor' | 'simulator' | 'ui' {
   const { activeView, activeTabType, activeElement } = args
@@ -48,7 +48,9 @@ export function resolveZoomTarget(args: {
   }
   // Why: keyboard/menu zoom in an active browser tab belongs to Orca chrome.
   // Browser page zoom has a dedicated route for wheel and page-specific IPC.
-  if (activeTabType === 'browser') {
+  // The embedded VS Code pane is the same kind of webview-hosted surface —
+  // its own UI owns zoom, so Orca's terminal/editor zoom must not apply.
+  if (activeTabType === 'browser' || activeTabType === 'vscode') {
     return 'ui'
   }
   if (activeTabType === 'editor' || editorFocused) {
