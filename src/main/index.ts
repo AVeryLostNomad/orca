@@ -138,6 +138,7 @@ import {
 import { AgentBrowserBridge } from './browser/agent-browser-bridge'
 import { EmulatorBridge } from './emulator/emulator-bridge'
 import { serveSimStateWatcher } from './emulator/serve-sim-state-watcher'
+import { getCodeServerService } from './code-server/code-server-service'
 import { browserManager } from './browser/browser-manager'
 import { OffscreenBrowserBackend } from './browser/offscreen-browser-backend'
 import { initializeBrowserSessionsForApp } from './browser/browser-session-startup'
@@ -2191,6 +2192,7 @@ app.on('will-quit', (e) => {
   runtime?.getOffscreenBrowserBackend()?.destroyAll?.()
   const emulatorShutdown = runtime?.getEmulatorBridge()?.destroyAllSessions() ?? Promise.resolve()
   serveSimStateWatcher.stop()
+  const codeServerShutdown = getCodeServerService().shutdown()
   killAllPty()
   const watcherShutdown = shutdownWatchersOnce()
   store?.flush()
@@ -2241,7 +2243,13 @@ app.on('will-quit', (e) => {
     // Why: normal quits preserve the detached daemon for warm reattach, but a
     // dev parent dying means the temp/dev profile has no owner left to reattach.
     const daemonTeardown = isDevParentShutdownRequested() ? shutdownDaemon() : disconnectDaemon()
-    Promise.allSettled([daemonTeardown, rpcStopAndClear, watcherShutdown, emulatorShutdown])
+    Promise.allSettled([
+      daemonTeardown,
+      rpcStopAndClear,
+      watcherShutdown,
+      emulatorShutdown,
+      codeServerShutdown
+    ])
       .then(() => shutdownTelemetry())
       .then(() => shutdownObservability())
       .catch(() => {

@@ -63,6 +63,10 @@ describe('BrowserSessionRegistry', () => {
     expect(browserSessionRegistry.isAllowedPartition('persist:evil-partition')).toBe(false)
   })
 
+  it('allows the dedicated code-server partition', () => {
+    expect(browserSessionRegistry.isAllowedPartition('persist:orca-vscode')).toBe(true)
+  })
+
   it('creates an isolated profile with a unique partition', () => {
     const profile = browserSessionRegistry.createProfile('isolated', 'Test Isolated')
     expect(profile).not.toBeNull()

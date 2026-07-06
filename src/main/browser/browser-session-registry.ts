@@ -15,7 +15,7 @@ import {
   writeFileSync
 } from 'node:fs'
 import { join } from 'node:path'
-import { ORCA_BROWSER_PARTITION } from '../../shared/constants'
+import { ORCA_BROWSER_PARTITION, ORCA_VSCODE_PARTITION } from '../../shared/constants'
 import type { BrowserSessionProfile, BrowserSessionProfileScope } from '../../shared/types'
 import { browserManager } from './browser-manager'
 import { hasSystemMediaAccess, requestSystemMediaAccess } from './browser-media-access'
@@ -170,6 +170,10 @@ class BrowserSessionRegistry {
     // are denied by default in the default browser partition.
     this.setupSessionPolicies(ORCA_BROWSER_PARTITION)
 
+    // Configure permission/download policies for the code-server partition so the
+    // guest loads with the same hardening as browser sessions.
+    this.setupSessionPolicies(ORCA_VSCODE_PARTITION)
+
     const partitions = new Set([
       ORCA_BROWSER_PARTITION,
       ...this.listProfiles().map((p) => p.partition)
@@ -314,6 +318,10 @@ class BrowserSessionRegistry {
 
   isAllowedPartition(partition: string): boolean {
     if (partition === ORCA_BROWSER_PARTITION) {
+      return true
+    }
+    // Embedded code-server runs in its own fixed partition (not a browser profile).
+    if (partition === ORCA_VSCODE_PARTITION) {
       return true
     }
     return [...this.profiles.values()].some((p) => p.partition === partition)
