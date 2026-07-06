@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-server-types'
 import { ensureCodeServerInstalled } from './code-server-installer'
 import { linkVsCodeUserSettings } from './code-server-vscode-settings-link'
+import { disableExtensionSignatureVerification } from './code-server-signature-verification'
 import {
   getCodeServerExtensionsDir,
   getCodeServerPidFilePath,
@@ -161,6 +162,9 @@ export class CodeServerManager implements CodeServerProvider {
         )
       }
       await linkVsCodeUserSettings()
+      // Open VSX + macOS standalone can't verify extension signatures; default
+      // the check off for the embedded editor so extension installs work.
+      await disableExtensionSignatureVerification()
       const port = await this.startProcess()
       return { port }
     } catch (error) {

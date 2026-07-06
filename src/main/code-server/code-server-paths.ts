@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 // Pinned code-server release. Bump manually via PR; verify latest stable at
 // https://github.com/coder/code-server/releases before changing.
@@ -35,6 +35,19 @@ export function resolveCodeServerExecutable(): string | null {
     join(root, 'bin', 'code-server')
   ]
   return candidates.find((candidate) => existsSync(candidate)) ?? null
+}
+
+// code-server's bundled VS Code product.json lives one level up from the
+// executable's bin/ dir (…/code-server-<version>/lib/vscode/product.json).
+// Used to apply distribution-scoped configuration defaults to the embedded
+// editor without touching the user's real settings.json.
+export function resolveCodeServerProductJson(): string | null {
+  const exe = resolveCodeServerExecutable()
+  if (!exe) {
+    return null
+  }
+  const productJson = join(dirname(exe), '..', 'lib', 'vscode', 'product.json')
+  return existsSync(productJson) ? productJson : null
 }
 
 // Vendored copy of code-server's official install.sh, shipped via extraResources.
