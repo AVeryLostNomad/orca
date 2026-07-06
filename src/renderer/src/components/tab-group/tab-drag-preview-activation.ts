@@ -57,6 +57,18 @@ function previewActiveSurfacePatch(
       activeTabTypeByWorktree: nextActiveTabTypeByWorktree('simulator')
     }
   }
+  // Why: vscode mirrors browser — point the active surface at the code-server
+  // tab, not the editor, so a drag preview doesn't transiently show the editor.
+  if (unifiedTab.contentType === 'vscode') {
+    return {
+      activeTabType: 'vscode',
+      activeCodeServerTabIdByWorktree: {
+        ...state.activeCodeServerTabIdByWorktree,
+        [worktreeId]: unifiedTab.entityId
+      },
+      activeTabTypeByWorktree: nextActiveTabTypeByWorktree('vscode')
+    }
+  }
   return {
     activeFileId: unifiedTab.entityId,
     activeTabType: 'editor',

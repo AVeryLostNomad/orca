@@ -22,6 +22,16 @@ export function registerCodeServerHandlers(): void {
     }
   })
 
+  // Non-refcounting re-drive for the pane's Retry button; acquire already ran on
+  // mount, so retrying must not take a second ref (see CodeServerManager.retry).
+  ipcMain.handle('codeServer:retry', async () => {
+    try {
+      return await service.retry()
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
   ipcMain.handle('codeServer:release', () => {
     service.release()
   })

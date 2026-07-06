@@ -4,6 +4,7 @@ const { handleMock, serviceMock } = vi.hoisted(() => ({
   handleMock: vi.fn(),
   serviceMock: {
     acquire: vi.fn(),
+    retry: vi.fn(),
     release: vi.fn(),
     getStatus: vi.fn(() => ({ status: 'stopped', port: null })),
     onStatusChanged: vi.fn(() => () => {})
@@ -30,6 +31,7 @@ describe('registerCodeServerHandlers', () => {
   beforeEach(() => {
     handleMock.mockReset()
     serviceMock.acquire.mockReset()
+    serviceMock.retry.mockReset()
     registerCodeServerHandlers()
   })
 
@@ -43,6 +45,19 @@ describe('registerCodeServerHandlers', () => {
     serviceMock.acquire.mockRejectedValue(new Error('offline'))
     const result = await getHandler('codeServer:ensureRunning')({})
     expect(result).toEqual({ error: 'offline' })
+  })
+
+  it('re-drives the start on retry without acquiring a ref', async () => {
+    serviceMock.retry.mockResolvedValue({ port: 6666 })
+    const result = await getHandler('codeServer:retry')({})
+    expect(result).toEqual({ port: 6666 })
+    expect(serviceMock.acquire).not.toHaveBeenCalled()
+  })
+
+  it('returns a structured error when retry throws', async () => {
+    serviceMock.retry.mockRejectedValue(new Error('still offline'))
+    const result = await getHandler('codeServer:retry')({})
+    expect(result).toEqual({ error: 'still offline' })
   })
 
   it('releases on request', async () => {

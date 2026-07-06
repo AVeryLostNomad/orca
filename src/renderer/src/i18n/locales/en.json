@@ -12376,6 +12376,19 @@
         "contextMenu": {
           "copy": "Copy"
         }
+      },
+      "code": {
+        "server": {
+          "pane": {
+            "CodeServerPane": {
+              "6f17119460": "Starting VS Code…",
+              "3d3fe86c25": "Manual install instructions",
+              "1d7589e99e": "Retry",
+              "4a8a282725": "Installing VS Code…",
+              "231da812b0": "code-server failed to load."
+            }
+          }
+        }
       }
     },
     "i18n": {

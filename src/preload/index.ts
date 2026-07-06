@@ -4182,6 +4182,8 @@ const api = {
   codeServer: {
     ensureRunning: (): Promise<{ port: number } | { error: string }> =>
       ipcRenderer.invoke('codeServer:ensureRunning'),
+    retry: (): Promise<{ port: number } | { error: string }> =>
+      ipcRenderer.invoke('codeServer:retry'),
     release: (): Promise<void> => ipcRenderer.invoke('codeServer:release'),
     getStatus: (): Promise<CodeServerStatusEvent> => ipcRenderer.invoke('codeServer:getStatus'),
     onStatusChanged: (callback: (event: CodeServerStatusEvent) => void): (() => void) => {

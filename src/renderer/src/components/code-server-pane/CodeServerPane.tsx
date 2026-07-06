@@ -8,11 +8,11 @@ import {
   destroyCodeServerWebview,
   ensureCodeServerWebview
 } from './code-server-webview'
+import { translate } from '@/i18n/i18n'
 
 type Props = {
   codeServerTabId: string
   worktreeId: string
-  isActive: boolean
 }
 
 export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): React.JSX.Element {
@@ -71,7 +71,14 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
       if (event.isMainFrame === false || event.errorCode === -3) {
         return
       }
-      setStatus({ status: 'error', port: status.port, error: 'code-server failed to load.' })
+      setStatus({
+        status: 'error',
+        port: status.port,
+        error: translate(
+          'auto.components.code.server.pane.CodeServerPane.231da812b0',
+          'code-server failed to load.'
+        )
+      })
     }
     webview.addEventListener('did-fail-load', handleFailLoad)
     // Recompute on every ready transition (not just webview creation) so a
@@ -87,7 +94,10 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
   }, [status, tab, codeServerTabId])
 
   const retry = (): void => {
-    void window.api.codeServer.ensureRunning().then((result) => {
+    // Non-refcounting re-drive: the mount effect already acquired one ref, so
+    // reusing ensureRunning here would inflate refCount and keep the shared
+    // server alive after the last vscode tab closes.
+    void window.api.codeServer.retry().then((result) => {
       if ('error' in result) {
         setStatus({ status: 'error', port: null, error: result.error })
       }
@@ -103,7 +113,11 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
           {status.status === 'installing' ? (
             <div className="flex w-48 flex-col items-center gap-2">
               <span className="text-sm">
-                Installing VS Code… {Math.round((status.progress ?? 0) * 100)}%
+                {translate(
+                  'auto.components.code.server.pane.CodeServerPane.4a8a282725',
+                  'Installing VS Code…'
+                )}{' '}
+                {Math.round((status.progress ?? 0) * 100)}%
               </span>
               <Progress value={Math.round((status.progress ?? 0) * 100)} className="h-1.5" />
             </div>
@@ -112,7 +126,7 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
               <SquareCode className="size-8" />
               <span>{status.error ?? 'Something went wrong.'}</span>
               <button className="underline" onClick={retry}>
-                Retry
+                {translate('auto.components.code.server.pane.CodeServerPane.1d7589e99e', 'Retry')}
               </button>
               <a
                 className="text-xs underline"
@@ -120,13 +134,21 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
                 target="_blank"
                 rel="noreferrer"
               >
-                Manual install instructions
+                {translate(
+                  'auto.components.code.server.pane.CodeServerPane.3d3fe86c25',
+                  'Manual install instructions'
+                )}
               </a>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <Loader2 className="size-4 animate-spin" />
-              <span className="text-sm">Starting VS Code…</span>
+              <span className="text-sm">
+                {translate(
+                  'auto.components.code.server.pane.CodeServerPane.6f17119460',
+                  'Starting VS Code…'
+                )}
+              </span>
             </div>
           )}
         </div>

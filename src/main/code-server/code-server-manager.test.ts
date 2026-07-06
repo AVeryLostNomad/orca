@@ -149,4 +149,34 @@ describe('acquire single-flight', () => {
     expect(first).toEqual({ port: 4999 })
     expect(second).toEqual({ port: 4999 })
   })
+
+  it('retry does not take a ref, so one release after acquire+retry stops the server', async () => {
+    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
+    vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
+    vi.mocked(linkVsCodeUserSettings).mockResolvedValue(undefined)
+    primeSuccessfulStart(4998)
+
+    const fs = await import('node:fs')
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
+    vi.spyOn(fs, 'rmSync').mockImplementation(() => {})
+
+    const killMock = vi.fn()
+    spawnMock.mockImplementation(() => ({
+      pid: 4242,
+      killed: false,
+      stderr: { on: vi.fn() },
+      on: vi.fn(),
+      removeAllListeners: vi.fn(),
+      kill: killMock
+    }))
+
+    const manager = new CodeServerManager()
+    await manager.acquire() // pane mount: refCount 0 -> 1
+    await manager.retry() // Retry button: must NOT inflate refCount
+    manager.release() // pane unmount: refCount 1 -> 0 stops the server
+
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    expect(killMock).toHaveBeenCalledTimes(1)
+  })
 })

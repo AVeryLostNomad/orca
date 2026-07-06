@@ -99,6 +99,14 @@ export function activateTabNumberShortcut(index: number): boolean {
     return true
   }
 
+  // Why: vscode mirrors browser — activate the code-server tab surface, not the
+  // editor. Falling through would set activeFileId to the vscode tab id.
+  if (target.contentType === 'vscode') {
+    store.setActiveCodeServerTab(target.entityId)
+    store.setActiveTabType('vscode')
+    return true
+  }
+
   store.setActiveFile(target.entityId)
   store.setActiveTabType('editor')
   return true

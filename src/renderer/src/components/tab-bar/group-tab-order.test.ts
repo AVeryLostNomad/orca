@@ -63,6 +63,21 @@ function simulatorTab(id: string, groupId: string, sortOrder: number): Tab {
   }
 }
 
+function codeServerTab(id: string, groupId: string, entityId: string, sortOrder: number): Tab {
+  return {
+    id,
+    entityId,
+    groupId,
+    worktreeId: 'wt',
+    contentType: 'vscode',
+    label: 'VS Code',
+    customLabel: null,
+    color: null,
+    sortOrder,
+    createdAt: sortOrder
+  }
+}
+
 describe('getGroupVisibleTabOrder', () => {
   it('returns active-group refs with backing ids plus unified tab ids', () => {
     const group: TabGroup = {
@@ -188,6 +203,48 @@ describe('getGroupVisibleTabOrder', () => {
       { type: 'editor', id: '/repo/file.md', tabId: 'tab-e1' }
     ])
   })
+
+  it('includes vscode tabs keyed by entity id (mirroring browser) in the declared group order', () => {
+    const group: TabGroup = {
+      id: 'g1',
+      worktreeId: 'wt',
+      activeTabId: 'tab-v1',
+      tabOrder: ['tab-t1', 'tab-v1', 'tab-e1']
+    }
+    const tabs: Tab[] = [
+      terminalTab('tab-t1', 'g1', 'term-1', 0),
+      codeServerTab('tab-v1', 'g1', 'cs-1', 1),
+      editorTab('tab-e1', 'g1', '/repo/file.md', 2)
+    ]
+    expect(
+      getGroupVisibleTabOrder(
+        group,
+        tabs,
+        new Set(['term-1']),
+        new Set(['/repo/file.md']),
+        new Set(),
+        new Set(),
+        new Set(['cs-1'])
+      )
+    ).toEqual([
+      { type: 'terminal', id: 'term-1', tabId: 'tab-t1' },
+      { type: 'vscode', id: 'cs-1', tabId: 'tab-v1' },
+      { type: 'editor', id: '/repo/file.md', tabId: 'tab-e1' }
+    ])
+  })
+
+  it('drops a vscode tab whose backing entity is absent', () => {
+    const group: TabGroup = {
+      id: 'g1',
+      worktreeId: 'wt',
+      activeTabId: 'tab-v1',
+      tabOrder: ['tab-v1']
+    }
+    const tabs: Tab[] = [codeServerTab('tab-v1', 'g1', 'cs-gone', 0)]
+    expect(
+      getGroupVisibleTabOrder(group, tabs, new Set(), new Set(), new Set(), new Set(), new Set())
+    ).toEqual([])
+  })
 })
 
 type NavState = Pick<
@@ -281,6 +338,32 @@ describe('getActiveTabNavOrder', () => {
 
     expect(getActiveTabNavOrder(state, 'wt')).toEqual([
       { type: 'editor', id: '/repo/file.md', tabId: 'tab-e1' },
+      { type: 'terminal', id: 'term-1', tabId: 'tab-t1' }
+    ])
+  })
+
+  it('derives vscode entries from unified tabs (default codeServerIds) for the active group', () => {
+    const group: TabGroup = {
+      id: 'g1',
+      worktreeId: 'wt',
+      activeTabId: 'tab-v1',
+      tabOrder: ['tab-v1', 'tab-t1']
+    }
+    const tabs: Tab[] = [
+      codeServerTab('tab-v1', 'g1', 'cs-1', 0),
+      terminalTab('tab-t1', 'g1', 'term-1', 1)
+    ]
+    const state = makeState({
+      activeGroupIdByWorktree: { wt: 'g1' },
+      groupsByWorktree: { wt: [group] },
+      unifiedTabsByWorktree: { wt: tabs },
+      tabsByWorktree: {
+        // @ts-expect-error — minimal shape for terminal presence only
+        wt: [{ id: 'term-1' }]
+      }
+    })
+    expect(getActiveTabNavOrder(state, 'wt')).toEqual([
+      { type: 'vscode', id: 'cs-1', tabId: 'tab-v1' },
       { type: 'terminal', id: 'term-1', tabId: 'tab-t1' }
     ])
   })

@@ -34,7 +34,6 @@ type CodeServerOverlaySlotProps = {
   // the editor would leave `activeGroupIdByWorktree` stale — so the slot
   // re-implements that focus sync directly, targeting the owning group.
   onFocusOwningGroup: ((groupId: string) => void) | undefined
-  isWorktreeActive: boolean
 }
 
 // Why: each overlay slot is memoized so its CodeServerPane subtree only
@@ -100,11 +99,7 @@ const CodeServerOverlaySlot = memo(function CodeServerOverlaySlot({
           call CodeServerPane's release() and destroy the editor guest; a hidden
           worktree already display:none's the whole surface, so the mounted pane
           simply isn't painted and the guest survives. Mount == tab open. */}
-      <CodeServerPane
-        codeServerTabId={codeServerTab.id}
-        worktreeId={codeServerTab.worktreeId}
-        isActive={isActive}
-      />
+      <CodeServerPane codeServerTabId={codeServerTab.id} worktreeId={codeServerTab.worktreeId} />
     </div>
   )
 })
@@ -173,7 +168,6 @@ const CodeServerPaneOverlayLayer = memo(function CodeServerPaneOverlayLayer({
             groupId={assignment?.groupId}
             isActive={isActive}
             onFocusOwningGroup={focusOwningGroup}
-            isWorktreeActive={isWorktreeActive}
           />
         )
       })}

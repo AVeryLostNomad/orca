@@ -74,6 +74,14 @@ export function activateCyclableTab(store: AppStoreState, next: TypeCyclableTab)
       store.activateTab?.(next.tabId)
     }
     store.setActiveTabType('simulator')
+  } else if (next.type === 'vscode') {
+    // Why: vscode mirrors browser — activate the code-server tab surface; the
+    // editor else would set activeFileId to the code-server tab id.
+    store.setActiveCodeServerTab(next.id)
+    if (next.tabId) {
+      store.activateTab?.(next.tabId)
+    }
+    store.setActiveTabType('vscode')
   } else {
     // Why: `setActiveFile` targets the file entity (its implicit activateTab
     // picks the first matching tab in the active group); `activateTab(tabId)`

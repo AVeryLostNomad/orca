@@ -2977,6 +2977,7 @@ export type PreloadApi = {
   }
   codeServer: {
     ensureRunning: () => Promise<{ port: number } | { error: string }>
+    retry: () => Promise<{ port: number } | { error: string }>
     release: () => Promise<void>
     getStatus: () => Promise<CodeServerStatusEvent>
     onStatusChanged: (callback: (event: CodeServerStatusEvent) => void) => () => void

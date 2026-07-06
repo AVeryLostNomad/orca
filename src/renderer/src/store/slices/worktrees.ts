@@ -277,8 +277,15 @@ function areDetectedWorktreeResultsEqual(
   )
 }
 
-function toVisibleTabType(contentType: string): WorkspaceVisibleTabType {
-  if (contentType === 'browser' || contentType === 'terminal' || contentType === 'simulator') {
+// Exported for unit coverage: vscode must round-trip to 'vscode' on session
+// restore, not collapse to 'editor' (the else branch).
+export function toVisibleTabType(contentType: string): WorkspaceVisibleTabType {
+  if (
+    contentType === 'browser' ||
+    contentType === 'terminal' ||
+    contentType === 'simulator' ||
+    contentType === 'vscode'
+  ) {
     return contentType
   }
   return 'editor'

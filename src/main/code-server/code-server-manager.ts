@@ -73,6 +73,7 @@ function probeHealthz(port: number): Promise<boolean> {
 
 export type CodeServerProvider = {
   acquire(): Promise<{ port: number }>
+  retry(): Promise<{ port: number }>
   release(): void
   getStatus(): CodeServerStatusEvent
   onStatusChanged(cb: (e: CodeServerStatusEvent) => void): () => void
@@ -129,6 +130,23 @@ export class CodeServerManager implements CodeServerProvider {
       this.refCount = Math.max(0, this.refCount - 1)
       throw error
     }
+  }
+
+  // Re-drive a start after a failure WITHOUT taking a ref. The pane already
+  // holds exactly one ref from mount; a second acquire here would inflate
+  // refCount so release() never reaches 0 and the shared server would never
+  // stop when the last vscode tab closes. Shares the single-flight guard so a
+  // concurrent acquire and retry don't spawn two children.
+  async retry(): Promise<{ port: number }> {
+    if (this.child && this.port && this.status === 'ready') {
+      return { port: this.port }
+    }
+    if (!this.starting) {
+      this.starting = this.startSequence().finally(() => {
+        this.starting = null
+      })
+    }
+    return this.starting
   }
 
   private async startSequence(): Promise<{ port: number }> {
