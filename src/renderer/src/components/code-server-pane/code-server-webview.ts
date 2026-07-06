@@ -1,8 +1,11 @@
 import { ORCA_BROWSER_GUEST_WEB_PREFERENCES_ATTRIBUTE } from '../../../../shared/browser-guest-web-preferences'
 import { ORCA_VSCODE_PARTITION } from '../../../../shared/constants'
 
-// Keyed by code-server tab id — keeps the guest alive across tab switches so
-// editor state survives (like the browser registry, but code-server-scoped).
+// Keyed by code-server tab id, so the pane can re-attach the same guest
+// element across re-renders. The guest is destroyed when the tab's pane
+// unmounts (tab close) — persistence across tab switches instead depends on
+// the pane staying mounted while its tab is open (a mount-strategy concern
+// owned by the tab host, not this registry).
 const codeServerWebviewRegistry = new Map<string, Electron.WebviewTag>()
 
 export function buildCodeServerUrl(port: number, folderPath: string): string {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { SquareCode } from 'lucide-react'
+import { Loader2, SquareCode } from 'lucide-react'
 import { useAppStore } from '../../store'
 import type { CodeServerStatusEvent } from '../../../../shared/code-server-types'
+import { Progress } from '../ui/progress'
 import {
   buildCodeServerUrl,
   destroyCodeServerWebview,
@@ -21,6 +22,10 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
   )
   const setCodeServerStatus = useAppStore((s) => s.setCodeServerStatus)
   const [status, setStatus] = useState<CodeServerStatusEvent>({ status: 'starting', port: null })
+  // Tracks the URL last written to webview.src so a crash-restart on a new
+  // port (ready -> error -> ready) reloads the webview without thrashing
+  // src on unrelated re-renders that resolve to the same URL.
+  const lastAppliedUrlRef = useRef<string | null>(null)
 
   // Subscribe to lifecycle changes + mirror into the store.
   useEffect(() => {
@@ -61,7 +66,7 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
     if (!ensured) {
       return
     }
-    const { webview, created } = ensured
+    const { webview } = ensured
     const handleFailLoad = (event: { errorCode?: number; isMainFrame?: boolean }): void => {
       if (event.isMainFrame === false || event.errorCode === -3) {
         return
@@ -69,8 +74,12 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
       setStatus({ status: 'error', port: status.port, error: 'code-server failed to load.' })
     }
     webview.addEventListener('did-fail-load', handleFailLoad)
-    if (created) {
-      webview.src = buildCodeServerUrl(status.port, tab.folderPath)
+    // Recompute on every ready transition (not just webview creation) so a
+    // shared-server crash-restart on a different port is picked up here.
+    const targetUrl = buildCodeServerUrl(status.port, tab.folderPath)
+    if (lastAppliedUrlRef.current !== targetUrl) {
+      webview.src = targetUrl
+      lastAppliedUrlRef.current = targetUrl
     }
     return () => {
       webview.removeEventListener('did-fail-load', handleFailLoad)
@@ -91,11 +100,16 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
         <div ref={containerRef} className="flex flex-1" />
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
-          <SquareCode className="size-8" />
           {status.status === 'installing' ? (
-            <span>Installing VS Code… {Math.round((status.progress ?? 0) * 100)}%</span>
+            <div className="flex w-48 flex-col items-center gap-2">
+              <span className="text-sm">
+                Installing VS Code… {Math.round((status.progress ?? 0) * 100)}%
+              </span>
+              <Progress value={Math.round((status.progress ?? 0) * 100)} className="h-1.5" />
+            </div>
           ) : status.status === 'error' ? (
             <div className="flex flex-col items-center gap-2">
+              <SquareCode className="size-8" />
               <span>{status.error ?? 'Something went wrong.'}</span>
               <button className="underline" onClick={retry}>
                 Retry
@@ -110,7 +124,10 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
               </a>
             </div>
           ) : (
-            <span>Starting VS Code…</span>
+            <div className="flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" />
+              <span className="text-sm">Starting VS Code…</span>
+            </div>
           )}
         </div>
       )}
