@@ -8,6 +8,7 @@ import {
   resolveCodeServerExecutable,
   resolveCodeServerInstallScript
 } from './code-server-paths'
+import { adhocSignBundledBinaries } from './code-server-macos-codesign'
 
 export type InstallProgress = (fraction: number) => void
 
@@ -144,6 +145,10 @@ async function runInstall(onProgress?: InstallProgress): Promise<string> {
       xattr.on('error', () => resolvePromise())
       xattr.on('close', () => resolvePromise())
     })
+    // Ad-hoc sign the bundled binaries before their first launch so macOS's
+    // online Gatekeeper notarization assessment can't freeze code-server's
+    // startup for ~120s on Apple Silicon. See code-server-macos-codesign.ts.
+    await adhocSignBundledBinaries(realRoot)
   }
 
   onProgress?.(1)
