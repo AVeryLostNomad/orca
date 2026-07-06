@@ -10,6 +10,7 @@ export type TabCreateMenuOptionKind =
   | 'new-simulator'
   | 'new-terminal'
   | 'new-terminal-shell'
+  | 'new-vscode'
   | 'open-markdown'
 
 export type TabCreateMenuOption = {
@@ -25,6 +26,9 @@ export type TabCreateMenuOptionsContext = {
   hasNewMarkdown: boolean
   hasOpenMarkdown: boolean
   hasSimulator: boolean
+  // Only the fully-enabled (local + mac/linux) case is searchable; the remote
+  // disabled entry lives solely in the directly-rendered dropdown, never here.
+  hasNewVSCode?: boolean
   simulatorIsGoTo: boolean
   terminalOnly: boolean
   windowsShellEntries?: readonly { label: string; shell: BuiltInWindowsTerminalShell }[]
@@ -110,6 +114,23 @@ export function buildTabCreateMenuOptions(
         translate('auto.components.tab.bar.tab.create.menu.options.6d0e6a4b7a', 'new browser'),
         translate('auto.components.tab.bar.tab.create.menu.options.c87ad57785', 'browser tab'),
         translate('auto.components.tab.bar.tab.create.menu.options.cce7ef1d2c', 'web')
+      ]
+    })
+  }
+
+  if (context.hasNewVSCode) {
+    options.push({
+      id: 'new-vscode',
+      kind: 'new-vscode',
+      label: translate(
+        'auto.components.tab.bar.tab.create.menu.options.newVscode',
+        'New VSCode Tab'
+      ),
+      keywords: [
+        translate('auto.components.tab.bar.tab.create.menu.options.vscode', 'vscode'),
+        translate('auto.components.tab.bar.tab.create.menu.options.vsCode', 'vs code'),
+        translate('auto.components.tab.bar.tab.create.menu.options.code', 'code'),
+        translate('auto.components.tab.bar.tab.create.menu.options.editor', 'editor')
       ]
     })
   }

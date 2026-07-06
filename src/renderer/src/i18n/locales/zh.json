@@ -2756,7 +2756,13 @@
                   "1baeb07c17": "iOS 模拟器",
                   "8a580f88cf": "iPhone",
                   "7ecdc5ef08": "iPad",
-                  "14965cc123": "移动端"
+                  "14965cc123": "移动端",
+                  "newVscode": "New VSCode Tab",
+                  "newVscodeRemoteDisabled": "VS Code is only available for local worktrees",
+                  "vscode": "vscode",
+                  "vsCode": "vs code",
+                  "code": "code",
+                  "editor": "editor"
                 }
               }
             }

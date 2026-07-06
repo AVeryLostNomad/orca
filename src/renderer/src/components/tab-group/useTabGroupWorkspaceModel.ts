@@ -29,7 +29,12 @@ import { openTabBarEntry, type TabCreateEntryArgs } from '../tab-bar/tab-create-
 import { openMobileEmulatorTab } from '@/lib/open-mobile-emulator-tab'
 import { ensureSimulatorTab, getSimulatorTabForWorktree } from '@/lib/ensure-simulator-tab'
 import { buildDuplicatedBrowserTabOptions } from '@/lib/duplicate-browser-tab-options'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import {
+  getExecutionHostIdForWorktree,
+  getRuntimeEnvironmentIdForWorktree
+} from '@/lib/worktree-runtime-owner'
+import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
 
 export function recordTerminalTabGroupSplit(createdTerminal: TerminalTab | null | undefined): void {
@@ -90,6 +95,7 @@ export function useTabGroupWorkspaceModel({
   const setActiveFile = useAppStore((state) => state.setActiveFile)
   const setActiveTabType = useAppStore((state) => state.setActiveTabType)
   const createBrowserTab = useAppStore((state) => state.createBrowserTab)
+  const createCodeServerTab = useAppStore((state) => state.createCodeServerTab)
   const openNewBrowserTabInActiveWorkspace = useAppStore(
     (state) => state.openNewBrowserTabInActiveWorkspace
   )
@@ -666,6 +672,22 @@ export function useTabGroupWorkspaceModel({
       createSplitGroup,
       newBrowserTab: () => {
         void openNewBrowserTabInActiveWorkspace(groupId)
+      },
+      newVSCodeTab: () => {
+        const state = useAppStore.getState()
+        const platform = getRendererAppPlatform()
+        // Real safety boundary: code-server only runs against local checkouts
+        // on mac/linux (menu gating is just UX; SSH/remote case included).
+        const isLocal = getExecutionHostIdForWorktree(state, worktreeId) === LOCAL_EXECUTION_HOST_ID
+        if (!isLocal || (platform !== 'darwin' && platform !== 'linux')) {
+          return
+        }
+        const worktree = state.getKnownWorktreeById(worktreeId)
+        const folderPath = worktree?.path
+        if (!folderPath) {
+          return
+        }
+        createCodeServerTab(worktreeId, folderPath, worktree.displayName ?? worktreeId)
       },
       newSimulatorTab: worktreeState.mobileEmulatorEnabled
         ? () => {

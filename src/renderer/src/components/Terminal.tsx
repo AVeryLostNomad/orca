@@ -106,7 +106,12 @@ import { useContextualTour } from './contextual-tours/use-contextual-tour'
 import { openTabBarEntry, type TabCreateEntryArgs } from './tab-bar/tab-create-entry-action'
 import { closeTerminalTab } from './terminal/terminal-tab-actions'
 import { translate } from '@/i18n/i18n'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import {
+  getExecutionHostIdForWorktree,
+  getRuntimeEnvironmentIdForWorktree
+} from '@/lib/worktree-runtime-owner'
+import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
 
 const EditorPanel = lazy(() => import('./editor/EditorPanel'))
@@ -251,6 +256,7 @@ function Terminal(): React.JSX.Element | null {
   const pinFile = useAppStore((s) => s.pinFile)
   const browserTabsByWorktree = useAppStore((s) => s.browserTabsByWorktree)
   const createBrowserTab = useAppStore((s) => s.createBrowserTab)
+  const createCodeServerTab = useAppStore((s) => s.createCodeServerTab)
   const openNewBrowserTabInActiveWorkspace = useAppStore(
     (s) => s.openNewBrowserTabInActiveWorkspace
   )
@@ -945,6 +951,27 @@ function Terminal(): React.JSX.Element | null {
       focusAddressBar: true
     })
   }, [activeWorktreeId, createBrowserTab, openNewBrowserTabInActiveWorkspace])
+
+  const handleNewVSCodeTab = useCallback(() => {
+    if (!activeWorktreeId) {
+      return
+    }
+    const state = useAppStore.getState()
+    const platform = getRendererAppPlatform()
+    // Real safety boundary (menu gating is just UX): code-server only runs
+    // against local checkouts on mac/linux, SSH/remote case included.
+    const isLocal =
+      getExecutionHostIdForWorktree(state, activeWorktreeId) === LOCAL_EXECUTION_HOST_ID
+    if (!isLocal || (platform !== 'darwin' && platform !== 'linux')) {
+      return
+    }
+    const worktree = state.getKnownWorktreeById(activeWorktreeId)
+    const folderPath = worktree?.path
+    if (!folderPath) {
+      return
+    }
+    createCodeServerTab(activeWorktreeId, folderPath, worktree.displayName ?? activeWorktreeId)
+  }, [activeWorktreeId, createCodeServerTab])
 
   const handleOpenEntry = useCallback(async (args: TabCreateEntryArgs) => {
     await openTabBarEntry(args)
@@ -1735,6 +1762,7 @@ function Terminal(): React.JSX.Element | null {
             onNewTerminalTab={() => handleNewTab()}
             onNewTerminalWithShell={handleNewTab}
             onNewBrowserTab={handleNewBrowserTab}
+            onNewVSCodeTab={handleNewVSCodeTab}
             onNewSimulatorTab={mobileEmulatorEnabled ? handleNewSimulatorTab : undefined}
             onOpenEntry={handleOpenEntry}
             onNewFileTab={handleNewFile}

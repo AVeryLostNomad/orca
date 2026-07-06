@@ -13,6 +13,7 @@ import {
   Globe,
   Plus,
   Smartphone,
+  SquareCode,
   TerminalSquare
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -50,7 +51,12 @@ import {
   useWindowsTerminalCapabilities
 } from '@/lib/windows-terminal-capabilities'
 import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import {
+  getExecutionHostIdForWorktree,
+  getRuntimeEnvironmentIdForWorktree
+} from '@/lib/worktree-runtime-owner'
+import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { useOptionalShortcutLabel, useShortcutLabel } from '@/hooks/useShortcutLabel'
 import {
@@ -118,6 +124,8 @@ type TabBarProps = {
   /** On Windows, opens a new terminal with a specific shell instead of the default. */
   onNewTerminalWithShell?: (shell: string) => void
   onNewBrowserTab: () => void
+  /** Absent for surfaces without a real local checkout (e.g. floating terminal). */
+  onNewVSCodeTab?: () => void
   onNewSimulatorTab?: () => void
   onOpenEntry?: (args: TabCreateEntryArgs) => Promise<void>
   terminalOnly?: boolean
@@ -263,6 +271,7 @@ function TabBarInner({
   onNewTerminalTab,
   onNewTerminalWithShell,
   onNewBrowserTab,
+  onNewVSCodeTab,
   onNewSimulatorTab,
   onOpenEntry,
   terminalOnly = false,
@@ -594,18 +603,36 @@ function TabBarInner({
     windowsTerminalCapabilities.gitBashAvailable,
     windowsTerminalCapabilities.wslAvailable
   ])
+  // Reactive so the gate updates if the worktree's execution host changes.
+  const isLocalWorktree = useAppStore(
+    (s) => getExecutionHostIdForWorktree(s, worktreeId) === LOCAL_EXECUTION_HOST_ID
+  )
+  // VSCode (code-server) only runs against local checkouts on mac/linux; the
+  // platform + local-host checks are load-bearing (SSH/remote case included).
+  const vscodePlatformSupported =
+    getRendererAppPlatform() === 'darwin' || getRendererAppPlatform() === 'linux'
+  // Gate on the callback's presence too: surfaces without a real local checkout
+  // (e.g. the floating terminal) omit it, matching the file's Boolean(cb) pattern.
+  const hasNewVSCode =
+    !terminalOnly && vscodePlatformSupported && isLocalWorktree && Boolean(onNewVSCodeTab)
+  // mac/linux + remote worktree: show a disabled entry with an explanatory
+  // tooltip (never added to the searchable options list).
+  const vscodeRemoteDisabled =
+    !terminalOnly && vscodePlatformSupported && !isLocalWorktree && Boolean(onNewVSCodeTab)
   const createMenuOptions = useMemo(
     () =>
       buildTabCreateMenuOptions({
         terminalOnly,
         windowsShellEntries,
         hasNewBrowser: !terminalOnly,
+        hasNewVSCode,
         hasNewMarkdown: !terminalOnly && Boolean(onNewFileTab),
         hasOpenMarkdown: !terminalOnly && Boolean(onOpenFileTab),
         hasSimulator: !terminalOnly && mobileEmulatorEnabled && Boolean(onNewSimulatorTab),
         simulatorIsGoTo: workspaceHasSimulatorTab
       }),
     [
+      hasNewVSCode,
       mobileEmulatorEnabled,
       onNewFileTab,
       onNewSimulatorTab,
@@ -636,6 +663,9 @@ function TabBarInner({
         break
       case 'new-browser':
         onNewBrowserTab()
+        break
+      case 'new-vscode':
+        onNewVSCodeTab?.()
         break
       case 'new-markdown':
         onNewFileTab?.()
@@ -759,6 +789,40 @@ function TabBarInner({
       <DropdownMenuShortcut>{newBrowserShortcut}</DropdownMenuShortcut>
     </DropdownMenuItem>
   ) : null
+  const newVSCodeMenuItem = hasNewVSCode ? (
+    <DropdownMenuItem
+      onSelect={() => onNewVSCodeTab?.()}
+      className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+    >
+      <SquareCode className="size-4 text-muted-foreground" />
+      {translate('auto.components.tab.bar.tab.create.menu.options.newVscode', 'New VSCode Tab')}
+    </DropdownMenuItem>
+  ) : vscodeRemoteDisabled ? (
+    // Radix disabled items swallow pointer events, so the tooltip trigger wraps
+    // a hoverable span around the disabled item to keep the "why" affordance.
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <DropdownMenuItem
+            disabled
+            className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+          >
+            <SquareCode className="size-4 text-muted-foreground" />
+            {translate(
+              'auto.components.tab.bar.tab.create.menu.options.newVscode',
+              'New VSCode Tab'
+            )}
+          </DropdownMenuItem>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8} className="z-[80]">
+        {translate(
+          'auto.components.tab.bar.tab.create.menu.options.newVscodeRemoteDisabled',
+          'VS Code is only available for local worktrees'
+        )}
+      </TooltipContent>
+    </Tooltip>
+  ) : null
   const newSimulatorMenuItem =
     !terminalOnly && mobileEmulatorEnabled && onNewSimulatorTab ? (
       workspaceHasSimulatorTab ? (
@@ -830,6 +894,7 @@ function TabBarInner({
         {openMarkdownMenuItem}
         {defaultTerminalMenuItems}
         {newBrowserMenuItem}
+        {newVSCodeMenuItem}
         {newSimulatorMenuItem}
         {mobileEmulatorIntroMenuBlock}
       </>
@@ -837,6 +902,7 @@ function TabBarInner({
       <>
         {defaultTerminalMenuItems}
         {newBrowserMenuItem}
+        {newVSCodeMenuItem}
         {newMarkdownMenuItem}
         {openMarkdownMenuItem}
         {newSimulatorMenuItem}

@@ -2756,7 +2756,13 @@
                   "1baeb07c17": "iOS シミュレータ",
                   "8a580f88cf": "iPhone",
                   "7ecdc5ef08": "iPad",
-                  "14965cc123": "モバイル"
+                  "14965cc123": "モバイル",
+                  "newVscode": "New VSCode Tab",
+                  "newVscodeRemoteDisabled": "VS Code is only available for local worktrees",
+                  "vscode": "vscode",
+                  "vsCode": "vs code",
+                  "code": "code",
+                  "editor": "editor"
                 }
               }
             }

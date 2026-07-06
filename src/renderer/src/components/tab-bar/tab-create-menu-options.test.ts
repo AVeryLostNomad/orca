@@ -92,6 +92,30 @@ describe('tab create menu options', () => {
     ).toHaveLength(0)
   })
 
+  it('includes the VSCode option only when hasNewVSCode is true', () => {
+    const enabled = buildTabCreateMenuOptions({
+      terminalOnly: false,
+      hasNewBrowser: true,
+      hasNewMarkdown: false,
+      hasOpenMarkdown: false,
+      hasSimulator: false,
+      simulatorIsGoTo: false,
+      hasNewVSCode: true
+    })
+    expect(enabled.some((option) => option.kind === 'new-vscode')).toBe(true)
+
+    const disabled = buildTabCreateMenuOptions({
+      terminalOnly: false,
+      hasNewBrowser: true,
+      hasNewMarkdown: false,
+      hasOpenMarkdown: false,
+      hasSimulator: false,
+      simulatorIsGoTo: false,
+      hasNewVSCode: false
+    })
+    expect(disabled.some((option) => option.kind === 'new-vscode')).toBe(false)
+  })
+
   it('rejects oversized pasted queries before scoring menu options', () => {
     const oversizedQuery = 'secret-tab-create-menu'.repeat(TAB_CREATE_MENU_QUERY_MAX_BYTES)
     const option = {
