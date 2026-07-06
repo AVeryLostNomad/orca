@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as NodeFs from 'node:fs'
 
 const { existsSyncMock } = vi.hoisted(() => ({ existsSyncMock: vi.fn() }))
 
@@ -6,7 +7,7 @@ vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/userData') }
 }))
 vi.mock('node:fs', async (importOriginal) => {
-  const original = await importOriginal()
+  const original = await importOriginal<typeof NodeFs>()
   return {
     ...original,
     existsSync: existsSyncMock
