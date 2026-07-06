@@ -13,7 +13,12 @@ import {
   resolveCodeServerExecutable
 } from './code-server-paths'
 
-const READY_TIMEOUT_MS = 20_000
+// Generous safety cap, not the expected wait: a freshly-installed code-server
+// (unsigned binary + bundled Node) incurs one-time macOS Gatekeeper scanning
+// and first-run cache building that can exceed 20s, while warm starts are
+// near-instant. We poll while the process stays alive and only give up here,
+// so a slow-but-progressing cold start succeeds instead of being force-killed.
+const READY_TIMEOUT_MS = 120_000
 const READY_POLL_MS = 200
 // Cap retained stderr so a chatty code-server can't grow this unbounded while running.
 const STDERR_TAIL_MAX_BYTES = 8 * 1024
@@ -48,9 +53,14 @@ async function pickFreePort(): Promise<number> {
   })
 }
 
-async function waitForHealthz(port: number): Promise<boolean> {
+async function waitForHealthz(port: number, isChildAlive: () => boolean): Promise<boolean> {
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (Date.now() <= deadline) {
+    // Stop immediately if the process died during startup — the wait would
+    // otherwise burn the full cap polling a port nothing is listening on.
+    if (!isChildAlive()) {
+      return false
+    }
     const ok = await probeHealthz(port)
     if (ok) {
       return true
@@ -185,14 +195,18 @@ export class CodeServerManager implements CodeServerProvider {
     this.child = child
     this.port = port
     writeFileSync(getCodeServerPidFilePath(), String(child.pid ?? ''))
-    child.on('exit', () => this.handleUnexpectedExit())
+    let exited = false
+    child.on('exit', () => {
+      exited = true
+      this.handleUnexpectedExit()
+    })
 
     let stderrTail = ''
     child.stderr?.on('data', (chunk: Buffer) => {
       stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_MAX_BYTES)
     })
 
-    const ready = await waitForHealthz(port)
+    const ready = await waitForHealthz(port, () => !exited)
     if (!ready) {
       this.killChild()
       const detail = stderrTail.trim()
@@ -209,6 +223,13 @@ export class CodeServerManager implements CodeServerProvider {
   private handleUnexpectedExit(): void {
     this.child = null
     this.port = null
+    // An exit before the server ever reached 'ready' is a failed start: the
+    // awaiting startProcess() reports it as an error, so don't auto-restart
+    // here (which would race that caller and can loop). Only a server that
+    // had gone healthy and later crashed should be revived.
+    if (this.status !== 'ready') {
+      return
+    }
     if (this.quitting || this.refCount <= 0) {
       this.emit('stopped')
       return

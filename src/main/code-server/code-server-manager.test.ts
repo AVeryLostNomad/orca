@@ -179,4 +179,51 @@ describe('acquire single-flight', () => {
     expect(spawnMock).toHaveBeenCalledTimes(1)
     expect(killMock).toHaveBeenCalledTimes(1)
   })
+
+  it('fails the start (no auto-restart) when the child exits before becoming ready', async () => {
+    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
+    vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
+    vi.mocked(linkVsCodeUserSettings).mockResolvedValue(undefined)
+    // Free-port pick succeeds; healthz never returns 200 for this port.
+    createServerMock.mockImplementation(() => ({
+      once: () => {},
+      listen: (_port: number, _host: string, cb: () => void) => cb(),
+      address: () => ({ port: 4997 }),
+      close: (cb: () => void) => cb()
+    }))
+    netRequestMock.mockImplementation(() => {
+      const handlers: Record<string, (arg?: unknown) => void> = {}
+      return {
+        on: (event: string, cb: (arg?: unknown) => void) => {
+          handlers[event] = cb
+        },
+        end: () => handlers.error?.(new Error('ECONNREFUSED'))
+      }
+    })
+
+    const fs = await import('node:fs')
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
+    vi.spyOn(fs, 'rmSync').mockImplementation(() => {})
+
+    // The child reports 'exit' right after startup, before healthz ever passes.
+    spawnMock.mockImplementation(() => ({
+      pid: 4242,
+      killed: false,
+      stderr: { on: vi.fn() },
+      on: (event: string, cb: (code: number) => void) => {
+        if (event === 'exit') {
+          setTimeout(() => cb(1), 0)
+        }
+      },
+      removeAllListeners: vi.fn(),
+      kill: vi.fn()
+    }))
+
+    const manager = new CodeServerManager()
+    await expect(manager.acquire()).rejects.toThrow(/did not become ready/)
+    // A startup exit must NOT trigger the crash auto-restart path.
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    expect(manager.getStatus().status).toBe('error')
+  })
 })
