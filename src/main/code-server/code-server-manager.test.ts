@@ -36,13 +36,14 @@ import { ensureCodeServerInstalled } from './code-server-installer'
 import { linkVsCodeUserSettings } from './code-server-vscode-settings-link'
 
 describe('buildCodeServerArgs', () => {
-  it('binds loopback, disables auth+telemetry, isolates dirs', () => {
+  it('binds loopback, disables auth+telemetry+workspace-trust, isolates dirs', () => {
     expect(buildCodeServerArgs(12345)).toEqual([
       '--bind-addr',
       '127.0.0.1:12345',
       '--auth',
       'none',
       '--disable-telemetry',
+      '--disable-workspace-trust',
       '--user-data-dir',
       '/userData/code-server/user-data',
       '--extensions-dir',
