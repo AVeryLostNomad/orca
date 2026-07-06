@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { OpenFile } from '@/store/slices/editor'
 import type {
   BrowserTab as BrowserTabState,
+  CodeServerTab,
   Tab,
   TabGroup,
   TerminalTab
@@ -44,6 +45,7 @@ export type GroupBrowserItem = BrowserTabState & { tabId: string }
 const EMPTY_GROUPS: readonly TabGroup[] = []
 const EMPTY_UNIFIED_TABS: readonly Tab[] = []
 const EMPTY_BROWSER_TABS: readonly BrowserTabState[] = []
+const EMPTY_CODE_SERVER_TABS: readonly CodeServerTab[] = []
 const EMPTY_TERMINAL_TABS: readonly TerminalTab[] = []
 const EMPTY_TERMINAL_LAYOUTS_BY_TAB_ID: NonNullable<
   ReturnType<typeof useAppStore.getState>['terminalLayoutsByTabId']
@@ -70,6 +72,7 @@ export function useTabGroupWorkspaceModel({
       terminalTabs: state.tabsByWorktree[worktreeId] ?? EMPTY_TERMINAL_TABS,
       openFiles: state.openFiles,
       browserTabs: state.browserTabsByWorktree[worktreeId] ?? EMPTY_BROWSER_TABS,
+      codeServerTabs: state.codeServerTabsByWorktree[worktreeId] ?? EMPTY_CODE_SERVER_TABS,
       expandedPaneByTabId: state.expandedPaneByTabId,
       terminalLayoutsByTabId: state.terminalLayoutsByTabId ?? EMPTY_TERMINAL_LAYOUTS_BY_TAB_ID,
       generatedTabTitlesEnabled: state.settings?.tabAutoGenerateTitle === true,
@@ -194,6 +197,20 @@ export function useTabGroupWorkspaceModel({
         })
         .filter((item): item is GroupBrowserItem => item !== null),
     [groupTabs, worktreeState.browserTabs]
+  )
+
+  const codeServerItems = useMemo<{ id: string; label: string }[]>(
+    () =>
+      groupTabs
+        .filter((item) => item.contentType === 'vscode')
+        .map((item) => {
+          const cs = worktreeState.codeServerTabs.find(
+            (candidate) => candidate.id === item.entityId
+          )
+          return cs ? { id: cs.id, label: cs.label } : null
+        })
+        .filter((item): item is { id: string; label: string } => item !== null),
+    [groupTabs, worktreeState.codeServerTabs]
   )
 
   const closeEditorIfUnreferenced = useCallback(
@@ -627,6 +644,7 @@ export function useTabGroupWorkspaceModel({
     group,
     activeTab,
     browserItems,
+    codeServerItems,
     editorItems,
     terminalTabs,
     tabBarOrder,

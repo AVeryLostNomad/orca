@@ -31,6 +31,7 @@ import type { OpenFile } from '../../store/slices/editor'
 import SortableTab from './SortableTab'
 import EditorFileTab from './EditorFileTab'
 import BrowserTab, { getBrowserTabLabel } from './BrowserTab'
+import CodeServerTab from './CodeServerTab'
 import { QuickLaunchAgentMenuItems } from './QuickLaunchButton'
 import type { DropIndicator } from './drop-indicator'
 import { reconcileTabOrder } from './reconcile-order'
@@ -129,8 +130,10 @@ type TabBarProps = {
   onTogglePaneExpand: (tabId: string) => void
   editorFiles?: (OpenFile & { tabId?: string })[]
   browserTabs?: (BrowserTabState & { tabId?: string })[]
+  codeServerTabs?: { id: string; label: string }[]
   activeFileId?: string | null
   activeBrowserTabId?: string | null
+  activeCodeServerTabId?: string | null
   activeSimulatorTabId?: string | null
   activeTabType?: WorkspaceVisibleTabType
   onActivateFile?: (fileId: string) => void
@@ -138,6 +141,8 @@ type TabBarProps = {
   onActivateBrowserTab?: (tabId: string) => void
   onCloseBrowserTab?: (tabId: string) => void
   onDuplicateBrowserTab?: (tabId: string) => void
+  onActivateCodeServerTab?: (tabId: string) => void
+  onCloseCodeServerTab?: (tabId: string) => void
   onCloseAllFiles?: () => void
   onMakePreviewFilePermanent?: (fileId: string, tabId?: string) => void
   onPinFile?: (fileId: string, tabId?: string) => void
@@ -176,6 +181,13 @@ type TabItem =
       isPinned: boolean
       data: Tab
     }
+  | {
+      type: 'vscode'
+      id: string
+      unifiedTabId: string
+      isPinned: boolean
+      data: { id: string; label: string }
+    }
 
 function getTabDragLabel(item: TabItem, generatedTitlesEnabled: boolean): string {
   if (item.type === 'terminal') {
@@ -183,6 +195,9 @@ function getTabDragLabel(item: TabItem, generatedTitlesEnabled: boolean): string
   }
   if (item.type === 'browser') {
     return getBrowserTabLabel(item.data)
+  }
+  if (item.type === 'vscode') {
+    return item.data.label || 'VS Code'
   }
   if (item.type === 'simulator') {
     return item.data.label || 'Mobile Emulator'
@@ -222,7 +237,13 @@ function createUnifiedTabLookup(tabs: readonly Tab[], groupId: string): Map<stri
       continue
     }
     lookup.set(tab.id, tab)
-    if (tab.contentType === 'terminal' || tab.contentType === 'browser') {
+    // Why: terminal/browser/vscode chips key on entityId (their visible id),
+    // so the unified tab must be resolvable by entityId as well as tab id.
+    if (
+      tab.contentType === 'terminal' ||
+      tab.contentType === 'browser' ||
+      tab.contentType === 'vscode'
+    ) {
       lookup.set(tab.entityId, tab)
     }
   }
@@ -254,8 +275,10 @@ function TabBarInner({
   onTogglePaneExpand,
   editorFiles,
   browserTabs,
+  codeServerTabs,
   activeFileId,
   activeBrowserTabId,
+  activeCodeServerTabId,
   activeSimulatorTabId,
   activeTabType,
   onActivateFile,
@@ -263,6 +286,8 @@ function TabBarInner({
   onActivateBrowserTab,
   onCloseBrowserTab,
   onDuplicateBrowserTab,
+  onActivateCodeServerTab,
+  onCloseCodeServerTab,
   onCloseAllFiles,
   onMakePreviewFilePermanent,
   onPinFile,
@@ -845,10 +870,18 @@ function TabBarInner({
     () => new Map((browserTabs ?? []).map((t) => [t.id, t])),
     [browserTabs]
   )
+  const codeServerMap = useMemo(
+    () => new Map((codeServerTabs ?? []).map((t) => [t.id, t])),
+    [codeServerTabs]
+  )
 
   const terminalIds = useMemo(() => tabs.map((t) => t.id), [tabs])
   const editorFileIds = useMemo(() => editorFiles?.map((f) => f.tabId ?? f.id) ?? [], [editorFiles])
   const browserTabIds = useMemo(() => browserTabs?.map((tab) => tab.id) ?? [], [browserTabs])
+  const codeServerTabIds = useMemo(
+    () => codeServerTabs?.map((tab) => tab.id) ?? [],
+    [codeServerTabs]
+  )
   const simulatorTabIds = useMemo(
     () =>
       (unifiedTabs ?? [])
@@ -864,7 +897,8 @@ function TabBarInner({
       terminalIds,
       editorFileIds,
       browserTabIds,
-      simulatorTabIds
+      simulatorTabIds,
+      codeServerTabIds
     )
     const items: TabItem[] = []
     for (const id of ids) {
@@ -904,6 +938,18 @@ function TabBarInner({
         })
         continue
       }
+      const codeServerTab = codeServerMap.get(id)
+      if (codeServerTab) {
+        const unifiedTab = unifiedTabByVisibleId.get(id)
+        items.push({
+          type: 'vscode',
+          id,
+          unifiedTabId: unifiedTab?.id ?? codeServerTab.id,
+          isPinned: unifiedTab?.isPinned === true,
+          data: codeServerTab
+        })
+        continue
+      }
       const simUnified = unifiedTabByVisibleId.get(id)
       if (simUnified && simUnified.contentType === 'simulator') {
         items.push({
@@ -923,9 +969,11 @@ function TabBarInner({
     editorFileIds,
     browserTabIds,
     simulatorTabIds,
+    codeServerTabIds,
     terminalMap,
     editorMap,
     browserMap,
+    codeServerMap,
     unifiedTabByVisibleId
   ])
 
@@ -954,6 +1002,9 @@ function TabBarInner({
       if (item.type === 'browser') {
         return activeTabType === 'browser' && item.id === activeBrowserTabId
       }
+      if (item.type === 'vscode') {
+        return activeTabType === 'vscode' && item.id === activeCodeServerTabId
+      }
       if (item.type === 'simulator') {
         return activeTabType === 'simulator' && item.id === activeSimulatorTabId
       }
@@ -964,6 +1015,7 @@ function TabBarInner({
     return activeItem?.id ?? null
   }, [
     activeBrowserTabId,
+    activeCodeServerTabId,
     activeFileId,
     activeSimulatorTabId,
     activeTabId,
@@ -1165,6 +1217,24 @@ function TabBarInner({
                     onClose={() => onCloseBrowserTab?.(item.id)}
                     onCloseToRight={() => onCloseToRight(item.id)}
                     onDuplicate={() => onDuplicateBrowserTab?.(item.id)}
+                    onTogglePin={() => togglePinned(item)}
+                    dragData={dragData}
+                    dropIndicator={dropIndicatorByVisibleId.get(item.id) ?? null}
+                    includeTopTabBorder={includeTopTabBorder}
+                  />
+                )
+              }
+              if (item.type === 'vscode') {
+                return (
+                  <CodeServerTab
+                    key={item.id}
+                    label={item.data.label}
+                    isActive={activeTabType === 'vscode' && activeCodeServerTabId === item.id}
+                    isPinned={item.isPinned}
+                    hasTabsToRight={index < orderedItems.length - 1}
+                    onActivate={() => onActivateCodeServerTab?.(item.id)}
+                    onClose={() => onCloseCodeServerTab?.(item.id)}
+                    onCloseToRight={() => onCloseToRight(item.id)}
                     onTogglePin={() => togglePinned(item)}
                     dragData={dragData}
                     dropIndicator={dropIndicatorByVisibleId.get(item.id) ?? null}

@@ -49,7 +49,15 @@ export default function TabGroupPanel({
   const sidebarOpen = useAppStore((state) => state.sidebarOpen)
 
   const model = useTabGroupWorkspaceModel({ groupId, worktreeId })
-  const { activeTab, browserItems, commands, editorItems, tabBarOrder, terminalTabs } = model
+  const {
+    activeTab,
+    browserItems,
+    codeServerItems,
+    commands,
+    editorItems,
+    tabBarOrder,
+    terminalTabs
+  } = model
   const { setNodeRef: setBodyDropRef } = useDroppable({
     id: getTabPaneBodyDroppableId(groupId),
     data: {
@@ -121,23 +129,28 @@ export default function TabGroupPanel({
       onTogglePaneExpand={commands.toggleTerminalPaneExpand}
       editorFiles={editorItems}
       browserTabs={browserItems}
+      codeServerTabs={codeServerItems}
       activeFileId={
         activeTab?.contentType === 'terminal' ||
         activeTab?.contentType === 'browser' ||
-        activeTab?.contentType === 'simulator'
+        activeTab?.contentType === 'simulator' ||
+        activeTab?.contentType === 'vscode'
           ? null
           : activeTab?.id
       }
       activeBrowserTabId={activeTab?.contentType === 'browser' ? activeTab.entityId : null}
+      activeCodeServerTabId={activeTab?.contentType === 'vscode' ? activeTab.entityId : null}
       activeSimulatorTabId={activeTab?.contentType === 'simulator' ? activeTab.id : null}
       activeTabType={
         activeTab?.contentType === 'terminal'
           ? 'terminal'
           : activeTab?.contentType === 'browser'
             ? 'browser'
-            : activeTab?.contentType === 'simulator'
-              ? 'simulator'
-              : 'editor'
+            : activeTab?.contentType === 'vscode'
+              ? 'vscode'
+              : activeTab?.contentType === 'simulator'
+                ? 'simulator'
+                : 'editor'
       }
       onActivateFile={commands.activateEditor}
       onCloseFile={commands.closeItem}
@@ -151,6 +164,16 @@ export default function TabGroupPanel({
         }
       }}
       onDuplicateBrowserTab={commands.duplicateBrowserTab}
+      onActivateCodeServerTab={commands.activateCodeServer}
+      onCloseCodeServerTab={(codeServerTabId) => {
+        const item = model.groupTabs.find(
+          (candidate) =>
+            candidate.entityId === codeServerTabId && candidate.contentType === 'vscode'
+        )
+        if (item) {
+          commands.closeItem(item.id)
+        }
+      }}
       onCloseAllFiles={commands.closeAllEditorTabsInGroup}
       onMakePreviewFilePermanent={(_fileId, tabId) => {
         if (!tabId) {
