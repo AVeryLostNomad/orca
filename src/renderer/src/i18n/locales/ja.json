@@ -2783,6 +2783,9 @@
             "911542656f": "Pin Tab",
             "1611a1324b": "Close",
             "9dd880bd56": "Close Tabs To The Right"
+          },
+          "TerminalTabSplitMenuSection": {
+            "splitTerminal": "Split terminal"
           }
         }
       },
@@ -4756,7 +4759,10 @@
           "agentPermissionsDescription": "Choose whether Orca launches agents with fewer permission prompts or with manual checks.",
           "agentPermissionsYolo": "Yolo",
           "agentPermissionsManual": "手動",
-          "3f1bdf3cb4": "環境テキストが大きすぎるため安全に解析できません。"
+          "3f1bdf3cb4": "環境テキストが大きすぎるため安全に解析できません。",
+          "codexSessionSource": "Codex home to import from",
+          "codexSessionSourceInfo": "About importing Codex history",
+          "codexSessionSourceTooltip": "Orca runs Codex in an isolated home. Point this at your existing Codex home to import that session history. Empty uses ~/.codex."
         },
         "AppIconSelector": {
           "d5a112dc9b": "次へのアイコン",
@@ -8906,7 +8912,8 @@
             "b234ab25b4": "ファイルをクリップボードにコピーできませんでした",
             "f9d7ca753d": "パスのコピー",
             "3161c4e425": "フォルダ",
-            "e887fa4b2e": "ターミナルで開く"
+            "e887fa4b2e": "ターミナルで開く",
+            "1d8e182c32": "ファイルを表示"
           },
           "FileExplorerToolbar": {
             "d238264654": "Git で無視されたファイルを表示",
@@ -9254,6 +9261,7 @@
             "c1a8f3e204": "{{value0}}より1commit 遅れています",
             "d2b9g4f315": "{{value1}}より{{value0}}commits 遅れています",
             "e9c2a5d416": "{{value0}}と同じ状態",
+            "4b4a7de138": "Open review page in browser",
             "createPrIntentCommitBlockedSummary": "Commit blocked: {{value0}} Fix the issue, then retry Create PR."
           },
           "SourceControlAgentActionDialog": {
