@@ -1,5 +1,5 @@
 // Shared across main, preload, and renderer — describes the code-server
-// lifecycle surfaced to the VSCode pane.
+// lifecycle surfaced to the VS Code pane.
 export type CodeServerStatus =
   | 'not-installed'
   | 'installing'

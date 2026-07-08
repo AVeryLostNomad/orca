@@ -14,6 +14,7 @@ const { ensureWebviewMock } = vi.hoisted(() => ({ ensureWebviewMock: vi.fn() }))
 vi.mock('./code-server-webview', () => ({
   buildCodeServerUrl: (port: number, folder: string) =>
     `http://127.0.0.1:${port}/?folder=${folder}`,
+  resolveWorkspaceFilePath: () => undefined,
   destroyCodeServerWebview: vi.fn(),
   ensureCodeServerWebview: ensureWebviewMock
 }))
@@ -24,6 +25,9 @@ const storeState = {
   codeServerTabsByWorktree: {
     'wt-1': [{ id: 'tab-1', worktreeId: 'wt-1', folderPath: '/repo' }]
   },
+  // No per-repo workspace file set → CodeServerPane resolves to folder mode.
+  getKnownWorktreeById: (id: string) => ({ id, repoId: 'repo-1' }),
+  repos: [{ id: 'repo-1' }],
   setCodeServerStatus: vi.fn()
 }
 

@@ -12,6 +12,7 @@ import type {
   TerminalTab
 } from '../../../../shared/types'
 import { resolveUnifiedTabLabel } from '../../../../shared/tab-title-resolution'
+import { translate } from '@/i18n/i18n'
 import { useAppStore } from '../../store'
 import { destroyWorkspaceWebviews } from '../../store/slices/browser-webview-cleanup'
 import { requestEditorFileClose } from '../editor/editor-autosave'
@@ -687,7 +688,12 @@ export function useTabGroupWorkspaceModel({
         if (!folderPath) {
           return
         }
-        createCodeServerTab(worktreeId, folderPath, worktree.displayName ?? worktreeId)
+        // Every embedded editor tab reads "VS Code" — the title never varies per worktree.
+        createCodeServerTab(
+          worktreeId,
+          folderPath,
+          translate('auto.components.tab.bar.CodeServerTab.title', 'VS Code')
+        )
       },
       newSimulatorTab: worktreeState.mobileEmulatorEnabled
         ? () => {

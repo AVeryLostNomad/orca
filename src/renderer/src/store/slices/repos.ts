@@ -94,6 +94,7 @@ export type RepoUpdate = Partial<
     | 'hookSettings'
     | 'worktreeBaseRef'
     | 'worktreeBasePath'
+    | 'codeServerWorkspaceFile'
     | 'kind'
     | 'symlinkPaths'
     | 'issueSourcePreference'
@@ -182,6 +183,12 @@ function sanitizeRepoUpdate(updates: RepoUpdate): RepoUpdate {
   }
   if ('worktreeBasePath' in sanitized && sanitized.worktreeBasePath !== undefined) {
     sanitized.worktreeBasePath = sanitized.worktreeBasePath.trim() || undefined
+  }
+  if ('codeServerWorkspaceFile' in sanitized && sanitized.codeServerWorkspaceFile !== undefined) {
+    // Relative-only: trim and drop leading separators so it resolves from each
+    // worktree's root rather than escaping to an absolute path.
+    sanitized.codeServerWorkspaceFile =
+      sanitized.codeServerWorkspaceFile.trim().replace(/^[/\\]+/, '') || undefined
   }
   if (
     'forkSyncMode' in sanitized &&

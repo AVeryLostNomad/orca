@@ -1942,6 +1942,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
             | 'hookSettings'
             | 'worktreeBaseRef'
             | 'worktreeBasePath'
+            | 'codeServerWorkspaceFile'
             | 'kind'
             | 'symlinkPaths'
             | 'issueSourcePreference'
@@ -2004,6 +2005,17 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
           delete updates.worktreeBasePath
         } else {
           updates.worktreeBasePath = v.trim() || undefined
+        }
+      }
+      // Why: relative-only path resolved from each worktree's root when opening
+      // the embedded editor. Strip non-strings and leading separators at the
+      // boundary so a skewed renderer can't persist an absolute escape.
+      if ('codeServerWorkspaceFile' in updates && updates.codeServerWorkspaceFile !== undefined) {
+        const v = updates.codeServerWorkspaceFile as unknown
+        if (typeof v !== 'string') {
+          delete updates.codeServerWorkspaceFile
+        } else {
+          updates.codeServerWorkspaceFile = v.trim().replace(/^[/\\]+/, '') || undefined
         }
       }
       if ('repoIcon' in updates) {

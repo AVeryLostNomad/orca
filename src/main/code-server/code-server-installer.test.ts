@@ -18,7 +18,7 @@ vi.mock('node:fs/promises', () => ({
   rm: vi.fn(() => Promise.resolve())
 }))
 vi.mock('./code-server-paths', () => ({
-  CODE_SERVER_VERSION: '4.99.4',
+  CODE_SERVER_VERSION: '4.127.0',
   getCodeServerCacheRoot: cacheRootMock,
   resolveCodeServerExecutable: resolveExeMock,
   resolveCodeServerInstallScript: resolveScriptMock
@@ -103,7 +103,7 @@ describe('ensureCodeServerInstalled', () => {
         '--prefix',
         '/userData/code-server',
         '--version',
-        '4.99.4'
+        '4.127.0'
       ],
       expect.objectContaining({ stdio: expect.anything() })
     )
@@ -139,8 +139,8 @@ describe('ensureCodeServerInstalled', () => {
 
     // the versioned tree was relocated into the real (spaced) location via fs.rename.
     expect(renameMock).toHaveBeenCalledWith(
-      '/tmp/orca-code-server-install/lib/code-server-4.99.4',
-      `${spaceRoot}/lib/code-server-4.99.4`
+      '/tmp/orca-code-server-install/lib/code-server-4.127.0',
+      `${spaceRoot}/lib/code-server-4.127.0`
     )
   })
 

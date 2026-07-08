@@ -4,9 +4,11 @@ import { createServer } from 'node:net'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-server-types'
 import { ensureCodeServerInstalled } from './code-server-installer'
-import { linkVsCodeUserSettings } from './code-server-vscode-settings-link'
+import { mirrorVsCodeUserConfig } from './code-server-vscode-user-config'
 import { disableExtensionSignatureVerification } from './code-server-signature-verification'
 import { setCodeServerPid } from './code-server-process-registry'
+import { hydrateShellPath, mergePathSegments } from '../startup/hydrate-shell-path'
+import { promoteVersionManagerShims } from './code-server-toolchain-path'
 import {
   getCodeServerExtensionsDir,
   getCodeServerPidFilePath,
@@ -14,12 +16,13 @@ import {
   resolveCodeServerExecutable
 } from './code-server-paths'
 
-// Generous safety cap, not the expected wait: a freshly-installed code-server
-// (unsigned binary + bundled Node) incurs one-time macOS Gatekeeper scanning
-// and first-run cache building that can exceed 20s, while warm starts are
-// near-instant. We poll while the process stays alive and only give up here,
-// so a slow-but-progressing cold start succeeds instead of being force-killed.
-const READY_TIMEOUT_MS = 120_000
+// Per-attempt readiness cap. Warm starts are near-instant; a cold start
+// (unsigned binary + bundled Node incurring one-time macOS Gatekeeper scanning
+// and first-run cache building) is slower but the OS caches that work, so a
+// force-killed slow first attempt is re-spawned once (see startProcessWithOneRetry)
+// and the retry hits the warm cache. Kept short so a genuinely stuck start
+// surfaces to the user quickly instead of hanging.
+const READY_TIMEOUT_MS = 10_000
 const READY_POLL_MS = 200
 // Cap retained stderr so a chatty code-server can't grow this unbounded while running.
 const STDERR_TAIL_MAX_BYTES = 8 * 1024
@@ -178,11 +181,11 @@ export class CodeServerManager implements CodeServerProvider {
           this.emit('installing', { progress: fraction })
         )
       }
-      await linkVsCodeUserSettings()
+      await mirrorVsCodeUserConfig()
       // Open VSX + macOS standalone can't verify extension signatures; default
       // the check off for the embedded editor so extension installs work.
       await disableExtensionSignatureVerification()
-      const port = await this.startProcess()
+      const port = await this.startProcessWithOneRetry()
       return { port }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -191,13 +194,52 @@ export class CodeServerManager implements CodeServerProvider {
     }
   }
 
+  // One automatic retry before surfacing an error. A slow first start is
+  // force-killed at the shorter READY_TIMEOUT_MS; a fresh spawn then hits the
+  // now-warm binary cache (macOS Gatekeeper scan, first-run cache) and usually
+  // succeeds. This mirrors the manual Retry button's re-drive, so the user only
+  // lands on the error state after two failed attempts. startProcess re-emits
+  // 'starting' on the retry, so the UI stays on the loader rather than flashing.
+  private async startProcessWithOneRetry(): Promise<number> {
+    try {
+      return await this.startProcess()
+    } catch {
+      return await this.startProcess()
+    }
+  }
+
   private async startProcess(): Promise<number> {
     const exe = await ensureCodeServerInstalled()
     const port = await pickFreePort()
     this.emit('starting')
+    // Extensions in the embedded editor shell out to the user's toolchain
+    // (e.g. rubocop runs `bundle list`), which needs the login-shell PATH so
+    // version-manager tools resolve the same way the user's terminal does. A
+    // GUI-launched Orca inherits launchd's sparse PATH, so hydrate it (memoized)
+    // first. Windows has no POSIX login shell; hydrateShellPath no-ops there.
+    const hydration = await hydrateShellPath()
+    if (hydration.ok) {
+      mergePathSegments(hydration.segments)
+    }
+    // The shared extension host serves every worktree and never re-runs the
+    // shell's per-directory hook, so promote version-manager shims ahead of the
+    // shell-activated resolved-version dirs — otherwise a worktree pinning a
+    // non-default Ruby/Node runs the wrong one. POSIX-only concern.
+    //
+    // VSCODE_CLI=1 stops the server from re-probing the user's login shell to
+    // build the extension host's environment; that probe would otherwise
+    // overwrite our shims-promoted PATH with the mise/asdf-activated one
+    // (installs/<tool>/latest ahead of shims), re-breaking per-worktree tool
+    // resolution. code-server's CLI rejects the equivalent --force-disable-user-env
+    // flag, but the server honors this env var. Windows already skips the probe.
+    const spawnEnv =
+      process.platform === 'win32'
+        ? process.env
+        : { ...process.env, VSCODE_CLI: '1', PATH: promoteVersionManagerShims(process.env.PATH) }
     const child = spawn(exe, buildCodeServerArgs(port), {
       stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      env: spawnEnv
     })
     this.child = child
     this.port = port

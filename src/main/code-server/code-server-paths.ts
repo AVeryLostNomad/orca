@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 
 // Pinned code-server release. Bump manually via PR; verify latest stable at
 // https://github.com/coder/code-server/releases before changing.
-export const CODE_SERVER_VERSION = '4.99.4'
+export const CODE_SERVER_VERSION = '4.127.0'
 
 export function getCodeServerCacheRoot(): string {
   return join(app.getPath('userData'), 'code-server')

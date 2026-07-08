@@ -124,7 +124,7 @@ export function buildTabCreateMenuOptions(
       kind: 'new-vscode',
       label: translate(
         'auto.components.tab.bar.tab.create.menu.options.newVscode',
-        'New VSCode Tab'
+        'New VS Code Tab'
       ),
       keywords: [
         translate('auto.components.tab.bar.tab.create.menu.options.vscode', 'vscode'),

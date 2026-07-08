@@ -26,7 +26,7 @@ export const createCodeServerSlice: StateCreator<AppState, [], [], CodeServerSli
   codeServerPort: null,
 
   createCodeServerTab: (worktreeId, folderPath, label) => {
-    // One VSCode tab per worktree: reopen focuses the existing tab (avoids
+    // One VS Code tab per worktree: reopen focuses the existing tab (avoids
     // same-folder contention on the shared code-server instance).
     const existing = (get().codeServerTabsByWorktree[worktreeId] ?? [])[0]
     if (existing) {

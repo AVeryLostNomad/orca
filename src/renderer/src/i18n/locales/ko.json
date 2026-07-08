@@ -2757,7 +2757,7 @@
                   "8a580f88cf": "iPhone",
                   "7ecdc5ef08": "iPad",
                   "14965cc123": "모바일",
-                  "newVscode": "New VSCode Tab",
+                  "newVscode": "New VS Code Tab",
                   "newVscodeRemoteDisabled": "VS Code is only available for local worktrees",
                   "vscode": "vscode",
                   "vsCode": "vs code",
@@ -2779,6 +2779,7 @@
             "a768f428f1": "탭 닫기"
           },
           "CodeServerTab": {
+            "title": "VS Code",
             "c5aaee8c39": "Unpin Tab",
             "911542656f": "Pin Tab",
             "1611a1324b": "Close",
@@ -8793,6 +8794,13 @@
           "reviewFirst": "Review first",
           "singular": "Global saves won't change 1 repository with its own recipe.",
           "tooltipTitle": "Repository overrides"
+        },
+        "RepositoryCodeServerWorkspaceSection": {
+          "5660fc5055": "VS Code Workspace File",
+          "aa02335b82": "Open a .code-workspace file in the embedded editor instead of the worktree folder.",
+          "b3f41cbfcc": "Clear",
+          "92cc086f07": "e.g. project.code-workspace",
+          "ef15c3fb5d": "Relative to each worktree root. Leave empty to open the folder."
         }
       },
       "right": {

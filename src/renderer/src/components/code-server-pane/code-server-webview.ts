@@ -8,8 +8,36 @@ import { ORCA_VSCODE_PARTITION } from '../../../../shared/constants'
 // owned by the tab host, not this registry).
 const codeServerWebviewRegistry = new Map<string, Electron.WebviewTag>()
 
-export function buildCodeServerUrl(port: number, folderPath: string): string {
+// When the repo pins a `.code-workspace` file, open the multi-root workspace via
+// code-server's `?workspace=` param; otherwise open the worktree folder as before.
+export function buildCodeServerUrl(
+  port: number,
+  folderPath: string,
+  workspaceFilePath?: string
+): string {
+  if (workspaceFilePath) {
+    return `http://127.0.0.1:${port}/?workspace=${encodeURIComponent(workspaceFilePath)}`
+  }
   return `http://127.0.0.1:${port}/?folder=${encodeURIComponent(folderPath)}`
+}
+
+// Resolve a repo's relative `.code-workspace` setting against a worktree's
+// absolute folder path. Returns undefined when unset (→ folder open). The path
+// separator is inferred from the folder path so it works on any host (code-server
+// is local-only, but this stays correct if that ever changes).
+export function resolveWorkspaceFilePath(
+  folderPath: string,
+  relativeWorkspaceFile: string | undefined
+): string | undefined {
+  const relative = relativeWorkspaceFile?.trim().replace(/^[/\\]+/, '')
+  if (!relative) {
+    return undefined
+  }
+  const usesBackslash = folderPath.includes('\\') && !folderPath.includes('/')
+  const sep = usesBackslash ? '\\' : '/'
+  const base = folderPath.replace(/[/\\]+$/, '')
+  const normalizedRelative = usesBackslash ? relative.replace(/\//g, '\\') : relative
+  return `${base}${sep}${normalizedRelative}`
 }
 
 export function ensureCodeServerWebview({

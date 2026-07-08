@@ -31,6 +31,7 @@ import { translate } from '@/i18n/i18n'
 import { RepositoryWindowsRuntimeSection } from './RepositoryWindowsRuntimeSection'
 import { matchesRepositoryIdentitySearch } from './repository-identity-search'
 import { RepositoryWorktreeDefaultsSection } from './RepositoryWorktreeDefaultsSection'
+import { RepositoryCodeServerWorkspaceSection } from './RepositoryCodeServerWorkspaceSection'
 import { getProjectRuntimeSessionSummary } from './repository-runtime-session-summary'
 export { getRepositoryPaneSearchEntries }
 export { matchesRepositoryIdentitySearch } from './repository-identity-search'
@@ -335,6 +336,12 @@ export function RepositoryPane({
             <RepositoryWorktreeDefaultsSection
               repo={repo}
               settings={settings}
+              updateRepo={updateRepo}
+              forceVisible={forceFullPaneForRepoMatch}
+            />
+
+            <RepositoryCodeServerWorkspaceSection
+              repo={repo}
               updateRepo={updateRepo}
               forceVisible={forceFullPaneForRepoMatch}
             />

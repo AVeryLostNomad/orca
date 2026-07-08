@@ -873,6 +873,7 @@ export type PreloadApi = {
           | 'hookSettings'
           | 'worktreeBaseRef'
           | 'worktreeBasePath'
+          | 'codeServerWorkspaceFile'
           | 'kind'
           | 'issueSourcePreference'
           | 'externalWorktreeVisibility'

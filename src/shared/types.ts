@@ -243,6 +243,11 @@ export type Repo = {
   worktreeBaseRef?: string
   /** Optional repo-scoped workspace root override. Relative paths resolve from `path`. */
   worktreeBasePath?: string
+  /** Relative path (from each worktree's root) to a `.code-workspace` file the
+   *  embedded VS Code editor should open via code-server's `?workspace=` instead
+   *  of opening the worktree folder. Relative so every worktree of the repo opens
+   *  its own copy. Undefined/empty = open the folder (default). */
+  codeServerWorkspaceFile?: string
   hookSettings?: RepoHookSettings
   /** SSH target ID for remote repos. null/undefined = local. */
   connectionId?: string | null
@@ -1060,9 +1065,9 @@ export type WorkspaceSessionState = {
   browserPagesByWorkspace?: Record<string, BrowserPage[]>
   /** Per-worktree active browser workspace ID at shutdown. */
   activeBrowserTabIdByWorktree?: Record<string, string | null>
-  /** Persisted VSCode tabs, keyed by worktree ID. */
+  /** Persisted VS Code tabs, keyed by worktree ID. */
   codeServerTabsByWorktree?: Record<string, CodeServerTab[]>
-  /** Per-worktree active VSCode tab ID at shutdown. */
+  /** Per-worktree active VS Code tab ID at shutdown. */
   activeCodeServerTabIdByWorktree?: Record<string, string | null>
   /** Per-worktree active tab type (terminal vs editor vs browser) at shutdown. */
   activeTabTypeByWorktree?: Record<string, WorkspaceVisibleTabType>

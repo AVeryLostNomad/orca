@@ -1412,6 +1412,7 @@ function sanitizeRepoUpdatesForPersistence<
       | 'upstream'
       | 'gitRemoteIdentity'
       | 'worktreeBasePath'
+      | 'codeServerWorkspaceFile'
       | 'projectHostSetupMethod'
       | 'forkSyncMode'
     >
@@ -1456,6 +1457,16 @@ function sanitizeRepoUpdatesForPersistence<
       sanitized.worktreeBasePath = sanitized.worktreeBasePath.trim() || undefined
     } else {
       delete sanitized.worktreeBasePath
+    }
+  }
+  if ('codeServerWorkspaceFile' in sanitized && sanitized.codeServerWorkspaceFile !== undefined) {
+    if (typeof sanitized.codeServerWorkspaceFile === 'string') {
+      // Keep it relative: trim and strip leading separators so it always resolves
+      // from each worktree's root rather than escaping to an absolute path.
+      sanitized.codeServerWorkspaceFile =
+        sanitized.codeServerWorkspaceFile.trim().replace(/^[/\\]+/, '') || undefined
+    } else {
+      delete sanitized.codeServerWorkspaceFile
     }
   }
   if ('projectHostSetupMethod' in sanitized) {
@@ -4211,6 +4222,7 @@ export class Store {
         | 'hookSettings'
         | 'worktreeBaseRef'
         | 'worktreeBasePath'
+        | 'codeServerWorkspaceFile'
         | 'kind'
         | 'symlinkPaths'
         | 'issueSourcePreference'
@@ -4267,6 +4279,13 @@ export class Store {
     if ('worktreeBasePath' in sanitizedUpdates && sanitizedUpdates.worktreeBasePath === undefined) {
       delete repo.worktreeBasePath
       delete sanitizedUpdates.worktreeBasePath
+    }
+    if (
+      'codeServerWorkspaceFile' in sanitizedUpdates &&
+      sanitizedUpdates.codeServerWorkspaceFile === undefined
+    ) {
+      delete repo.codeServerWorkspaceFile
+      delete sanitizedUpdates.codeServerWorkspaceFile
     }
     if (
       'externalWorktreeVisibility' in sanitizedUpdates &&

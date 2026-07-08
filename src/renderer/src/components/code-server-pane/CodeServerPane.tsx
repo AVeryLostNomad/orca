@@ -6,7 +6,8 @@ import { Progress } from '../ui/progress'
 import {
   buildCodeServerUrl,
   destroyCodeServerWebview,
-  ensureCodeServerWebview
+  ensureCodeServerWebview,
+  resolveWorkspaceFilePath
 } from './code-server-webview'
 import { translate } from '@/i18n/i18n'
 
@@ -20,6 +21,14 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
   const tab = useAppStore((s) =>
     (s.codeServerTabsByWorktree[worktreeId] ?? []).find((t) => t.id === codeServerTabId)
   )
+  // Per-repo setting: open a pinned `.code-workspace` file instead of the folder.
+  const workspaceFilePath = useAppStore((s) => {
+    const worktree = s.getKnownWorktreeById(worktreeId)
+    if (!worktree) {
+      return undefined
+    }
+    return s.repos.find((r) => r.id === worktree.repoId)?.codeServerWorkspaceFile
+  })
   const setCodeServerStatus = useAppStore((s) => s.setCodeServerStatus)
   const [status, setStatus] = useState<CodeServerStatusEvent>({ status: 'starting', port: null })
   // Tracks the URL last written to webview.src so a crash-restart on a new
@@ -89,7 +98,11 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
     webview.addEventListener('did-fail-load', handleFailLoad)
     // Recompute on every ready transition (not just webview creation) so a
     // shared-server crash-restart on a different port is picked up here.
-    const targetUrl = buildCodeServerUrl(status.port, tab.folderPath)
+    const targetUrl = buildCodeServerUrl(
+      status.port,
+      tab.folderPath,
+      resolveWorkspaceFilePath(tab.folderPath, workspaceFilePath)
+    )
     if (lastAppliedUrlRef.current !== targetUrl) {
       webview.src = targetUrl
       lastAppliedUrlRef.current = targetUrl
@@ -97,7 +110,7 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
     return () => {
       webview.removeEventListener('did-fail-load', handleFailLoad)
     }
-  }, [status, tab, codeServerTabId])
+  }, [status, tab, codeServerTabId, workspaceFilePath])
 
   const retry = (): void => {
     // Non-refcounting re-drive: the mount effect already acquired one ref, so

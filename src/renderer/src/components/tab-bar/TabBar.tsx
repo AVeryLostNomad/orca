@@ -614,7 +614,7 @@ function TabBarInner({
   const isLocalWorktree = useAppStore(
     (s) => getExecutionHostIdForWorktree(s, worktreeId) === LOCAL_EXECUTION_HOST_ID
   )
-  // VSCode (code-server) only runs against local checkouts on mac/linux; the
+  // VS Code (code-server) only runs against local checkouts on mac/linux; the
   // platform + local-host checks are load-bearing (SSH/remote case included).
   const vscodePlatformSupported =
     getRendererAppPlatform() === 'darwin' || getRendererAppPlatform() === 'linux'
@@ -802,7 +802,7 @@ function TabBarInner({
       className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
     >
       <SquareCode className="size-4 text-muted-foreground" />
-      {translate('auto.components.tab.bar.tab.create.menu.options.newVscode', 'New VSCode Tab')}
+      {translate('auto.components.tab.bar.tab.create.menu.options.newVscode', 'New VS Code Tab')}
     </DropdownMenuItem>
   ) : vscodeRemoteDisabled ? (
     // Radix disabled items swallow pointer events, so the tooltip trigger wraps
@@ -817,7 +817,7 @@ function TabBarInner({
             <SquareCode className="size-4 text-muted-foreground" />
             {translate(
               'auto.components.tab.bar.tab.create.menu.options.newVscode',
-              'New VSCode Tab'
+              'New VS Code Tab'
             )}
           </DropdownMenuItem>
         </span>

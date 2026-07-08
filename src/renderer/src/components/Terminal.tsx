@@ -990,7 +990,12 @@ function Terminal(): React.JSX.Element | null {
     if (!folderPath) {
       return
     }
-    createCodeServerTab(activeWorktreeId, folderPath, worktree.displayName ?? activeWorktreeId)
+    // Every embedded editor tab reads "VS Code" — the title never varies per worktree.
+    createCodeServerTab(
+      activeWorktreeId,
+      folderPath,
+      translate('auto.components.tab.bar.CodeServerTab.title', 'VS Code')
+    )
   }, [activeWorktreeId, createCodeServerTab])
 
   const handleOpenEntry = useCallback(async (args: TabCreateEntryArgs) => {
