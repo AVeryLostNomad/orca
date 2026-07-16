@@ -24,6 +24,7 @@ import { createBrowserSlice } from './slices/browser'
 import { createCodeServerSlice } from './slices/code-server'
 import { createRateLimitSlice } from './slices/rate-limits'
 import { createSshSlice } from './slices/ssh'
+import { createRuntimeEnvironmentSshSlice } from './slices/runtime-environment-ssh'
 import { createAgentStatusSlice } from './slices/agent-status'
 import { createPaneForegroundAgentSlice } from './slices/pane-foreground-agent'
 import { createDiffCommentsSlice } from './slices/diffComments'
@@ -35,6 +36,9 @@ import { createRuntimeStatusSlice } from './slices/runtime-status'
 import { createPullRequestGenerationSlice } from './slices/pull-request-generation'
 import { createCommitMessageGenerationSlice } from './slices/commit-message-generation'
 import { createPinnedTabCloseConfirmSlice } from './slices/pinned-tab-close-confirm'
+import { createRecentlyClosedTabsSlice } from './slices/recently-closed-tabs'
+import { createOrcaProfilesSlice } from './slices/orca-profiles'
+import { createNewIssueDraftSlice } from './slices/new-issue-draft'
 import { e2eConfig } from '@/lib/e2e-config'
 import { registerHttpLinkStoreAccessor } from '@/lib/http-link-routing'
 
@@ -63,6 +67,7 @@ export const useAppStore = create<AppState>()((...a) => ({
   ...createCodeServerSlice(...a),
   ...createRateLimitSlice(...a),
   ...createSshSlice(...a),
+  ...createRuntimeEnvironmentSshSlice(...a),
   ...createAgentStatusSlice(...a),
   ...createPaneForegroundAgentSlice(...a),
   ...createDiffCommentsSlice(...a),
@@ -73,7 +78,10 @@ export const useAppStore = create<AppState>()((...a) => ({
   ...createRuntimeStatusSlice(...a),
   ...createPullRequestGenerationSlice(...a),
   ...createCommitMessageGenerationSlice(...a),
-  ...createPinnedTabCloseConfirmSlice(...a)
+  ...createPinnedTabCloseConfirmSlice(...a),
+  ...createRecentlyClosedTabsSlice(...a),
+  ...createOrcaProfilesSlice(...a),
+  ...createNewIssueDraftSlice(...a)
 }))
 
 registerHttpLinkStoreAccessor(() => useAppStore.getState())

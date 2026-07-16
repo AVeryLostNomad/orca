@@ -22,6 +22,7 @@ import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
 import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from '@/lib/tui-agent-startup'
 import { filterEnabledTuiAgents, isTuiAgentEnabled } from '../../../shared/tui-agent-selection'
 import { repoIsRemote } from '../../../shared/agent-launch-remote'
+import { resolveLocalWindowsAgentStartupShell } from '../../../shared/windows-terminal-shell'
 import {
   resolveTuiAgentLaunchArgs,
   resolveTuiAgentLaunchEnv
@@ -146,6 +147,10 @@ import { getSuggestedCreatureName } from '@/components/sidebar/worktree-name-sug
 import type { SmartWorkspaceNameSelection } from '@/components/new-workspace/SmartWorkspaceNameField'
 import type { SmartNameMode } from '@/components/new-workspace/smart-workspace-source-results'
 import { getForkPushWarning } from './fork-push-warning'
+import {
+  buildWorkspaceSourceSelection,
+  shouldApplyWorkspaceSourceAutoName
+} from '../../../shared/new-workspace/workspace-source'
 import { CONTEXTUAL_TOUR_ENABLE_AUTO_WORKSPACE_NAME_EVENT } from '@/components/contextual-tours/contextual-tour-composer-events'
 import { ensureHooksConfirmed } from '@/lib/ensure-hooks-confirmed'
 import { normalizeSparseDirectoryLines, sparseDirectoriesMatch } from '@/lib/sparse-paths'
@@ -163,12 +168,10 @@ import {
 } from '@/lib/workspace-create-error-format'
 import type { SshConnectionStatus } from '../../../shared/ssh-types'
 import {
-  isBranchCheckedOutInWorktrees,
   resolveComposerBranchNameOverrideForCreate,
-  resolveComposerBranchReuse,
-  resolveComposerBranchSelection,
+  resolveComposerBranchPick,
   resolveComposerManualBranchNameChange,
-  resolveComposerReuseOverride
+  getComposerRepoWorktreeBranches
 } from './composer-branch-selection'
 import { isCurrentComposerDropOwner } from './composer-drop-owner'
 import {
@@ -780,6 +783,11 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
   // Why: SSH remotes deploy the CLI shim as plain `orca`, so the Linux-only
   // `orca-ide` rename must not be applied to remote launch commands.
   const selectedRepoIsRemote = selectedRepo ? repoIsRemote(selectedRepo) : false
+  const selectedRepoStartupShell = resolveLocalWindowsAgentStartupShell({
+    platform: selectedRepoAgentLaunchPlatform,
+    isRemote: selectedRepoIsRemote,
+    terminalWindowsShell: settings?.terminalWindowsShell
+  })
   const selectedRepoProjectId =
     selectedWorkspaceTarget.status === 'ready' ? selectedWorkspaceTarget.target.projectId : null
   const selectedProjectId = selectedProjectGroup
@@ -2066,7 +2074,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       // name or it silently becomes a slugified-URL workspace name.
       if (
         suggestedName &&
-        (!name.trim() || name === lastAutoNameRef.current || isWorkItemLookupText(name))
+        shouldApplyWorkspaceSourceAutoName({
+          currentName: name,
+          lastAutoName: lastAutoNameRef.current
+        })
       ) {
         setName(suggestedName)
         lastAutoNameRef.current = suggestedName
@@ -2301,7 +2312,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       const nextName = titleName?.seedName ?? suggestedName
       if (
         nextName &&
-        (!name.trim() || name === lastAutoNameRef.current || isWorkItemLookupText(name))
+        shouldApplyWorkspaceSourceAutoName({
+          currentName: name,
+          lastAutoName: lastAutoNameRef.current
+        })
       ) {
         setName(nextName)
         lastAutoNameRef.current = nextName
@@ -2903,7 +2917,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
         const nextName = getLinkedItemDisplayName(linkedItem)
         if (
           nextName &&
-          (!name.trim() || name === lastAutoNameRef.current || isWorkItemLookupText(name))
+          shouldApplyWorkspaceSourceAutoName({
+            currentName: name,
+            lastAutoName: lastAutoNameRef.current
+          })
         ) {
           setName(nextName)
           lastAutoNameRef.current = nextName
@@ -3007,7 +3024,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
         const nextName = getLinkedItemDisplayName(linkedItem)
         if (
           nextName &&
-          (!name.trim() || name === lastAutoNameRef.current || isWorkItemLookupText(name))
+          shouldApplyWorkspaceSourceAutoName({
+            currentName: name,
+            lastAutoName: lastAutoNameRef.current
+          })
         ) {
           setName(nextName)
           lastAutoNameRef.current = nextName
@@ -3104,11 +3124,12 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
   const handleSmartBranchSelect = useCallback(
     (refName: string, localBranchName: string): void => {
       smartGitHubPrStartPointSelectionRef.current = null
-      const selection = resolveComposerBranchSelection({
+      const selection = resolveComposerBranchPick({
         refName,
         localBranchName,
         currentName: name,
-        lastAutoName: lastAutoNameRef.current
+        lastAutoName: lastAutoNameRef.current,
+        worktreeBranches: getComposerRepoWorktreeBranches(worktreesByRepo[repoId] ?? [], repoId)
       })
       setBaseBranch(selection.baseBranch)
       setCompareBaseRef(undefined)
@@ -3124,34 +3145,18 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       // Note: worktreesByRepo only covers visible worktrees; a branch busy only
       // in a hidden external worktree falls through to the backend conflict
       // check, which rejects it with a clear "already exists locally" error.
-      const branchCheckedOutElsewhere = isBranchCheckedOutInWorktrees(
-        localBranchName,
-        (worktreesByRepo[repoId] ?? []).map((worktree) => worktree.branch)
-      )
-      const { reuseEligibleBranch: nextReuseEligibleBranch, defaultReuse } =
-        resolveComposerBranchReuse({
-          refName,
-          localBranchName,
-          selectionProducedOverride: selection.branchNameOverride !== undefined,
-          branchCheckedOutElsewhere
-        })
+      const { reuseEligibleBranch: nextReuseEligibleBranch, defaultReuse } = selection
       setReuseEligibleBranch(nextReuseEligibleBranch)
       setReuseSelectedBranch(defaultReuse)
       setBranchNameOverridePreservesNameEdits(defaultReuse)
-      const effectiveOverride = resolveComposerReuseOverride({
-        refName,
-        localBranchName,
-        branchNameOverride: selection.branchNameOverride,
-        branchCheckedOutElsewhere
-      })
       if (selection.name !== undefined && selection.lastAutoName !== undefined) {
         setName(selection.name)
         lastAutoNameRef.current = selection.lastAutoName
-        branchAutoNameRef.current = effectiveOverride ? selection.branchAutoName : ''
-        setBranchNameOverride(effectiveOverride)
+        branchAutoNameRef.current = selection.branchNameOverride ? selection.branchAutoName : ''
+        setBranchNameOverride(selection.branchNameOverride)
       } else {
-        setBranchNameOverride(effectiveOverride)
-        branchAutoNameRef.current = effectiveOverride ? selection.branchAutoName : ''
+        setBranchNameOverride(selection.branchNameOverride)
+        branchAutoNameRef.current = selection.branchNameOverride ? selection.branchAutoName : ''
       }
     },
     [name, worktreesByRepo, repoId]
@@ -3188,9 +3193,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
         const suggestedName =
           getLinkedItemDisplayName(linkedItem) ?? getLinearIssueWorkspaceName(issue)
         if (
-          !name.trim() ||
-          name === lastAutoNameRef.current ||
-          isWorkItemLookupText(name) ||
+          shouldApplyWorkspaceSourceAutoName({
+            currentName: name,
+            lastAutoName: lastAutoNameRef.current
+          }) ||
           name.trim().toLowerCase() === issue.identifier.toLowerCase()
         ) {
           setName(suggestedName)
@@ -3207,9 +3213,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       // Why: same lookup-text rule as applyLinkedWorkItem, plus the typed
       // Linear identifier ("STA-123") that matched this issue.
       if (
-        !name.trim() ||
-        name === lastAutoNameRef.current ||
-        isWorkItemLookupText(name) ||
+        shouldApplyWorkspaceSourceAutoName({
+          currentName: name,
+          lastAutoName: lastAutoNameRef.current
+        }) ||
         name.trim().toLowerCase() === issue.identifier.toLowerCase()
       ) {
         setName(suggestedName)
@@ -3256,33 +3263,10 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     if (isProjectGroupTarget) {
       return getFolderSmartNameSelection(linkedWorkItem)
     }
-    if (linkedWorkItem) {
-      const provider = getLinkedWorkItemProvider(linkedWorkItem)
-      const isLinear = provider === 'linear'
-      const kind: SmartWorkspaceNameSelection['kind'] = isLinear
-        ? 'linear'
-        : provider === 'jira'
-          ? 'jira'
-          : provider === 'gitlab'
-            ? linkedWorkItem.type === 'mr'
-              ? 'gitlab-mr'
-              : 'gitlab-issue'
-            : linkedWorkItem.type === 'pr'
-              ? 'github-pr'
-              : 'github-issue'
-      return {
-        kind,
-        label:
-          isLinear || provider === 'jira' || linkedWorkItem.number === 0
-            ? linkedWorkItem.title
-            : `#${linkedWorkItem.number} ${linkedWorkItem.title}`,
-        url: linkedWorkItem.url
-      }
-    }
-    if (baseBranch) {
-      return { kind: 'branch', label: baseBranch }
-    }
-    return null
+    return buildWorkspaceSourceSelection({
+      linkedWorkItem,
+      baseBranch
+    }) as SmartWorkspaceNameSelection | null
   }, [baseBranch, isProjectGroupTarget, linkedWorkItem])
 
   const handleOpenAgentSettings = useCallback((): void => {
@@ -3344,6 +3328,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
             ? resolveTuiAgentLaunchArgs(agent, settings?.agentDefaultArgs)
             : undefined,
           agentEnv: agent ? resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv) : undefined,
+          terminalWindowsShell: settings?.terminalWindowsShell,
           isRemote: folderTargetIsRemote,
           launchSource: telemetrySource === 'onboarding' ? 'onboarding' : 'new_workspace_composer',
           runtimeEnvironmentId: folderTargetRuntimeEnvironmentId,
@@ -3399,6 +3384,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       settings?.agentDefaultArgs,
       settings?.agentDefaultEnv,
       settings?.autoRenameBranchFromWork,
+      settings?.terminalWindowsShell,
       telemetrySource
     ]
   )
@@ -3598,6 +3584,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
         agentArgs: resolveTuiAgentLaunchArgs(tuiAgent, settings?.agentDefaultArgs),
         agentEnv: resolveTuiAgentLaunchEnv(tuiAgent, settings?.agentDefaultEnv),
         platform: selectedRepoAgentLaunchPlatform,
+        shell: selectedRepoStartupShell,
         isRemote: selectedRepoIsRemote
       })
       const shouldSeedInitialAgentStatus =
@@ -3769,6 +3756,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     selectedRepo,
     selectedRepoAgentLaunchPlatform,
     selectedRepoIsRemote,
+    selectedRepoStartupShell,
     selectedRepoIsGit,
     selectedRepoRequiresConnection,
     showProjectRequiredError,
@@ -4015,6 +4003,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
                 agentArgs: resolveTuiAgentLaunchArgs(agent, settings?.agentDefaultArgs),
                 agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
                 platform: selectedRepoAgentLaunchPlatform,
+                shell: selectedRepoStartupShell,
                 isRemote: selectedRepoIsRemote
               })
 
@@ -4039,6 +4028,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
             agentArgs: resolveTuiAgentLaunchArgs(agent, settings?.agentDefaultArgs),
             agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
             platform: selectedRepoAgentLaunchPlatform,
+            shell: selectedRepoStartupShell,
             isRemote: selectedRepoIsRemote,
             allowEmptyPromptLaunch: true
           })
@@ -4214,6 +4204,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       selectedRepo,
       selectedRepoAgentLaunchPlatform,
       selectedRepoIsRemote,
+      selectedRepoStartupShell,
       selectedRepoIsGit,
       selectedRepoSettings,
       selectedRepoRequiresConnection,
