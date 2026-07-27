@@ -56,6 +56,7 @@ type RepositoryPaneProps = {
   ) => void
   removeProject: (repoId: string) => void
   project?: Project | null
+  selectedProjectSetupId?: string
   isLocalWindowsProject?: boolean
   wslAvailable?: boolean
   wslDistros?: string[]
@@ -75,6 +76,7 @@ export function RepositoryPane({
   updateRepo,
   removeProject,
   project = null,
+  selectedProjectSetupId,
   isLocalWindowsProject = false,
   wslAvailable = false,
   wslDistros = EMPTY_WSL_DISTROS,
@@ -227,7 +229,7 @@ export function RepositoryPane({
               )}
             </p>
             <p className="text-xs text-muted-foreground">
-              {translate('auto.components.settings.RepositoryPane.323debba71', 'Type:')}
+              {translate('auto.components.settings.RepositoryPane.323debba71', 'Type:')}{' '}
               <span className="text-foreground">{getRepoKindLabel(repo)}</span>
             </p>
             {isFolder ? (
@@ -321,6 +323,7 @@ export function RepositoryPane({
           <>
             <RepositoryHostSetupsSection
               repo={repo}
+              selectedProjectSetupId={selectedProjectSetupId}
               forceVisible={forceFullPaneForRepoMatch}
               searchQuery={searchQuery}
               searchEntries={hostSetupEntries}

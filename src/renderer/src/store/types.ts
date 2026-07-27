@@ -27,6 +27,7 @@ import type { AgentStatusSlice } from './slices/agent-status'
 import type { PaneForegroundAgentSlice } from './slices/pane-foreground-agent'
 import type { DiffCommentsSlice } from './slices/diffComments'
 import type { DetectedAgentsSlice } from './slices/detected-agents'
+import type { RuntimeDetectedAgentsSlice } from './slices/runtime-detected-agents'
 import type { WorktreeNavHistorySlice } from './slices/worktree-nav-history'
 import type { DictationSlice } from './slices/dictation'
 import type { WorkspaceCleanupSlice } from './slices/workspace-cleanup'
@@ -37,6 +38,7 @@ import type { PinnedTabCloseConfirmSlice } from './slices/pinned-tab-close-confi
 import type { RecentlyClosedTabsSlice } from './slices/recently-closed-tabs'
 import type { OrcaProfilesSlice } from './slices/orca-profiles'
 import type { NewIssueDraftSlice } from './slices/new-issue-draft'
+import type { RemoteServerUpdatesSlice } from './slices/remote-server-updates'
 
 export type AppState = RepoSlice &
   SparsePresetsSlice &
@@ -67,6 +69,7 @@ export type AppState = RepoSlice &
   PaneForegroundAgentSlice &
   DiffCommentsSlice &
   DetectedAgentsSlice &
+  RuntimeDetectedAgentsSlice &
   WorktreeNavHistorySlice &
   DictationSlice &
   WorkspaceCleanupSlice &
@@ -76,4 +79,5 @@ export type AppState = RepoSlice &
   PinnedTabCloseConfirmSlice &
   RecentlyClosedTabsSlice &
   OrcaProfilesSlice &
-  NewIssueDraftSlice
+  NewIssueDraftSlice &
+  RemoteServerUpdatesSlice

@@ -3,8 +3,7 @@
  * agent-status rows are seeded from its rendered status words and idle
  * composer. Shared because main runs this per-PTY under side-effect authority
  * (emitting command-code facts) while the renderer keeps the byte path for
- * remote-runtime PTYs and the kill switch
- * (docs/reference/terminal-side-effect-authority.md).
+ * remote-runtime PTYs and the kill switch.
  */
 import {
   cleanCommandCodePromptCandidate,
@@ -127,15 +126,19 @@ function stripTerminalControl(data: string): string {
     return data
   }
   const withoutAnsi = data.replace(ANSI_ESCAPE_RE, '').replace(INCOMPLETE_ANSI_ESCAPE_RE, '')
+  // Four calls per PTY chunk favor copying sparse intact runs over per-character concatenation.
   let output = ''
+  let runStart = 0
   for (let index = 0; index < withoutAnsi.length; index += 1) {
     const code = withoutAnsi.charCodeAt(index)
     if ((code <= 0x1f && code !== 0x0a && code !== 0x0d) || (code >= 0x7f && code <= 0x9f)) {
-      continue
+      if (index > runStart) {
+        output += withoutAnsi.slice(runStart, index)
+      }
+      runStart = index + 1
     }
-    output += withoutAnsi[index]
   }
-  return output
+  return runStart === 0 ? withoutAnsi : output + withoutAnsi.slice(runStart)
 }
 
 function terminalControlMayAffectText(data: string): boolean {

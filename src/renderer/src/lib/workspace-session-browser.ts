@@ -9,9 +9,7 @@ export function buildBrowserSessionData(
   'browserTabsByWorktree' | 'browserPagesByWorkspace' | 'activeBrowserTabIdByWorktree'
 > {
   return {
-    // Why: browser tabs persist only lightweight chrome state. Live guest
-    // webContents are recreated on restore, so loading is reset to false and
-    // transient errors are preserved only as last-known tab metadata.
+    // Why: guest webContents are recreated on restore, so persist only lightweight chrome state (loading reset to false).
     browserTabsByWorktree: buildPersistedBrowserTabsByWorktree(browserTabsByWorktree),
     browserPagesByWorkspace: buildPersistedBrowserPagesByWorkspace(browserPagesByWorkspace),
     activeBrowserTabIdByWorktree
