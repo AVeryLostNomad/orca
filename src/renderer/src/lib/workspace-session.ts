@@ -55,6 +55,7 @@ export type WorkspaceSessionSnapshot = Pick<
   | 'lastVisitedAtByWorktreeId'
   | 'defaultTerminalTabsAppliedByWorktreeId'
 > & {
+  activeWorkspaceExecutionHostId?: AppState['activeWorkspaceExecutionHostId']
   sleepingAgentSessionsByPaneKey?: AppState['sleepingAgentSessionsByPaneKey']
 }
 
@@ -62,6 +63,7 @@ export type WorkspaceSessionSnapshot = Pick<
 export const SESSION_RELEVANT_FIELDS = [
   'activeRepoId',
   'activeWorkspaceKey',
+  'activeWorkspaceExecutionHostId',
   'activeWorktreeId',
   'activeTabId',
   'tabsByWorktree',
@@ -96,8 +98,7 @@ type _MissingSessionField = Exclude<
   keyof WorkspaceSessionSnapshot,
   (typeof SESSION_RELEVANT_FIELDS)[number]
 >
-const _exhaustive: [_MissingSessionField] extends [never] ? true : never = true
-void _exhaustive
+void (true satisfies [_MissingSessionField] extends [never] ? true : never)
 
 /** Build the editor-file portion of the workspace session for persistence.
  *  Only edit-mode files are saved — diffs and conflict views are transient. */
@@ -264,6 +265,7 @@ export function buildWorkspaceSessionPayload(
   const payload = {
     activeRepoId: snapshot.activeRepoId,
     activeWorkspaceKey: snapshot.activeWorkspaceKey,
+    activeWorkspaceExecutionHostId: snapshot.activeWorkspaceExecutionHostId,
     activeWorktreeId: snapshot.activeWorktreeId,
     activeTabId: snapshot.activeTabId,
     tabsByWorktree: buildSanitizedTabsByWorktree(snapshot.tabsByWorktree),
