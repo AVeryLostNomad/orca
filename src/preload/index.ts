@@ -243,7 +243,12 @@ import type {
   SpeechModelState,
   SpeechTranscriptEvent
 } from '../shared/speech-types'
-import type { CodeServerStatusEvent } from '../shared/code-server-types'
+import type {
+  CodeServerImportRequest,
+  CodeServerImportResult,
+  CodeServerImportState,
+  CodeServerStatusEvent
+} from '../shared/code-server-types'
 import type { TelemetryConsentState } from '../shared/telemetry-consent-types'
 import type {
   PreflightRuntimeContext,
@@ -5073,7 +5078,12 @@ const api = {
         callback(data)
       ipcRenderer.on('codeServer:statusChanged', listener)
       return () => ipcRenderer.removeListener('codeServer:statusChanged', listener)
-    }
+    },
+    getImportState: (): Promise<CodeServerImportState> =>
+      ipcRenderer.invoke('codeServer:getImportState'),
+    dismissImportPrompt: (): Promise<void> => ipcRenderer.invoke('codeServer:dismissImportPrompt'),
+    applyImport: (request: CodeServerImportRequest): Promise<CodeServerImportResult> =>
+      ipcRenderer.invoke('codeServer:applyImport', request)
   }
 }
 

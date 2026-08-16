@@ -1,28 +1,21 @@
 import { existsSync } from 'node:fs'
 import { lstat, mkdir, readlink, rm, symlink } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { getCodeServerUserDataDir } from './code-server-paths'
-
-// v1 targets stable "Code" only (Insiders / VSCodium are follow-ups).
-function resolveRealVsCodeUserDir(): string | null {
-  if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'Code', 'User')
-  }
-  if (process.platform === 'linux') {
-    return join(homedir(), '.config', 'Code', 'User')
-  }
-  return null
-}
+import { resolveEditorUserDir } from './code-server-import-sources'
+import { readCodeServerImportPreference } from './code-server-import-preference'
 
 // settings.json, keybindings.json and snippets are all mirrored verbatim via
-// symlink: the embedded editor shares the user's real VS Code config, and edits
-// made in either place flow straight back to the other. Regenerated on start.
+// symlink: the embedded editor shares the source editor's real config, and
+// edits made in either place flow straight back to the other. Regenerated on
+// start. The source editor defaults to stable VS Code and can be switched via
+// the import screen (persisted in the import preference).
 const SYMLINKED_ENTRIES = ['settings.json', 'keybindings.json', 'snippets'] as const
 
 // Idempotent; never blocks the editor from starting.
-export async function mirrorVsCodeUserConfig(): Promise<void> {
-  const realUserDir = resolveRealVsCodeUserDir()
+export async function mirrorEditorUserConfig(): Promise<void> {
+  const preference = await readCodeServerImportPreference()
+  const realUserDir = resolveEditorUserDir(preference.sourceId ?? 'vscode')
   if (!realUserDir) {
     return
   }
@@ -53,10 +46,11 @@ async function linkEntry(target: string, linkPath: string): Promise<void> {
     } else if (current?.isDirectory()) {
       return // a real dir already lives here — do not clobber user data
     }
-    // Replace a stale symlink or a settings.json copy written by earlier Orca
-    // versions (which merged settings into a copy instead of symlinking). Plain
-    // files/symlinks under the code-server User dir are Orca-managed mirrors —
-    // the real VS Code config is the source of truth — so removing one is safe.
+    // Replace a stale symlink (e.g. after switching source editors) or a
+    // settings.json copy written by earlier Orca versions (which merged
+    // settings into a copy instead of symlinking). Plain files/symlinks under
+    // the code-server User dir are Orca-managed mirrors — the real editor
+    // config is the source of truth — so removing one is safe.
     if (current) {
       await rm(linkPath, { force: true })
     }

@@ -4,7 +4,7 @@ import { createServer } from 'node:net'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-server-types'
 import { ensureCodeServerInstalled } from './code-server-installer'
-import { mirrorVsCodeUserConfig } from './code-server-vscode-user-config'
+import { mirrorEditorUserConfig } from './code-server-editor-user-config'
 import { disableExtensionSignatureVerification } from './code-server-signature-verification'
 import { setCodeServerPid } from './code-server-process-registry'
 import { hydrateShellPath, mergePathSegments } from '../startup/hydrate-shell-path'
@@ -95,6 +95,7 @@ function probeHealthz(port: number): Promise<boolean> {
 export type CodeServerProvider = {
   acquire(): Promise<{ port: number }>
   retry(): Promise<{ port: number }>
+  restartForConfigChange(): Promise<{ port: number } | null>
   release(): void
   getStatus(): CodeServerStatusEvent
   onStatusChanged(cb: (e: CodeServerStatusEvent) => void): () => void
@@ -170,6 +171,24 @@ export class CodeServerManager implements CodeServerProvider {
     return this.starting
   }
 
+  // Restart a running server so config imported while it was up (extensions,
+  // a different source editor's settings) is picked up. Does NOT take a ref —
+  // the panes' existing refs keep driving the lifetime. When nothing is
+  // running, the next acquire reads the new config anyway, so this no-ops.
+  async restartForConfigChange(): Promise<{ port: number } | null> {
+    if (this.starting) {
+      await this.starting.catch(() => {}) // let an in-flight start settle first
+    }
+    if (!this.child || this.refCount <= 0) {
+      return null
+    }
+    this.killChild()
+    this.starting = this.startSequence().finally(() => {
+      this.starting = null
+    })
+    return this.starting
+  }
+
   private async startSequence(): Promise<{ port: number }> {
     try {
       this.reapOrphan()
@@ -181,7 +200,7 @@ export class CodeServerManager implements CodeServerProvider {
           this.emit('installing', { progress: fraction })
         )
       }
-      await mirrorVsCodeUserConfig()
+      await mirrorEditorUserConfig()
       // Open VSX + macOS standalone can't verify extension signatures; default
       // the check off for the embedded editor so extension installs work.
       await disableExtensionSignatureVerification()

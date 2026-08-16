@@ -1,6 +1,18 @@
 import { BrowserWindow, ipcMain } from 'electron'
-import type { CodeServerStatusEvent } from '../../shared/code-server-types'
+import type {
+  CodeServerImportRequest,
+  CodeServerImportResult,
+  CodeServerImportState,
+  CodeServerStatusEvent
+} from '../../shared/code-server-types'
 import { getCodeServerService } from '../code-server/code-server-service'
+import { detectCodeServerImportSources } from '../code-server/code-server-import-sources'
+import {
+  readCodeServerImportPreference,
+  updateCodeServerImportPreference
+} from '../code-server/code-server-import-preference'
+import { importExtensionsFromEditor } from '../code-server/code-server-extension-import'
+import { mirrorEditorUserConfig } from '../code-server/code-server-editor-user-config'
 
 export function registerCodeServerHandlers(): void {
   const service = getCodeServerService()
@@ -37,4 +49,46 @@ export function registerCodeServerHandlers(): void {
   })
 
   ipcMain.handle('codeServer:getStatus', () => service.getStatus())
+
+  ipcMain.handle('codeServer:getImportState', async (): Promise<CodeServerImportState> => {
+    const [sources, preference] = await Promise.all([
+      detectCodeServerImportSources(),
+      readCodeServerImportPreference()
+    ])
+    return {
+      sources,
+      activeSourceId: preference.sourceId ?? null,
+      promptDismissed: preference.promptDismissed === true
+    }
+  })
+
+  ipcMain.handle('codeServer:dismissImportPrompt', async () => {
+    await updateCodeServerImportPreference({ promptDismissed: true })
+  })
+
+  ipcMain.handle(
+    'codeServer:applyImport',
+    async (_event, request: CodeServerImportRequest): Promise<CodeServerImportResult> => {
+      try {
+        // Persist first so every future start mirrors the chosen editor, then
+        // re-link immediately for the (possibly running) current server.
+        await updateCodeServerImportPreference({
+          sourceId: request.sourceId,
+          promptDismissed: true
+        })
+        await mirrorEditorUserConfig()
+        const summary = request.includeExtensions
+          ? await importExtensionsFromEditor(request.sourceId)
+          : { imported: 0, skipped: 0 }
+        const restarted = (await service.restartForConfigChange()) != null
+        return {
+          extensionsImported: summary.imported,
+          extensionsSkipped: summary.skipped,
+          restarted
+        }
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+  )
 }

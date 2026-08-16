@@ -9715,7 +9715,11 @@
           "aa02335b82": "Open a .code-workspace file in the embedded editor instead of the worktree folder.",
           "b3f41cbfcc": "Clear",
           "92cc086f07": "e.g. project.code-workspace",
-          "ef15c3fb5d": "Relative to each worktree root. Leave empty to open the folder."
+          "ef15c3fb5d": "Relative to each worktree root. Leave empty to open the folder.",
+          "31d390a5f5": "Editor Settings Import",
+          "0adbaf6498": "Use your VS Code or Cursor settings, keybindings, snippets, and extensions in the embedded editor.",
+          "39cfd126b7": "Import from VS Code / Cursor…",
+          "17b8e0b02f": "Applies to the embedded editor in every repository."
         },
         "SkillUsageExampleDialog": {
           "copiedPrompt": "Prompt de ejemplo copiado.",
@@ -14266,6 +14270,26 @@
               "1d7589e99e": "Retry",
               "4a8a282725": "Installing VS Code…",
               "231da812b0": "code-server failed to load."
+            },
+            "CodeServerImportModal": {
+              "37836403ec": "Settings",
+              "0c46f685c1": "Keybindings",
+              "650939408f": "Snippets",
+              "3a3a68ace1": "{{count}} extensions",
+              "5d66e7cb4e": "Use Your Editor Settings",
+              "09804247df": "Bring settings, keybindings, snippets, and extensions from an editor on this machine into the embedded VS Code.",
+              "51181e3c10": "Detecting installed editors…",
+              "4a11eb10e3": "Import complete",
+              "02678305a1": "{{count}} extensions installed.",
+              "2567936aa7": "{{count}} already-installed extensions were skipped.",
+              "06ff3cfd41": "VS Code is reloading to apply the changes.",
+              "1777686b0c": "No VS Code or Cursor configuration was found on this machine.",
+              "69eb483fbf": "Install {{count}} extensions",
+              "2c04a2e2cb": "Settings, keybindings, and snippets stay linked — edits made in either editor apply to both.",
+              "30d1bf1217": "Done",
+              "ac0db0202e": "Not Now",
+              "2084722876": "Importing…",
+              "9ece26b2e4": "Import"
             }
           }
         }

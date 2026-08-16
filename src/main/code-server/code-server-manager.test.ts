@@ -14,7 +14,7 @@ vi.mock('electron', () => ({
   net: { request: netRequestMock }
 }))
 vi.mock('./code-server-installer', () => ({ ensureCodeServerInstalled: vi.fn() }))
-vi.mock('./code-server-vscode-user-config', () => ({ mirrorVsCodeUserConfig: vi.fn() }))
+vi.mock('./code-server-editor-user-config', () => ({ mirrorEditorUserConfig: vi.fn() }))
 // Hydration spawns the user's login shell via node:child_process (mocked here),
 // so stub it out to keep startProcess() tests hermetic. 'not ok' => no PATH merge.
 vi.mock('../startup/hydrate-shell-path', () => ({
@@ -41,7 +41,7 @@ vi.mock('./code-server-paths', async (importOriginal) => {
 
 import { buildCodeServerArgs, CodeServerManager } from './code-server-manager'
 import { ensureCodeServerInstalled } from './code-server-installer'
-import { mirrorVsCodeUserConfig } from './code-server-vscode-user-config'
+import { mirrorEditorUserConfig } from './code-server-editor-user-config'
 
 describe('buildCodeServerArgs', () => {
   it('binds loopback, disables auth+telemetry+workspace-trust, isolates dirs', () => {
@@ -137,13 +137,13 @@ describe('acquire single-flight', () => {
     createServerMock.mockReset()
     netRequestMock.mockReset()
     vi.mocked(ensureCodeServerInstalled).mockReset()
-    vi.mocked(mirrorVsCodeUserConfig).mockReset()
+    vi.mocked(mirrorEditorUserConfig).mockReset()
   })
 
   it('spawns exactly one child when two acquire() calls overlap before ready', async () => {
     resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
     vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
-    vi.mocked(mirrorVsCodeUserConfig).mockResolvedValue(undefined)
+    vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
     primeSuccessfulStart(4999)
 
     const fs = await import('node:fs')
@@ -162,7 +162,7 @@ describe('acquire single-flight', () => {
   it('retry does not take a ref, so one release after acquire+retry stops the server', async () => {
     resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
     vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
-    vi.mocked(mirrorVsCodeUserConfig).mockResolvedValue(undefined)
+    vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
     primeSuccessfulStart(4998)
 
     const fs = await import('node:fs')
@@ -192,7 +192,7 @@ describe('acquire single-flight', () => {
   it('fails the start (no auto-restart) when the child exits before becoming ready', async () => {
     resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
     vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
-    vi.mocked(mirrorVsCodeUserConfig).mockResolvedValue(undefined)
+    vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
     // Free-port pick succeeds; healthz never returns 200 for this port.
     createServerMock.mockImplementation(() => ({
       once: () => {},

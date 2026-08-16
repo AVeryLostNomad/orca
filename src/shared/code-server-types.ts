@@ -24,3 +24,33 @@ export type CodeServerStatusEvent = {
   /** Human-readable reason when status === 'error'. */
   error?: string
 }
+
+// Desktop editors whose config the embedded editor can adopt.
+export type CodeServerImportSourceId = 'vscode' | 'vscode-insiders' | 'vscodium' | 'cursor'
+
+export type CodeServerImportSource = {
+  id: CodeServerImportSourceId
+  name: string
+  /** True when settings.json / keybindings.json / a snippets dir exists. */
+  hasSettings: boolean
+  hasKeybindings: boolean
+  hasSnippets: boolean
+  extensionCount: number
+}
+
+export type CodeServerImportState = {
+  sources: CodeServerImportSource[]
+  /** Editor currently mirrored into the embedded editor's user dir. */
+  activeSourceId: CodeServerImportSourceId | null
+  /** True once the user picked a source or dismissed the first-run prompt. */
+  promptDismissed: boolean
+}
+
+export type CodeServerImportRequest = {
+  sourceId: CodeServerImportSourceId
+  includeExtensions: boolean
+}
+
+export type CodeServerImportResult =
+  | { extensionsImported: number; extensionsSkipped: number; restarted: boolean }
+  | { error: string }

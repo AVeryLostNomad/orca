@@ -2,16 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const { existsSyncMock, lstatMock, readlinkMock, symlinkMock, mkdirMock, rmMock } = vi.hoisted(
-  () => ({
+const { existsSyncMock, lstatMock, readlinkMock, symlinkMock, mkdirMock, rmMock, preferenceMock } =
+  vi.hoisted(() => ({
     existsSyncMock: vi.fn(),
     lstatMock: vi.fn(),
     readlinkMock: vi.fn(),
     symlinkMock: vi.fn(),
     mkdirMock: vi.fn(),
-    rmMock: vi.fn()
-  })
-)
+    rmMock: vi.fn(),
+    preferenceMock: vi.fn()
+  }))
 
 vi.mock('node:fs', () => ({ existsSync: existsSyncMock }))
 vi.mock('node:fs/promises', () => ({
@@ -22,22 +22,32 @@ vi.mock('node:fs/promises', () => ({
   rm: rmMock
 }))
 vi.mock('./code-server-paths', () => ({
-  getCodeServerUserDataDir: () => '/userData/code-server/user-data'
+  getCodeServerUserDataDir: () => '/userData/code-server/user-data',
+  getCodeServerCacheRoot: () => '/userData/code-server'
+}))
+vi.mock('./code-server-import-preference', () => ({
+  readCodeServerImportPreference: preferenceMock
 }))
 
-import { mirrorVsCodeUserConfig } from './code-server-vscode-user-config'
+import { mirrorEditorUserConfig } from './code-server-editor-user-config'
 
-const realUserDir =
+const vscodeUserDir =
   process.platform === 'darwin'
     ? join(homedir(), 'Library', 'Application Support', 'Code', 'User')
     : join(homedir(), '.config', 'Code', 'User')
+const cursorUserDir =
+  process.platform === 'darwin'
+    ? join(homedir(), 'Library', 'Application Support', 'Cursor', 'User')
+    : join(homedir(), '.config', 'Cursor', 'User')
 const destUserDir = join('/userData/code-server/user-data', 'User')
 
-describe('mirrorVsCodeUserConfig', () => {
+describe('mirrorEditorUserConfig', () => {
   beforeEach(() => {
     ;[existsSyncMock, lstatMock, readlinkMock, symlinkMock, mkdirMock, rmMock].forEach((m) =>
       m.mockReset()
     )
+    preferenceMock.mockReset()
+    preferenceMock.mockResolvedValue({})
     mkdirMock.mockResolvedValue(undefined)
     symlinkMock.mockResolvedValue(undefined)
     rmMock.mockResolvedValue(undefined)
@@ -46,18 +56,40 @@ describe('mirrorVsCodeUserConfig', () => {
   })
 
   it('symlinks settings.json, keybindings.json and snippets to the real VS Code config', async () => {
-    await mirrorVsCodeUserConfig()
+    await mirrorEditorUserConfig()
     for (const entry of ['settings.json', 'keybindings.json', 'snippets']) {
-      expect(symlinkMock).toHaveBeenCalledWith(join(realUserDir, entry), join(destUserDir, entry))
+      expect(symlinkMock).toHaveBeenCalledWith(join(vscodeUserDir, entry), join(destUserDir, entry))
     }
+  })
+
+  it('mirrors from the imported source editor when a preference is set', async () => {
+    preferenceMock.mockResolvedValue({ sourceId: 'cursor' })
+    await mirrorEditorUserConfig()
+    for (const entry of ['settings.json', 'keybindings.json', 'snippets']) {
+      expect(symlinkMock).toHaveBeenCalledWith(join(cursorUserDir, entry), join(destUserDir, entry))
+    }
+  })
+
+  it('re-points an existing symlink after the source editor changes', async () => {
+    preferenceMock.mockResolvedValue({ sourceId: 'cursor' })
+    lstatMock.mockResolvedValue({ isSymbolicLink: () => true, isDirectory: () => false })
+    readlinkMock.mockImplementation((linkPath: string) =>
+      Promise.resolve(join(vscodeUserDir, linkPath.replace(`${destUserDir}/`, '')))
+    )
+    await mirrorEditorUserConfig()
+    expect(rmMock).toHaveBeenCalledWith(join(destUserDir, 'settings.json'), { force: true })
+    expect(symlinkMock).toHaveBeenCalledWith(
+      join(cursorUserDir, 'settings.json'),
+      join(destUserDir, 'settings.json')
+    )
   })
 
   it('leaves an already-correct symlink untouched', async () => {
     lstatMock.mockResolvedValue({ isSymbolicLink: () => true, isDirectory: () => false })
     readlinkMock.mockImplementation((linkPath: string) =>
-      Promise.resolve(join(realUserDir, linkPath.replace(`${destUserDir}/`, '')))
+      Promise.resolve(join(vscodeUserDir, linkPath.replace(`${destUserDir}/`, '')))
     )
-    await mirrorVsCodeUserConfig()
+    await mirrorEditorUserConfig()
     expect(rmMock).not.toHaveBeenCalled()
     expect(symlinkMock).not.toHaveBeenCalled()
   })
@@ -69,10 +101,10 @@ describe('mirrorVsCodeUserConfig', () => {
         ? Promise.resolve({ isSymbolicLink: () => false, isDirectory: () => false })
         : Promise.reject(new Error('ENOENT'))
     )
-    await mirrorVsCodeUserConfig()
+    await mirrorEditorUserConfig()
     expect(rmMock).toHaveBeenCalledWith(join(destUserDir, 'settings.json'), { force: true })
     expect(symlinkMock).toHaveBeenCalledWith(
-      join(realUserDir, 'settings.json'),
+      join(vscodeUserDir, 'settings.json'),
       join(destUserDir, 'settings.json')
     )
     expect(rmMock.mock.invocationCallOrder[0]).toBeLessThan(symlinkMock.mock.invocationCallOrder[0])
@@ -84,25 +116,25 @@ describe('mirrorVsCodeUserConfig', () => {
         ? Promise.resolve({ isSymbolicLink: () => false, isDirectory: () => true })
         : Promise.reject(new Error('ENOENT'))
     )
-    await mirrorVsCodeUserConfig()
+    await mirrorEditorUserConfig()
     expect(rmMock).not.toHaveBeenCalledWith(join(destUserDir, 'snippets'), expect.anything())
     expect(symlinkMock).not.toHaveBeenCalledWith(
-      join(realUserDir, 'snippets'),
+      join(vscodeUserDir, 'snippets'),
       join(destUserDir, 'snippets')
     )
   })
 
   it('skips an entry when the real source is absent (no dangling symlink)', async () => {
-    existsSyncMock.mockImplementation((p: string) => p !== join(realUserDir, 'settings.json'))
-    await mirrorVsCodeUserConfig()
+    existsSyncMock.mockImplementation((p: string) => p !== join(vscodeUserDir, 'settings.json'))
+    await mirrorEditorUserConfig()
     expect(symlinkMock).not.toHaveBeenCalledWith(
-      join(realUserDir, 'settings.json'),
+      join(vscodeUserDir, 'settings.json'),
       join(destUserDir, 'settings.json')
     )
   })
 
   it('never throws when a filesystem operation fails', async () => {
     symlinkMock.mockRejectedValue(new Error('EPERM'))
-    await expect(mirrorVsCodeUserConfig()).resolves.toBeUndefined()
+    await expect(mirrorEditorUserConfig()).resolves.toBeUndefined()
   })
 })

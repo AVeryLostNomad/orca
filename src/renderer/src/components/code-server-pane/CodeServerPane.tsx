@@ -9,6 +9,8 @@ import {
   ensureCodeServerWebview,
   resolveWorkspaceFilePath
 } from './code-server-webview'
+import { CodeServerImportModal } from './CodeServerImportModal'
+import { useCodeServerImport } from './useCodeServerImport'
 import { translate } from '@/i18n/i18n'
 
 type Props = {
@@ -35,6 +37,17 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
   // port (ready -> error -> ready) reloads the webview without thrashing
   // src on unrelated re-renders that resolve to the same URL.
   const lastAppliedUrlRef = useRef<string | null>(null)
+  const importFlow = useCodeServerImport()
+  const { maybeOpenFirstRun } = importFlow
+
+  // Offer to adopt the user's VS Code/Cursor config the first time the
+  // embedded editor comes up (once per install; a session-level guard keeps
+  // multiple panes from racing to open it).
+  useEffect(() => {
+    if (status.status === 'ready') {
+      void maybeOpenFirstRun()
+    }
+  }, [status.status, maybeOpenFirstRun])
 
   // Subscribe to lifecycle changes + mirror into the store.
   useEffect(() => {
@@ -129,6 +142,7 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
 
   return (
     <div className="flex flex-1 flex-col bg-editor-surface">
+      <CodeServerImportModal {...importFlow} />
       {status.status === 'ready' ? (
         <div ref={containerRef} className="flex flex-1" />
       ) : (
