@@ -262,6 +262,11 @@ export class BrowserManager {
     this.shouldForwardDictationShortcut = predicate
   }
 
+  // Why: non-browser guests (code-server) share the same dictation forwarding gate.
+  shouldForwardDictationShortcutToGuests(): boolean {
+    return this.shouldForwardDictationShortcut?.() ?? false
+  }
+
   setBrowserGuestStateChangedListener(listener: ((worktreeId: string) => void) | null): void {
     this.browserGuestStateChangedListener = listener
   }
@@ -1882,7 +1887,7 @@ export class BrowserManager {
         guest,
         resolveRenderer: (tabId) =>
           resolveRendererWebContents(this.rendererWebContentsIdByTabId, tabId),
-        shouldForwardDictationShortcut: () => this.shouldForwardDictationShortcut?.() ?? false,
+        shouldForwardDictationShortcut: () => this.shouldForwardDictationShortcutToGuests(),
         isMobileEmulatorEnabled: () => this.settingsResolver?.().mobileEmulatorEnabled !== false,
         getKeybindings: () => this.settingsResolver?.().keybindings,
         resolveWorktreeId: (tabId) => this.worktreeIdByTabId.get(tabId) ?? null,

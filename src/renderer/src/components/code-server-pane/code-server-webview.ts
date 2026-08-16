@@ -66,6 +66,25 @@ export function ensureCodeServerWebview({
   webview.style.border = 'none'
   // Match VS Code's own surface so no Orca chrome leaks before first paint.
   webview.style.background = '#1e1e1e'
+  // Why: the guest is its own WebContents — Orca chords only work while it has
+  // focus once main installs before-input-event forwarding on it.
+  let lastRegisteredWebContentsId: number | null = null
+  const registerGuest = (): void => {
+    let webContentsId: number
+    try {
+      webContentsId = webview.getWebContentsId()
+    } catch {
+      return // not attached yet
+    }
+    if (webContentsId === lastRegisteredWebContentsId) {
+      return
+    }
+    lastRegisteredWebContentsId = webContentsId
+    void window.api.codeServer.registerGuest({ codeServerTabId, webContentsId })
+  }
+  webview.addEventListener('did-attach', registerGuest)
+  // Why: a guest renderer-process swap keeps the element but changes its webContents; re-register.
+  webview.addEventListener('dom-ready', registerGuest)
   codeServerWebviewRegistry.set(codeServerTabId, webview)
   container.appendChild(webview)
   return { webview, created: true }
@@ -76,5 +95,6 @@ export function destroyCodeServerWebview(codeServerTabId: string): void {
   if (webview) {
     webview.remove()
     codeServerWebviewRegistry.delete(codeServerTabId)
+    void window.api.codeServer.unregisterGuest({ codeServerTabId })
   }
 }

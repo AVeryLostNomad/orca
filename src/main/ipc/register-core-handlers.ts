@@ -229,5 +229,5 @@ export function registerCoreHandlers(
   registerClipboardHandlers(store)
   registerUpdaterHandlers(store)
   registerSpeechHandlers(store)
-  registerCodeServerHandlers()
+  registerCodeServerHandlers({ getKeybindings: () => keybindings?.getOverrides() })
 }

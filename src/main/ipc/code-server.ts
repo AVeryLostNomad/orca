@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, webContents } from 'electron'
+import type { KeybindingOverrides } from '../../shared/keybindings'
 import type {
   CodeServerImportRequest,
   CodeServerImportResult,
@@ -13,8 +14,20 @@ import {
 } from '../code-server/code-server-import-preference'
 import { importExtensionsFromEditor } from '../code-server/code-server-extension-import'
 import { mirrorEditorUserConfig } from '../code-server/code-server-editor-user-config'
+import {
+  registerCodeServerGuest,
+  unregisterCodeServerGuest
+} from '../code-server/code-server-guest-shortcut-registry'
+import { browserManager } from '../browser/browser-manager'
 
-export function registerCodeServerHandlers(): void {
+type CodeServerGuestRegistrationArgs = {
+  codeServerTabId: string
+  webContentsId: number
+}
+
+export function registerCodeServerHandlers(options?: {
+  getKeybindings?: () => KeybindingOverrides | undefined
+}): void {
   const service = getCodeServerService()
 
   // Broadcast lifecycle changes to every open window's renderer.
@@ -64,6 +77,47 @@ export function registerCodeServerHandlers(): void {
 
   ipcMain.handle('codeServer:dismissImportPrompt', async () => {
     await updateCodeServerImportPreference({ promptDismissed: true })
+  })
+
+  // Installs Orca shortcut forwarding on the code-server <webview> guest —
+  // without it, no Orca chord fires while the embedded editor has focus.
+  ipcMain.handle(
+    'codeServer:registerGuest',
+    (event, args: CodeServerGuestRegistrationArgs): boolean => {
+      if (
+        !args ||
+        typeof args.codeServerTabId !== 'string' ||
+        typeof args.webContentsId !== 'number'
+      ) {
+        return false
+      }
+      const guest = webContents.fromId(args.webContentsId)
+      // Why: hostWebContents must be the invoking renderer, or a compromised
+      // renderer could attach forwarding to another window's guest.
+      if (
+        !guest ||
+        guest.isDestroyed() ||
+        guest.getType() !== 'webview' ||
+        guest.hostWebContents?.id !== event.sender.id
+      ) {
+        return false
+      }
+      registerCodeServerGuest({
+        codeServerTabId: args.codeServerTabId,
+        guest,
+        rendererWebContentsId: event.sender.id,
+        getKeybindings: options?.getKeybindings,
+        shouldForwardDictationShortcut: () =>
+          browserManager.shouldForwardDictationShortcutToGuests()
+      })
+      return true
+    }
+  )
+
+  ipcMain.handle('codeServer:unregisterGuest', (_event, args: { codeServerTabId: string }) => {
+    if (args && typeof args.codeServerTabId === 'string') {
+      unregisterCodeServerGuest(args.codeServerTabId)
+    }
   })
 
   ipcMain.handle(

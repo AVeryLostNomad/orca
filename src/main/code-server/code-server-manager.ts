@@ -6,6 +6,7 @@ import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-
 import { ensureCodeServerInstalled } from './code-server-installer'
 import { mirrorEditorUserConfig } from './code-server-editor-user-config'
 import { disableExtensionSignatureVerification } from './code-server-signature-verification'
+import { applyCodeServerMachineSettings } from './code-server-machine-settings'
 import { setCodeServerPid } from './code-server-process-registry'
 import { hydrateShellPath, mergePathSegments } from '../startup/hydrate-shell-path'
 import { promoteVersionManagerShims } from './code-server-toolchain-path'
@@ -204,6 +205,8 @@ export class CodeServerManager implements CodeServerProvider {
       // Open VSX + macOS standalone can't verify extension signatures; default
       // the check off for the embedded editor so extension installs work.
       await disableExtensionSignatureVerification()
+      // Hide SCM/terminal/chat surfaces via machine-scope settings — Orca owns those.
+      await applyCodeServerMachineSettings()
       const port = await this.startProcessWithOneRetry()
       return { port }
     } catch (error) {

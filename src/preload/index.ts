@@ -5083,7 +5083,11 @@ const api = {
       ipcRenderer.invoke('codeServer:getImportState'),
     dismissImportPrompt: (): Promise<void> => ipcRenderer.invoke('codeServer:dismissImportPrompt'),
     applyImport: (request: CodeServerImportRequest): Promise<CodeServerImportResult> =>
-      ipcRenderer.invoke('codeServer:applyImport', request)
+      ipcRenderer.invoke('codeServer:applyImport', request),
+    registerGuest: (args: { codeServerTabId: string; webContentsId: number }): Promise<boolean> =>
+      ipcRenderer.invoke('codeServer:registerGuest', args),
+    unregisterGuest: (args: { codeServerTabId: string }): Promise<void> =>
+      ipcRenderer.invoke('codeServer:unregisterGuest', args)
   }
 }
 

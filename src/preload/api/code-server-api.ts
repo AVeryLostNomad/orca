@@ -14,4 +14,6 @@ export type CodeServerApi = {
   getImportState: () => Promise<CodeServerImportState>
   dismissImportPrompt: () => Promise<void>
   applyImport: (request: CodeServerImportRequest) => Promise<CodeServerImportResult>
+  registerGuest: (args: { codeServerTabId: string; webContentsId: number }) => Promise<boolean>
+  unregisterGuest: (args: { codeServerTabId: string }) => Promise<void>
 }

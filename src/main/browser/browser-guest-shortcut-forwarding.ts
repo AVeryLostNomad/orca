@@ -4,7 +4,7 @@ import {
   nativeZoomCommandMatchesKeybindings,
   resolveWindowShortcutAction
 } from '../../shared/window-shortcut-policy'
-import type { KeybindingOverrides } from '../../shared/keybindings'
+import type { KeybindingContext, KeybindingOverrides } from '../../shared/keybindings'
 import type { BrowserPageZoomDirection } from '../../shared/browser-page-zoom'
 import {
   ModifierDoubleTapDetector,
@@ -25,38 +25,44 @@ export function setupGuestShortcutForwarding(args: {
   browserTabId: string
   guest: Electron.WebContents
   resolveRenderer: ResolveRenderer
+  // Why: 'vscode' guests forward only allowInVsCode chords; undefined keeps browser-guest behavior.
+  context?: KeybindingContext
   shouldForwardDictationShortcut?: ShouldForwardDictationShortcut
   isMobileEmulatorEnabled?: IsMobileEmulatorEnabled
   getKeybindings?: () => KeybindingOverrides | undefined
   // Why: a floating-panel guest owns a distinct workspace; its close/index chords must route to the panel, not the main tab strip.
   resolveWorktreeId?: (browserTabId: string) => string | null
   resolveWorkspaceId?: (browserTabId: string) => string | null
+  // Why: guests without renderer-side browser-zoom state (code-server) apply zoom on the guest directly.
+  forwardPageZoom?: (event: Electron.Event, direction: BrowserPageZoomDirection) => void
 }): () => void {
   const {
     browserTabId,
     guest,
     resolveRenderer,
+    context,
     shouldForwardDictationShortcut,
     isMobileEmulatorEnabled,
     getKeybindings,
     resolveWorktreeId,
     resolveWorkspaceId
   } = args
+  const matchOptions = { context }
   let ctrlTabSwitching = false
   const doubleTapDetector = new ModifierDoubleTapDetector()
   const resetDoubleTapDetector = (): void => doubleTapDetector.reset()
 
-  const forwardBrowserPageZoom = (
-    event: Electron.Event,
-    direction: BrowserPageZoomDirection
-  ): void => {
-    event.preventDefault()
-    const renderer = resolveRenderer(browserTabId)
-    renderer?.send('ui:zoomBrowserPage', direction)
-  }
+  const forwardBrowserPageZoom =
+    args.forwardPageZoom ??
+    ((event: Electron.Event, direction: BrowserPageZoomDirection): void => {
+      event.preventDefault()
+      const renderer = resolveRenderer(browserTabId)
+      renderer?.send('ui:zoomBrowserPage', direction)
+    })
 
   const forwardContext: GuestShortcutForwardContext = {
     browserTabId,
+    context,
     resolveRenderer,
     shouldForwardDictationShortcut,
     isMobileEmulatorEnabled,
@@ -70,7 +76,7 @@ export function setupGuestShortcutForwarding(args: {
     const keybindings = getKeybindings?.()
     if (
       input.type === 'keyDown' &&
-      matchesRecentTabSwitcherChord(input, process.platform, keybindings)
+      matchesRecentTabSwitcherChord(input, process.platform, keybindings, matchOptions)
     ) {
       // Why: held switcher commits on Control keyup; preventDefault on Tab
       // keydown suppresses that keyup in Electron and strands the overlay.
@@ -109,7 +115,7 @@ export function setupGuestShortcutForwarding(args: {
           event,
           doubleTapInput,
           resolveWindowShortcutAction(doubleTapInput, process.platform, keybindings, {
-            context: 'app'
+            context: context ?? 'app'
           })
         )
         return
@@ -120,7 +126,7 @@ export function setupGuestShortcutForwarding(args: {
       return
     }
     // Why: Cmd/Ctrl+Alt+Arrow is the only allowlisted chord carrying Alt, so resolve it before the Alt-rejecting chord gate below.
-    const action = resolveWindowShortcutAction(input, process.platform, keybindings)
+    const action = resolveWindowShortcutAction(input, process.platform, keybindings, matchOptions)
     forwardGuestShortcutInput(forwardContext, event, input, action)
   }
 
@@ -136,7 +142,14 @@ export function setupGuestShortcutForwarding(args: {
       event.preventDefault()
       return
     }
-    if (!nativeZoomCommandMatchesKeybindings(zoomDirection, process.platform, getKeybindings?.())) {
+    if (
+      !nativeZoomCommandMatchesKeybindings(
+        zoomDirection,
+        process.platform,
+        getKeybindings?.(),
+        matchOptions
+      )
+    ) {
       return
     }
     forwardBrowserPageZoom(event, zoomDirection)

@@ -12,7 +12,7 @@ export type KeybindingScope =
   | 'composer'
   | 'settings'
 
-export type KeybindingContext = 'app' | 'terminal' | 'browser'
+export type KeybindingContext = 'app' | 'terminal' | 'browser' | 'vscode'
 
 export type KeybindingPlatform = 'darwin' | 'linux' | 'win32'
 
@@ -150,6 +150,8 @@ export type KeybindingDefinition = {
   searchKeywords: readonly string[]
   defaultBindings: PlatformBindings
   allowInTerminal?: boolean
+  // Why: opt-in — the embedded VS Code editor owns every chord not marked here (Cmd+P, Cmd+F, …).
+  allowInVsCode?: boolean
   allowBareKeybindings?: boolean
   allowShiftOnlyKeybindings?: boolean
   conflictGroup?: string
@@ -211,6 +213,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'app.settings',
+    allowInVsCode: true,
     title: 'Open Settings',
     group: 'Global',
     scope: 'global',
@@ -220,6 +223,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'app.forceReload',
+    allowInVsCode: true,
     title: 'Force Reload',
     group: 'Global',
     scope: 'global',
@@ -229,6 +233,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'worktree.palette',
+    allowInVsCode: true,
     title: 'Switch worktree',
     group: 'Global',
     scope: 'global',
@@ -279,6 +284,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'workspace.delete',
+    allowInVsCode: true,
     title: 'Delete Workspace',
     group: 'Global',
     scope: 'global',
@@ -298,6 +304,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'workspace.openBoard',
+    allowInVsCode: true,
     title: 'Toggle Workspace Board',
     group: 'Global',
     scope: 'global',
@@ -318,6 +325,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'workspace.selectByIndex',
+    allowInVsCode: true,
     title: 'Select Workspace 1–9',
     group: 'Global',
     scope: 'global',
@@ -338,6 +346,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'voice.dictation',
+    allowInVsCode: true,
     title: 'Dictation',
     group: 'Global',
     scope: 'global',
@@ -346,6 +355,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'view.tasks',
+    allowInVsCode: true,
     title: 'Open Tasks',
     group: 'Global',
     scope: 'global',
@@ -354,6 +364,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'sidebar.left.toggle',
+    allowInVsCode: true,
     title: 'Toggle Sidebar',
     group: 'Global',
     scope: 'global',
@@ -362,6 +373,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'sidebar.right.toggle',
+    allowInVsCode: true,
     title: 'Toggle Right Sidebar',
     group: 'Global',
     scope: 'global',
@@ -442,6 +454,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'floatingTerminal.toggle',
+    allowInVsCode: true,
     title: 'Toggle Floating Terminal',
     group: 'Global',
     scope: 'global',
@@ -497,6 +510,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'zoom.in',
+    allowInVsCode: true,
     title: 'Zoom In',
     group: 'Global',
     scope: 'global',
@@ -505,6 +519,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'zoom.out',
+    allowInVsCode: true,
     title: 'Zoom Out',
     group: 'Global',
     scope: 'global',
@@ -513,6 +528,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'zoom.reset',
+    allowInVsCode: true,
     title: 'Reset Size',
     group: 'Global',
     scope: 'global',
@@ -521,6 +537,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'worktree.history.back',
+    allowInVsCode: true,
     title: 'Worktree History Back',
     group: 'Global',
     scope: 'global',
@@ -530,6 +547,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'worktree.history.forward',
+    allowInVsCode: true,
     title: 'Worktree History Forward',
     group: 'Global',
     scope: 'global',
@@ -539,6 +557,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.newTerminal',
+    allowInVsCode: true,
     title: 'New terminal tab',
     group: 'Tabs',
     scope: 'tabs',
@@ -560,6 +579,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.newBrowser',
+    allowInVsCode: true,
     title: 'New browser tab',
     group: 'Tabs',
     scope: 'tabs',
@@ -581,6 +601,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.newMarkdown',
+    allowInVsCode: true,
     title: 'New markdown tab',
     group: 'Tabs',
     scope: 'tabs',
@@ -597,6 +618,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.close',
+    allowInVsCode: true,
     title: 'Close active tab',
     group: 'Tabs',
     scope: 'tabs',
@@ -652,6 +674,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.nextAllTypes',
+    allowInVsCode: true,
     title: 'Next tab (all types)',
     group: 'Tab Navigation',
     scope: 'tabs',
@@ -660,6 +683,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.previousAllTypes',
+    allowInVsCode: true,
     title: 'Previous tab (all types)',
     group: 'Tab Navigation',
     scope: 'tabs',
@@ -668,6 +692,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.previousRecent',
+    allowInVsCode: true,
     title: 'Previous recent tab',
     group: 'Tab Navigation',
     scope: 'tabs',
@@ -695,6 +720,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.selectByIndex',
+    allowInVsCode: true,
     title: 'Select Tab 1–9',
     group: 'Tab Navigation',
     scope: 'tabs',
@@ -709,6 +735,7 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   },
   {
     id: 'tab.openQuickCommandsMenu',
+    allowInVsCode: true,
     title: 'Toggle Quick Commands menu',
     group: 'Quick Commands',
     scope: 'tabs',
@@ -1903,6 +1930,9 @@ export function keybindingIsActiveInContext(
   definition: KeybindingDefinition,
   options: KeybindingMatchOptions = {}
 ): boolean {
+  if (options.context === 'vscode') {
+    return definition.allowInVsCode === true
+  }
   if (options.context !== 'terminal') {
     return true
   }
