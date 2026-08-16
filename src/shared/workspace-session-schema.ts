@@ -13,7 +13,6 @@
  */
 import { z } from 'zod'
 import type { WorkspaceKey } from './folder-workspace-types'
-import type { TabGroupLayoutNode } from './tab-types'
 import type { TerminalPaneLayoutNode } from './terminal-tab-types'
 import type { TuiAgent } from './tui-agent'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
@@ -26,6 +25,13 @@ import {
   browserPageSchema,
   browserWorkspaceSchema
 } from './workspace-session-browser-schema'
+import {
+  codeServerTabSchema,
+  tabGroupLayoutNodeSchema,
+  tabGroupSchema,
+  tabSchema,
+  workspaceVisibleTabTypeSchema
+} from './workspace-session-tab-schema'
 import { sleepingAgentSessionsByPaneKeySchema } from './workspace-session-sleeping-agents'
 import { salvagedField, salvagedOptional, salvagingArray, salvagingRecord } from './zod-salvage'
 
@@ -106,85 +112,6 @@ const terminalTabSchema = z.object({
     .catch(undefined)
 })
 
-// ─── Unified tab model ──────────────────────────────────────────────
-
-const tabContentTypeSchema = z.enum([
-  'terminal',
-  'editor',
-  'diff',
-  'conflict-review',
-  'check-details',
-  'browser',
-  'simulator',
-  'vscode'
-])
-
-const workspaceVisibleTabTypeSchema = z.enum([
-  'terminal',
-  'editor',
-  'browser',
-  'simulator',
-  'vscode'
-])
-
-const tabSchema = z.object({
-  id: z.string(),
-  entityId: z.string(),
-  groupId: z.string(),
-  worktreeId: z.string(),
-  contentType: tabContentTypeSchema,
-  label: z.string(),
-  generatedLabel: z.string().nullable().optional(),
-  aiVaultTitle: z
-    .object({
-      agent: z.enum(['claude', 'codex']),
-      sessionId: z.string(),
-      title: z.string()
-    })
-    .nullable()
-    .optional()
-    .catch(undefined),
-  quickCommandLabel: z.string().nullable().optional(),
-  customLabel: z.string().nullable(),
-  color: z.string().nullable(),
-  sortOrder: z.number(),
-  createdAt: z.number(),
-  isPreview: z.boolean().optional(),
-  isPinned: z.boolean().optional(),
-  // Why: persist the per-tab native-chat view mode so 'chat' survives reload /
-  // session restore. `.catch('terminal')` tolerates unknown future values (a
-  // newer build that wrote an unrecognized mode) by degrading to the safe
-  // default instead of failing the whole-session parse. Legacy/missing stays
-  // undefined → 'terminal' in the renderer.
-  viewMode: z.enum(['terminal', 'chat']).catch('terminal').optional()
-})
-
-const tabGroupSchema = z.object({
-  id: z.string(),
-  worktreeId: z.string(),
-  activeTabId: z.string().nullable(),
-  tabOrder: z.array(z.string()),
-  recentTabIds: z.array(z.string()).optional()
-})
-
-const tabGroupSplitDirectionSchema = z.enum(['horizontal', 'vertical'])
-
-const tabGroupLayoutNodeSchema: z.ZodType<TabGroupLayoutNode> = z.lazy(() =>
-  z.union([
-    z.object({
-      type: z.literal('leaf'),
-      groupId: z.string()
-    }),
-    z.object({
-      type: z.literal('split'),
-      direction: tabGroupSplitDirectionSchema,
-      first: tabGroupLayoutNodeSchema,
-      second: tabGroupLayoutNodeSchema,
-      ratio: z.number().optional()
-    })
-  ])
-)
-
 // ─── Editor ─────────────────────────────────────────────────────────
 
 const persistedOpenFileSchema = z.object({
@@ -199,15 +126,6 @@ const persistedOpenFileSchema = z.object({
   lastKnownDiskSignature: z.string().optional(),
   readOnly: z.boolean().optional(),
   liveTail: z.boolean().optional()
-})
-
-// ─── Code Server (embedded VS Code) ──────────────────────────────────
-
-const codeServerTabSchema = z.object({
-  id: z.string(),
-  worktreeId: z.string(),
-  folderPath: z.string(),
-  label: z.string()
 })
 
 // ─── Workspace session ──────────────────────────────────────────────

@@ -5,7 +5,6 @@ import { translate } from '@/i18n/i18n'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import type { WindowsTerminalCapabilities } from '@/lib/windows-terminal-capabilities'
-import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
 import { useAppStore } from '../../store'
 import type { TabAgentLaunchOption } from './tab-agent-launch-options'
 import { buildTabCreateMenuOptions, type TabCreateMenuOption } from './tab-create-menu-options'
@@ -23,8 +22,6 @@ const NEW_TAB_MENU_TERMINAL_FOCUS_RETRY_MS = 50
 const NEW_TAB_MENU_TERMINAL_FOCUS_TIMEOUT_MS = 5000
 
 export type TabBarCreateMenuController = {
-  hasNewVSCode: boolean
-  vscodeRemoteDisabled: boolean
   newTabMenuOpen: boolean
   setNewTabMenuOpen: (open: boolean) => void
   setCreateMenuQuery: (query: string) => void
@@ -54,7 +51,7 @@ export function useTabBarCreateMenuController({
   defaultWindowsPowerShellImplementation,
   windowsTerminalCapabilities,
   agentLaunchOptions,
-  isLocalWorktree,
+  hasNewVSCode,
   onNewTerminalTab,
   onNewTerminalWithShell,
   onNewBrowserTab,
@@ -78,7 +75,7 @@ export function useTabBarCreateMenuController({
   >
   windowsTerminalCapabilities: WindowsTerminalCapabilities
   agentLaunchOptions: TabAgentLaunchOption[]
-  isLocalWorktree: boolean
+  hasNewVSCode: boolean
   onNewTerminalTab: () => void
   onNewTerminalWithShell?: (shell: string) => void
   onNewBrowserTab: () => void
@@ -161,18 +158,6 @@ export function useTabBarCreateMenuController({
     windowsTerminalCapabilities.gitBashAvailable,
     windowsTerminalCapabilities.wslAvailable
   ])
-  // VS Code (code-server) only runs against local checkouts on mac/linux; the
-  // platform + local-host checks are load-bearing (SSH/remote case included).
-  const vscodePlatformSupported =
-    getRendererAppPlatform() === 'darwin' || getRendererAppPlatform() === 'linux'
-  // Gate on the callback's presence too: surfaces without a real local checkout
-  // (e.g. the floating terminal) omit it.
-  const hasNewVSCode =
-    !terminalOnly && vscodePlatformSupported && isLocalWorktree && Boolean(onNewVSCodeTab)
-  // mac/linux + remote worktree: show a disabled entry with an explanatory
-  // tooltip (never added to the searchable options list).
-  const vscodeRemoteDisabled =
-    !terminalOnly && vscodePlatformSupported && !isLocalWorktree && Boolean(onNewVSCodeTab)
   const createMenuOptions = useMemo(
     () =>
       buildTabCreateMenuOptions({
@@ -306,8 +291,6 @@ export function useTabBarCreateMenuController({
   }, [newTabMenuOpen])
 
   return {
-    hasNewVSCode,
-    vscodeRemoteDisabled,
     newTabMenuOpen,
     setNewTabMenuOpen,
     setCreateMenuQuery,

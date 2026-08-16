@@ -7,6 +7,7 @@ import { useTabBarRuntimeModel } from './use-tab-bar-runtime-model'
 import { useTabBarCreateMenuController } from './use-tab-bar-create-menu-controller'
 import { useTabBarItemProjection } from './use-tab-bar-item-projection'
 import { renderTabBarSurface } from './tab-bar-surface'
+import { resolveVSCodeTabCreateGate } from './vscode-tab-create-gate'
 
 function TabBarInner(props: TabBarProps): React.JSX.Element {
   const {
@@ -23,6 +24,11 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     onPinFile
   } = props
   const runtime = useTabBarRuntimeModel({ worktreeId, groupId })
+  const vscodeCreateGate = resolveVSCodeTabCreateGate({
+    terminalOnly,
+    isLocalWorktree: runtime.isLocalWorktree,
+    hasCreateCallback: Boolean(onNewVSCodeTab)
+  })
   const createMenu = useTabBarCreateMenuController({
     worktreeId,
     resolvedGroupId: runtime.resolvedGroupId,
@@ -37,7 +43,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     defaultWindowsPowerShellImplementation: runtime.defaultWindowsPowerShellImplementation,
     windowsTerminalCapabilities: runtime.windowsTerminalCapabilities,
     agentLaunchOptions: runtime.agentLaunchOptions,
-    isLocalWorktree: runtime.isLocalWorktree,
+    hasNewVSCode: vscodeCreateGate.hasNewVSCode,
     onNewTerminalTab,
     onNewTerminalWithShell,
     onNewBrowserTab,
@@ -81,6 +87,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     props,
     runtime,
     createMenu,
+    vscodeCreateGate,
     itemProjection,
     tabStripNavigation,
     tabStripDragScroll,
