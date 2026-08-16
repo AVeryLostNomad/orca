@@ -8,6 +8,14 @@ export type CodeServerStatus =
   | 'error'
   | 'stopped'
 
+// Embedded VS Code (code-server) tab. Flat — VS Code has no sub-pages.
+export type CodeServerTab = {
+  id: string
+  worktreeId: string
+  folderPath: string // the worktree working dir, opened via ?folder=
+  label: string
+}
+
 export type CodeServerStatusEvent = {
   status: CodeServerStatus
   port: number | null

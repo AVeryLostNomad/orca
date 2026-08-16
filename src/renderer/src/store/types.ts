@@ -15,9 +15,11 @@ import type { EditorSlice } from './slices/editor'
 import type { StatsSlice } from './slices/stats'
 import type { MemorySlice } from './slices/memory'
 import type { WorkspaceSpaceSlice } from './slices/workspace-space'
-import type { ClaudeUsageSlice } from './slices/claude-usage'
-import type { CodexUsageSlice } from './slices/codex-usage'
-import type { OpenCodeUsageSlice } from './slices/opencode-usage'
+import type {
+  ClaudeUsageSlice,
+  CodexUsageSlice,
+  OpenCodeUsageSlice
+} from './slices/usage-provider-slices'
 import type { BrowserSlice } from './slices/browser'
 import type { CodeServerSlice } from './slices/code-server'
 import type { RateLimitSlice } from './slices/rate-limits'
@@ -31,6 +33,7 @@ import type { RuntimeDetectedAgentsSlice } from './slices/runtime-detected-agent
 import type { WorktreeNavHistorySlice } from './slices/worktree-nav-history'
 import type { DictationSlice } from './slices/dictation'
 import type { WorkspaceCleanupSlice } from './slices/workspace-cleanup'
+import type { WorkspaceCleanupBrowseSlice } from './slices/workspace-cleanup-browse'
 import type { RuntimeStatusSlice } from './slices/runtime-status'
 import type { PullRequestGenerationSlice } from './slices/pull-request-generation'
 import type { CommitMessageGenerationSlice } from './slices/commit-message-generation'
@@ -40,6 +43,7 @@ import type { OrcaProfilesSlice } from './slices/orca-profiles'
 import type { NewIssueDraftSlice } from './slices/new-issue-draft'
 import type { TaskCreationDraftsSlice } from './slices/task-creation-drafts'
 import type { RemoteServerUpdatesSlice } from './slices/remote-server-updates'
+import type { TerminalQuickCommandHostsSlice } from './slices/terminal-quick-command-hosts'
 
 export type AppState = RepoSlice &
   SparsePresetsSlice &
@@ -74,6 +78,7 @@ export type AppState = RepoSlice &
   WorktreeNavHistorySlice &
   DictationSlice &
   WorkspaceCleanupSlice &
+  WorkspaceCleanupBrowseSlice &
   RuntimeStatusSlice &
   PullRequestGenerationSlice &
   CommitMessageGenerationSlice &
@@ -82,4 +87,5 @@ export type AppState = RepoSlice &
   OrcaProfilesSlice &
   NewIssueDraftSlice &
   TaskCreationDraftsSlice &
-  RemoteServerUpdatesSlice
+  RemoteServerUpdatesSlice &
+  TerminalQuickCommandHostsSlice

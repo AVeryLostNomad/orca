@@ -1,4 +1,5 @@
-import type { BrowserPage, BrowserWorkspace, WorkspaceSessionState } from '../../../shared/types'
+import type { BrowserPage, BrowserWorkspace } from '../../../shared/browser-workspace-types'
+import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
 
 export function buildBrowserSessionData(
   browserTabsByWorktree: Record<string, BrowserWorkspace[]>,

@@ -21,7 +21,7 @@ import { basename } from 'node:path'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import os from 'node:os'
-import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
+import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
 import {
   getProcessOutputFields,
   iterateProcessOutputLines
@@ -33,7 +33,7 @@ import type {
   SessionMemory,
   UsageValues,
   WorktreeMemory
-} from '../../shared/types'
+} from '../../shared/process-stats-types'
 import type { Store } from '../persistence'
 import { ORPHAN_WORKTREE_ID } from '../../shared/constants'
 import { listRegisteredPtys } from './pty-registry'

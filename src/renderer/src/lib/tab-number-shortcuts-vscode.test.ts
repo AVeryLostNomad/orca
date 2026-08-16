@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { useAppStore } from '@/store'
-import type { CodeServerTab, Tab, TabGroup } from '../../../shared/types'
+import type { CodeServerTab } from '../../../shared/code-server-types'
+import type { Tab, TabGroup } from '../../../shared/tab-types'
 import { activateTabNumberShortcut } from './tab-number-shortcuts'
 
 const WORKTREE_ID = 'wt-1'

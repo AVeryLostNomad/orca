@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toVisibleTabType } from './worktrees'
+import { toVisibleTabType } from './worktrees/listing/worktree-catalog-visibility'
 
 describe('toVisibleTabType', () => {
   it('passes through vscode so session restore keeps the VS Code surface active', () => {
