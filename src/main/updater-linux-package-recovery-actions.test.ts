@@ -68,7 +68,8 @@ vi.mock('./updater-nudge', () => ({
 }))
 vi.mock('./updater-prerelease-feed', () => ({
   fetchNewerReleaseTagsWithReadiness: vi.fn().mockResolvedValue({ tags: [], state: 'no-newer' }),
-  getReleaseDownloadUrl: vi.fn(() => 'https://example.invalid/download')
+  getReleaseDownloadUrl: vi.fn(() => 'https://example.invalid/download'),
+  RELEASES_LATEST_DOWNLOAD_URL: 'https://github.com/AVeryLostNomad/orca/releases/latest/download'
 }))
 vi.mock('./update-install-exit-watchdog', () => ({
   armUpdateInstallExitWatchdog: vi.fn(),

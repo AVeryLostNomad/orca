@@ -88,7 +88,8 @@ vi.mock('./updater-prerelease-feed', () => ({
     tags: ['v1.0.61'],
     state: 'ready'
   }),
-  getReleaseDownloadUrl: vi.fn()
+  getReleaseDownloadUrl: vi.fn(),
+  RELEASES_LATEST_DOWNLOAD_URL: 'https://github.com/AVeryLostNomad/orca/releases/latest/download'
 }))
 vi.mock('./update-install-exit-watchdog', () => ({
   armUpdateInstallExitWatchdog: vi.fn(),

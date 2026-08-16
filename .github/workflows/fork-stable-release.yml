@@ -1,0 +1,297 @@
+name: Fork Stable Release
+
+# Fork release flow: every push to `stable` cuts a stable release with macOS
+# and Windows artifacts and publishes it to this fork's GitHub Releases, which
+# is where the app's auto-updater points (see src/shared/release-channel.ts).
+#
+# Flow:
+#   1. Compute the next stable version: package.json's base version, or a
+#      patch bump over the newest published stable on this fork — whichever is
+#      higher — so the updater's semver comparison always moves forward.
+#   2. Create a draft release for the tag.
+#   3. Build mac (dmg+zip, both arches) and Windows (NSIS) and upload the
+#      artifacts plus latest-mac.yml / latest.yml into the draft.
+#   4. Publish the release only after both platforms succeeded, so clients
+#      never see a half-uploaded release.
+#
+# macOS signing is optional: when MAC_CERTS/APPLE_* secrets exist the build is
+# Developer ID signed + notarized (required for auto-update on macOS); without
+# them an unsigned build is still produced and uploaded, but Gatekeeper will
+# block it on other machines without `xattr -cr` and Squirrel.Mac cannot
+# auto-update it.
+
+run-name: Fork stable release from ${{ github.sha }}
+
+on:
+  push:
+    branches: [stable]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-stable-release
+  cancel-in-progress: false
+
+jobs:
+  cut:
+    if: github.repository == 'AVeryLostNomad/orca'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Compute next stable version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Base: package.json with any prerelease suffix stripped, so a
+          # 1.4.178-rc.2 tree releases as 1.4.178 (which semver-sorts above
+          # every 1.4.178-rc.* an installed client may be running).
+          base="$(node -p "require('./package.json').version.split('-')[0]")"
+
+          # Newest published stable already on this fork (vX.Y.Z tags only).
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '[.[] | select(.draft == false) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | .[]' \
+            | sed 's/^v//' \
+            | sort -t. -k1,1n -k2,2n -k3,3n \
+            | tail -n 1 || true)"
+          echo "package.json base: $base; latest fork stable: ${latest:-<none>}"
+
+          next="$(node -e '
+            const [base, latest] = process.argv.slice(1)
+            const parse = (v) => v.split(".").map(Number)
+            const gt = (a, b) => {
+              for (let i = 0; i < 3; i++) {
+                if ((a[i] || 0) > (b[i] || 0)) return true
+                if ((a[i] || 0) < (b[i] || 0)) return false
+              }
+              return false
+            }
+            if (!latest || gt(parse(base), parse(latest))) {
+              console.log(base)
+            } else {
+              const l = parse(latest)
+              console.log(`${l[0]}.${l[1]}.${l[2] + 1}`)
+            }
+          ' "$base" "${latest:-}")"
+
+          echo "version=$next" >>"$GITHUB_OUTPUT"
+          echo "tag=v$next" >>"$GITHUB_OUTPUT"
+          echo "Next version: $next"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; reusing it."
+            exit 0
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes "Fork build of \`stable\` @ $GITHUB_SHA"
+
+  build-mac:
+    needs: cut
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-builder-mac-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-builder-mac-
+
+      # Why: the release version is computed per-run; stamp it into package.json
+      # so electron-builder and app.getVersion() carry the released number.
+      - name: Stamp release version
+        env:
+          VERSION: ${{ needs.cut.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: pnpm install --frozen-lockfile
+
+      # macOS signing is optional on the fork: sign + notarize when the Apple
+      # credentials are configured, otherwise produce an unsigned build.
+      - name: Detect macOS signing credentials
+        id: mac-signing
+        env:
+          MAC_CERTS: ${{ secrets.MAC_CERTS }}
+        run: |
+          if [[ -n "$MAC_CERTS" ]]; then
+            echo "signed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >>"$GITHUB_OUTPUT"
+            echo "::warning::No MAC_CERTS secret: building an UNSIGNED macOS app. It will be Gatekeeper-blocked on other machines (fix: xattr -cr /Applications/Orca.app) and macOS auto-update will not work until builds are Developer ID signed + notarized."
+          fi
+
+      - name: Verify macOS signing environment
+        if: steps.mac-signing.outputs.signed == 'true'
+        run: node config/scripts/verify-macos-release-env.mjs
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify macOS entitlements
+        if: steps.mac-signing.outputs.signed == 'true'
+        run: pnpm verify:macos-entitlements
+
+      - name: Build app
+        run: pnpm build:release
+
+      - name: Publish release artifacts (macOS, signed)
+        if: steps.mac-signing.outputs.signed == 'true'
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 45
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && ORCA_MAC_RELEASE=1 pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Publish release artifacts (macOS, unsigned)
+        if: steps.mac-signing.outputs.signed == 'false'
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 45
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Why: without credentials, electron-builder must not fail hunting
+          # for a keychain identity; ad-hoc/unsigned output is intentional.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+  build-windows:
+    needs: cut
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-win-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-builder-win-
+
+      - name: Stamp release version
+        shell: bash
+        env:
+          VERSION: ${{ needs.cut.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: pnpm install --frozen-lockfile
+
+      - name: Build app
+        run: pnpm build:release
+
+      # Fork builds skip SignPath entirely: the installer ships unsigned
+      # (SmartScreen shows an "unknown publisher" warning on first run) and the
+      # electron-builder config carries no publisherName, so the updater does
+      # not reject the unsigned installer.
+      - name: Publish release artifacts (Windows)
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 45
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [cut, build-mac, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Why last: clients must only ever see a release that has both
+      # platforms' artifacts and update manifests attached.
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.cut.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --latest

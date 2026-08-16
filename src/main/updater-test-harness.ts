@@ -219,7 +219,8 @@ export function createUpdaterMocks(): UpdaterMocks {
           : result
       },
       getReleaseDownloadUrl: (tag: string) =>
-        `https://github.com/stablyai/orca/releases/download/${tag}`
+        `https://github.com/AVeryLostNomad/orca/releases/download/${tag}`,
+      RELEASES_LATEST_DOWNLOAD_URL: 'https://github.com/AVeryLostNomad/orca/releases/latest/download'
     }),
     localBuildSwitch: () => ({ chooseLocalBuild: chooseLocalBuildMock }),
     localBuildFeedServer: () => ({ startLocalBuildFeed: startLocalBuildFeedMock })
