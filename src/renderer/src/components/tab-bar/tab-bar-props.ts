@@ -54,4 +54,6 @@ export type TabBarProps = {
   hoveredTabInsertion?: HoveredTabInsertion | null
   /** Floating workspace panels are rounded; skip tab top borders that clash with the curve. */
   tabStripChrome?: 'default' | 'floating-panel'
+  /** Permanent icon-only notes chip rendered before the sortable tabs (floating workspace only). */
+  workspaceNotesTab?: { tabId: string; isActive: boolean; onActivate: () => void }
 }

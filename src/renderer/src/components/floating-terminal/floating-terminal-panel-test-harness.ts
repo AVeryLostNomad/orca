@@ -35,6 +35,7 @@ export type FloatingTerminalPanelMocks = {
   closeTab: Mock<(tabId: string, options?: { reason?: string }) => void>
   closeTerminalTab: Mock<(tabId: string, options?: { onClosed?: () => void }) => void>
   closeUnifiedTab: Mock<FloatingPanelStoreState['closeUnifiedTab']>
+  createUnifiedTab: Mock<FloatingPanelStoreState['createUnifiedTab']>
   guardPinnedTabClose: Mock<(options: { isPinned: boolean; onClose: () => void }) => void>
   // Floating creates pass options the store fixture type does not model, so keep vitest's
   // default loose signature rather than narrowing call assertions.
@@ -82,6 +83,9 @@ export const mocks: FloatingTerminalPanelMocks = {
     options?.onClosed?.()
   }),
   closeUnifiedTab: vi.fn(),
+  // Non-mutating by default: the ensure-notes effect calls this on mount, and existing tab
+  // assertions must not see a synthetic notes tab injected into the mock store.
+  createUnifiedTab: vi.fn(),
   // Models pinned-tab-close-guard.guardPinnedTabClose: unpinned closes run onClose immediately;
   // pinned closes are deferred to a confirm dialog (assert isPinned via the mock's args).
   guardPinnedTabClose: vi.fn((options: { isPinned: boolean; onClose: () => void }) => {
@@ -138,6 +142,7 @@ function resetStore(tabs: TerminalTab[] = []): void {
     closeBrowserTab: mocks.closeBrowserTab,
     closeFile: mocks.closeFile,
     closeUnifiedTab: mocks.closeUnifiedTab,
+    createUnifiedTab: mocks.createUnifiedTab,
     createTab: mocks.createTab,
     createBrowserTab: mocks.createBrowserTab,
     closeTab: mocks.closeTab,

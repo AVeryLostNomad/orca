@@ -95,6 +95,7 @@ import type { RelayBrokerStatus } from './runtime/relay/relay-session-broker'
 import { awaitRuntimeFileWatcherUnsubscribes } from './runtime/orca-runtime-files'
 import { clearRuntimeMetadataIfOwned } from './runtime/runtime-metadata'
 import { scheduleAllPendingHistoryTreeRemovals } from './terminal-history-deletion'
+import { schedulePendingWorkspaceNotesRemovals } from './workspace-notes-deletion'
 import { ensureMainI18n, setMainPluginLanguagePacks, setMainUiLanguage } from './i18n/main-i18n'
 import {
   getNextDefaultOnAppearanceSettingValue,
@@ -3142,6 +3143,7 @@ void app.whenReady().then(async () => {
     // Why: serve deletes worktrees too, and the history GC that normally drains delete tombstones is
     // armed from the main window — without this, a quit mid-removal leaks the tree until a desktop launch.
     scheduleAllPendingHistoryTreeRemovals()
+    schedulePendingWorkspaceNotesRemovals()
     await printServeReady(serveOptions)
     return
   }

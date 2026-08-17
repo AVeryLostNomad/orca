@@ -28,6 +28,8 @@ import type { BaseRefDefaultResult, BaseRefSearchResult, Repo } from '../../shar
 import type { SparsePreset } from '../../shared/worktree/create-types'
 import type { FolderWorkspacePathStatusRequest } from '../../shared/folder-workspace-path-status'
 import { isFolderRepo } from '../../shared/repo-kind'
+import { folderWorkspaceKey } from '../../shared/workspace-scope'
+import { deleteWorkspaceNotesDir } from '../workspace-notes-deletion'
 import { DEFAULT_REPO_BADGE_COLOR } from '../../shared/constants'
 import { normalizeRepoBadgeColor } from '../../shared/repo-badge-color'
 import { sanitizeRepoIcon } from '../../shared/repo-icon'
@@ -1582,6 +1584,8 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
     )
     const deleted = store.removeFolderWorkspace(args.folderWorkspaceId)
     if (deleted) {
+      // Folder removal bypasses the worktree removal funnel; reap its notes here.
+      deleteWorkspaceNotesDir(folderWorkspaceKey(args.folderWorkspaceId))
       notifyReposChanged(mainWindow)
     }
     return deleted

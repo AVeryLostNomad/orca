@@ -22,6 +22,7 @@ import {
   resolveFloatingTerminalCwd
 } from './floating-workspace-directory'
 import { isMarkdownDocumentName, markdownDocumentFromFilePath } from './markdown-documents'
+import { registerWorkspaceNotesHandlers } from './workspace-notes'
 import { registerMacSymbolicHotkeysProbeHandler } from './macos-symbolic-hotkeys-probe'
 import { registerRendererShutdownCheckpointHandler } from './renderer-shutdown-checkpoint'
 
@@ -320,6 +321,8 @@ export function registerAppHandlers(store: Store, options: RegisterAppHandlersOp
   ipcMain.handle('app:pickFloatingWorkspaceDirectory', (event) =>
     pickFloatingWorkspaceDirectory(event, store)
   )
+
+  registerWorkspaceNotesHandlers()
 }
 
 async function runBeforeRelaunchCleanup(

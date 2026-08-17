@@ -44,6 +44,8 @@ export type EditorFilesSlice = {
       forceContentReload?: boolean
       focusEditor?: boolean
       reopenId?: string
+      /** Skip unified-tab creation; the caller owns the surface (workspace notes pane). */
+      suppressUnifiedTab?: boolean
     }
   ) => string
   openNewMarkdownInActiveWorkspace: (groupId: string) => Promise<void>

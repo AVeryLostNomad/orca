@@ -133,6 +133,8 @@ export function buildEditorSessionData(
       // Why: persist readOnly only when true; absence is the writable default on restore.
       ...(f.readOnly === true ? { readOnly: true } : {}),
       ...(f.readOnly === true && f.liveTail === true ? { liveTail: true } : {}),
+      ...(f.alwaysAutoSave === true ? { alwaysAutoSave: true } : {}),
+      ...(f.workspaceNotesOwnerId ? { workspaceNotesOwnerId: f.workspaceNotesOwnerId } : {}),
       ...(dirtyDraftContent !== undefined ? { dirtyDraftContent } : {}),
       // Why: baseline travels with the draft so restore can detect a changed-on-disk conflict before autosave clobbers an offline agent write.
       ...(dirtyDraftContent !== undefined && f.lastKnownDiskSignature

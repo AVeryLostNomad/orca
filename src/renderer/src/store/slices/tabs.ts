@@ -1119,6 +1119,10 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
       return null
     }
     const { tab, worktreeId } = found
+    // Why: the workspace-notes tab is permanent — block every close path (keyboard, menus, programmatic) in one place.
+    if (tab.contentType === 'workspace-notes') {
+      return null
+    }
     const group = findGroupForTab(state.groupsByWorktree, worktreeId, tab.groupId)
     if (!group) {
       return null
@@ -1392,6 +1396,10 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
 
   unpinTab: (tabId) => {
     const exists = get().getTab(tabId) !== null
+    // Why: the workspace-notes tab is pinned forever; unpinning would expose close paths.
+    if (get().getTab(tabId)?.contentType === 'workspace-notes') {
+      return
+    }
     set((state) => {
       const found = findTabAndWorktree(state.unifiedTabsByWorktree, tabId)
       if (!found) {

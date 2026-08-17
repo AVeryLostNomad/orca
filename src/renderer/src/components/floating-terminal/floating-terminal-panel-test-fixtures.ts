@@ -38,6 +38,15 @@ export type FloatingPanelStoreState = {
   closeBrowserTab: (tabId: string) => void
   closeFile: (fileId: string) => void
   closeUnifiedTab: (tabId: string) => Tab | null
+  createUnifiedTab: (
+    worktreeId: string,
+    contentType: Tab['contentType'],
+    init?: Partial<Pick<Tab, 'id' | 'entityId' | 'label' | 'isPinned'>> & {
+      targetGroupId?: string
+      activate?: boolean
+      recordInteraction?: boolean
+    }
+  ) => Tab
   markFileDirty: (fileId: string, dirty: boolean) => void
   activateTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void

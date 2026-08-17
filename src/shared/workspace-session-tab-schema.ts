@@ -13,7 +13,8 @@ export const tabContentTypeSchema = z.enum([
   'check-details',
   'browser',
   'simulator',
-  'vscode'
+  'vscode',
+  'workspace-notes'
 ])
 
 export const workspaceVisibleTabTypeSchema = z.enum([

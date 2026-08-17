@@ -22,6 +22,7 @@ import type { TabBarCreateMenuController } from './use-tab-bar-create-menu-contr
 import type { TabBarItemProjection } from './use-tab-bar-item-projection'
 import type { TabBarItem } from './tab-bar-item-model'
 import { renderTabBarItems } from './tab-bar-item-surface'
+import { WorkspaceNotesTab } from './WorkspaceNotesTab'
 import { renderTabBarStaticCreateMenu } from './tab-bar-static-create-menu'
 import type { VSCodeTabCreateGate } from './vscode-tab-create-gate'
 
@@ -167,6 +168,15 @@ export function renderTabBarSurface({
               .filter(Boolean)
               .join(' ')}
           >
+            {/* Fixed leading chip: not sortable, never closable (floating workspace notes). */}
+            {props.workspaceNotesTab ? (
+              <WorkspaceNotesTab
+                tabId={props.workspaceNotesTab.tabId}
+                isActive={props.workspaceNotesTab.isActive}
+                onActivate={props.workspaceNotesTab.onActivate}
+                includeTopTabBorder={includeTopTabBorder}
+              />
+            ) : null}
             {renderedItems}
           </div>
           <TabStripScrollIndicator metrics={tabStripOverflowState} />

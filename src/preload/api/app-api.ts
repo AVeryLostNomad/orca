@@ -10,6 +10,10 @@ import type { MarkdownDocument } from '../../shared/filesystem-entry-types'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
 import type { FloatingTerminalCwdRequest } from '../../shared/ui-chrome-types'
 import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
+import type {
+  WorkspaceNotesEnsureRequest,
+  WorkspaceNotesEnsureResult
+} from '../../shared/workspace-notes-types'
 
 export type AppApi = {
   /** Returns the app identity currently exposed to native chrome and the titlebar. */
@@ -59,6 +63,11 @@ export type AppApi = {
   /** Opens a native directory picker and authorizes the selected directory
    *  for Floating Workspace markdown file creation. */
   pickFloatingWorkspaceDirectory: () => Promise<string | null>
+  /** Ensures the per-workspace notes file exists (templated on first create) and
+   *  authorizes it for editor reads/writes. Null where unsupported (web client). */
+  ensureWorkspaceNotesFile: (
+    args: WorkspaceNotesEnsureRequest
+  ) => Promise<WorkspaceNotesEnsureResult | null>
   /** Persists flag-gated terminal render evidence under app-owned userData. */
   writeTerminalRenderDesyncEvidence: (
     args: WriteTerminalRenderDesyncEvidenceArgs

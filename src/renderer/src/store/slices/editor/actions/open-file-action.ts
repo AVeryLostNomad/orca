@@ -28,15 +28,18 @@ export function createOpenFileAction(
         editorItemTargetGroupId: options?.targetGroupId
       }
       set((s) => applyOpenFileToState(s, file, options, scratch))
-      const editorItemViewStateId = openWorkspaceEditorItem(
-        get(),
-        scratch.editorItemFileId,
-        editorItemWorktreeId,
-        editorItemLabel,
-        editorItemContentType,
-        options?.preview ?? false,
-        scratch.editorItemTargetGroupId
-      )
+      // Why: a suppressed file has no tab strip presence — the caller renders it (workspace notes pane).
+      const editorItemViewStateId = options?.suppressUnifiedTab
+        ? scratch.editorItemFileId
+        : openWorkspaceEditorItem(
+            get(),
+            scratch.editorItemFileId,
+            editorItemWorktreeId,
+            editorItemLabel,
+            editorItemContentType,
+            options?.preview ?? false,
+            scratch.editorItemTargetGroupId
+          )
       if (options?.focusEditor) {
         set({
           pendingEditorFocusRequest: {

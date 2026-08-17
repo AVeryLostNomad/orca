@@ -125,7 +125,9 @@ const persistedOpenFileSchema = z.object({
   dirtyDraftContent: z.string().optional(),
   lastKnownDiskSignature: z.string().optional(),
   readOnly: z.boolean().optional(),
-  liveTail: z.boolean().optional()
+  liveTail: z.boolean().optional(),
+  alwaysAutoSave: z.boolean().optional(),
+  workspaceNotesOwnerId: z.string().optional()
 })
 
 // ─── Workspace session ──────────────────────────────────────────────

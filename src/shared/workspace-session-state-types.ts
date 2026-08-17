@@ -28,6 +28,10 @@ export type PersistedOpenFile = {
   readOnly?: boolean
   /** Opt-in streaming append for a read-only local log tab. */
   liveTail?: boolean
+  /** Autosaves regardless of the global editorAutoSave setting (workspace notes). */
+  alwaysAutoSave?: boolean
+  /** Workspace key this floating notes file belongs to; drives restart reconciliation. */
+  workspaceNotesOwnerId?: string
 }
 
 export type WorkspaceSessionState = {

@@ -73,7 +73,12 @@ import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import { destroyWorkspaceWebviews } from '@/store/slices/browser-webview-cleanup'
 import { createTerminalPaneHandleRegistry } from './terminal-pane-handle-registry'
-import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
+import { WorkspaceNotesPane } from './WorkspaceNotesPane'
+import { ensureFloatingWorkspaceNotesTab } from '@/lib/floating-workspace-notes-tab'
+import {
+  FLOATING_TERMINAL_WORKTREE_ID,
+  FLOATING_WORKSPACE_NOTES_TAB_ID
+} from '../../../../shared/constants'
 import {
   keybindingMatchesAction,
   type KeybindingActionId,
@@ -365,18 +370,24 @@ export function FloatingTerminalPanel({
   )
   const activeTerminalId = activeTab?.contentType === 'terminal' ? activeTab.entityId : null
   const activeBrowserId = activeTab?.contentType === 'browser' ? activeTab.entityId : null
+  // Why explicit activeTabId check (not the groupTabs[0] fallback): with only the
+  // permanent notes tab present, the first-run empty state must still win.
+  const isNotesPaneActive =
+    activeTab?.contentType === 'workspace-notes' && activeGroup?.activeTabId === activeTab.id
   const activeEditorUnifiedId =
     activeTab &&
     activeTab.contentType !== 'terminal' &&
     activeTab.contentType !== 'browser' &&
-    activeTab.contentType !== 'simulator'
+    activeTab.contentType !== 'simulator' &&
+    activeTab.contentType !== 'workspace-notes'
       ? activeTab.id
       : null
   const activeEditorFileId =
     activeTab &&
     activeTab.contentType !== 'terminal' &&
     activeTab.contentType !== 'browser' &&
-    activeTab.contentType !== 'simulator'
+    activeTab.contentType !== 'simulator' &&
+    activeTab.contentType !== 'workspace-notes'
       ? activeTab.entityId
       : null
   const terminalTabById = useMemo(() => new Map(tabs.map((tab) => [tab.id, tab])), [tabs])
@@ -452,7 +463,8 @@ export function FloatingTerminalPanel({
           (tab) =>
             tab.contentType !== 'terminal' &&
             tab.contentType !== 'browser' &&
-            tab.contentType !== 'simulator'
+            tab.contentType !== 'simulator' &&
+            tab.contentType !== 'workspace-notes'
         )
         .map((tab) => {
           const file = floatingFiles.find((candidate) => candidate.id === tab.entityId)
@@ -519,6 +531,18 @@ export function FloatingTerminalPanel({
         : activeTab?.contentType === 'simulator'
           ? 'simulator'
           : 'editor'
+
+  // Why keyed on unifiedTabs: hydration replaces the tab maps wholesale, and an older
+  // build salvage-drops the unknown contentType — re-ensure whenever the tab is missing.
+  useEffect(() => {
+    ensureFloatingWorkspaceNotesTab(useAppStore.getState())
+  }, [unifiedTabs])
+
+  const activateNotesTab = useCallback(() => {
+    // Re-ensure first: a hydration race could have dropped the tab between render and click.
+    ensureFloatingWorkspaceNotesTab(useAppStore.getState())
+    activateTab(FLOATING_WORKSPACE_NOTES_TAB_ID)
+  }, [activateTab])
 
   useContextualTour('floating-workspace', open, 'floating_workspace_visible', {
     recordFeatureInteraction: tourInteractionSnapshot?.recordFeatureInteractionForTour ?? false,
@@ -887,7 +911,12 @@ export function FloatingTerminalPanel({
         : (state.unifiedTabsByWorktree[FLOATING_TERMINAL_WORKTREE_ID] ?? [])
       const items = visibleIds
         .map((visibleId) => resolveGroupTabFromVisibleId(currentGroupTabs, visibleId))
-        .filter((item): item is Tab => item !== null && !item.isPinned)
+        // Why the contentType check on top of isPinned: the notes tab's pin can never be
+        // toggled, but permanence must not hinge on that invariant alone.
+        .filter(
+          (item): item is Tab =>
+            item !== null && !item.isPinned && item.contentType !== 'workspace-notes'
+        )
       if (items.length === 0) {
         return
       }
@@ -922,6 +951,10 @@ export function FloatingTerminalPanel({
     (visibleId: string, options?: { guestOwned?: boolean }) => {
       const item = resolveGroupTabFromVisibleId(groupTabs, visibleId)
       if (!item) {
+        return
+      }
+      // The notes tab is permanent — no close path may reach it, not even the pin-confirm dialog.
+      if (item.contentType === 'workspace-notes') {
         return
       }
       // Capture focus ownership now — before any close/blur or pin dialog steals it (the destructive
@@ -1873,6 +1906,11 @@ export function FloatingTerminalPanel({
               onPinFile={pinFile}
               tabBarOrder={tabBarOrder}
               tabStripChrome="floating-panel"
+              workspaceNotesTab={{
+                tabId: FLOATING_WORKSPACE_NOTES_TAB_ID,
+                isActive: isNotesPaneActive,
+                onActivate: activateNotesTab
+              }}
             />
           </div>
           <FloatingTerminalWindowControls
@@ -1978,7 +2016,8 @@ export function FloatingTerminalPanel({
               </Suspense>
             </div>
           ) : null}
-          {!hasVisibleFloatingTabs ? (
+          {isNotesPaneActive ? <WorkspaceNotesPane open={open} /> : null}
+          {!hasVisibleFloatingTabs && !isNotesPaneActive ? (
             <FloatingTerminalEmptyState
               onNewTerminal={() => createFloatingTerminalTab()}
               onNewMarkdown={createFloatingMarkdownTab}

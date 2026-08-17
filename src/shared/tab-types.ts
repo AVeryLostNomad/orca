@@ -24,6 +24,8 @@ export type TabContentType =
   | 'browser'
   | 'simulator'
   | 'vscode'
+  // Permanent floating-workspace scratchpad; content tracks the selected workspace.
+  | 'workspace-notes'
 
 export type WorkspaceVisibleTabType = 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode'
 export type CtrlTabOrderMode = 'mru' | 'sequential'
