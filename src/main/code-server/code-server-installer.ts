@@ -5,34 +5,27 @@ import { join } from 'node:path'
 import {
   CODE_SERVER_VERSION,
   getCodeServerCacheRoot,
-  resolveCodeServerExecutable,
-  resolveCodeServerInstallScript
+  resolveCodeServerLaunch,
+  resolveCodeServerInstallScript,
+  type CodeServerLaunch
 } from './code-server-paths'
 import { adhocSignBundledBinaries } from './code-server-macos-codesign'
+import { installCodeServerWindows } from './code-server-windows-install'
+import {
+  CodeServerInstallError,
+  type InstallErrorCode,
+  type InstallProgress
+} from './code-server-install-error'
 
-export type InstallProgress = (fraction: number) => void
+export { CodeServerInstallError, type InstallErrorCode, type InstallProgress }
 
-type InstallErrorCode =
-  | 'missing-prereq'
-  | 'unsupported-arch'
-  | 'download-failed'
-  | 'no-install-script'
+let inFlight: Promise<CodeServerLaunch> | null = null
 
-export class CodeServerInstallError extends Error {
-  readonly code: InstallErrorCode
-  constructor(code: InstallErrorCode, message: string) {
-    super(message)
-    this.name = 'CodeServerInstallError'
-    this.code = code
-  }
-}
-
-let inFlight: Promise<string> | null = null
-
-// Idempotent, single-flight ensure-installed. Runs the vendored install.sh with
-// --method standalone (bundles its own Node — no system-Node dependency).
-export function ensureCodeServerInstalled(onProgress?: InstallProgress): Promise<string> {
-  const existing = resolveCodeServerExecutable()
+// Idempotent, single-flight ensure-installed. POSIX runs the vendored install.sh
+// with --method standalone (bundles its own Node — no system-Node dependency);
+// Windows downloads Orca's CI-built package (coder ships no Windows release).
+export function ensureCodeServerInstalled(onProgress?: InstallProgress): Promise<CodeServerLaunch> {
+  const existing = resolveCodeServerLaunch()
   if (existing) {
     return Promise.resolve(existing)
   }
@@ -45,7 +38,21 @@ export function ensureCodeServerInstalled(onProgress?: InstallProgress): Promise
   return inFlight
 }
 
-async function runInstall(onProgress?: InstallProgress): Promise<string> {
+async function runInstall(onProgress?: InstallProgress): Promise<CodeServerLaunch> {
+  await (process.platform === 'win32'
+    ? installCodeServerWindows(onProgress)
+    : runPosixInstall(onProgress))
+  onProgress?.(1)
+  const launch = resolveCodeServerLaunch()
+  if (!launch) {
+    // Mirror the install-failure cleanup so a botched install doesn't wedge future retries.
+    await rm(getCodeServerCacheRoot(), { recursive: true, force: true }).catch(() => {})
+    throw new CodeServerInstallError('download-failed', 'code-server missing after install.')
+  }
+  return launch
+}
+
+async function runPosixInstall(onProgress?: InstallProgress): Promise<void> {
   const script = resolveCodeServerInstallScript()
   if (!script) {
     throw new CodeServerInstallError('no-install-script', 'code-server installer not found.')
@@ -150,21 +157,12 @@ async function runInstall(onProgress?: InstallProgress): Promise<string> {
     // startup for ~120s on Apple Silicon. See code-server-macos-codesign.ts.
     await adhocSignBundledBinaries(realRoot)
   }
-
-  onProgress?.(1)
-  const exe = resolveCodeServerExecutable()
-  if (!exe) {
-    // Mirror the spawn-failure cleanup so a botched install doesn't wedge future retries.
-    await cleanupTargets()
-    throw new CodeServerInstallError('download-failed', 'code-server missing after install.')
-  }
-  return exe
 }
 
 // Move the self-contained code-server-<version> tree from the staging prefix to
 // the real (possibly space-containing) location using Node fs, which handles
 // spaces correctly. Only the versioned lib dir is relocated — install.sh's
-// prefix/bin symlink is disposable because resolveCodeServerExecutable resolves
+// prefix/bin symlink is disposable because resolveCodeServerLaunch resolves
 // the real binary under lib/code-server-<version>/bin directly.
 async function relocateInstall(stagingRoot: string, realRoot: string): Promise<void> {
   const versionDirName = `code-server-${CODE_SERVER_VERSION}`

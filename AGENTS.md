@@ -34,6 +34,7 @@ Orca targets macOS, Linux, and Windows. Keep all platform-dependent behavior beh
 - **Shortcut labels in UI**: Display `⌘` / `⇧` on Mac and `Ctrl+` / `Shift+` on other platforms.
 - **File paths**: Use `path.join` or Electron/Node path utilities — never assume `/` or `\`.
 - **Windows setup scripts**: the setup/issue-command runner is a `.cmd` batch file unless the script starts with a `#!` line — never derive that from the user's terminal-shell preference, and never launch a `.cmd` runner with a bare `cmd.exe /c` from a Git Bash pane (MSYS rewrites the `/c`). See [`docs/reference/windows-setup-shell.md`](./docs/reference/windows-setup-shell.md).
+- **Windows embedded VS Code**: code-server on Windows is Orca's own CI-built package — spawn it only as `lib\node.exe out\node\entry.js` (never a `.cmd`), kill it with the tree-kill helpers (SIGTERM orphans the extension host), and normalize `?folder=` paths to `/C:/...` / `//wsl.localhost/...`. See [`docs/reference/windows-embedded-vscode.md`](./docs/reference/windows-embedded-vscode.md).
 - **Linux native modules**: keep the glibc floor at Ubuntu 20.04 / glibc 2.31. A module compiled from source on a newer runner can reference symbol versions absent on the floor and crash the app on startup. See [`docs/reference/linux-glibc-compatibility.md`](./docs/reference/linux-glibc-compatibility.md); packaging fails if a bundled native binary needs newer glibc.
 
 ## SSH Use Case

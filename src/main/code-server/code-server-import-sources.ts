@@ -30,23 +30,45 @@ export const CODE_SERVER_IMPORT_SOURCE_IDS = Object.keys(
   EDITOR_LOCATIONS
 ) as CodeServerImportSourceId[]
 
-// The embedded editor is darwin/linux-only in v1, so Windows returns null.
-export function resolveEditorUserDir(id: CodeServerImportSourceId): string | null {
+export type EditorPathDeps = {
+  platform?: NodeJS.Platform
+  env?: NodeJS.ProcessEnv
+  homeDir?: string
+}
+
+export function resolveEditorUserDir(
+  id: CodeServerImportSourceId,
+  deps: EditorPathDeps = {}
+): string | null {
+  const platform = deps.platform ?? process.platform
+  const home = deps.homeDir ?? homedir()
   const { configDirName } = EDITOR_LOCATIONS[id]
-  if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', configDirName, 'User')
+  if (platform === 'darwin') {
+    return join(home, 'Library', 'Application Support', configDirName, 'User')
   }
-  if (process.platform === 'linux') {
-    return join(homedir(), '.config', configDirName, 'User')
+  if (platform === 'linux') {
+    return join(home, '.config', configDirName, 'User')
+  }
+  if (platform === 'win32') {
+    // All four editors keep their User dir under %APPDATA% with the same
+    // configDirName as on mac/linux (e.g. %APPDATA%\Code\User).
+    const appData = (deps.env ?? process.env).APPDATA
+    return join(appData || join(home, 'AppData', 'Roaming'), configDirName, 'User')
   }
   return null
 }
 
-export function resolveEditorExtensionsDir(id: CodeServerImportSourceId): string | null {
-  if (process.platform !== 'darwin' && process.platform !== 'linux') {
+export function resolveEditorExtensionsDir(
+  id: CodeServerImportSourceId,
+  deps: EditorPathDeps = {}
+): string | null {
+  const platform = deps.platform ?? process.platform
+  if (platform !== 'darwin' && platform !== 'linux' && platform !== 'win32') {
     return null
   }
-  return join(homedir(), EDITOR_LOCATIONS[id].extensionsDirName, 'extensions')
+  // Home-relative on every supported platform (%USERPROFILE%\.vscode\extensions
+  // on Windows).
+  return join(deps.homeDir ?? homedir(), EDITOR_LOCATIONS[id].extensionsDirName, 'extensions')
 }
 
 // Folders in an extensions dir are `publisher.name-version[-platform]`; anything

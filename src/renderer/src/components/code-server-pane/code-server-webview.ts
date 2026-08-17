@@ -8,6 +8,21 @@ import { ORCA_VSCODE_PARTITION } from '../../../../shared/constants'
 // owned by the tab host, not this registry).
 const codeServerWebviewRegistry = new Map<string, Electron.WebviewTag>()
 
+// code-server resolves ?folder=/?workspace= into a vscode-remote URI path,
+// which requires forward slashes and a leading slash: `C:\Users\x` must arrive
+// as `/C:/Users/x` (URI.fsPath maps it back), and a WSL/UNC share
+// `\\wsl.localhost\Distro\...` as `//wsl.localhost/Distro/...`. POSIX paths
+// already match; idempotent for normalized input.
+export function normalizeCodeServerPathParam(path: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(path)) {
+    return `/${path.replace(/\\/g, '/')}`
+  }
+  if (path.startsWith('\\\\')) {
+    return path.replace(/\\/g, '/')
+  }
+  return path
+}
+
 // When the repo pins a `.code-workspace` file, open the multi-root workspace via
 // code-server's `?workspace=` param; otherwise open the worktree folder as before.
 export function buildCodeServerUrl(
@@ -16,9 +31,9 @@ export function buildCodeServerUrl(
   workspaceFilePath?: string
 ): string {
   if (workspaceFilePath) {
-    return `http://127.0.0.1:${port}/?workspace=${encodeURIComponent(workspaceFilePath)}`
+    return `http://127.0.0.1:${port}/?workspace=${encodeURIComponent(normalizeCodeServerPathParam(workspaceFilePath))}`
   }
-  return `http://127.0.0.1:${port}/?folder=${encodeURIComponent(folderPath)}`
+  return `http://127.0.0.1:${port}/?folder=${encodeURIComponent(normalizeCodeServerPathParam(folderPath))}`
 }
 
 // Resolve a repo's relative `.code-workspace` setting against a worktree's

@@ -26,9 +26,6 @@ async function openRepoSettings(page: Page, repoId: string): Promise<void> {
 }
 
 test.describe('Code-server editor config import', () => {
-  // The embedded editor (and therefore the import entry) is darwin/linux-only.
-  test.skip(process.platform === 'win32', 'embedded editor is not offered on Windows')
-
   test('opens from repository settings and persists dismissal over IPC', async ({ orcaPage }) => {
     await waitForSessionReady(orcaPage)
 

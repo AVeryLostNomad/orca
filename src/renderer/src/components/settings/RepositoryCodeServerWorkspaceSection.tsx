@@ -5,7 +5,7 @@ import { CodeServerImportModal } from '../code-server-pane/CodeServerImportModal
 import { useCodeServerImport } from '../code-server-pane/useCodeServerImport'
 import { RepoSettingsDraftInput } from './RepositorySettingsDraftInput'
 import { SearchableSetting } from './SearchableSetting'
-import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { isEmbeddedEditorSupported } from '@/lib/embedded-editor-support'
 import { translate } from '@/i18n/i18n'
 
 type RepositoryCodeServerWorkspaceUpdate = Pick<Repo, 'codeServerWorkspaceFile'>
@@ -28,10 +28,8 @@ export function RepositoryCodeServerWorkspaceSection({
   forceVisible
 }: RepositoryCodeServerWorkspaceSectionProps): React.JSX.Element {
   // Import runs against the local desktop's editors; hide it where the
-  // embedded editor itself is unavailable (Windows, web client).
-  const importSupported =
-    (getRendererAppPlatform() === 'darwin' || getRendererAppPlatform() === 'linux') &&
-    window.api.codeServer != null
+  // embedded editor itself is unavailable (web client).
+  const importSupported = isEmbeddedEditorSupported()
   const importFlow = useCodeServerImport()
   const title = translate(
     'auto.components.settings.RepositoryCodeServerWorkspaceSection.5660fc5055',

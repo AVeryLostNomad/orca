@@ -1,0 +1,121 @@
+# Builds the Windows code-server package Orca downloads at runtime (coder
+# publishes no Windows release). One asset per version pin — the job exits
+# early when the pinned asset is already published, so pushing an unrelated
+# change never rebuilds it.
+#
+# The release is cut in THIS repo (precedent: ads-web-server-v* tags): pin
+# bumps are rare, so they cannot evict app entries from the 10-entry releases
+# atom feed, and the prefixed tag never parses as semver, so electron-updater's
+# feed scan skips it. It is also marked prerelease so GitHub's "latest release"
+# pointer stays on the newest app release.
+name: code-server windows package
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the built asset as a release in this repo
+        type: boolean
+        default: false
+      force:
+        description: Rebuild even when the pinned asset already exists
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - config/code-server-windows-package.json
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    permissions:
+      # Why: the publish step cuts a release in this same repo, so the ambient
+      # GITHUB_TOKEN is enough — no cross-repo App token.
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Read package pins
+        id: pins
+        run: |
+          $pins = Get-Content config/code-server-windows-package.json | ConvertFrom-Json
+          "nodeVersion=$($pins.nodeVersion)" >> $env:GITHUB_OUTPUT
+          "assetName=$($pins.assetName)" >> $env:GITHUB_OUTPUT
+          "releaseRepo=$($pins.releaseRepo)" >> $env:GITHUB_OUTPUT
+          "releaseTag=$($pins.releaseTag)" >> $env:GITHUB_OUTPUT
+
+      # Why: one asset per version pin. A 200 on the public download URL means
+      # this exact pin is already published, so the build would be a no-op.
+      - name: Skip when the pinned asset already exists
+        id: existing
+        env:
+          ASSET_URL: https://github.com/${{ steps.pins.outputs.releaseRepo }}/releases/download/${{ steps.pins.outputs.releaseTag }}/${{ steps.pins.outputs.assetName }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          $status = 0
+          try {
+            $response = Invoke-WebRequest -Uri $env:ASSET_URL -Method Head -MaximumRedirection 5 -UseBasicParsing
+            $status = $response.StatusCode
+          } catch {
+            $status = 0
+          }
+          if (($status -eq 200) -and ($env:FORCE -ne 'true')) {
+            Write-Host "Asset already published at $env:ASSET_URL — skipping build."
+            "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
+      # The exact pinned Node is the package's ABI contract: it compiles the
+      # native modules AND ships as lib/node.exe.
+      - name: Setup pinned Node
+        if: steps.existing.outputs.skip != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ steps.pins.outputs.nodeVersion }}
+
+      - name: Build package
+        if: steps.existing.outputs.skip != 'true'
+        run: node config/scripts/build-code-server-windows-package.mjs --out-dir dist/code-server-win
+
+      - name: Upload artifact (always, for dry-run verification)
+        if: steps.existing.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pins.outputs.assetName }}
+          path: |
+            dist/code-server-win/${{ steps.pins.outputs.assetName }}
+            dist/code-server-win/${{ steps.pins.outputs.assetName }}.sha256
+          if-no-files-found: error
+
+      - name: Publish release asset
+        if: steps.existing.outputs.skip != 'true' && (inputs.publish || github.event_name == 'push')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPO: ${{ steps.pins.outputs.releaseRepo }}
+          RELEASE_TAG: ${{ steps.pins.outputs.releaseTag }}
+          ASSET_NAME: ${{ steps.pins.outputs.assetName }}
+        run: |
+          if ($env:RELEASE_REPO -ne $env:GITHUB_REPOSITORY) {
+            Write-Error "releaseRepo pin ($env:RELEASE_REPO) must match this repo ($env:GITHUB_REPOSITORY) — the ambient token cannot publish elsewhere."
+            exit 1
+          }
+          gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPO --title $env:RELEASE_TAG --prerelease `
+            --notes "Self-built Windows code-server package (see config/code-server-windows-package.json). Not an app release."
+          if ($LASTEXITCODE -ne 0) { Write-Host "release exists; uploading assets" }
+          gh release upload $env:RELEASE_TAG --repo $env:RELEASE_REPO --clobber `
+            "dist/code-server-win/$env:ASSET_NAME" "dist/code-server-win/$env:ASSET_NAME.sha256"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "Published. Pin the sha256 below in config/code-server-windows-package.json:"
+          Get-Content "dist/code-server-win/$env:ASSET_NAME.sha256"
