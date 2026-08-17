@@ -11166,6 +11166,13 @@
                   "8f9a0b1c2d": "No hay nada para hacer commit. La rama está actualizada.",
                   "h3i4j5k607": "Comprobando si esta rama puede crear un {{value0}}…"
                 }
+              },
+              "commit": {
+                "discard": {
+                  "confirmation": {
+                    "77920dcae1": "This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone."
+                  }
+                }
               }
             }
           },

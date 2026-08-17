@@ -1,5 +1,5 @@
 import { joinPath } from '@/lib/path'
-import { getExternalFileChangeRelativePath } from '@/components/right-sidebar/useFileExplorerWatch'
+import { getExternalFileChangeRelativePath } from '@/components/right-sidebar/file-explorer-watch-path'
 import type { OpenFile } from '@/store/slices/editor'
 import type { FsChangedPayload } from '../../../../shared/filesystem-entry-types'
 import {

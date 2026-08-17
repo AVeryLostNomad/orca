@@ -11166,6 +11166,13 @@
                   "8f9a0b1c2d": "コミットするものがありません。ブランチは最新です。",
                   "h3i4j5k607": "このブランチが {{value0}} を作成できるか確認中…"
                 }
+              },
+              "commit": {
+                "discard": {
+                  "confirmation": {
+                    "77920dcae1": "This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone."
+                  }
+                }
               }
             }
           },

@@ -26,13 +26,12 @@ import {
   findGitConflictBlocks,
   getGitConflictMarkerLineLength
 } from './monaco-conflict-decorations'
-import { getDiffContentSignature } from './diff-content-signature'
 import { translate } from '@/i18n/i18n'
 import { CheckRunDetailsPanel } from './CheckRunDetailsPanel'
 import { ExternalFileChangeBanner } from './ExternalFileChangeBanner'
 
 const MonacoEditor = lazy(() => import('./MonacoEditor'))
-const DiffViewer = lazy(() => import('./DiffViewer'))
+const PierreFileDiff = lazy(() => import('../pierre-diff/PierreFileDiff'))
 const CombinedDiffViewer = lazy(() => import('./CombinedDiffViewer'))
 const RichMarkdownEditor = lazy(() => import('./RichMarkdownEditor'), {
   reloadKey: 'rich-markdown-editor'
@@ -189,6 +188,7 @@ export function EditorContent({
       : `${activeFile.filePath}::${viewStateScopeId}:pdf`
   const monacoLanguage = resolvedLanguage === 'notebook' ? 'json' : resolvedLanguage
 
+  const openFile = useAppStore((s) => s.openFile)
   const openConflictReviewFile = useAppStore((s) => s.openConflictReviewFile)
   const openConflictReview = useAppStore((s) => s.openConflictReview)
   const closeFile = useAppStore((s) => s.closeFile)
@@ -890,11 +890,6 @@ export function EditorContent({
   }
   const modifiedDiffBuffer = editBuffers[activeFile.id]
   const modifiedDiffContent = modifiedDiffBuffer ?? dc.modifiedContent
-  const largeDiffSaveContentAvailable = !(
-    dc.largeDiffRenderLimit?.limited === true &&
-    modifiedDiffBuffer === undefined &&
-    dc.modifiedContent.length === 0
-  )
   // Why: shared by both diff sub-branches (preview and source) so preview mode surfaces the external change too.
   const diffExternalChangeBanner =
     activeFile.externalMutation === 'changed' ? (
@@ -933,29 +928,43 @@ export function EditorContent({
       </div>
     )
   }
-  // Why: key off fetched diff content + reload nonce (not the edit buffer) so Monaco reloads refreshed blobs but keeps undo.
   const diffReloadNonce = activeFile.diffContentReloadNonce ?? 0
-  const originalModelKey = `${diffViewStateKey}:original:${getDiffContentSignature(dc.originalContent)}`
-  const modifiedModelKey = `${diffViewStateKey}:modified:${getDiffContentSignature(dc.modifiedContent)}:${diffReloadNonce}`
+  // Why: diff tabs are read-only in the pierre renderer; "Edit file" jumps to a
+  // regular editor tab where unstaged content can actually be changed.
+  const editFileAction = isEditable ? (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-6 px-2 text-xs"
+      onClick={() =>
+        openFile(
+          {
+            filePath: activeFile.filePath,
+            relativePath: activeFile.relativePath,
+            worktreeId: activeFile.worktreeId,
+            language: detectLanguage(activeFile.relativePath),
+            mode: 'edit',
+            runtimeEnvironmentId: activeFile.runtimeEnvironmentId
+          },
+          { focusEditor: true }
+        )
+      }
+    >
+      {translate('auto.components.editor.EditorContent.d6aa8b56a3', 'Edit file')}
+    </Button>
+  ) : null
   const diffViewer = (
-    <DiffViewer
-      // Why: content refreshes via modifiedModelKey; keying off content too would remount Monaco and flash on every save.
+    <PierreFileDiff
+      // Why: key off the reload nonce so refreshed blobs remount cleanly; content identity is handled via cacheKey.
       key={`${viewStateScopeId}:${diffReloadNonce}`}
-      modelKey={diffViewStateKey}
-      originalModelKey={originalModelKey}
-      modifiedModelKey={modifiedModelKey}
+      scrollKey={diffViewStateKey}
       originalContent={dc.originalContent}
       modifiedContent={modifiedDiffContent}
-      largeDiffRenderLimit={dc.largeDiffRenderLimit}
-      largeDiffSaveContentAvailable={largeDiffSaveContentAvailable}
-      language={monacoLanguage}
-      filePath={activeFile.filePath}
       relativePath={activeFile.relativePath}
       sideBySide={sideBySide}
-      editable={isEditable}
       worktreeId={activeFile.worktreeId}
-      onContentChange={isEditable ? handleContentChange : undefined}
-      onSave={isEditable ? (isMarkdown ? md.mdSave : handleSave) : undefined}
+      largeDiffRenderLimit={dc.largeDiffRenderLimit}
+      headerActions={editFileAction}
     />
   )
   // Why: editable diffs get the changed-on-disk banner; its reload refetches the diff body, not plain file content.

@@ -356,8 +356,8 @@ function getLargestBackwardScrollJump(samples: readonly ScrollProbeSample[]): nu
 }
 
 async function clickVisibleDiffLine(page: Page): Promise<void> {
-  // Why: after a tab switch Monaco re-lays-out its virtualized diff lines
-  // asynchronously, so the visible .view-line set is briefly empty on a loaded
+  // Why: after a tab switch the diff renderer paints its virtualized lines
+  // asynchronously, so the visible line set is briefly empty on a loaded
   // CI runner. Poll until a line is painted in the viewport instead of reading
   // it once and throwing on the first miss.
   let linePoint: { x: number; y: number } | null = null
@@ -370,9 +370,16 @@ async function clickVisibleDiffLine(page: Page): Promise<void> {
             return null
           }
           const containerRect = container.getBoundingClientRect()
-          const visibleLine = Array.from(
-            container.querySelectorAll<HTMLElement>('.monaco-diff-editor .view-line')
-          ).find((line) => {
+          // Why: @pierre/diffs renders lines inside open shadow roots, which
+          // plain querySelectorAll does not pierce — walk the hosts explicitly.
+          const lines = Array.from(container.querySelectorAll('diffs-container')).flatMap((host) =>
+            host.shadowRoot
+              ? Array.from(
+                  host.shadowRoot.querySelectorAll<HTMLElement>('[data-content] [data-line]')
+                )
+              : []
+          )
+          const visibleLine = lines.find((line) => {
             const rect = line.getBoundingClientRect()
             return (
               rect.height > 0 &&

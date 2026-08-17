@@ -61,6 +61,19 @@ describe('getDiscardEntryConfirmationCopy', () => {
     })
   })
 
+  it('says staged changes are kept for partially staged files', () => {
+    expect(
+      getDiscardEntryConfirmationCopy(entry({ path: 'src/changed.ts', status: 'modified' }), {
+        hasStagedCounterpart: true
+      })
+    ).toEqual({
+      title: 'Discard changes to "changed.ts"?',
+      description:
+        'This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone.',
+      confirmLabel: 'Discard'
+    })
+  })
+
   it('handles Windows-style paths', () => {
     expect(
       getDiscardEntryConfirmationCopy(

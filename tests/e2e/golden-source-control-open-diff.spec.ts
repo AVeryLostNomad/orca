@@ -30,16 +30,20 @@ test('@golden opens an unstaged file diff from Source Control', async ({
   await expect(changedFile).toBeVisible({ timeout: 15_000 })
   await changedFile.click()
 
-  await expect(orcaPage.locator('.monaco-diff-editor')).toBeVisible({ timeout: 20_000 })
+  const pierreDiff = orcaPage.locator('[data-testid="pierre-file-diff"]')
+  await expect(pierreDiff).toBeVisible({ timeout: 20_000 })
+  // Why: @pierre/diffs renders into an open shadow root; Playwright CSS/text locators pierce it.
   await expect(
-    orcaPage
-      .locator('.original-in-monaco-diff-editor .view-line')
+    pierreDiff
+      .locator('[data-content] [data-line-type$="deletion"]')
       .filter({ hasText: GOLDEN_REMOVED_LINE })
+      .first()
   ).toBeVisible()
   await expect(
-    orcaPage
-      .locator('.modified-in-monaco-diff-editor .view-line')
+    pierreDiff
+      .locator('[data-content] [data-line-type$="addition"]')
       .filter({ hasText: GOLDEN_ADDED_LINE })
+      .first()
   ).toBeVisible()
   await expect(orcaPage.locator('.editor-header-path').first()).toHaveAttribute(
     'title',

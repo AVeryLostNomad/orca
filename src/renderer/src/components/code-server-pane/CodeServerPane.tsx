@@ -161,7 +161,13 @@ export default function CodeServerPane({ codeServerTabId, worktreeId }: Props): 
           ) : status.status === 'error' ? (
             <div className="flex flex-col items-center gap-2">
               <SquareCode className="size-8" />
-              <span>{status.error ?? 'Something went wrong.'}</span>
+              <span>
+                {status.error ??
+                  translate(
+                    'auto.components.code.server.pane.CodeServerPane.f96baddbc8',
+                    'Something went wrong.'
+                  )}
+              </span>
               <button className="underline" onClick={retry}>
                 {translate('auto.components.code.server.pane.CodeServerPane.1d7589e99e', 'Retry')}
               </button>

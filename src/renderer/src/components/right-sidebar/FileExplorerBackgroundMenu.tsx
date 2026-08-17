@@ -30,7 +30,7 @@ export function FileExplorerBackgroundMenu({
   onOpenChange: (open: boolean) => void
   point: { x: number; y: number }
   worktreePath: string
-  onStartNew: (type: 'file' | 'folder', dir: string, depth: number) => void
+  onStartNew: (type: 'file' | 'folder', parentAbsoluteDir: string) => void
 }): React.JSX.Element {
   useEffect(() => {
     const close = (): void => onOpenChange(false)
@@ -55,14 +55,14 @@ export function FileExplorerBackgroundMenu({
         onPointerUpCapture={stopRightButtonMenuSelection}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <DropdownMenuItem onSelect={() => onStartNew('file', worktreePath, 0)}>
+        <DropdownMenuItem onSelect={() => onStartNew('file', worktreePath)}>
           <FilePlus />
           {translate(
             'auto.components.right.sidebar.FileExplorerBackgroundMenu.21fe46ed36',
             'New File'
           )}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onStartNew('folder', worktreePath, 0)}>
+        <DropdownMenuItem onSelect={() => onStartNew('folder', worktreePath)}>
           <FolderPlus />
           {translate(
             'auto.components.right.sidebar.FileExplorerBackgroundMenu.3b5e2dcb8d',

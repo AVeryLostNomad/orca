@@ -10,7 +10,8 @@ export type DiscardConfirmationCopy = {
 }
 
 export function getDiscardEntryConfirmationCopy(
-  entry: Pick<GitStatusEntry, 'area' | 'path' | 'status'>
+  entry: Pick<GitStatusEntry, 'area' | 'path' | 'status'>,
+  options?: { hasStagedCounterpart?: boolean }
 ): DiscardConfirmationCopy {
   const name = basename(entry.path)
 
@@ -52,10 +53,17 @@ export function getDiscardEntryConfirmationCopy(
       'Discard changes to "{{value0}}"?',
       { value0: name }
     ),
-    description: translate(
-      'auto.components.right.sidebar.source.control.discard.confirmation.1426c2efff',
-      'This will revert all changes to this file. This cannot be undone.'
-    ),
+    // Why: discard restores the worktree from the index, so a partially staged
+    // file keeps its staged content — say so instead of "all changes".
+    description: options?.hasStagedCounterpart
+      ? translate(
+          'auto.components.right.sidebar.source.control.commit.discard.confirmation.77920dcae1',
+          'This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone.'
+        )
+      : translate(
+          'auto.components.right.sidebar.source.control.discard.confirmation.1426c2efff',
+          'This will revert all changes to this file. This cannot be undone.'
+        ),
     confirmLabel: 'Discard'
   }
 }

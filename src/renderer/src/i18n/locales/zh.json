@@ -11186,6 +11186,13 @@
                   "8f9a0b1c2d": "没有可提交的内容。分支已是最新状态。",
                   "h3i4j5k607": "正在检查此分支是否可以创建 {{value0}}…"
                 }
+              },
+              "commit": {
+                "discard": {
+                  "confirmation": {
+                    "77920dcae1": "This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone."
+                  }
+                }
               }
             }
           },

@@ -5,6 +5,7 @@ export type ExplorerDirState = {
   expandedDirs: Record<string, Set<string>>
   collapseAllDirs: (worktreeId: string) => void
   collapseDirSubtree: (worktreeId: string, dirPath: string) => void
+  setExpandedDirs: (worktreeId: string, dirPaths: ReadonlySet<string>) => void
   toggleDir: (worktreeId: string, dirPath: string) => void
   pendingExplorerReveal: {
     worktreeId: string
@@ -45,6 +46,16 @@ export function createExplorerDirState(set: EditorSet, _get: EditorGet): Explore
           return s
         }
         return { expandedDirs: { ...s.expandedDirs, [worktreeId]: next } }
+      }),
+    setExpandedDirs: (worktreeId, dirPaths) =>
+      set((s) => {
+        const current = s.expandedDirs[worktreeId] ?? new Set<string>()
+        // Why: batched writes from the tree's expansion sync are frequent; skip
+        // the store update when the set is unchanged to avoid churn.
+        if (current.size === dirPaths.size && [...dirPaths].every((dir) => current.has(dir))) {
+          return s
+        }
+        return { expandedDirs: { ...s.expandedDirs, [worktreeId]: new Set(dirPaths) } }
       }),
     toggleDir: (worktreeId, dirPath) =>
       set((s) => {

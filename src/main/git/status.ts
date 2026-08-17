@@ -2156,12 +2156,12 @@ export async function discardChanges(
     }
 
     if (tracked) {
-      await gitExecFileAsync(
-        ['restore', '--worktree', '--source=HEAD', '--', literalPathspec(filePath, options)],
-        {
-          ...gitOptionsForWorktree(worktreePath, options)
-        }
-      )
+      // Why: restore from the index (default source), not HEAD — a partially
+      // staged file must keep its staged delta; --source=HEAD would leave the
+      // index dirty and resurface the file as a phantom inverse "Changes" row.
+      await gitExecFileAsync(['restore', '--worktree', '--', literalPathspec(filePath, options)], {
+        ...gitOptionsForWorktree(worktreePath, options)
+      })
       return
     }
 
@@ -2270,11 +2270,12 @@ export async function bulkDiscardChanges(
       async () => {
         for (let i = 0; i < trackedPaths.length; i += BULK_CHUNK_SIZE) {
           const chunk = trackedPaths.slice(i, i + BULK_CHUNK_SIZE)
+          // Why: index (default) source keeps staged deltas intact for
+          // partially staged files — see discardChanges.
           await gitExecFileAsync(
             [
               'restore',
               '--worktree',
-              '--source=HEAD',
               '--',
               ...chunk.map((filePath) => literalPathspec(filePath, options))
             ],

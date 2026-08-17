@@ -1,7 +1,7 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { test, expect } from './helpers/orca-app'
-import { openFileExplorer } from './helpers/file-explorer'
+import { fileExplorerRow, openFileExplorer } from './helpers/file-explorer'
 import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 
 test('refreshes the visible tree after external Windows file changes', async ({ orcaPage }) => {
@@ -32,10 +32,7 @@ test('refreshes the visible tree after external Windows file changes', async ({ 
   const renamedName = 'WATCH-REFRESH-CASE.txt'
   const originalPath = path.join(worktreePath, originalName)
   const renamedPath = path.join(worktreePath, renamedName)
-  const row = (name: string) =>
-    orcaPage
-      .locator('[data-file-explorer-row]')
-      .filter({ hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) })
+  const row = (name: string) => fileExplorerRow(orcaPage, name)
 
   rmSync(originalPath, { force: true })
   rmSync(renamedPath, { force: true })

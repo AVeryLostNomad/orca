@@ -1,5 +1,5 @@
 import { expect, test } from './helpers/orca-app'
-import { openFileExplorer } from './helpers/file-explorer'
+import { fileExplorerRow, openFileExplorer } from './helpers/file-explorer'
 import { pressShortcut } from './helpers/shortcuts'
 import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 
@@ -10,7 +10,7 @@ test('Explorer-opened Markdown accepts the find shortcut without a document clic
   await waitForActiveWorktree(orcaPage)
   await openFileExplorer(orcaPage)
 
-  const readmeRow = orcaPage.locator('[data-file-explorer-row]').filter({ hasText: 'README.md' })
+  const readmeRow = fileExplorerRow(orcaPage, 'README.md')
   await expect(readmeRow).toBeVisible({ timeout: 10_000 })
   await readmeRow.focus()
   await readmeRow.click()

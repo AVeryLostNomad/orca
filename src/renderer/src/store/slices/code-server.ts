@@ -1,6 +1,9 @@
 import type { StateCreator } from 'zustand'
-import type { CodeServerStatus, CodeServerStatusEvent } from '../../../../shared/code-server-types'
-import type { CodeServerTab } from '../../../../shared/code-server-types'
+import type {
+  CodeServerStatus,
+  CodeServerStatusEvent,
+  CodeServerTab
+} from '../../../../shared/code-server-types'
 import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import type { AppState } from '../types'
