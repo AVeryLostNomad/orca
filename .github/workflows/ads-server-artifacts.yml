@@ -1,0 +1,97 @@
+# Builds the Azure Data Studio web-server artifacts Orca's Data Studio tab
+# downloads (see src/main/data-studio/ads-server-installer.ts), one per
+# platform, and uploads them to the ads-web-server release.
+#
+# Trigger: push a tag matching ads-ci-* to the repo that hosts the release
+# (the public fork — releases on stablyai/orca require push permission).
+# The tag's commit only needs .github/workflows + resources/data-studio.
+#
+# Linux builds run inside ubuntu:20.04 containers so the compiled native
+# modules keep the project's glibc 2.31 floor (see AGENTS.md).
+name: ads-server-artifacts
+
+on:
+  push:
+    tags:
+      - 'ads-ci-*'
+
+permissions:
+  contents: write
+
+env:
+  ADS_ARTIFACT_VERSION: 1.53.0-orca.1
+  ADS_RELEASE_TAG: ads-web-server-v1.53.0-orca.1
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    # Empty for hosted jobs; ubuntu:20.04 for linux to keep the glibc 2.31 floor.
+    container: ${{ matrix.container }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+            node_dist: darwin-arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+            node_dist: darwin-x64
+          - os: ubuntu-22.04
+            container: ubuntu:20.04
+            platform: linux
+            arch: x64
+            node_dist: linux-x64
+          - os: ubuntu-22.04-arm
+            container: ubuntu:20.04
+            platform: linux
+            arch: arm64
+            node_dist: linux-arm64
+          - os: windows-2022
+            platform: win32
+            arch: x64
+            node_dist: win-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install container build deps (linux only)
+        if: matrix.platform == 'linux'
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y curl git python3 make g++ pkg-config libsecret-1-dev libkrb5-dev libx11-dev libxkbfile-dev ca-certificates xz-utils
+          curl -sL "https://nodejs.org/dist/v20.16.0/node-v20.16.0-${{ matrix.node_dist }}.tar.xz" | tar -xJ -C /usr/local --strip-components=1
+          # gh CLI for the release-upload step (not present in the container image).
+          GH_ARCH=$([ "${{ matrix.arch }}" = "arm64" ] && echo arm64 || echo amd64)
+          curl -sL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${GH_ARCH}.tar.gz" \
+            | tar -xz --strip-components=2 -C /usr/local/bin "gh_2.63.2_linux_${GH_ARCH}/bin/gh"
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20.16.0 (hosted runners)
+        if: matrix.platform != 'linux'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.16.0
+
+      - name: Build artifact
+        run: |
+          bash resources/data-studio/ci-build-ads-server.sh \
+            --platform ${{ matrix.platform }} \
+            --arch ${{ matrix.arch }} \
+            --node-dist ${{ matrix.node_dist }} \
+            --version "$ADS_ARTIFACT_VERSION" \
+            --out "$PWD/ads-web-server-$ADS_ARTIFACT_VERSION-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$ADS_RELEASE_TAG" \
+            "ads-web-server-$ADS_ARTIFACT_VERSION-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" \
+            --repo "$GITHUB_REPOSITORY" --clobber
