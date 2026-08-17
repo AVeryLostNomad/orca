@@ -11166,6 +11166,13 @@
                   "8f9a0b1c2d": "커밋할 항목이 없습니다. 브랜치가 최신 상태입니다.",
                   "h3i4j5k607": "이 브랜치에서 {{value0}}을(를) 만들 수 있는지 확인 중…"
                 }
+              },
+              "commit": {
+                "discard": {
+                  "confirmation": {
+                    "77920dcae1": "This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone."
+                  }
+                }
               }
             }
           },

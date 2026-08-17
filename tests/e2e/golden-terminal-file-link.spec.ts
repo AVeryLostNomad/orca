@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@stablyai/playwright-test'
 import { expect, test } from './helpers/orca-app'
-import { openFileExplorer } from './helpers/file-explorer'
+import { fileExplorerRow, openFileExplorer } from './helpers/file-explorer'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 import {
   getTerminalContent,
@@ -116,10 +116,7 @@ test('opens a terminal file link and observes an external edit @golden', async (
 
   try {
     await openFileExplorer(orcaPage)
-    const explorerRow = orcaPage
-      .locator('[data-file-explorer-row]')
-      .filter({ hasText: 'package.json' })
-      .first()
+    const explorerRow = fileExplorerRow(orcaPage, 'package.json')
     await expect(explorerRow).toBeVisible({ timeout: 15_000 })
 
     const command = nodeTerminalCommand(['-e', `console.log(${JSON.stringify(printedPath)})`])
@@ -159,7 +156,7 @@ test('opens a terminal file link and observes an external edit @golden', async (
 
     const editorHeader = orcaPage.locator('.editor-header-path').first()
     await expect(editorHeader).toContainText('package.json', { timeout: 20_000 })
-    await expect(explorerRow).toHaveAttribute('data-selected', 'true', { timeout: 10_000 })
+    await expect(explorerRow).toHaveAttribute('data-item-selected', 'true', { timeout: 10_000 })
     await expect
       .poll(
         () =>

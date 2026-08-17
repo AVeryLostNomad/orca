@@ -12348,6 +12348,11 @@
                   "e7876a2bde": "Stage at least one file to generate a message.",
                   "0904be2505": "Clear the message to regenerate.",
                   "1ea9ba37aa": "Pick an agent in Settings -> Git -> Source Control AI."
+                },
+                "discard": {
+                  "confirmation": {
+                    "77920dcae1": "This will revert the unstaged changes to this file. Staged changes are kept. This cannot be undone."
+                  }
                 }
               }
             }
@@ -12745,6 +12750,9 @@
             "90cabf6cfc": "Stack this PR above #{{value0}}",
             "ff81473a57": "Creates a GitHub Stack or extends the parent's existing stack.",
             "29732f2fb0": "new PR"
+          },
+          "FileExplorerTreePane": {
+            "24ff3db033": "No files match this filter"
           }
         }
       },
@@ -14033,7 +14041,8 @@
           "3c6e71df22": "Text diff is unavailable for this file in branch compare.",
           "d07e4b8553": "branch",
           "d16e037f40": "rich",
-          "6c4f1a8d2e": "Check details are unavailable."
+          "6c4f1a8d2e": "Check details are unavailable.",
+          "d6aa8b56a3": "Edit file"
         },
         "EditorPanelHeader": {
           "fb8331694e": "Open Preview to the Side",
@@ -15616,9 +15625,11 @@
               "3d3fe86c25": "Manual install instructions",
               "1d7589e99e": "Retry",
               "4a8a282725": "Installing VS Code…",
-              "231da812b0": "code-server failed to load."
+              "231da812b0": "code-server failed to load.",
+              "f96baddbc8": "Something went wrong."
             },
             "CodeServerImportModal": {
+              "2084722876": "Importing…",
               "37836403ec": "Settings",
               "0c46f685c1": "Keybindings",
               "650939408f": "Snippets",
@@ -15635,7 +15646,6 @@
               "2c04a2e2cb": "Settings, keybindings, and snippets stay linked — edits made in either editor apply to both.",
               "30d1bf1217": "Done",
               "ac0db0202e": "Not Now",
-              "2084722876": "Importing…",
               "9ece26b2e4": "Import"
             }
           }
@@ -15782,6 +15792,28 @@
           "openLink": "Open link",
           "updating": "Updating…",
           "update": "Update shared content"
+        }
+      },
+      "pierre": {
+        "diff": {
+          "PierreDiffCommentComposer": {
+            "e56f918567": "Comment is too large to submit safely.",
+            "ac2496b245": "Add note for the AI",
+            "c9ed119fb6": "Cancel",
+            "ad0f61e520": "Saving…",
+            "0dc4b6b751": "Add note"
+          },
+          "CombinedDiffStatsFooter": {
+            "ada01f259a": "file changed",
+            "21779f63e1": "files changed"
+          },
+          "PierreDiffSection": {
+            "8954354a5b": "Loading diff...",
+            "1f5066e25c": "Retry",
+            "fe1a0d0906": "Binary file changed",
+            "1c569d7a56": "Text diff is unavailable for this file in branch compare.",
+            "d66e68d349": "Text diff is unavailable for this file."
+          }
         }
       }
     },

@@ -5,7 +5,7 @@ import type { OpenFile } from '@/store/slices/editor'
 
 const lifecycle = vi.hoisted(() => ({
   events: [] as string[],
-  diffModelKeys: [] as string[],
+  diffModifiedContents: [] as string[],
   models: new Map<string, { content: string; undo: string[] }>(),
   mountedProps: [] as {
     filePath: string
@@ -20,14 +20,17 @@ vi.mock('@/lib/lazy-with-retry', async () => {
   const { syncContentOnMount } = await import('./monaco-content-sync')
   return {
     lazyWithRetry: (factory: () => Promise<unknown>) => {
-      if (factory.toString().includes('/DiffViewer.tsx')) {
-        return function MockDiffViewer(props: { filePath: string; modifiedModelKey?: string }) {
-          lifecycle.diffModelKeys.push(props.modifiedModelKey ?? '')
+      if (factory.toString().includes('PierreFileDiff')) {
+        return function MockPierreFileDiff(props: {
+          relativePath: string
+          modifiedContent: string
+        }) {
+          lifecycle.diffModifiedContents.push(props.modifiedContent)
           /* oxlint-disable react-hooks/exhaustive-deps -- Mount-only by design: a prop-effect would hide a missing outer React remount. */
           React.useEffect(() => {
-            lifecycle.events.push(`mount-diff:${props.filePath}`)
+            lifecycle.events.push(`mount-diff:${props.relativePath}`)
             return () => {
-              lifecycle.events.push(`unmount-diff:${props.filePath}`)
+              lifecycle.events.push(`unmount-diff:${props.relativePath}`)
             }
           }, [])
           /* oxlint-enable react-hooks/exhaustive-deps */
@@ -184,7 +187,7 @@ function diffProps(activeFile: OpenFile, modifiedContent: string) {
 afterEach(() => {
   cleanup()
   lifecycle.events.length = 0
-  lifecycle.diffModelKeys.length = 0
+  lifecycle.diffModifiedContents.length = 0
   lifecycle.models.clear()
   lifecycle.mountedProps.length = 0
 })
@@ -214,20 +217,19 @@ describe('EditorContent Monaco lifecycle boundary', () => {
     })
   })
 
-  it('keeps the diff editor mounted when a save updates the modified content', () => {
-    // Why: saves must rotate the retained model for freshness without remounting
-    // the editor and flashing Monaco's loading placeholder.
+  it('keeps the diff renderer mounted when a save updates the modified content', () => {
+    // Why: saves must flow through props (content cacheKey identity) without
+    // remounting the diff renderer and dropping its scroll position.
     const diff = file('/repo/notes.ts', { mode: 'diff', diffSource: 'unstaged' })
 
     const view = render(<EditorContent {...diffProps(diff, 'first save')} />)
     view.rerender(<EditorContent {...diffProps(diff, 'second save')} />)
 
-    expect(lifecycle.events).toEqual(['mount-diff:/repo/notes.ts'])
-    expect(lifecycle.diffModelKeys).toHaveLength(2)
-    expect(lifecycle.diffModelKeys[1]).not.toBe(lifecycle.diffModelKeys[0])
+    expect(lifecycle.events).toEqual(['mount-diff:notes.ts'])
+    expect(lifecycle.diffModifiedContents).toEqual(['first save', 'second save'])
   })
 
-  it('still remounts the diff editor for an explicit reload request', () => {
+  it('still remounts the diff renderer for an explicit reload request', () => {
     const diff = file('/repo/notes.ts', { mode: 'diff', diffSource: 'unstaged' })
     const view = render(<EditorContent {...diffProps(diff, 'saved content')} />)
 
@@ -236,9 +238,9 @@ describe('EditorContent Monaco lifecycle boundary', () => {
     )
 
     expect(lifecycle.events).toEqual([
-      'mount-diff:/repo/notes.ts',
-      'unmount-diff:/repo/notes.ts',
-      'mount-diff:/repo/notes.ts'
+      'mount-diff:notes.ts',
+      'unmount-diff:notes.ts',
+      'mount-diff:notes.ts'
     ])
   })
 

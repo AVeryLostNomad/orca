@@ -13,6 +13,7 @@ import {
   updateCodeServerImportPreference
 } from '../code-server/code-server-import-preference'
 import { importExtensionsFromEditor } from '../code-server/code-server-extension-import'
+import { openFileInCodeServer } from '../code-server/code-server-open-file'
 import { mirrorEditorUserConfig } from '../code-server/code-server-editor-user-config'
 import {
   registerCodeServerGuest,
@@ -62,6 +63,18 @@ export function registerCodeServerHandlers(options?: {
   })
 
   ipcMain.handle('codeServer:getStatus', () => service.getStatus())
+
+  // Best-effort open in the running workbench session; false → caller falls
+  // back to Orca's own editor.
+  ipcMain.handle('codeServer:openFile', async (_event, args: { path: string }) => {
+    if (typeof args?.path !== 'string' || args.path.length === 0) {
+      return false
+    }
+    if (service.getStatus().status !== 'ready') {
+      return false
+    }
+    return openFileInCodeServer(args.path)
+  })
 
   ipcMain.handle('codeServer:getImportState', async (): Promise<CodeServerImportState> => {
     const [sources, preference] = await Promise.all([

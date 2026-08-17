@@ -19,7 +19,7 @@ import {
 import { translate } from '@/i18n/i18n'
 
 export type PendingDiscardConfirmation =
-  | { kind: 'entry'; entry: GitStatusEntry }
+  | { kind: 'entry'; entry: GitStatusEntry; hasStagedCounterpart?: boolean }
   | { kind: 'area'; area: DiscardAllArea; paths: readonly string[] }
 
 export function focusDiscardDialogConfirmButton(
@@ -49,7 +49,9 @@ export function SourceControlDiscardDialog({
       return null
     }
     if (pendingDiscard.kind === 'entry') {
-      return getDiscardEntryConfirmationCopy(pendingDiscard.entry)
+      return getDiscardEntryConfirmationCopy(pendingDiscard.entry, {
+        hasStagedCounterpart: pendingDiscard.hasStagedCounterpart
+      })
     }
     return getDiscardAreaConfirmationCopy(pendingDiscard.area, pendingDiscard.paths.length)
   }, [pendingDiscard])

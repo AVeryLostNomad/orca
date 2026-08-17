@@ -78,6 +78,7 @@ function EditorPanelInner({
   const editorDrafts = useAppStore(editorDraftSelector)
   const setEditorDraft = useAppStore((s) => s.setEditorDraft)
   const settings = useAppStore((s) => s.settings)
+  const updateSettings = useAppStore((s) => s.updateSettings)
   const panelRef = useRef<HTMLDivElement>(null)
   const [copiedPathToast, setCopiedPathToast] = useState<{ fileId: string; token: number } | null>(
     null
@@ -376,7 +377,13 @@ function EditorPanelInner({
         onOpenPreviewToSide={handleOpenPreviewToSide}
         onOpenMarkdownPreview={handleOpenMarkdownPreview}
         onOpenContainingFolder={handleOpenContainingFolder}
-        onToggleSideBySide={() => setSideBySide((prev) => !prev)}
+        onToggleSideBySide={() => {
+          // Why: the toggle is a durable preference — persist it so new tabs and
+          // future app launches keep the chosen layout. The settings sync above
+          // (prevDiffView) folds it back into local state.
+          void updateSettings({ diffDefaultView: sideBySide ? 'inline' : 'side-by-side' })
+          setSideBySide((prev) => !prev)
+        }}
         onEditorToggleChange={handleEditorToggleChange}
         onToggleMarkdownTableOfContents={() =>
           setMarkdownTableOfContentsVisible(

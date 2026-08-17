@@ -4,7 +4,7 @@ import type { Page, TestInfo } from '@stablyai/playwright-test'
 import { RuntimeClient } from '../../src/cli/runtime/client'
 import type { RuntimeMobileSessionTabsResult } from '../../src/shared/runtime-types'
 import { expect, test } from './helpers/orca-app'
-import { openFileExplorer } from './helpers/file-explorer'
+import { fileExplorerRowByName, openFileExplorer } from './helpers/file-explorer'
 import {
   launchHeadlessPairedRuntimeHost,
   type HeadlessPairedRuntimeHost
@@ -126,7 +126,7 @@ async function runReconciliationFailureJourney(args: {
       .toMatchObject({ terminalTabIds: expect.arrayContaining([expect.any(String)]) })
 
     await openFileExplorer(page)
-    const fixtureRow = page.locator('[data-file-explorer-row]').filter({ hasText: FIXTURE_NAME })
+    const fixtureRow = fileExplorerRowByName(page, FIXTURE_NAME)
     await expect(fixtureRow).toBeVisible({ timeout: 30_000 })
     await fixtureRow.click()
     const openPreviewToSide = page.getByRole('button', { name: 'Open Preview to the Side' })
@@ -276,7 +276,7 @@ async function runCapabilityFailureJourney(args: {
       .toMatchObject({ terminalTabIds: expect.arrayContaining([expect.any(String)]) })
 
     await openFileExplorer(page)
-    const fixtureRow = page.locator('[data-file-explorer-row]').filter({ hasText: FIXTURE_NAME })
+    const fixtureRow = fileExplorerRowByName(page, FIXTURE_NAME)
     await expect(fixtureRow).toBeVisible({ timeout: 30_000 })
     await fixtureRow.click()
     const openPreviewToSide = page.getByRole('button', { name: 'Open Preview to the Side' })

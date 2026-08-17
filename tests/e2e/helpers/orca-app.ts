@@ -437,6 +437,16 @@ export const test = base.extend<OrcaTestFixtures, OrcaWorkerFixtures>({
 
   // Test-scoped: each test gets the shared page
   orcaPage: async ({ sharedPage }, provideFixture) => {
+    if (process.env.ORCA_E2E_FORWARD_RENDERER_ERRORS === '1') {
+      sharedPage.on('pageerror', (err) =>
+        console.log('[renderer pageerror]', (err.stack ?? err.message).slice(0, 2000))
+      )
+      sharedPage.on('console', (msg) => {
+        if (msg.type() === 'error') {
+          console.log('[renderer console.error]', msg.text().slice(0, 2000))
+        }
+      })
+    }
     await provideFixture(sharedPage)
   }
 })

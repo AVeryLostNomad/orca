@@ -2,7 +2,6 @@
 /* oxlint-disable react-doctor/no-adjust-state-on-prop-change -- Why: diff entry changes must reset virtualizer measurement and generation state in lockstep with external scroll restoration. */
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { elementScroll, useVirtualizer } from '@tanstack/react-virtual'
-import type { editor as monacoEditor } from 'monaco-editor'
 import { useAppStore } from '@/store'
 import {
   useVirtualizedScrollAnchor,
@@ -17,11 +16,8 @@ import { openFilePreviewToSide, useWorkspaceFileBrowserActionPredicate } from '@
 import { canOpenDiffSectionPreviewToSide } from './diff-section-preview'
 import { setWithLRU } from '@/lib/scroll-cache'
 import { getCombinedDiffSectionConnectionId } from './combined-diff-section-connection'
-import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import { selectWorktreeDiffCommentsOrEmpty } from '@/store/worktree-diff-comments-selector'
-import { writeRuntimeFile } from '@/runtime/runtime-file-client'
 import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner'
 import { formatDiffComments } from '@/lib/diff-comments-format'
 import { getDiffCommentLineLabel } from '@/lib/diff-comment-compat'
 import {
@@ -29,7 +25,6 @@ import {
   getRuntimeGitCommitDiff,
   getRuntimeGitDiff
 } from '@/runtime/runtime-git-client'
-import '@/lib/monaco-setup'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -47,7 +42,9 @@ import type { GitBranchChangeEntry, GitDiffResult } from '../../../../shared/git
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 import { Check, Copy, MessageSquare, PanelLeftOpen, Sparkles, Trash2, WrapText } from 'lucide-react'
 import { toast } from 'sonner'
-import { DiffSectionItem } from './DiffSectionItem'
+import { PierreDiffSection } from '../pierre-diff/PierreDiffSection'
+import { PierreDiffProvider } from '../pierre-diff/pierre-diff-worker-pool'
+import { CombinedDiffStatsFooter } from '../pierre-diff/CombinedDiffStatsFooter'
 import { DiffNotesSendMenu } from './DiffNotesSendMenu'
 import {
   CombinedDiffFileTree,
@@ -245,9 +242,6 @@ export default function CombinedDiffViewer({
   )
   const activeGroupId = useAppStore((s) => s.activeGroupIdByWorktree[file.worktreeId])
   const canOpenWorkspaceFileBrowserForPath = useWorkspaceFileBrowserActionPredicate(file.worktreeId)
-  const isDark =
-    settings?.theme === 'dark' ||
-    (settings?.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   const diffCommentCount = diffCommentsForWorktree.length
   const diffCommentsPrompt = React.useMemo(
@@ -861,8 +855,6 @@ export default function CombinedDiffViewer({
   )
   retrySectionRef.current = retrySection
 
-  const modifiedEditorsRef = useRef<Map<number, monacoEditor.IStandaloneCodeEditor>>(new Map())
-
   const virtualizer = useVirtualizer({
     count: sections.length,
     getScrollElement: () => scrollContainerRef.current,
@@ -1042,6 +1034,15 @@ export default function CombinedDiffViewer({
     () => createCombinedDiffSectionIndexMap(sections),
     [sections]
   )
+  const diffStatsTotals = React.useMemo(() => {
+    let added = 0
+    let removed = 0
+    for (const section of sections) {
+      added += section.added ?? 0
+      removed += section.removed ?? 0
+    }
+    return { added, removed }
+  }, [sections])
   const sectionIndexByKeyRef = useRef(sectionIndexByKey)
   sectionIndexByKeyRef.current = sectionIndexByKey
   // Why: invalidation (rebase/commit/external write) revalidates in place — it must not tear the
@@ -1050,7 +1051,7 @@ export default function CombinedDiffViewer({
   const requestCombinedDiffSectionReload = useCallback(
     (index: number): void => {
       const section = sectionsRef.current[index]
-      if (!section || section.dirty) {
+      if (!section) {
         return
       }
       loadedIndicesRef.current.delete(index)
@@ -1221,9 +1222,12 @@ export default function CombinedDiffViewer({
     setSideBySide((prev) => {
       const next = !prev
       combinedDiffSideBySidePreference = next
+      // Why: the toggle is a durable preference — persist it so new tabs and
+      // future app launches keep the chosen layout.
+      void updateSettings({ diffDefaultView: next ? 'side-by-side' : 'inline' })
       return next
     })
-  }, [])
+  }, [updateSettings])
 
   const toggleDiffWordWrap = useCallback(() => {
     void updateSettings({ diffWordWrap: settings?.diffWordWrap !== true })
@@ -1323,80 +1327,6 @@ export default function CombinedDiffViewer({
       isCommitMode
     ]
   )
-
-  const handleSectionSave = useCallback(
-    async (index: number) => {
-      const section = sections[index]
-      if (!section) {
-        return
-      }
-      const modifiedEditor = modifiedEditorsRef.current.get(index)
-      if (!modifiedEditor && !section.dirty) {
-        return
-      }
-
-      const content = modifiedEditor?.getValue() ?? section.modifiedContent
-      const absolutePath = joinPath(file.filePath, section.path)
-      try {
-        const state = useAppStore.getState()
-        const worktree = file.worktreeId
-          ? findWorktreeById(state.worktreesByRepo, file.worktreeId)
-          : null
-        await writeRuntimeFile(
-          getEditorFileOperationContext(
-            state,
-            {
-              worktreeId: file.worktreeId,
-              runtimeEnvironmentId: file.runtimeEnvironmentId,
-              operationProvenance: file.operationProvenance
-            },
-            worktree?.path ?? null
-          ),
-          absolutePath,
-          content
-        )
-        setSectionHeights((prev) => removeDiffSectionMeasuredHeight(prev, index))
-        setSections((prev) =>
-          prev.map((s, i) => {
-            if (i !== index) {
-              return s
-            }
-
-            if (s.diffResult?.kind !== 'text') {
-              return {
-                ...s,
-                modifiedContent: content,
-                dirty: false,
-                largeDiffRenderLimit: s.largeDiffRenderLimit
-              }
-            }
-
-            const nextDiffResult = { ...s.diffResult, modifiedContent: content }
-            const nextLargeDiffRenderLimit = getLargeDiffRenderLimit({
-              originalContent: s.originalContent,
-              modifiedContent: content
-            })
-            const storedContent = getStoredTextDiffContent(nextDiffResult, nextLargeDiffRenderLimit)
-
-            return {
-              ...s,
-              modifiedContent: storedContent.modifiedContent,
-              originalContent: storedContent.originalContent,
-              dirty: false,
-              diffResult: getStoredTextDiffResult(nextDiffResult, nextLargeDiffRenderLimit),
-              largeDiffRenderLimit: nextLargeDiffRenderLimit
-            }
-          })
-        )
-      } catch (err) {
-        console.error('Save failed:', err)
-      }
-    },
-    [file.filePath, file.operationProvenance, file.runtimeEnvironmentId, file.worktreeId, sections]
-  )
-
-  const handleSectionSaveRef = useRef(handleSectionSave)
-  handleSectionSaveRef.current = handleSectionSave
 
   useEffect(() => {
     if (sections.length === 0 && entries.length > 0) {
@@ -2021,6 +1951,13 @@ export default function CombinedDiffViewer({
             collapsed={fileTreeCollapsed}
             onCollapsedChange={setFileTreeCollapsed}
             onNavigate={handleTreeNavigate}
+            statsFooter={
+              <CombinedDiffStatsFooter
+                fileCount={sections.length}
+                added={diffStatsTotals.added}
+                removed={diffStatsTotals.removed}
+              />
+            }
           />
           <div className="relative min-w-0 flex-1">
             <div
@@ -2030,76 +1967,74 @@ export default function CombinedDiffViewer({
               onTouchMove={markDirectScrollInput}
             >
               {skippedConflictNotice}
-              <div className="relative w-full" style={{ height: `${combinedDiffTotalSize}px` }}>
-                {combinedDiffVirtualItems.map((virtualItem) => {
-                  const section = sections[virtualItem.index]
-                  if (!section) {
-                    return null
-                  }
+              {/* Why: one shared provider so virtualized rows reuse the highlight worker pool instead of churning it per row. */}
+              <PierreDiffProvider>
+                <div className="relative w-full" style={{ height: `${combinedDiffTotalSize}px` }}>
+                  {combinedDiffVirtualItems.map((virtualItem) => {
+                    const section = sections[virtualItem.index]
+                    if (!section) {
+                      return null
+                    }
 
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      data-index={virtualItem.index}
-                      data-combined-diff-section-row
-                      data-combined-diff-section-key={section.key}
-                      ref={virtualizer.measureElement}
-                      className="absolute left-0 top-0 w-full"
-                      // Why: position via top, not transform, so sticky file headers don't jump (transform creates a containing block).
-                      style={{ top: `${virtualItem.start}px` }}
-                    >
-                      <DiffSectionItem
-                        section={section}
-                        index={virtualItem.index}
-                        isBranchMode={isBranchMode}
-                        sideBySide={sideBySide}
-                        isDark={isDark}
-                        settings={settings}
-                        sectionHeight={sectionHeights[virtualItem.index]}
-                        worktreeId={file.worktreeId}
-                        loadSection={loadSection}
-                        retrySection={retrySection}
-                        toggleSection={toggleSection}
-                        openSection={openSection}
-                        openSectionTitle={
-                          isAllMode || isBranchMode || isCommitMode ? 'Open diff' : 'Open in editor'
-                        }
-                        onOpenPreview={
-                          canOpenDiffSectionPreviewToSide({
-                            path: section.path,
-                            status: section.status,
-                            isCommitSurface: isCommitMode,
-                            canOpenWorkspaceFileBrowser: canOpenWorkspaceFileBrowserForPath(
-                              joinPath(file.filePath, section.path)
+                    return (
+                      <div
+                        key={virtualItem.key}
+                        data-index={virtualItem.index}
+                        data-combined-diff-section-row
+                        data-combined-diff-section-key={section.key}
+                        ref={virtualizer.measureElement}
+                        className="absolute left-0 top-0 w-full"
+                        // Why: position via top, not transform, so sticky file headers don't jump (transform creates a containing block).
+                        style={{ top: `${virtualItem.start}px` }}
+                      >
+                        <PierreDiffSection
+                          section={section}
+                          index={virtualItem.index}
+                          isBranchMode={isBranchMode}
+                          sideBySide={sideBySide}
+                          worktreeId={file.worktreeId}
+                          loadSection={loadSection}
+                          retrySection={retrySection}
+                          toggleSection={toggleSection}
+                          openSection={openSection}
+                          openSectionTitle={
+                            isAllMode || isBranchMode || isCommitMode
+                              ? 'Open diff'
+                              : 'Open in editor'
+                          }
+                          onOpenPreview={
+                            canOpenDiffSectionPreviewToSide({
+                              path: section.path,
+                              status: section.status,
+                              isCommitSurface: isCommitMode,
+                              canOpenWorkspaceFileBrowser: canOpenWorkspaceFileBrowserForPath(
+                                joinPath(file.filePath, section.path)
+                              )
+                            })
+                              ? openSectionPreview
+                              : undefined
+                          }
+                          renderHeaderTrailingContent={(section) => {
+                            const fileNotes = diffCommentsForWorktree.filter(
+                              (comment) => comment.filePath === section.path
                             )
-                          })
-                            ? openSectionPreview
-                            : undefined
-                        }
-                        setSectionHeights={setSectionHeights}
-                        setSections={setSections}
-                        modifiedEditorsRef={modifiedEditorsRef}
-                        handleSectionSaveRef={handleSectionSaveRef}
-                        renderHeaderTrailingContent={(section) => {
-                          const fileNotes = diffCommentsForWorktree.filter(
-                            (comment) => comment.filePath === section.path
-                          )
-                          return fileNotes.length > 0 ? (
-                            <DiffNotesSendMenu
-                              worktreeId={file.worktreeId}
-                              groupId={activeGroupId ?? file.worktreeId}
-                              comments={diffCommentsForWorktree}
-                              filePath={section.path}
-                              showFileScope
-                              triggerClassName="p-0.5 can-hover:opacity-0 group-hover:opacity-100"
-                            />
-                          ) : null
-                        }}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
+                            return fileNotes.length > 0 ? (
+                              <DiffNotesSendMenu
+                                worktreeId={file.worktreeId}
+                                groupId={activeGroupId ?? file.worktreeId}
+                                comments={diffCommentsForWorktree}
+                                filePath={section.path}
+                                showFileScope
+                                triggerClassName="p-0.5 can-hover:opacity-0 group-hover:opacity-100"
+                              />
+                            ) : null
+                          }}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </PierreDiffProvider>
             </div>
             {scrollThumb.visible && (
               <div

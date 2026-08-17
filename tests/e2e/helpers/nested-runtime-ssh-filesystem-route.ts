@@ -84,7 +84,7 @@ export async function assertNestedFilesystemRoute(
     const explorer = client.page.locator('[data-orca-explorer-shell]')
     await expect(explorer).toBeVisible({ timeout: 15_000 })
     const row = (name: string) =>
-      explorer.locator('[data-file-explorer-row]').filter({ hasText: name }).first()
+      explorer.locator('file-tree-container [data-item-path]').filter({ hasText: name }).first()
     await explorer.getByRole('button', { name: 'Refresh Explorer' }).click()
     await expect(row(directory)).toBeVisible({ timeout: 30_000 })
     await row(directory).click()

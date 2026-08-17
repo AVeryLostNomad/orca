@@ -5073,6 +5073,8 @@ const api = {
       ipcRenderer.invoke('codeServer:retry'),
     release: (): Promise<void> => ipcRenderer.invoke('codeServer:release'),
     getStatus: (): Promise<CodeServerStatusEvent> => ipcRenderer.invoke('codeServer:getStatus'),
+    openFile: (args: { path: string }): Promise<boolean> =>
+      ipcRenderer.invoke('codeServer:openFile', args),
     onStatusChanged: (callback: (event: CodeServerStatusEvent) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: CodeServerStatusEvent): void =>
         callback(data)

@@ -29,6 +29,7 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   '.ipynb': 'notebook',
   '.md': 'markdown',
   '.mdx': 'markdown',
+  '.markdown': 'markdown',
   '.mmd': 'mermaid',
   '.mermaid': 'mermaid',
   '.css': 'css',

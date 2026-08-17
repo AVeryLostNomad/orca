@@ -160,9 +160,13 @@ export function useSourceControlDiscardConfirmation({
       if (!worktreePath || !activeWorktreeId || isExecutingBulk) {
         return
       }
-      setPendingDiscard({ kind: 'entry', entry })
+      // Why: discard restores from the index; the dialog copy must say staged
+      // content survives when this path also has a staged row.
+      const hasStagedCounterpart =
+        entry.area === 'unstaged' && grouped.staged.some((staged) => staged.path === entry.path)
+      setPendingDiscard({ kind: 'entry', entry, hasStagedCounterpart })
     },
-    [activeWorktreeId, isExecutingBulk, worktreePath]
+    [activeWorktreeId, grouped.staged, isExecutingBulk, worktreePath]
   )
   const requestDiscardPaths = useCallback(
     (area: DiscardAllArea, paths: readonly string[]): void => {

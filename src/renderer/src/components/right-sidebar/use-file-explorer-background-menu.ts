@@ -2,33 +2,33 @@ import type React from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useState } from 'react'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/components/tab-bar/SortableTab'
-import type { InlineInput } from './file-explorer-inline-input-row'
+import { resolveFileTreeRowFromEvent } from './use-file-tree-activation'
 
 type UseFileExplorerBackgroundMenuResult = {
   bgMenuOpen: boolean
   setBgMenuOpen: Dispatch<SetStateAction<boolean>>
   bgMenuPoint: { x: number; y: number }
-  handleExplorerBackgroundContextMenuCapture: (event: React.MouseEvent<HTMLDivElement>) => void
-  handleExplorerBackgroundDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void
+  handleBackgroundContextMenuCapture: (event: React.MouseEvent<HTMLDivElement>) => void
+  handleBackgroundDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void
 }
 
 /** Empty-space interactions of the explorer surface: background menu and new-file double click. */
 export function useFileExplorerBackgroundMenu({
   worktreePath,
-  inlineInput,
+  createPending,
   startNew
 }: {
   worktreePath: string | null
-  inlineInput: InlineInput | null
-  startNew: (type: 'file' | 'folder', parentPath: string, depth: number) => void
+  createPending: boolean
+  startNew: (kind: 'file' | 'folder', parentAbsoluteDir: string) => void
 }): UseFileExplorerBackgroundMenuResult {
   const [bgMenuOpen, setBgMenuOpen] = useState(false)
   const [bgMenuPoint, setBgMenuPoint] = useState({ x: 0, y: 0 })
 
-  const handleExplorerBackgroundContextMenuCapture = useCallback(
+  const handleBackgroundContextMenuCapture = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const target = event.target as HTMLElement
-      if (target.closest('[data-slot="context-menu-trigger"]')) {
+      // Why: row right-clicks belong to the library's own context menu.
+      if (resolveFileTreeRowFromEvent(event.nativeEvent)) {
         return
       }
       event.preventDefault()
@@ -39,25 +39,24 @@ export function useFileExplorerBackgroundMenu({
     []
   )
 
-  const handleExplorerBackgroundDoubleClick = useCallback(
+  const handleBackgroundDoubleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!worktreePath || inlineInput) {
+      if (!worktreePath || createPending) {
         return
       }
-      const target = event.target as HTMLElement
-      if (target.closest('[data-slot="context-menu-trigger"]')) {
+      if (resolveFileTreeRowFromEvent(event.nativeEvent)) {
         return
       }
-      startNew('file', worktreePath, 0)
+      startNew('file', worktreePath)
     },
-    [inlineInput, startNew, worktreePath]
+    [createPending, startNew, worktreePath]
   )
 
   return {
     bgMenuOpen,
     setBgMenuOpen,
     bgMenuPoint,
-    handleExplorerBackgroundContextMenuCapture,
-    handleExplorerBackgroundDoubleClick
+    handleBackgroundContextMenuCapture,
+    handleBackgroundDoubleClick
   }
 }

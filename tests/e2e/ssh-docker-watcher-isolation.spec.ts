@@ -41,7 +41,7 @@ function remoteRepoFile(fileName: string): string {
 }
 
 function fileExplorerRow(page: Page, fileName: string): Locator {
-  return page.locator('[data-file-explorer-row]').filter({ hasText: fileName })
+  return page.locator('file-tree-container [data-item-path]').filter({ hasText: fileName })
 }
 
 async function waitForRelayWatcherProcessGroup(

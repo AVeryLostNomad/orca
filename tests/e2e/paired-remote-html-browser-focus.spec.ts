@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './helpers/orca-app'
-import { openFileExplorer } from './helpers/file-explorer'
+import { fileExplorerRowByName, openFileExplorer } from './helpers/file-explorer'
 import {
   createRuntimeDesktopPairingOffer,
   launchPairedElectronClient,
@@ -57,7 +57,7 @@ test('keeps remote HTML preview placement and focuses it only after a click', as
       { environmentId: client.environmentId, worktreeId }
     )
     await openFileExplorer(page)
-    const fixtureRow = page.locator('[data-file-explorer-row]').filter({ hasText: FIXTURE_NAME })
+    const fixtureRow = fileExplorerRowByName(page, FIXTURE_NAME)
     await expect(fixtureRow).toBeVisible({ timeout: 30_000 })
     await fixtureRow.click()
     const openPreviewToSide = page.getByRole('button', { name: 'Open Preview to the Side' })

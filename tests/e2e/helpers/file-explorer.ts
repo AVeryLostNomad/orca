@@ -1,5 +1,21 @@
-import type { Page } from '@stablyai/playwright-test'
+import type { Locator, Page } from '@stablyai/playwright-test'
 import { expect } from '@stablyai/playwright-test'
+
+/**
+ * Locate a file-explorer tree row by its worktree-relative path.
+ *
+ * Why: the explorer renders through @pierre/trees ('file-tree-container' web
+ * component with an open shadow root — standard locators pierce it). Rows
+ * carry `data-item-path` with the POSIX worktree-relative path.
+ */
+export function fileExplorerRow(page: Page, relativePath: string): Locator {
+  return page.locator(`file-tree-container [data-item-path="${relativePath}"]`)
+}
+
+/** Row filtered by visible name when only the basename is known. */
+export function fileExplorerRowByName(page: Page, name: string): Locator {
+  return page.locator('file-tree-container [data-item-path]').filter({ hasText: name })
+}
 
 /** Open the right sidebar file explorer and wait for store state to match. */
 export async function openFileExplorer(page: Page): Promise<void> {

@@ -244,6 +244,35 @@ describe('GitHandler', () => {
       expect(content).toBe('original')
     })
 
+    it('keeps the staged delta when discarding a partially staged file', async () => {
+      gitInit(tmpDir)
+      writeFileSync(path.join(tmpDir, 'file.txt'), 'original')
+      gitCommit(tmpDir, 'initial')
+      writeFileSync(path.join(tmpDir, 'file.txt'), 'staged')
+      execFileSync('git', ['add', 'file.txt'], { cwd: tmpDir })
+      writeFileSync(path.join(tmpDir, 'file.txt'), 'staged + unstaged')
+
+      await dispatcher.callRequest('git.discard', { worktreePath: tmpDir, filePath: 'file.txt' })
+
+      const content = await fs.readFile(path.join(tmpDir, 'file.txt'), 'utf-8')
+      expect(content).toBe('staged')
+      const status = execFileSync('git', ['status', '--porcelain'], { cwd: tmpDir }).toString()
+      expect(status.trim()).toBe('M  file.txt')
+    })
+
+    it('discards worktree edits on a staged-added file instead of erroring', async () => {
+      gitInit(tmpDir)
+      gitCommit(tmpDir, 'initial')
+      writeFileSync(path.join(tmpDir, 'new.txt'), 'staged')
+      execFileSync('git', ['add', 'new.txt'], { cwd: tmpDir })
+      writeFileSync(path.join(tmpDir, 'new.txt'), 'staged + unstaged')
+
+      await dispatcher.callRequest('git.discard', { worktreePath: tmpDir, filePath: 'new.txt' })
+
+      const content = await fs.readFile(path.join(tmpDir, 'new.txt'), 'utf-8')
+      expect(content).toBe('staged')
+    })
+
     it('deletes untracked file on discard', async () => {
       gitInit(tmpDir)
       gitCommit(tmpDir, 'initial')
@@ -324,7 +353,7 @@ describe('GitHandler', () => {
 
       expect(gitMock).toHaveBeenNthCalledWith(
         2,
-        ['restore', '--worktree', '--source=HEAD', '--', ':(literal)docs'],
+        ['restore', '--worktree', '--', ':(literal)docs'],
         tmpDir
       )
     })

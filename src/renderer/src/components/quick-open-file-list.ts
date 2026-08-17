@@ -98,10 +98,13 @@ export function getNestedWorktreeExcludeRequest(
 
 export function useRuntimeFileListForWorktree({
   enabled,
-  worktreeId
+  worktreeId,
+  refreshToken = 0
 }: {
   enabled: boolean
   worktreeId: string | null
+  /** Bump to re-run the scan for the same target (manual explorer refresh). */
+  refreshToken?: number
 }): RuntimeFileListState {
   const worktree = useAppStore((state) =>
     // Why: folder workspaces live behind getKnownWorktreeById, not worktreesByRepo.
@@ -152,11 +155,14 @@ export function useRuntimeFileListForWorktree({
     activeTargetStatus === 'connecting' ||
     activeTargetStatus === 'deploying-relay' ||
     activeTargetStatus === 'reconnecting'
-  const requestKey = useMemo(
+  const targetKey = useMemo(
     () =>
       `${worktreePath ?? ''}\n${operationOwnerKey}\n${excludeRequest.key}\n${activeTargetStatus ?? ''}`,
     [activeTargetStatus, excludeRequest.key, operationOwnerKey, worktreePath]
   )
+  // Why: a manual refresh re-runs the scan but must not clear the current list
+  // (only a target change does), so the token stays out of targetKey.
+  const requestKey = `${targetKey}\n${refreshToken}`
 
   useEffect(() => {
     if (!enabled) {
@@ -174,11 +180,11 @@ export function useRuntimeFileListForWorktree({
     }
 
     let cancelled = false
-    const requestKeyChanged = lastRequestKeyRef.current !== requestKey
-    if (requestKeyChanged) {
+    const targetChanged = lastRequestKeyRef.current !== targetKey
+    if (targetChanged) {
       setFiles([])
     }
-    lastRequestKeyRef.current = requestKey
+    lastRequestKeyRef.current = targetKey
     setLoadError(null)
     setLoading(true)
 
@@ -230,6 +236,7 @@ export function useRuntimeFileListForWorktree({
     operationOwnerKey,
     operationRouteAvailable,
     requestKey,
+    targetKey,
     runtimeEnvironmentId,
     target.canList,
     worktreeId,

@@ -10,8 +10,11 @@ const NOTE_BODY =
 
 async function assertCardClearsFollowingLine(page: Page): Promise<void> {
   const card = page.locator('.orca-diff-comment-card').first()
+  // Why: @pierre/diffs renders lines in an open shadow root (pierced by
+  // Playwright locators); notes are in-flow slotted annotations, and this
+  // guards that the following line still lays out below the rendered card.
   const followingLine = page
-    .locator('.modified-in-monaco-diff-editor .view-lines .view-line')
+    .locator('[data-testid="pierre-file-diff"] [data-content] [data-line]')
     .filter({ hasText: FOLLOWING_LINE })
     .first()
 
@@ -35,7 +38,7 @@ async function assertCardClearsFollowingLine(page: Page): Promise<void> {
 }
 
 async function attachDiffScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
-  const diff = page.locator('.monaco-diff-editor').first()
+  const diff = page.locator('[data-testid="pierre-file-diff"]').first()
   const screenshotPath = testInfo.outputPath(`${name}.png`)
   await diff.screenshot({ path: screenshotPath })
   await testInfo.attach(name, { path: screenshotPath, contentType: 'image/png' })

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import type { ElectronApplication } from '@stablyai/playwright-test'
 import { expect, test } from './helpers/orca-app'
-import { openFileExplorer } from './helpers/file-explorer'
+import { fileExplorerRow, openFileExplorer } from './helpers/file-explorer'
 import { attachRepoAndOpenTerminal, createRestartSession } from './helpers/orca-restart'
 import { ensureTerminalVisible, waitForSessionReady } from './helpers/store'
 import { createTerminalTabFromMenu, SORTABLE_TAB } from './helpers/terminal-tab-menu'
@@ -56,10 +56,7 @@ test('restores the exact file and live extra terminal after quit and relaunch @g
     await waitForTerminalOutput(first.page, preQuitMarker, 20_000)
 
     await openFileExplorer(first.page)
-    const fileRow = first.page
-      .locator('[data-file-explorer-row]')
-      .filter({ hasText: 'package.json' })
-      .first()
+    const fileRow = fileExplorerRow(first.page, 'package.json')
     await expect(fileRow).toBeVisible({ timeout: 15_000 })
     await fileRow.click()
     await expect(first.page.locator('.editor-header-path').first()).toContainText('package.json', {

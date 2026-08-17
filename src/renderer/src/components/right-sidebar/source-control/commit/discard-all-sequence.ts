@@ -71,7 +71,7 @@ export type DiscardAllDeps = {
    * keep the legacy per-file sequence in tests or older surfaces.
    */
   discardMany?: (paths: string[]) => Promise<void>
-  /** Discard a single path (restore working-tree to HEAD, or rm if untracked). */
+  /** Discard a single path (restore working-tree to the index, or rm if untracked). */
   discardOne: (path: string) => Promise<void>
   /**
    * Called when either the pre-step (bulkUnstage) rejects OR an individual
@@ -98,12 +98,11 @@ export type DiscardAllResult = {
  * Run the "Discard all" sequence for a given area.
  *
  * For 'staged', this first bulk-unstages the paths — without that step,
- * `discardOne` (which maps to `git restore --worktree --source=HEAD`) would
- * reset the working tree to HEAD but leave the index carrying the staged
- * delta, producing phantom inverse "Changes" rows the user thought they just
- * discarded. If the unstage fails we MUST skip the discard loop entirely for
- * the same reason: a stale index with a clean worktree is a worse state than
- * the one the user started in.
+ * `discardOne` (which maps to `git restore --worktree`, restoring from the
+ * index) would be a no-op for the staged delta: the index still carries it,
+ * so nothing the user meant to discard would actually be discarded. If the
+ * unstage fails we MUST skip the discard loop entirely — discarding would
+ * then wipe unstaged edits while silently preserving the staged delta.
  *
  * Per-file `discardOne` failures are best-effort: we continue past a failed
  * file so a single stuck path does not block the rest of the bulk action.

@@ -72,7 +72,7 @@ describe('discardChanges', () => {
     realpathMock.mockImplementation(async (targetPath: string) => path.resolve(targetPath))
   })
 
-  it('restores tracked files from HEAD', async () => {
+  it('restores tracked files from the index so staged deltas survive', async () => {
     gitExecFileAsyncMock.mockResolvedValueOnce({ stdout: 'src/file.ts\n' })
     gitExecFileAsyncMock.mockResolvedValueOnce({ stdout: '' })
 
@@ -87,7 +87,7 @@ describe('discardChanges', () => {
     )
     expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(
       2,
-      ['restore', '--worktree', '--source=HEAD', '--', ':(literal)src/file.ts'],
+      ['restore', '--worktree', '--', ':(literal)src/file.ts'],
       {
         cwd: '/repo'
       }
@@ -205,7 +205,7 @@ describe('bulk git helpers', () => {
     // tracked descendant, which keeps directory pathspecs on the restore path.
     expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(
       2,
-      ['restore', '--worktree', '--source=HEAD', '--', ':(literal)src/file.ts', ':(literal)docs'],
+      ['restore', '--worktree', '--', ':(literal)src/file.ts', ':(literal)docs'],
       {
         cwd: '/repo'
       }
@@ -232,7 +232,7 @@ describe('bulk git helpers', () => {
 
     expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(
       2,
-      ['restore', '--worktree', '--source=HEAD', '--', ':(literal)docs'],
+      ['restore', '--worktree', '--', ':(literal)docs'],
       {
         cwd: '/repo'
       }
