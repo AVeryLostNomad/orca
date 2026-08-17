@@ -3,7 +3,7 @@ import { useAppStore } from '@/store'
 import { getConnectionId } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
 import { canShowWorkspaceFileBrowserAction, openFilePreviewToSide } from '@/lib/file-preview'
-import { getEditorHeaderCopyState } from './editor-header'
+import { useEditorPanelCopyPathToast } from './useEditorPanelCopyPathToast'
 import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
 import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import { exportActiveMarkdownToPdf } from './export-active-markdown'
@@ -80,29 +80,14 @@ function EditorPanelInner({
   const settings = useAppStore((s) => s.settings)
   const updateSettings = useAppStore((s) => s.updateSettings)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [copiedPathToast, setCopiedPathToast] = useState<{ fileId: string; token: number } | null>(
-    null
-  )
-  const copiedPathToastResetTimerRef = useRef<number | null>(null)
-  // Why: clipboard IPC can resolve after the editor panel unmounts; skip path
-  // toast feedback instead of starting a reset timer on a stale panel.
-  const pathCopyMountedRef = useRef(false)
-  const clearCopiedPathToastResetTimer = useCallback((): void => {
-    if (copiedPathToastResetTimerRef.current === null) {
-      return
-    }
-    window.clearTimeout(copiedPathToastResetTimerRef.current)
-    copiedPathToastResetTimerRef.current = null
-  }, [])
+  const { copiedPathToast, registerPanelNode, handleCopyPath } =
+    useEditorPanelCopyPathToast(activeFile)
   const setPanelRef = useCallback(
     (node: HTMLDivElement | null) => {
       panelRef.current = node
-      pathCopyMountedRef.current = node !== null
-      if (!node) {
-        clearCopiedPathToastResetTimer()
-      }
+      registerPanelNode(node)
     },
-    [clearCopiedPathToastResetTimer]
+    [registerPanelNode]
   )
   const [sideBySide, setSideBySide] = useState(settings?.diffDefaultView === 'side-by-side')
   const [prevDiffView, setPrevDiffView] = useState(settings?.diffDefaultView)
@@ -196,34 +181,18 @@ function EditorPanelInner({
     enabled: isCmdSaveOwner
   })
 
-  const handleCopyPath = useCallback(async (): Promise<void> => {
+  const activeDiffContent = activeFile ? diffContents[activeFile.id] : undefined
+  const handleCopyDiffModifiedContents = useCallback(async (): Promise<void> => {
     if (!activeFile) {
       return
     }
-    const copyState = getEditorHeaderCopyState(activeFile)
-    if (!copyState.copyText) {
+    const dc = diffContents[activeFile.id]
+    if (dc?.kind !== 'text') {
       return
     }
-    try {
-      await window.api.ui.writeClipboardText(copyState.copyText)
-      if (!pathCopyMountedRef.current) {
-        return
-      }
-      clearCopiedPathToastResetTimer()
-      const nextToast = { fileId: activeFile.id, token: Date.now() }
-      setCopiedPathToast(nextToast)
-      copiedPathToastResetTimerRef.current = window.setTimeout(() => {
-        copiedPathToastResetTimerRef.current = null
-        setCopiedPathToast((current) => (current?.token === nextToast.token ? null : current))
-      }, 1500)
-    } catch {
-      if (!pathCopyMountedRef.current) {
-        return
-      }
-      clearCopiedPathToastResetTimer()
-      setCopiedPathToast(null)
-    }
-  }, [activeFile, clearCopiedPathToastResetTimer])
+    // Why: an in-progress diff edit is what the user sees, so copy the draft over the snapshot.
+    await window.api.ui.writeClipboardText(editorDrafts[activeFile.id] ?? dc.modifiedContent)
+  }, [activeFile, diffContents, editorDrafts])
 
   if (!activeFile) {
     return null
@@ -373,6 +342,9 @@ function EditorPanelInner({
         renameError={renameError}
         disableRenameBrowse={disableRenameBrowse}
         onCopyPath={() => void handleCopyPath()}
+        onCopyDiffModifiedContents={
+          activeDiffContent?.kind === 'text' ? handleCopyDiffModifiedContents : undefined
+        }
         onOpenDiffTargetFile={handleOpenDiffTargetFile}
         onOpenPreviewToSide={handleOpenPreviewToSide}
         onOpenMarkdownPreview={handleOpenMarkdownPreview}

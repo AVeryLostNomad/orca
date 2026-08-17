@@ -33,6 +33,7 @@ type EditorPanelShellProps = {
   renameError: string | null
   disableRenameBrowse: boolean
   onCopyPath: () => void
+  onCopyDiffModifiedContents?: () => Promise<void>
   onOpenDiffTargetFile: (preferredMarkdownViewMode?: 'rich') => void
   onOpenPreviewToSide: () => void
   onOpenMarkdownPreview: () => void
@@ -74,6 +75,7 @@ export function EditorPanelShell({
   renameError,
   disableRenameBrowse,
   onCopyPath,
+  onCopyDiffModifiedContents,
   onOpenDiffTargetFile,
   onOpenPreviewToSide,
   onOpenMarkdownPreview,
@@ -121,6 +123,7 @@ export function EditorPanelShell({
           sideBySide={sideBySide}
           openFileState={model.openFileState}
           onCopyPath={onCopyPath}
+          onCopyDiffModifiedContents={onCopyDiffModifiedContents}
           onOpenDiffTargetFile={onOpenDiffTargetFile}
           onOpenPreviewToSide={onOpenPreviewToSide}
           onOpenMarkdownPreview={onOpenMarkdownPreview}

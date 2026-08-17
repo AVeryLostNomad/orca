@@ -14,6 +14,7 @@ import { DiffNotesSendMenu } from './DiffNotesSendMenu'
 import { EditorPanelMarkdownActionsMenu } from './EditorPanelMarkdownActionsMenu'
 import { translate } from '@/i18n/i18n'
 import { EditorPanelHeaderPath } from './EditorPanelHeaderPath'
+import { EditorPanelDiffCopyContentsButton } from './EditorPanelDiffCopyContentsButton'
 import { useDiffNavigation } from './diff-navigation-context'
 import { useShortcutKeyDetails } from '@/hooks/useShortcutLabel'
 import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
@@ -44,6 +45,8 @@ type EditorPanelHeaderProps = {
   sideBySide: boolean
   openFileState: EditorHeaderOpenFileState
   onCopyPath: () => void
+  /** Copies the diff's modified-side contents; undefined when the diff has no text content. */
+  onCopyDiffModifiedContents?: () => Promise<void>
   onOpenDiffTargetFile: (preferredMarkdownViewMode?: 'rich') => void
   onOpenPreviewToSide: () => void
   onOpenMarkdownPreview: () => void
@@ -79,6 +82,7 @@ export function EditorPanelHeader({
   sideBySide,
   openFileState,
   onCopyPath,
+  onCopyDiffModifiedContents,
   onOpenDiffTargetFile,
   onOpenPreviewToSide,
   onOpenMarkdownPreview,
@@ -143,6 +147,9 @@ export function EditorPanelHeader({
       )}
       {isSingleDiff && (
         <TooltipProvider delayDuration={300}>
+          <EditorPanelDiffCopyContentsButton
+            onCopyDiffModifiedContents={onCopyDiffModifiedContents}
+          />
           <Tooltip>
             <TooltipTrigger asChild>
               <button
