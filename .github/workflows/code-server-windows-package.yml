@@ -22,7 +22,8 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main]
+    # stable is this fork's mainline (PRs merge there; fork-stable-release cuts from it).
+    branches: [stable]
     paths:
       - config/code-server-windows-package.json
 

@@ -19,11 +19,12 @@ export const CODE_SERVER_WINDOWS_RELEASE_TAG = `code-server-win32-v${CODE_SERVER
 
 export const CODE_SERVER_WINDOWS_DOWNLOAD_URL = `https://github.com/${CODE_SERVER_WINDOWS_RELEASE_REPO}/releases/download/${CODE_SERVER_WINDOWS_RELEASE_TAG}/${CODE_SERVER_WINDOWS_ASSET_NAME}`
 
-// Integrity pin for the downloaded zip. Empty until the first CI publish of a
-// given version; the installer refuses to install while unset, so a version
-// bump cannot ship an unpinned download. (Widened to string so guard-site
-// narrowing doesn't collapse the literal to never.)
-export const CODE_SERVER_WINDOWS_SHA256: string = ''
+// Integrity pin for the downloaded zip, printed by the package workflow on
+// publish. The installer refuses to install while unset, so a version bump can
+// never ship an unpinned download. (Widened to string so guard-site narrowing
+// doesn't collapse the literal type.)
+export const CODE_SERVER_WINDOWS_SHA256: string =
+  'e3b0e7a8d72f08023ad701fbc919e55d14027da8970da686a50fc51372ac3c3f'
 
 // A truncated download can still be a valid-looking zip prefix; the sha256 pin
 // is the real integrity check, this only short-circuits obvious garbage.
