@@ -18,6 +18,7 @@ import {
 } from '@/lib/worktree-runtime-owner'
 import { isEmbeddedEditorSupported } from '@/lib/embedded-editor-support'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
+import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { translate } from '@/i18n/i18n'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
 import { getClientCreationActionPolicy } from '@/lib/client-creation-action-policy'
@@ -45,6 +46,7 @@ export function useTabGroupCreationCommands({
   const setActiveTabType = useAppStore((state) => state.setActiveTabType)
   const createBrowserTab = useAppStore((state) => state.createBrowserTab)
   const createCodeServerTab = useAppStore((state) => state.createCodeServerTab)
+  const createDataStudioTab = useAppStore((state) => state.createDataStudioTab)
   const createEmptySplitGroup = useAppStore((state) => state.createEmptySplitGroup)
   const openNewBrowserTabInActiveWorkspace = useAppStore(
     (state) => state.openNewBrowserTabInActiveWorkspace
@@ -106,6 +108,30 @@ export function useTabGroupCreationCommands({
         worktreeId,
         folderPath,
         translate('auto.components.tab.bar.CodeServerTab.title', 'VS Code')
+      )
+    },
+    newDataStudioTab: () => {
+      const state = useAppStore.getState()
+      const platform = getRendererAppPlatform()
+      // Real safety boundary: the per-repo ADS server only runs against local
+      // checkouts (menu gating is just UX; SSH/remote case included).
+      const isLocal = getExecutionHostIdForWorktree(state, worktreeId) === LOCAL_EXECUTION_HOST_ID
+      if (!isLocal || (platform !== 'darwin' && platform !== 'linux' && platform !== 'win32')) {
+        return
+      }
+      const worktree = state.getKnownWorktreeById(worktreeId)
+      const folderPath = worktree?.path
+      // Connections are per repo; a workspace without a real repo (group folder
+      // workspaces) has nowhere to scope them.
+      const repoId = getRepoIdFromWorktreeId(worktreeId)
+      if (!folderPath || !state.repos.some((repo) => repo.id === repoId)) {
+        return
+      }
+      createDataStudioTab(
+        worktreeId,
+        repoId,
+        folderPath,
+        translate('auto.components.tab.bar.DataStudioTab.title', 'Data Studio')
       )
     },
     newSimulatorTab: worktreeState.mobileEmulatorEnabled

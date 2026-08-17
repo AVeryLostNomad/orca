@@ -21,6 +21,10 @@ vi.mock('electron', () => ({
 }))
 vi.mock('./code-server-installer', () => ({ ensureCodeServerInstalled: vi.fn() }))
 vi.mock('./code-server-editor-user-config', () => ({ mirrorEditorUserConfig: vi.fn() }))
+vi.mock('./code-server-signature-verification', () => ({
+  disableExtensionSignatureVerification: vi.fn()
+}))
+vi.mock('./code-server-machine-settings', () => ({ applyCodeServerMachineSettings: vi.fn() }))
 vi.mock('../startup/hydrate-shell-path', () => ({
   hydrateShellPath: vi.fn(() =>
     Promise.resolve({ ok: false, segments: [], failureReason: 'no_shell' as const })
@@ -39,6 +43,7 @@ vi.mock('./code-server-paths', async (importOriginal) => {
 })
 
 import { CodeServerManager } from './code-server-manager'
+import { createEditorProfile } from './code-server-profile'
 import { ensureCodeServerInstalled } from './code-server-installer'
 import { mirrorEditorUserConfig } from './code-server-editor-user-config'
 
@@ -97,7 +102,7 @@ describe('CodeServerManager on win32', () => {
     vi.mocked(ensureCodeServerInstalled).mockResolvedValue(WIN_LAUNCH)
     primeSuccessfulStart(5001)
 
-    const manager = new CodeServerManager({ platform: 'win32' })
+    const manager = new CodeServerManager(createEditorProfile(), { platform: 'win32' })
     await manager.acquire()
 
     expect(spawnMock).toHaveBeenCalledTimes(1)
@@ -120,7 +125,10 @@ describe('CodeServerManager on win32', () => {
     primeSuccessfulStart(5002, childKill)
     const killWindowsTree = vi.fn(() => Promise.resolve())
 
-    const manager = new CodeServerManager({ platform: 'win32', killWindowsTree })
+    const manager = new CodeServerManager(createEditorProfile(), {
+      platform: 'win32',
+      killWindowsTree
+    })
     await manager.acquire()
     manager.release()
     await vi.waitFor(() => expect(killWindowsTree).toHaveBeenCalledWith(4242))
@@ -143,7 +151,7 @@ describe('CodeServerManager on win32', () => {
       executablePath: ''
     }
 
-    const owned = new CodeServerManager({
+    const owned = new CodeServerManager(createEditorProfile(), {
       platform: 'win32',
       killWindowsTree,
       readProcessRows: () => Promise.resolve([ownRow])
@@ -153,7 +161,7 @@ describe('CodeServerManager on win32', () => {
     expect(rmSpy).toHaveBeenCalled()
 
     killWindowsTree.mockClear()
-    const recycled = new CodeServerManager({
+    const recycled = new CodeServerManager(createEditorProfile(), {
       platform: 'win32',
       killWindowsTree,
       readProcessRows: () =>
@@ -162,7 +170,7 @@ describe('CodeServerManager on win32', () => {
     await recycled.reapOrphan()
     expect(killWindowsTree).not.toHaveBeenCalled()
 
-    const unqueryable = new CodeServerManager({
+    const unqueryable = new CodeServerManager(createEditorProfile(), {
       platform: 'win32',
       killWindowsTree,
       readProcessRows: () => Promise.reject(new Error('scan unavailable'))

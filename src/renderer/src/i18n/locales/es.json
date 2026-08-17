@@ -3078,7 +3078,14 @@
                   "vscode": "vscode",
                   "vsCode": "vs code",
                   "code": "code",
-                  "editor": "editor"
+                  "editor": "editor",
+                  "newDataStudio": "Nueva pestaña de Data Studio",
+                  "newDataStudioRemoteDisabled": "Data Studio solo está disponible para worktrees locales",
+                  "dataStudio": "data studio",
+                  "database": "base de datos",
+                  "sql": "sql",
+                  "db": "db",
+                  "query": "consulta"
                 }
               }
             }
@@ -3106,6 +3113,13 @@
             "911542656f": "Pin Tab",
             "1611a1324b": "Close",
             "9dd880bd56": "Close Tabs To The Right"
+          },
+          "DataStudioTab": {
+            "1f7666419b": "Desanclar pestaña",
+            "52fa615dce": "Anclar pestaña",
+            "c4dee16431": "Cerrar",
+            "31dc5c0d4f": "Cerrar pestañas a la derecha",
+            "title": "Data Studio"
           }
         }
       },
@@ -14281,6 +14295,7 @@
               "231da812b0": "code-server failed to load."
             },
             "CodeServerImportModal": {
+              "2084722876": "Importing…",
               "37836403ec": "Settings",
               "0c46f685c1": "Keybindings",
               "650939408f": "Snippets",
@@ -14297,7 +14312,6 @@
               "2c04a2e2cb": "Settings, keybindings, and snippets stay linked — edits made in either editor apply to both.",
               "30d1bf1217": "Done",
               "ac0db0202e": "Not Now",
-              "2084722876": "Importing…",
               "9ece26b2e4": "Import"
             }
           }
@@ -14324,6 +14338,19 @@
         "pendingChip": "{{value0}} pendiente",
         "needsActionChip": "{{value0}} requiere acción",
         "unresolvedChip": "{{value0}} sin resolver"
+      },
+      "data": {
+        "studio": {
+          "pane": {
+            "DataStudioPane": {
+              "6dfe584357": "No se pudo cargar Data Studio.",
+              "160f61c356": "Instalando Data Studio…",
+              "9c7b7b091e": "Algo salió mal.",
+              "73e18cb54e": "Reintentar",
+              "daf4265008": "Iniciando Data Studio…"
+            }
+          }
+        }
       }
     },
     "i18n": {

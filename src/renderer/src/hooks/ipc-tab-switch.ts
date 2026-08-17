@@ -82,6 +82,13 @@ export function activateCyclableTab(store: AppStoreState, next: TypeCyclableTab)
       store.activateTab?.(next.tabId)
     }
     store.setActiveTabType('vscode')
+  } else if (next.type === 'datastudio') {
+    // Why: datastudio mirrors vscode.
+    store.setActiveDataStudioTab(next.id)
+    if (next.tabId) {
+      store.activateTab?.(next.tabId)
+    }
+    store.setActiveTabType('datastudio')
   } else {
     // Why: `setActiveFile` targets the file entity (its implicit activateTab
     // picks the first matching tab in the active group); `activateTab(tabId)`

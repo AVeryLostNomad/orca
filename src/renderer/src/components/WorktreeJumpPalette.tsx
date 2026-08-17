@@ -785,7 +785,7 @@ function WorktreeJumpPaletteContent({
   const [dialogElement, setDialogElement] = useState<HTMLElement | null>(null)
   const previousWorktreeIdRef = useRef<string | null>(null)
   const previousActiveTabTypeRef = useRef<
-    'browser' | 'editor' | 'terminal' | 'simulator' | 'vscode'
+    'browser' | 'editor' | 'terminal' | 'simulator' | 'vscode' | 'datastudio'
   >('terminal')
   const previousBrowserPageIdRef = useRef<string | null>(null)
   const previousBrowserFocusTargetRef = useRef<'webview' | 'address-bar'>('webview')

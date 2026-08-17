@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow'
 import type { BrowserTab as BrowserTabState } from '../../../../shared/browser-workspace-types'
 import type { CodeServerTab } from '../../../../shared/code-server-types'
+import type { DataStudioTab } from '../../../../shared/data-studio-types'
 import type { Tab, TabGroup } from '../../../../shared/tab-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { useAppStore } from '../../store'
@@ -14,6 +15,7 @@ const EMPTY_GROUPS: readonly TabGroup[] = []
 const EMPTY_UNIFIED_TABS: readonly Tab[] = []
 const EMPTY_BROWSER_TABS: readonly BrowserTabState[] = []
 const EMPTY_CODE_SERVER_TABS: readonly CodeServerTab[] = []
+const EMPTY_DATA_STUDIO_TABS: readonly DataStudioTab[] = []
 const EMPTY_TERMINAL_TABS: readonly TerminalTab[] = []
 const EMPTY_TERMINAL_LAYOUTS_BY_TAB_ID: NonNullable<
   ReturnType<typeof useAppStore.getState>['terminalLayoutsByTabId']
@@ -35,6 +37,7 @@ export function useTabGroupWorkspaceModel({
       openFiles: state.openFiles,
       browserTabs: state.browserTabsByWorktree[worktreeId] ?? EMPTY_BROWSER_TABS,
       codeServerTabs: state.codeServerTabsByWorktree[worktreeId] ?? EMPTY_CODE_SERVER_TABS,
+      dataStudioTabs: state.dataStudioTabsByWorktree[worktreeId] ?? EMPTY_DATA_STUDIO_TABS,
       expandedPaneByTabId: state.expandedPaneByTabId,
       terminalLayoutsByTabId: state.terminalLayoutsByTabId ?? EMPTY_TERMINAL_LAYOUTS_BY_TAB_ID,
       generatedTabTitlesEnabled: state.settings?.tabAutoGenerateTitle === true,
@@ -56,6 +59,7 @@ export function useTabGroupWorkspaceModel({
     editorItems,
     browserItems,
     codeServerItems,
+    dataStudioItems,
     tabBarOrder
   } = useTabGroupItemProjections({ groupId, worktreeId, worktreeState })
 
@@ -80,7 +84,8 @@ export function useTabGroupWorkspaceModel({
     toggleTerminalPaneExpand,
     activateEditor,
     activateBrowser,
-    activateCodeServer
+    activateCodeServer,
+    activateDataStudio
   } = useTabGroupActivationCommands({ groupId, worktreeId, groupTabs, worktreeState })
 
   const creationCommands = useTabGroupCreationCommands({ groupId, worktreeId, worktreeState })
@@ -90,6 +95,7 @@ export function useTabGroupWorkspaceModel({
     activeTab,
     browserItems,
     codeServerItems,
+    dataStudioItems,
     editorItems,
     terminalTabs,
     tabBarOrder,
@@ -101,6 +107,7 @@ export function useTabGroupWorkspaceModel({
       },
       activateBrowser,
       activateCodeServer,
+      activateDataStudio,
       activateEditor,
       activateTerminal,
       closeAllEditorTabsInGroup,

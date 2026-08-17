@@ -21,6 +21,7 @@ import type { AutomationsApi } from './api/automation-api'
 import type { BrowserApi } from './api/browser-api'
 import type { CliApi } from './api/cli-install-api'
 import type { CodeServerApi } from './api/code-server-api'
+import type { DataStudioApi } from './api/data-studio-api'
 import type { CrashReportsApi, FeedbackApi } from './api/crash-report-api'
 import type { DashboardApi, TerminalPreviewApi } from './api/dashboard-api'
 import type { EmulatorApi } from './api/emulator-api'
@@ -151,6 +152,7 @@ export type PreloadApi = {
   mobile: MobileApi
   speech: SpeechApi
   codeServer: CodeServerApi
+  dataStudio: DataStudioApi
 }
 
 export type { ClaudeUsageApi, CodexUsageApi, OpenCodeUsageApi } from './api/agent-usage-api'

@@ -22,6 +22,7 @@ import type {
 } from './slices/usage-provider-slices'
 import type { BrowserSlice } from './slices/browser'
 import type { CodeServerSlice } from './slices/code-server'
+import type { DataStudioSlice } from './slices/data-studio'
 import type { RateLimitSlice } from './slices/rate-limits'
 import type { SshSlice } from './slices/ssh'
 import type { RuntimeEnvironmentSshSlice } from './slices/runtime-environment-ssh'
@@ -67,6 +68,7 @@ export type AppState = RepoSlice &
   OpenCodeUsageSlice &
   BrowserSlice &
   CodeServerSlice &
+  DataStudioSlice &
   RateLimitSlice &
   SshSlice &
   RuntimeEnvironmentSshSlice &

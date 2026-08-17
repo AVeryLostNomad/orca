@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { OpenFile } from '@/store/slices/editor'
 import type { BrowserTab as BrowserTabState } from '../../../../shared/browser-workspace-types'
 import type { CodeServerTab } from '../../../../shared/code-server-types'
+import type { DataStudioTab } from '../../../../shared/data-studio-types'
 import type { Tab, TabGroup } from '../../../../shared/tab-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { resolveUnifiedTabLabel } from '../../../../shared/tab-title-resolution'
@@ -16,6 +17,7 @@ export type TabGroupWorktreeSnapshot = {
   openFiles: TabGroupAppState['openFiles']
   browserTabs: readonly BrowserTabState[]
   codeServerTabs: readonly CodeServerTab[]
+  dataStudioTabs: readonly DataStudioTab[]
   expandedPaneByTabId: TabGroupAppState['expandedPaneByTabId']
   terminalLayoutsByTabId: NonNullable<TabGroupAppState['terminalLayoutsByTabId']>
   generatedTabTitlesEnabled: boolean
@@ -134,6 +136,20 @@ export function useTabGroupItemProjections({
     [groupTabs, worktreeState.codeServerTabs]
   )
 
+  const dataStudioItems = useMemo<{ id: string; label: string }[]>(
+    () =>
+      groupTabs
+        .filter((item) => item.contentType === 'datastudio')
+        .map((item) => {
+          const ds = worktreeState.dataStudioTabs.find(
+            (candidate) => candidate.id === item.entityId
+          )
+          return ds ? { id: ds.id, label: ds.label } : null
+        })
+        .filter((item): item is { id: string; label: string } => item !== null),
+    [groupTabs, worktreeState.dataStudioTabs]
+  )
+
   const tabBarOrder = useMemo(
     () =>
       (group?.tabOrder ?? []).map((itemId) => {
@@ -143,7 +159,8 @@ export function useTabGroupItemProjections({
         }
         return item.contentType === 'terminal' ||
           item.contentType === 'browser' ||
-          item.contentType === 'vscode'
+          item.contentType === 'vscode' ||
+          item.contentType === 'datastudio'
           ? item.entityId
           : item.id
       }),
@@ -158,6 +175,7 @@ export function useTabGroupItemProjections({
     editorItems,
     browserItems,
     codeServerItems,
+    dataStudioItems,
     tabBarOrder
   }
 }

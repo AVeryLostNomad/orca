@@ -107,6 +107,13 @@ export function activateTabNumberShortcut(index: number): boolean {
     return true
   }
 
+  // Why: datastudio mirrors vscode.
+  if (target.contentType === 'datastudio') {
+    store.setActiveDataStudioTab(target.entityId)
+    store.setActiveTabType('datastudio')
+    return true
+  }
+
   store.setActiveFile(target.entityId)
   store.setActiveTabType('editor')
   return true

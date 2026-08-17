@@ -27,8 +27,11 @@ export const CODE_SERVER_MACHINE_SETTINGS: Record<string, unknown> = {
 
 // Idempotent so it can run on every start; preserves keys the user may have
 // added to the machine file by hand.
-export async function applyCodeServerMachineSettings(): Promise<void> {
-  const machineDir = join(getCodeServerUserDataDir(), 'Machine')
+export async function applyMachineSettings(
+  userDataDir: string,
+  settings: Record<string, unknown>
+): Promise<void> {
+  const machineDir = join(userDataDir, 'Machine')
   const settingsPath = join(machineDir, 'settings.json')
   try {
     let existing: Record<string, unknown> = {}
@@ -40,18 +43,20 @@ export async function applyCodeServerMachineSettings(): Promise<void> {
     } catch {
       // Missing or malformed file — rewrite it from the defaults.
     }
-    const upToDate = Object.entries(CODE_SERVER_MACHINE_SETTINGS).every(
-      ([key, value]) => existing[key] === value
-    )
+    const upToDate = Object.entries(settings).every(([key, value]) => existing[key] === value)
     if (upToDate) {
       return // avoid a needless write on every start
     }
     await mkdir(machineDir, { recursive: true })
-    const merged = { ...existing, ...CODE_SERVER_MACHINE_SETTINGS }
+    const merged = { ...existing, ...settings }
     await writeFile(settingsPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
   } catch (error) {
     // An unwritable user-data dir shouldn't block the editor from starting —
     // the redundant VS Code surfaces simply stay visible.
     console.warn('[code-server] Could not apply machine settings:', error)
   }
+}
+
+export async function applyCodeServerMachineSettings(): Promise<void> {
+  return applyMachineSettings(getCodeServerUserDataDir(), CODE_SERVER_MACHINE_SETTINGS)
 }

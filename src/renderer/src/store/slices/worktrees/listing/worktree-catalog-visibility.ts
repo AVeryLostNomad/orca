@@ -19,13 +19,14 @@ export function areDetectedWorktreeResultsEqual(
   )
 }
 
-// Why: vscode must round-trip to 'vscode' on session restore, not collapse to 'editor'.
+// Why: vscode/datastudio must round-trip on session restore, not collapse to 'editor'.
 export function toVisibleTabType(contentType: string): WorkspaceVisibleTabType {
   if (
     contentType === 'browser' ||
     contentType === 'terminal' ||
     contentType === 'simulator' ||
-    contentType === 'vscode'
+    contentType === 'vscode' ||
+    contentType === 'datastudio'
   ) {
     return contentType
   }

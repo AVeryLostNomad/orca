@@ -7,6 +7,7 @@ import SortableTab from './SortableTab'
 import EditorFileTab from './EditorFileTab'
 import BrowserTab from './BrowserTab'
 import CodeServerTab from './CodeServerTab'
+import DataStudioTab from './DataStudioTab'
 import type { DropIndicator } from './drop-indicator'
 import type { TabDragItemData } from '../tab-group/useTabDragSplit'
 import { getTabDragLabel, type TabBarItem } from './tab-bar-item-model'
@@ -52,6 +53,9 @@ export function renderTabBarItems({
     onDuplicateBrowserTab,
     onActivateCodeServerTab,
     onCloseCodeServerTab,
+    activeDataStudioTabId,
+    onActivateDataStudioTab,
+    onCloseDataStudioTab,
     onCloseAllFiles,
     onMakePreviewFilePermanent
   } = props
@@ -175,6 +179,24 @@ export function renderTabBarItems({
           hasTabsToRight={index < items.length - 1}
           onActivate={() => onActivateCodeServerTab?.(item.id)}
           onClose={() => onCloseCodeServerTab?.(item.id)}
+          onCloseToRight={() => onCloseToRight(item.id)}
+          onTogglePin={() => togglePinned(item)}
+          dragData={dragData}
+          dropIndicator={dropIndicatorByVisibleId.get(item.id) ?? null}
+          includeTopTabBorder={includeTopTabBorder}
+        />
+      )
+    }
+    if (item.type === 'datastudio') {
+      return (
+        <DataStudioTab
+          key={item.id}
+          label={item.data.label}
+          isActive={activeTabType === 'datastudio' && activeDataStudioTabId === item.id}
+          isPinned={item.isPinned}
+          hasTabsToRight={index < items.length - 1}
+          onActivate={() => onActivateDataStudioTab?.(item.id)}
+          onClose={() => onCloseDataStudioTab?.(item.id)}
           onCloseToRight={() => onCloseToRight(item.id)}
           onTogglePin={() => togglePinned(item)}
           dragData={dragData}

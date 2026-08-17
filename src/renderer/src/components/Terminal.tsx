@@ -44,6 +44,7 @@ import { hasFeatureInteraction } from '../../../shared/feature-interactions'
 import BrowserPane from './browser-pane/BrowserPane'
 import { RetainedBrowserPaneOverlayLayer } from './browser-pane/BrowserPaneOverlayLayer'
 import CodeServerPaneOverlayLayer from './code-server-pane/CodeServerPaneOverlayLayer'
+import DataStudioPaneOverlayLayer from './data-studio-pane/DataStudioPaneOverlayLayer'
 import EmulatorPaneOverlayLayer from './emulator-pane/EmulatorPaneOverlayLayer'
 import {
   isBrowserAutomationVisible,
@@ -187,6 +188,7 @@ import {
 import { getResolvedExecutionHostIdForWorktree } from '@/lib/resolved-worktree-execution-host'
 import { isEmbeddedEditorSupported } from '@/lib/embedded-editor-support'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
+import { getRepoIdFromWorktreeId } from '../../../shared/worktree/id'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
 import {
   combineTerminalWorktreeParkIds,
@@ -378,6 +380,7 @@ function Terminal(): React.JSX.Element | null {
   const browserTabsByWorktree = useAppStore((s) => s.browserTabsByWorktree)
   const createBrowserTab = useAppStore((s) => s.createBrowserTab)
   const createCodeServerTab = useAppStore((s) => s.createCodeServerTab)
+  const createDataStudioTab = useAppStore((s) => s.createDataStudioTab)
   const openNewBrowserTabInActiveWorkspace = useAppStore(
     (s) => s.openNewBrowserTabInActiveWorkspace
   )
@@ -1693,6 +1696,35 @@ function Terminal(): React.JSX.Element | null {
     )
   }, [activeWorktreeId, createCodeServerTab])
 
+  const handleNewDataStudioTab = useCallback(() => {
+    if (!activeWorktreeId) {
+      return
+    }
+    const state = useAppStore.getState()
+    const platform = getRendererAppPlatform()
+    // Real safety boundary (menu gating is just UX): the per-repo ADS server
+    // only runs against local checkouts, SSH/remote case included.
+    const isLocal =
+      getExecutionHostIdForWorktree(state, activeWorktreeId) === LOCAL_EXECUTION_HOST_ID
+    if (!isLocal || (platform !== 'darwin' && platform !== 'linux' && platform !== 'win32')) {
+      return
+    }
+    const worktree = state.getKnownWorktreeById(activeWorktreeId)
+    const folderPath = worktree?.path
+    // Connections are per repo; a workspace without a real repo (group folder
+    // workspaces) has nowhere to scope them.
+    const repoId = getRepoIdFromWorktreeId(activeWorktreeId)
+    if (!folderPath || !state.repos.some((repo) => repo.id === repoId)) {
+      return
+    }
+    createDataStudioTab(
+      activeWorktreeId,
+      repoId,
+      folderPath,
+      translate('auto.components.tab.bar.DataStudioTab.title', 'Data Studio')
+    )
+  }, [activeWorktreeId, createDataStudioTab])
+
   const handleOpenEntry = useCallback(async (args: TabCreateEntryArgs) => {
     await openTabBarEntry(args)
   }, [])
@@ -2491,6 +2523,7 @@ function Terminal(): React.JSX.Element | null {
             onNewTerminalWithShell={handleNewTab}
             onNewBrowserTab={handleNewBrowserTab}
             onNewVSCodeTab={handleNewVSCodeTab}
+            onNewDataStudioTab={handleNewDataStudioTab}
             onNewSimulatorTab={mobileEmulatorEnabled ? handleNewSimulatorTab : undefined}
             onOpenEntry={handleOpenEntry}
             onNewFileTab={handleNewFile}
@@ -2903,6 +2936,7 @@ const WorktreeSplitSurface = React.memo(function WorktreeSplitSurface({
       {isVisible || backgroundMountTabIds === null ? (
         <>
           <CodeServerPaneOverlayLayer worktreeId={worktreeId} isWorktreeActive={isVisible} />
+          <DataStudioPaneOverlayLayer worktreeId={worktreeId} isWorktreeActive={isVisible} />
           <EmulatorPaneOverlayLayer worktreeId={worktreeId} isWorktreeActive={isVisible} />
         </>
       ) : null}

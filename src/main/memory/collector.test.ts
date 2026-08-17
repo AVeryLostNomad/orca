@@ -9,14 +9,19 @@ type AppMetricFixture = {
   memory: { workingSetSize: number }
 }
 
-const { appMetricsMock, execFileMock, execMock, listRegisteredPtysMock, getCodeServerPidMock } =
-  vi.hoisted(() => ({
-    appMetricsMock: vi.fn<() => AppMetricFixture[]>(() => []),
-    execFileMock: vi.fn(),
-    execMock: vi.fn(),
-    listRegisteredPtysMock: vi.fn(),
-    getCodeServerPidMock: vi.fn<() => number | null>(() => null)
-  }))
+const {
+  appMetricsMock,
+  execFileMock,
+  execMock,
+  listRegisteredPtysMock,
+  getEmbeddedEditorPidsMock
+} = vi.hoisted(() => ({
+  appMetricsMock: vi.fn<() => AppMetricFixture[]>(() => []),
+  execFileMock: vi.fn(),
+  execMock: vi.fn(),
+  listRegisteredPtysMock: vi.fn(),
+  getEmbeddedEditorPidsMock: vi.fn<() => number[]>(() => [])
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -40,7 +45,7 @@ vi.mock('./pty-registry', () => ({
 }))
 
 vi.mock('../code-server/code-server-process-registry', () => ({
-  getCodeServerPid: getCodeServerPidMock
+  getAllEmbeddedEditorPids: getEmbeddedEditorPidsMock
 }))
 
 async function loadCollector() {
@@ -252,8 +257,8 @@ describe('collectMemorySnapshot', () => {
     execMock.mockReset()
     listRegisteredPtysMock.mockReset()
     listRegisteredPtysMock.mockReturnValue([])
-    getCodeServerPidMock.mockReset()
-    getCodeServerPidMock.mockReturnValue(null)
+    getEmbeddedEditorPidsMock.mockReset()
+    getEmbeddedEditorPidsMock.mockReturnValue([])
   })
 
   function mockPsResponse(stdout: string) {
@@ -794,7 +799,7 @@ describe('collectMemorySnapshot', () => {
     appMetricsMock.mockReturnValue([
       { pid: 10, type: 'Browser', cpu: { percentCPUUsage: 1.5 }, memory: { workingSetSize: 0 } }
     ])
-    getCodeServerPidMock.mockReturnValue(500)
+    getEmbeddedEditorPidsMock.mockReturnValue([500])
 
     const { collectMemorySnapshot } = await loadCollector()
     const snap = await collectMemorySnapshot(emptyStore)
@@ -806,12 +811,36 @@ describe('collectMemorySnapshot', () => {
     expect(snap.totalMemory).toBe((1000 + 2048 + 1024 + 512) * 1024)
   })
 
+  it('sums the editor and Data Studio subtrees into one editor bucket', async () => {
+    // Why: Data Studio runs one code-server per repo alongside the shared
+    // editor; every embedded editor subtree belongs to Orca's own footprint.
+    mockPsResponse(
+      [
+        '10 1 1.5 1000', // Electron main
+        '500 1 0 2048', // editor code-server root
+        '501 500 0 1024', // editor extension host
+        '600 1 0 4096', // data-studio code-server root (repo A)
+        '601 600 0 512' // its extension host
+      ].join('\n')
+    )
+    appMetricsMock.mockReturnValue([
+      { pid: 10, type: 'Browser', cpu: { percentCPUUsage: 1.5 }, memory: { workingSetSize: 0 } }
+    ])
+    getEmbeddedEditorPidsMock.mockReturnValue([500, 600])
+
+    const { collectMemorySnapshot } = await loadCollector()
+    const snap = await collectMemorySnapshot(emptyStore)
+
+    expect(snap.app.editor.memory).toBe((2048 + 1024 + 4096 + 512) * 1024)
+    expect(snap.totalMemory).toBe((1000 + 2048 + 1024 + 4096 + 512) * 1024)
+  })
+
   it('reports a zero editor bucket when code-server is not running', async () => {
     mockPsResponse('10 1 1.5 1000')
     appMetricsMock.mockReturnValue([
       { pid: 10, type: 'Browser', cpu: { percentCPUUsage: 1.5 }, memory: { workingSetSize: 0 } }
     ])
-    getCodeServerPidMock.mockReturnValue(null)
+    getEmbeddedEditorPidsMock.mockReturnValue([])
 
     const { collectMemorySnapshot } = await loadCollector()
     const snap = await collectMemorySnapshot(emptyStore)
@@ -828,7 +857,7 @@ describe('collectMemorySnapshot', () => {
     listRegisteredPtysMock.mockReturnValue([
       { ptyId: 'pty-a', worktreeId: 'repo-1::/wt/a', sessionId: 's-a', paneKey: 'p-a', pid: 501 }
     ])
-    getCodeServerPidMock.mockReturnValue(500)
+    getEmbeddedEditorPidsMock.mockReturnValue([500])
 
     const { collectMemorySnapshot } = await loadCollector()
     const snap = await collectMemorySnapshot(emptyStore)

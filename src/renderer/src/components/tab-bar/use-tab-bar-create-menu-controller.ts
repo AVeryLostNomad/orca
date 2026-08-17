@@ -8,7 +8,7 @@ import type { WindowsTerminalCapabilities } from '@/lib/windows-terminal-capabil
 import { useAppStore } from '../../store'
 import type { TabAgentLaunchOption } from './tab-agent-launch-options'
 import { buildTabCreateMenuOptions, type TabCreateMenuOption } from './tab-create-menu-options'
-import { resolveWindowsShellLaunchTarget } from './windows-shell-launch'
+import { dispatchTabCreateMenuOption } from './tab-create-menu-option-dispatch'
 import {
   buildWindowsShellMenuEntries,
   type WindowsShellMenuEntry
@@ -52,10 +52,12 @@ export function useTabBarCreateMenuController({
   windowsTerminalCapabilities,
   agentLaunchOptions,
   hasNewVSCode,
+  hasNewDataStudio,
   onNewTerminalTab,
   onNewTerminalWithShell,
   onNewBrowserTab,
   onNewVSCodeTab,
+  onNewDataStudioTab,
   onNewSimulatorTab,
   onNewFileTab,
   onOpenFileTab
@@ -76,10 +78,12 @@ export function useTabBarCreateMenuController({
   windowsTerminalCapabilities: WindowsTerminalCapabilities
   agentLaunchOptions: TabAgentLaunchOption[]
   hasNewVSCode: boolean
+  hasNewDataStudio: boolean
   onNewTerminalTab: () => void
   onNewTerminalWithShell?: (shell: string) => void
   onNewBrowserTab: () => void
   onNewVSCodeTab?: () => void
+  onNewDataStudioTab?: () => void
   onNewSimulatorTab?: () => void
   onNewFileTab?: () => void
   onOpenFileTab?: () => void
@@ -165,6 +169,7 @@ export function useTabBarCreateMenuController({
         windowsShellEntries,
         hasNewBrowser: !terminalOnly && managedBrowserCreationEnabled,
         hasNewVSCode,
+        hasNewDataStudio,
         hasNewMarkdown: !terminalOnly && Boolean(onNewFileTab),
         hasOpenMarkdown: !terminalOnly && Boolean(onOpenFileTab),
         hasSimulator:
@@ -176,6 +181,7 @@ export function useTabBarCreateMenuController({
       }),
     [
       hasNewVSCode,
+      hasNewDataStudio,
       mobileEmulatorEnabled,
       managedBrowserCreationEnabled,
       mobileEmulatorCreationEnabled,
@@ -188,41 +194,19 @@ export function useTabBarCreateMenuController({
     ]
   )
   const handleSelectCreateMenuOption = (option: TabCreateMenuOption): void => {
-    switch (option.kind) {
-      case 'new-terminal':
-        queueNewActiveTerminalFocusAfterNewTabMenuClose()
-        onNewTerminalTab()
-        break
-      case 'new-terminal-shell':
-        if (!onNewTerminalWithShell || !option.shell) {
-          break
-        }
-        queueNewActiveTerminalFocusAfterNewTabMenuClose()
-        onNewTerminalWithShell(
-          resolveWindowsShellLaunchTarget(
-            option.shell,
-            defaultWindowsPowerShellImplementation,
-            windowsTerminalCapabilities.pwshAvailable
-          )
-        )
-        break
-      case 'new-browser':
-        onNewBrowserTab()
-        break
-      case 'new-vscode':
-        onNewVSCodeTab?.()
-        break
-      case 'new-markdown':
-        onNewFileTab?.()
-        break
-      case 'open-markdown':
-        onOpenFileTab?.()
-        break
-      case 'new-simulator':
-      case 'go-to-simulator':
-        onNewSimulatorTab?.()
-        break
-    }
+    dispatchTabCreateMenuOption(option, {
+      queueNewActiveTerminalFocusAfterNewTabMenuClose,
+      defaultWindowsPowerShellImplementation,
+      windowsTerminalCapabilities,
+      onNewTerminalTab,
+      onNewTerminalWithShell,
+      onNewBrowserTab,
+      onNewVSCodeTab,
+      onNewDataStudioTab,
+      onNewSimulatorTab,
+      onNewFileTab,
+      onOpenFileTab
+    })
   }
   const launchAgentFromNewTabEntry = (agent: TuiAgent): void => {
     const option = agentLaunchOptions.find((candidate) => candidate.agent === agent)

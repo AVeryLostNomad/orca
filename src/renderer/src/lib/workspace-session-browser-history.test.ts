@@ -23,6 +23,8 @@ function createSnapshot(browserUrlHistory: BrowserHistoryEntry[]): WorkspaceSess
     activeBrowserTabIdByWorktree: {},
     codeServerTabsByWorktree: {},
     activeCodeServerTabIdByWorktree: {},
+    dataStudioTabsByWorktree: {},
+    activeDataStudioTabIdByWorktree: {},
     browserUrlHistory,
     unifiedTabsByWorktree: {},
     groupsByWorktree: {},

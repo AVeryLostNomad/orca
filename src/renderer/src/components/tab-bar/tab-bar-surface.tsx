@@ -24,12 +24,14 @@ import type { TabBarItem } from './tab-bar-item-model'
 import { renderTabBarItems } from './tab-bar-item-surface'
 import { renderTabBarStaticCreateMenu } from './tab-bar-static-create-menu'
 import type { VSCodeTabCreateGate } from './vscode-tab-create-gate'
+import type { DataStudioTabCreateGate } from './data-studio-tab-create-gate'
 
 export function renderTabBarSurface({
   props,
   runtime,
   createMenu,
   vscodeCreateGate,
+  dataStudioCreateGate,
   itemProjection,
   tabStripNavigation,
   tabStripDragScroll,
@@ -39,6 +41,7 @@ export function renderTabBarSurface({
   runtime: TabBarRuntimeModel
   createMenu: TabBarCreateMenuController
   vscodeCreateGate: VSCodeTabCreateGate
+  dataStudioCreateGate: DataStudioTabCreateGate
   itemProjection: TabBarItemProjection
   tabStripNavigation: ReturnType<typeof useTabStripOverflowNavigation>
   tabStripDragScroll: ReturnType<typeof useTabStripDragScrollHandlers>
@@ -99,6 +102,8 @@ export function renderTabBarSurface({
     terminalOnly,
     hasNewVSCode: vscodeCreateGate.hasNewVSCode,
     vscodeRemoteDisabled: vscodeCreateGate.vscodeRemoteDisabled,
+    hasNewDataStudio: dataStudioCreateGate.hasNewDataStudio,
+    dataStudioRemoteDisabled: dataStudioCreateGate.dataStudioRemoteDisabled,
     mobileEmulatorEnabled,
     managedBrowserCreationEnabled,
     mobileEmulatorCreationEnabled,

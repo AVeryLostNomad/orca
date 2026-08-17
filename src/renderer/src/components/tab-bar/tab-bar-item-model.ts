@@ -47,6 +47,13 @@ export type TabBarItem =
       isPinned: boolean
       data: { id: string; label: string }
     }
+  | {
+      type: 'datastudio'
+      id: string
+      unifiedTabId: string
+      isPinned: boolean
+      data: { id: string; label: string }
+    }
 
 export function getTabDragLabel(item: TabBarItem, generatedTitlesEnabled: boolean): string {
   if (item.type === 'terminal') {
@@ -57,6 +64,9 @@ export function getTabDragLabel(item: TabBarItem, generatedTitlesEnabled: boolea
   }
   if (item.type === 'vscode') {
     return item.data.label || 'VS Code'
+  }
+  if (item.type === 'datastudio') {
+    return item.data.label || 'Data Studio'
   }
   if (item.type === 'simulator') {
     return item.data.label || 'Mobile Emulator'
@@ -96,12 +106,14 @@ export function createUnifiedTabLookup(tabs: readonly Tab[], groupId: string): M
       continue
     }
     lookup.set(tab.id, tab)
-    // Why: terminal/browser/vscode chips key on entityId (their visible id),
-    // so the unified tab must be resolvable by entityId as well as tab id.
+    // Why: terminal/browser/vscode/datastudio chips key on entityId (their
+    // visible id), so the unified tab must be resolvable by entityId as well
+    // as tab id.
     if (
       tab.contentType === 'terminal' ||
       tab.contentType === 'browser' ||
-      tab.contentType === 'vscode'
+      tab.contentType === 'vscode' ||
+      tab.contentType === 'datastudio'
     ) {
       lookup.set(tab.entityId, tab)
     }
@@ -116,10 +128,12 @@ export function buildOrderedTabItems({
   browserTabIds,
   simulatorTabIds,
   codeServerTabIds,
+  dataStudioTabIds,
   terminalMap,
   editorMap,
   browserMap,
   codeServerMap,
+  dataStudioMap,
   unifiedTabByVisibleId
 }: {
   tabBarOrder?: string[]
@@ -128,10 +142,12 @@ export function buildOrderedTabItems({
   browserTabIds: string[]
   simulatorTabIds: string[]
   codeServerTabIds: string[]
+  dataStudioTabIds: string[]
   terminalMap: Map<string, TerminalTab & { unifiedTabId?: string }>
   editorMap: Map<string, OpenFile & { tabId?: string }>
   browserMap: Map<string, BrowserTabState & { tabId?: string }>
   codeServerMap: Map<string, { id: string; label: string }>
+  dataStudioMap: Map<string, { id: string; label: string }>
   unifiedTabByVisibleId: Map<string, Tab>
 }): TabBarItem[] {
   const ids = reconcileTabOrder(
@@ -140,7 +156,8 @@ export function buildOrderedTabItems({
     editorFileIds,
     browserTabIds,
     simulatorTabIds,
-    codeServerTabIds
+    codeServerTabIds,
+    dataStudioTabIds
   )
   const items: TabBarItem[] = []
   for (const id of ids) {
@@ -192,6 +209,18 @@ export function buildOrderedTabItems({
       })
       continue
     }
+    const dataStudioTab = dataStudioMap.get(id)
+    if (dataStudioTab) {
+      const unifiedTab = unifiedTabByVisibleId.get(id)
+      items.push({
+        type: 'datastudio',
+        id,
+        unifiedTabId: unifiedTab?.id ?? dataStudioTab.id,
+        isPinned: unifiedTab?.isPinned === true,
+        data: dataStudioTab
+      })
+      continue
+    }
     const simulatorTab = unifiedTabByVisibleId.get(id)
     if (simulatorTab?.contentType === 'simulator') {
       items.push({
@@ -227,6 +256,7 @@ export function findActiveVisibleTabId(
     activeFileId?: string | null
     activeBrowserTabId?: string | null
     activeCodeServerTabId?: string | null
+    activeDataStudioTabId?: string | null
     activeSimulatorTabId?: string | null
     activeTabType?: WorkspaceVisibleTabType
   }
@@ -243,6 +273,9 @@ export function findActiveVisibleTabId(
     }
     if (item.type === 'vscode') {
       return active.activeTabType === 'vscode' && item.id === active.activeCodeServerTabId
+    }
+    if (item.type === 'datastudio') {
+      return active.activeTabType === 'datastudio' && item.id === active.activeDataStudioTabId
     }
     if (item.type === 'simulator') {
       return active.activeTabType === 'simulator' && item.id === active.activeSimulatorTabId

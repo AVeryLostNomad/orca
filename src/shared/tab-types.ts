@@ -24,8 +24,15 @@ export type TabContentType =
   | 'browser'
   | 'simulator'
   | 'vscode'
+  | 'datastudio'
 
-export type WorkspaceVisibleTabType = 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode'
+export type WorkspaceVisibleTabType =
+  | 'terminal'
+  | 'editor'
+  | 'browser'
+  | 'simulator'
+  | 'vscode'
+  | 'datastudio'
 export type CtrlTabOrderMode = 'mru' | 'sequential'
 
 export type Tab = {

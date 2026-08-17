@@ -6,6 +6,7 @@ import { isClipboardTextByteLengthOverLimit } from '../../../../shared/clipboard
 export type TabCreateMenuOptionKind =
   | 'go-to-simulator'
   | 'new-browser'
+  | 'new-datastudio'
   | 'new-markdown'
   | 'new-simulator'
   | 'new-terminal'
@@ -29,6 +30,7 @@ export type TabCreateMenuOptionsContext = {
   // Only the fully-enabled (local + mac/linux) case is searchable; the remote
   // disabled entry lives solely in the directly-rendered dropdown, never here.
   hasNewVSCode?: boolean
+  hasNewDataStudio?: boolean
   simulatorIsGoTo: boolean
   terminalOnly: boolean
   windowsShellEntries?: readonly { label: string; shell: BuiltInWindowsTerminalShell }[]
@@ -131,6 +133,24 @@ export function buildTabCreateMenuOptions(
         translate('auto.components.tab.bar.tab.create.menu.options.vsCode', 'vs code'),
         translate('auto.components.tab.bar.tab.create.menu.options.code', 'code'),
         translate('auto.components.tab.bar.tab.create.menu.options.editor', 'editor')
+      ]
+    })
+  }
+
+  if (context.hasNewDataStudio) {
+    options.push({
+      id: 'new-datastudio',
+      kind: 'new-datastudio',
+      label: translate(
+        'auto.components.tab.bar.tab.create.menu.options.newDataStudio',
+        'New Data Studio Tab'
+      ),
+      keywords: [
+        translate('auto.components.tab.bar.tab.create.menu.options.dataStudio', 'data studio'),
+        translate('auto.components.tab.bar.tab.create.menu.options.database', 'database'),
+        translate('auto.components.tab.bar.tab.create.menu.options.sql', 'sql'),
+        translate('auto.components.tab.bar.tab.create.menu.options.db', 'db'),
+        translate('auto.components.tab.bar.tab.create.menu.options.query', 'query')
       ]
     })
   }

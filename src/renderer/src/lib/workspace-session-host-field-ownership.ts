@@ -26,6 +26,8 @@ export const WORKSPACE_SESSION_FIELD_OWNERSHIP = {
   activeBrowserTabIdByWorktree: 'worktreeKeyed',
   codeServerTabsByWorktree: 'worktreeKeyed',
   activeCodeServerTabIdByWorktree: 'worktreeKeyed',
+  dataStudioTabsByWorktree: 'worktreeKeyed',
+  activeDataStudioTabIdByWorktree: 'worktreeKeyed',
   activeTabTypeByWorktree: 'worktreeKeyed',
   activeTabIdByWorktree: 'worktreeKeyed',
   browserTabsByWorktree: 'worktreeKeyed',

@@ -121,6 +121,7 @@ function resetStore(): void {
     activeWorktreeId: 'wt-1',
     browserTabsByWorktree: {},
     codeServerTabsByWorktree: {},
+    dataStudioTabsByWorktree: {},
     activeCodeServerTabIdByWorktree: {},
     expandedPaneByTabId: {},
     groupsByWorktree: {

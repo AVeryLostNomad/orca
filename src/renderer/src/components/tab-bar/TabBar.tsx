@@ -8,6 +8,7 @@ import { useTabBarCreateMenuController } from './use-tab-bar-create-menu-control
 import { useTabBarItemProjection } from './use-tab-bar-item-projection'
 import { renderTabBarSurface } from './tab-bar-surface'
 import { resolveVSCodeTabCreateGate } from './vscode-tab-create-gate'
+import { resolveDataStudioTabCreateGate } from './data-studio-tab-create-gate'
 
 function TabBarInner(props: TabBarProps): React.JSX.Element {
   const {
@@ -18,6 +19,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     onNewTerminalWithShell,
     onNewBrowserTab,
     onNewVSCodeTab,
+    onNewDataStudioTab,
     onNewSimulatorTab,
     onNewFileTab,
     onOpenFileTab,
@@ -28,6 +30,12 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     terminalOnly,
     isLocalWorktree: runtime.isLocalWorktree,
     hasCreateCallback: Boolean(onNewVSCodeTab)
+  })
+  const dataStudioCreateGate = resolveDataStudioTabCreateGate({
+    terminalOnly,
+    isLocalWorktree: runtime.isLocalWorktree,
+    hasRepoId: runtime.hasRepoBackedWorkspace,
+    hasCreateCallback: Boolean(onNewDataStudioTab)
   })
   const createMenu = useTabBarCreateMenuController({
     worktreeId,
@@ -44,10 +52,12 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     windowsTerminalCapabilities: runtime.windowsTerminalCapabilities,
     agentLaunchOptions: runtime.agentLaunchOptions,
     hasNewVSCode: vscodeCreateGate.hasNewVSCode,
+    hasNewDataStudio: dataStudioCreateGate.hasNewDataStudio,
     onNewTerminalTab,
     onNewTerminalWithShell,
     onNewBrowserTab,
     onNewVSCodeTab,
+    onNewDataStudioTab,
     onNewSimulatorTab,
     onNewFileTab,
     onOpenFileTab
@@ -88,6 +98,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     runtime,
     createMenu,
     vscodeCreateGate,
+    dataStudioCreateGate,
     itemProjection,
     tabStripNavigation,
     tabStripDragScroll,

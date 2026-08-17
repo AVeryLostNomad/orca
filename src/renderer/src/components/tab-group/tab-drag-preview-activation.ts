@@ -69,6 +69,17 @@ function previewActiveSurfacePatch(
       activeTabTypeByWorktree: nextActiveTabTypeByWorktree('vscode')
     }
   }
+  // Why: datastudio mirrors vscode.
+  if (unifiedTab.contentType === 'datastudio') {
+    return {
+      activeTabType: 'datastudio',
+      activeDataStudioTabIdByWorktree: {
+        ...state.activeDataStudioTabIdByWorktree,
+        [worktreeId]: unifiedTab.entityId
+      },
+      activeTabTypeByWorktree: nextActiveTabTypeByWorktree('datastudio')
+    }
+  }
   return {
     activeFileId: unifiedTab.entityId,
     activeTabType: 'editor',

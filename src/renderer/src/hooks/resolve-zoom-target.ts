@@ -6,7 +6,7 @@ import type { TopLevelView } from '../../../shared/ui-chrome-types'
  */
 export function resolveZoomTarget(args: {
   activeView: TopLevelView
-  activeTabType: 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode'
+  activeTabType: 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode' | 'datastudio'
   activeElement: unknown
 }): 'terminal' | 'editor' | 'simulator' | 'ui' {
   const { activeView, activeTabType, activeElement } = args
@@ -42,9 +42,10 @@ export function resolveZoomTarget(args: {
   }
   // Why: keyboard/menu zoom in an active browser tab belongs to Orca chrome.
   // Browser page zoom has a dedicated route for wheel and page-specific IPC.
-  // The embedded VS Code pane is the same kind of webview-hosted surface —
-  // its own UI owns zoom, so Orca's terminal/editor zoom must not apply.
-  if (activeTabType === 'browser' || activeTabType === 'vscode') {
+  // The embedded VS Code / Data Studio panes are the same kind of
+  // webview-hosted surface — their own UI owns zoom, so Orca's
+  // terminal/editor zoom must not apply.
+  if (activeTabType === 'browser' || activeTabType === 'vscode' || activeTabType === 'datastudio') {
     return 'ui'
   }
   if (activeTabType === 'editor' || editorFocused) {

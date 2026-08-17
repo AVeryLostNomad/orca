@@ -3090,7 +3090,14 @@
                   "vscode": "vscode",
                   "vsCode": "vs code",
                   "code": "code",
-                  "editor": "editor"
+                  "editor": "editor",
+                  "newDataStudio": "新建 Data Studio 标签页",
+                  "newDataStudioRemoteDisabled": "Data Studio 仅适用于本地工作树",
+                  "dataStudio": "data studio",
+                  "database": "数据库",
+                  "sql": "sql",
+                  "db": "db",
+                  "query": "查询"
                 }
               }
             }
@@ -3118,6 +3125,13 @@
             "911542656f": "Pin Tab",
             "1611a1324b": "Close",
             "9dd880bd56": "Close Tabs To The Right"
+          },
+          "DataStudioTab": {
+            "1f7666419b": "取消固定标签页",
+            "52fa615dce": "固定标签页",
+            "c4dee16431": "关闭",
+            "31dc5c0d4f": "关闭右侧标签页",
+            "title": "Data Studio"
           }
         }
       },
@@ -14301,6 +14315,7 @@
               "231da812b0": "code-server failed to load."
             },
             "CodeServerImportModal": {
+              "2084722876": "Importing…",
               "37836403ec": "Settings",
               "0c46f685c1": "Keybindings",
               "650939408f": "Snippets",
@@ -14317,7 +14332,6 @@
               "2c04a2e2cb": "Settings, keybindings, and snippets stay linked — edits made in either editor apply to both.",
               "30d1bf1217": "Done",
               "ac0db0202e": "Not Now",
-              "2084722876": "Importing…",
               "9ece26b2e4": "Import"
             }
           }
@@ -14344,6 +14358,19 @@
         "pendingChip": "{{value0}} 待处理",
         "needsActionChip": "{{value0}} 个需要操作",
         "unresolvedChip": "{{value0}} 个未解决"
+      },
+      "data": {
+        "studio": {
+          "pane": {
+            "DataStudioPane": {
+              "6dfe584357": "Data Studio 加载失败。",
+              "160f61c356": "正在安装 Data Studio…",
+              "9c7b7b091e": "出了点问题。",
+              "73e18cb54e": "重试",
+              "daf4265008": "正在启动 Data Studio…"
+            }
+          }
+        }
       }
     },
     "i18n": {

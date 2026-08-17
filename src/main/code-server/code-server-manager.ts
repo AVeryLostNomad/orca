@@ -1,21 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { net } from 'electron'
-import { createServer } from 'node:net'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-server-types'
-import { ensureCodeServerInstalled } from './code-server-installer'
-import { mirrorEditorUserConfig } from './code-server-editor-user-config'
-import { disableExtensionSignatureVerification } from './code-server-signature-verification'
-import { applyCodeServerMachineSettings } from './code-server-machine-settings'
-import { setCodeServerPid } from './code-server-process-registry'
 import { hydrateShellPath, mergePathSegments } from '../startup/hydrate-shell-path'
 import { promoteVersionManagerShims } from './code-server-toolchain-path'
-import {
-  getCodeServerCacheRoot,
-  getCodeServerPidFilePath,
-  resolveCodeServerLaunch
-} from './code-server-paths'
-import { buildCodeServerArgs } from './code-server-launch-args'
+import type { CodeServerProfile } from './code-server-profile'
 import {
   killWindowsCodeServerTree,
   reapWindowsCodeServerOrphan,
@@ -33,23 +22,11 @@ const READY_POLL_MS = 200
 // Cap retained stderr so a chatty code-server can't grow this unbounded while running.
 const STDERR_TAIL_MAX_BYTES = 8 * 1024
 
-async function pickFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      if (!address || typeof address === 'string') {
-        reject(new Error('Failed to allocate a port'))
-        return
-      }
-      const { port } = address
-      server.close(() => resolve(port))
-    })
-  })
-}
-
-async function waitForHealthz(port: number, isChildAlive: () => boolean): Promise<boolean> {
+async function waitForReadiness(
+  port: number,
+  probePath: string,
+  isChildAlive: () => boolean
+): Promise<boolean> {
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (Date.now() <= deadline) {
     // Stop immediately if the process died during startup — the wait would
@@ -57,7 +34,7 @@ async function waitForHealthz(port: number, isChildAlive: () => boolean): Promis
     if (!isChildAlive()) {
       return false
     }
-    const ok = await probeHealthz(port)
+    const ok = await probeReadiness(port, probePath)
     if (ok) {
       return true
     }
@@ -66,9 +43,9 @@ async function waitForHealthz(port: number, isChildAlive: () => boolean): Promis
   return false
 }
 
-function probeHealthz(port: number): Promise<boolean> {
+function probeReadiness(port: number, probePath: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const request = net.request(`http://127.0.0.1:${port}/healthz`)
+    const request = net.request(`http://127.0.0.1:${port}${probePath}`)
     request.on('response', (response) => {
       response.on('data', () => {})
       response.on('end', () => resolve(response.statusCode === 200))
@@ -93,20 +70,25 @@ export type CodeServerManagerDeps = WindowsCodeServerTerminationDeps & {
 }
 
 export class CodeServerManager implements CodeServerProvider {
-  constructor(private readonly deps: CodeServerManagerDeps = {}) {}
-
   private child: ChildProcess | null = null
   private port: number | null = null
   private refCount = 0
   private quitting = false
   // Reachable 'not-installed' start state (fix: was hardcoded 'stopped', hiding the
   // real state machine's entry point from callers that check status before acquire()).
-  private status: CodeServerStatus = resolveCodeServerLaunch() ? 'stopped' : 'not-installed'
+  private status: CodeServerStatus
   private errorMessage: string | undefined
   private readonly listeners = new Set<(e: CodeServerStatusEvent) => void>()
   // Single-flight guard: overlapping acquire() calls before the first reaches 'ready'
   // must share one start sequence, or each spawns its own untracked child process.
   private starting: Promise<{ port: number }> | null = null
+
+  constructor(
+    private readonly profile: CodeServerProfile,
+    private readonly deps: CodeServerManagerDeps = {}
+  ) {
+    this.status = profile.resolveInstalled() ? 'stopped' : 'not-installed'
+  }
 
   onStatusChanged(cb: (e: CodeServerStatusEvent) => void): () => void {
     this.listeners.add(cb)
@@ -186,18 +168,13 @@ export class CodeServerManager implements CodeServerProvider {
       await this.reapOrphan()
       // Only pass through 'installing' when an install will actually happen —
       // otherwise a normal start flashes "installing 0%" for an already-installed binary.
-      if (!resolveCodeServerLaunch()) {
+      if (!this.profile.resolveInstalled()) {
         this.emit('installing', { progress: 0 })
-        await ensureCodeServerInstalled((fraction) =>
+        await this.profile.ensureInstalled((fraction) =>
           this.emit('installing', { progress: fraction })
         )
       }
-      await mirrorEditorUserConfig()
-      // Open VSX + macOS standalone can't verify extension signatures; default
-      // the check off for the embedded editor so extension installs work.
-      await disableExtensionSignatureVerification()
-      // Hide SCM/terminal/chat surfaces via machine-scope settings — Orca owns those.
-      await applyCodeServerMachineSettings()
+      await this.profile.prepare()
       const port = await this.startProcessWithOneRetry()
       return { port }
     } catch (error) {
@@ -226,8 +203,8 @@ export class CodeServerManager implements CodeServerProvider {
   }
 
   private async startProcess(): Promise<number> {
-    const launch = await ensureCodeServerInstalled()
-    const port = await pickFreePort()
+    const port = await this.profile.allocatePort()
+    const { command, args, env: spawnEnvOverrides } = this.profile.buildSpawn(port, this.platform())
     this.emit('starting')
     // Extensions in the embedded editor shell out to the user's toolchain
     // (e.g. rubocop runs `bundle list`), which needs the login-shell PATH so
@@ -251,26 +228,27 @@ export class CodeServerManager implements CodeServerProvider {
     // flag, but the server honors this env var. Windows already skips the probe.
     const spawnEnv =
       this.platform() === 'win32'
-        ? process.env
-        : { ...process.env, VSCODE_CLI: '1', PATH: promoteVersionManagerShims(process.env.PATH) }
-    // launch.command is a real executable on every platform (Windows spawns the
-    // package's bundled node.exe against entry.js — never a .cmd), so no shell
-    // and no windows-batch-spawn routing is needed.
-    const child = spawn(
-      launch.command,
-      [...launch.args, ...buildCodeServerArgs(port, this.platform())],
-      {
-        stdio: ['ignore', 'ignore', 'pipe'],
-        windowsHide: true,
-        env: spawnEnv
-      }
-    )
+        ? { ...process.env, ...spawnEnvOverrides }
+        : {
+            ...process.env,
+            VSCODE_CLI: '1',
+            PATH: promoteVersionManagerShims(process.env.PATH),
+            ...spawnEnvOverrides
+          }
+    // profile.buildSpawn returns a real executable on every platform (Windows
+    // spawns the package's bundled node.exe against entry.js — never a .cmd),
+    // so no shell and no windows-batch-spawn routing is needed.
+    const child = spawn(command, args, {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true,
+      env: spawnEnv
+    })
     this.child = child
     this.port = port
-    writeFileSync(getCodeServerPidFilePath(), String(child.pid ?? ''))
+    writeFileSync(this.profile.pidFilePath, String(child.pid ?? ''))
     // Publish the pid so the memory collector can attribute the editor's whole
     // process subtree (extension host, LSPs, ripgrep) to Orca's footprint.
-    setCodeServerPid(child.pid ?? null)
+    this.profile.onPidChanged(child.pid ?? null)
     let exited = false
     child.on('exit', () => {
       exited = true
@@ -282,14 +260,14 @@ export class CodeServerManager implements CodeServerProvider {
       stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_MAX_BYTES)
     })
 
-    const ready = await waitForHealthz(port, () => !exited)
+    const ready = await waitForReadiness(port, this.profile.readinessProbePath, () => !exited)
     if (!ready) {
       void this.killChild()
       const detail = stderrTail.trim()
       throw new Error(
         detail
-          ? `code-server did not become ready in time: ${detail}`
-          : 'code-server did not become ready in time'
+          ? `The workbench server did not become ready in time: ${detail}`
+          : 'The workbench server did not become ready in time'
       )
     }
     this.emit('ready')
@@ -299,7 +277,7 @@ export class CodeServerManager implements CodeServerProvider {
   private handleUnexpectedExit(): void {
     this.child = null
     this.port = null
-    setCodeServerPid(null)
+    this.profile.onPidChanged(null)
     // An exit before the server ever reached 'ready' is a failed start: the
     // awaiting startProcess() reports it as an error, so don't auto-restart
     // here (which would race that caller and can loop). Only a server that
@@ -330,7 +308,7 @@ export class CodeServerManager implements CodeServerProvider {
     const child = this.child
     this.child = null
     this.port = null
-    setCodeServerPid(null)
+    this.profile.onPidChanged(null)
     let treeKill: Promise<void> = Promise.resolve()
     if (child && !child.killed) {
       child.removeAllListeners('exit')
@@ -349,7 +327,7 @@ export class CodeServerManager implements CodeServerProvider {
       }
     }
     try {
-      rmSync(getCodeServerPidFilePath(), { force: true })
+      rmSync(this.profile.pidFilePath, { force: true })
     } catch {
       // best effort
     }
@@ -365,7 +343,7 @@ export class CodeServerManager implements CodeServerProvider {
 
   // Kill a stale process from a prior Orca run recorded in the pidfile.
   async reapOrphan(): Promise<void> {
-    const pidFile = getCodeServerPidFilePath()
+    const pidFile = this.profile.pidFilePath
     if (!existsSync(pidFile)) {
       return
     }
@@ -375,7 +353,7 @@ export class CodeServerManager implements CodeServerProvider {
         if (this.platform() === 'win32') {
           // Identity-gated: the PID may have been recycled since that run died,
           // so only a process provably running our install gets tree-killed.
-          await reapWindowsCodeServerOrphan(pid, getCodeServerCacheRoot(), this.deps)
+          await reapWindowsCodeServerOrphan(pid, this.profile.installRoot, this.deps)
         } else {
           process.kill(pid, 'SIGTERM')
         }

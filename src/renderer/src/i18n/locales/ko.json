@@ -3078,7 +3078,14 @@
                   "vscode": "vscode",
                   "vsCode": "vs code",
                   "code": "code",
-                  "editor": "editor"
+                  "editor": "editor",
+                  "newDataStudio": "새 Data Studio 탭",
+                  "newDataStudioRemoteDisabled": "Data Studio는 로컬 워크트리에서만 사용할 수 있습니다",
+                  "dataStudio": "data studio",
+                  "database": "데이터베이스",
+                  "sql": "sql",
+                  "db": "db",
+                  "query": "쿼리"
                 }
               }
             }
@@ -3106,6 +3113,13 @@
             "911542656f": "Pin Tab",
             "1611a1324b": "Close",
             "9dd880bd56": "Close Tabs To The Right"
+          },
+          "DataStudioTab": {
+            "1f7666419b": "탭 고정 해제",
+            "52fa615dce": "탭 고정",
+            "c4dee16431": "닫기",
+            "31dc5c0d4f": "오른쪽 탭 닫기",
+            "title": "Data Studio"
           }
         }
       },
@@ -14292,6 +14306,7 @@
               "231da812b0": "code-server failed to load."
             },
             "CodeServerImportModal": {
+              "2084722876": "Importing…",
               "37836403ec": "Settings",
               "0c46f685c1": "Keybindings",
               "650939408f": "Snippets",
@@ -14308,7 +14323,6 @@
               "2c04a2e2cb": "Settings, keybindings, and snippets stay linked — edits made in either editor apply to both.",
               "30d1bf1217": "Done",
               "ac0db0202e": "Not Now",
-              "2084722876": "Importing…",
               "9ece26b2e4": "Import"
             }
           }
@@ -14335,6 +14349,19 @@
         "pendingChip": "{{value0}} 보류 중",
         "needsActionChip": "{{value0}}개 조치 필요",
         "unresolvedChip": "{{value0}}개 미해결"
+      },
+      "data": {
+        "studio": {
+          "pane": {
+            "DataStudioPane": {
+              "6dfe584357": "Data Studio를 불러오지 못했습니다.",
+              "160f61c356": "Data Studio 설치 중…",
+              "9c7b7b091e": "문제가 발생했습니다.",
+              "73e18cb54e": "다시 시도",
+              "daf4265008": "Data Studio 시작 중…"
+            }
+          }
+        }
       }
     },
     "i18n": {
