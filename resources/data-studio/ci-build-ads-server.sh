@@ -132,7 +132,9 @@ export npm_config_audit=false npm_config_fund=false
 for ext in "$STAGE"/extensions/*/; do
   ext="${ext%/}"
   [[ -f "$ext/package.json" && -d "$ext/node_modules" ]] || continue
-  deps="$(node -e "console.log(Object.keys(require('$ext/package.json').dependencies ?? {}).length)")"
+  # argv, not string interpolation: Windows paths contain backslashes that a
+  # JS string literal would eat (D:\a\_temp -> D:a_temp).
+  deps="$(node -p "Object.keys(require(process.argv[1]).dependencies ?? {}).length" "$ext/package.json")"
   if [[ "$deps" == "0" ]]; then
     rm -rf "$ext/node_modules"
   else
