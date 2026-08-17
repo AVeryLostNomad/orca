@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as NodeFs from 'node:fs'
 import type * as CodeServerPaths from './code-server-paths'
 
-const { resolveExeMock, spawnMock, netRequestMock, createServerMock } = vi.hoisted(() => ({
-  resolveExeMock: vi.fn(),
+const { resolveLaunchMock, spawnMock, netRequestMock, createServerMock } = vi.hoisted(() => ({
+  resolveLaunchMock: vi.fn(),
   spawnMock: vi.fn(),
   netRequestMock: vi.fn(),
   createServerMock: vi.fn()
 }))
+
+const POSIX_LAUNCH = { command: '/opt/code-server/bin/code-server', args: [], root: null }
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/userData' },
@@ -23,7 +25,9 @@ vi.mock('../startup/hydrate-shell-path', () => ({
   ),
   mergePathSegments: vi.fn(() => [])
 }))
-vi.mock('node:child_process', () => ({ spawn: spawnMock }))
+// execFile is only pulled in transitively (windows process-rows helper); a
+// bare vi.fn() keeps promisify(execFile) importable without real forks.
+vi.mock('node:child_process', () => ({ spawn: spawnMock, execFile: vi.fn() }))
 vi.mock('node:net', () => ({ createServer: createServerMock }))
 // Passthrough spread (not a full replacement) so vi.spyOn can patch individual
 // fs functions below — a real ES module namespace object isn't spy-able.
@@ -31,21 +35,23 @@ vi.mock('node:fs', async (importOriginal) => {
   const original = await importOriginal<typeof NodeFs>()
   return { ...original }
 })
-// Passthrough spread, overriding only resolveCodeServerExecutable so the
+// Passthrough spread, overriding only resolveCodeServerLaunch so the
 // not-installed/single-flight tests can control it while buildCodeServerArgs
 // keeps using the real path-joining logic (anchored at the mocked userData dir).
 vi.mock('./code-server-paths', async (importOriginal) => {
   const original = await importOriginal<typeof CodeServerPaths>()
-  return { ...original, resolveCodeServerExecutable: resolveExeMock }
+  return { ...original, resolveCodeServerLaunch: resolveLaunchMock }
 })
 
-import { buildCodeServerArgs, CodeServerManager } from './code-server-manager'
+import { CodeServerManager } from './code-server-manager'
+import { buildCodeServerArgs } from './code-server-launch-args'
 import { ensureCodeServerInstalled } from './code-server-installer'
 import { mirrorEditorUserConfig } from './code-server-editor-user-config'
+import { getCodeServerSessionSocketPath } from './code-server-ipc-path'
 
 describe('buildCodeServerArgs', () => {
   it('binds loopback, disables auth+telemetry+workspace-trust, isolates dirs', () => {
-    expect(buildCodeServerArgs(12345)).toEqual([
+    expect(buildCodeServerArgs(12345, 'linux')).toEqual([
       '--bind-addr',
       '127.0.0.1:12345',
       '--auth',
@@ -58,6 +64,14 @@ describe('buildCodeServerArgs', () => {
       '/userData/code-server/extensions'
     ])
   })
+
+  it('adds the named-pipe session socket on win32', () => {
+    const args = buildCodeServerArgs(12345, 'win32')
+    const flagIndex = args.indexOf('--session-socket')
+    expect(flagIndex).toBeGreaterThan(-1)
+    expect(args[flagIndex + 1]).toBe(getCodeServerSessionSocketPath('win32'))
+    expect(args[flagIndex + 1]).toMatch(/^\\\\\.\\pipe\\orca-code-server-ipc-[0-9a-f]{12}$/)
+  })
 })
 
 describe('reapOrphan', () => {
@@ -67,7 +81,7 @@ describe('reapOrphan', () => {
     vi.spyOn(fs, 'readFileSync').mockReturnValue('4242')
     const rmSpy = vi.spyOn(fs, 'rmSync').mockImplementation(() => {})
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
-    new CodeServerManager().reapOrphan()
+    await new CodeServerManager({ platform: 'linux' }).reapOrphan()
     expect(killSpy).toHaveBeenCalledWith(4242, 'SIGTERM')
     expect(rmSpy).toHaveBeenCalled()
     killSpy.mockRestore()
@@ -76,16 +90,16 @@ describe('reapOrphan', () => {
 
 describe('initial status', () => {
   afterEach(() => {
-    resolveExeMock.mockReset()
+    resolveLaunchMock.mockReset()
   })
 
   it('is not-installed when the executable does not resolve', () => {
-    resolveExeMock.mockReturnValue(null)
+    resolveLaunchMock.mockReturnValue(null)
     expect(new CodeServerManager().getStatus().status).toBe('not-installed')
   })
 
   it('is stopped when the executable already resolves', () => {
-    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
+    resolveLaunchMock.mockReturnValue(POSIX_LAUNCH)
     expect(new CodeServerManager().getStatus().status).toBe('stopped')
   })
 })
@@ -132,7 +146,7 @@ function primeSuccessfulStart(port: number): void {
 
 describe('acquire single-flight', () => {
   afterEach(() => {
-    resolveExeMock.mockReset()
+    resolveLaunchMock.mockReset()
     spawnMock.mockReset()
     createServerMock.mockReset()
     netRequestMock.mockReset()
@@ -141,8 +155,8 @@ describe('acquire single-flight', () => {
   })
 
   it('spawns exactly one child when two acquire() calls overlap before ready', async () => {
-    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
-    vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
+    resolveLaunchMock.mockReturnValue(POSIX_LAUNCH)
+    vi.mocked(ensureCodeServerInstalled).mockResolvedValue(POSIX_LAUNCH)
     vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
     primeSuccessfulStart(4999)
 
@@ -160,8 +174,8 @@ describe('acquire single-flight', () => {
   })
 
   it('retry does not take a ref, so one release after acquire+retry stops the server', async () => {
-    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
-    vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
+    resolveLaunchMock.mockReturnValue(POSIX_LAUNCH)
+    vi.mocked(ensureCodeServerInstalled).mockResolvedValue(POSIX_LAUNCH)
     vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
     primeSuccessfulStart(4998)
 
@@ -190,8 +204,8 @@ describe('acquire single-flight', () => {
   })
 
   it('fails the start (no auto-restart) when the child exits before becoming ready', async () => {
-    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
-    vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
+    resolveLaunchMock.mockReturnValue(POSIX_LAUNCH)
+    vi.mocked(ensureCodeServerInstalled).mockResolvedValue(POSIX_LAUNCH)
     vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
     // Free-port pick succeeds; healthz never returns 200 for this port.
     createServerMock.mockImplementation(() => ({

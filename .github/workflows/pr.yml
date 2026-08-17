@@ -460,6 +460,12 @@ jobs:
         run: >-
           pnpm exec vitest run --config config/vitest.config.ts
           src/main/cli/wsl-cli-powershell-boundary.test.ts
+          src/main/code-server/code-server-editor-user-config.windows.test.ts
+          src/main/code-server/code-server-import-sources.windows.test.ts
+          src/main/code-server/code-server-ipc-path.windows.test.ts
+          src/main/code-server/code-server-manager.windows.test.ts
+          src/main/code-server/code-server-windows-install.windows.test.ts
+          src/main/code-server/code-server-windows-package.test.ts
           src/main/orca-profiles/profile-index-store.test.ts
           src/main/runtime/repo-worktree-admin-fingerprint.test.ts
           src/main/runtime/worktree-scan-admin-fingerprint-gate.test.ts

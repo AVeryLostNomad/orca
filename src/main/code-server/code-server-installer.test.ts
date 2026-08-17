@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { spawnMock, resolveExeMock, resolveScriptMock, cacheRootMock, renameMock, mkdirMock } =
-  vi.hoisted(() => ({
-    spawnMock: vi.fn(),
-    resolveExeMock: vi.fn(),
-    resolveScriptMock: vi.fn(),
-    cacheRootMock: vi.fn(() => '/userData/code-server'),
-    renameMock: vi.fn(() => Promise.resolve()),
-    mkdirMock: vi.fn(() => Promise.resolve())
-  }))
+const {
+  spawnMock,
+  resolveLaunchMock,
+  resolveScriptMock,
+  cacheRootMock,
+  renameMock,
+  mkdirMock,
+  windowsInstallMock
+} = vi.hoisted(() => ({
+  spawnMock: vi.fn(),
+  resolveLaunchMock: vi.fn(),
+  resolveScriptMock: vi.fn(),
+  cacheRootMock: vi.fn(() => '/userData/code-server'),
+  renameMock: vi.fn(() => Promise.resolve()),
+  mkdirMock: vi.fn(() => Promise.resolve()),
+  windowsInstallMock: vi.fn(() => Promise.resolve())
+}))
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
 vi.mock('node:os', () => ({ tmpdir: () => '/tmp' }))
@@ -20,9 +28,16 @@ vi.mock('node:fs/promises', () => ({
 vi.mock('./code-server-paths', () => ({
   CODE_SERVER_VERSION: '4.127.0',
   getCodeServerCacheRoot: cacheRootMock,
-  resolveCodeServerExecutable: resolveExeMock,
+  resolveCodeServerLaunch: resolveLaunchMock,
   resolveCodeServerInstallScript: resolveScriptMock
 }))
+vi.mock('./code-server-windows-install', () => ({
+  installCodeServerWindows: windowsInstallMock
+}))
+
+function launchFor(command: string): { command: string; args: string[]; root: null } {
+  return { command, args: [], root: null }
+}
 
 // Drives spawn's 'close' listener with the given exit code (and optional stderr).
 function mockSpawnExit(code: number, stderr?: string): void {
@@ -48,7 +63,7 @@ import { ensureCodeServerInstalled, CodeServerInstallError } from './code-server
 describe('ensureCodeServerInstalled', () => {
   beforeEach(() => {
     spawnMock.mockReset()
-    resolveExeMock.mockReset()
+    resolveLaunchMock.mockReset()
     resolveScriptMock.mockReset()
     cacheRootMock.mockReset()
     cacheRootMock.mockReturnValue('/userData/code-server')
@@ -56,17 +71,35 @@ describe('ensureCodeServerInstalled', () => {
     renameMock.mockResolvedValue(undefined)
     mkdirMock.mockReset()
     mkdirMock.mockResolvedValue(undefined)
+    windowsInstallMock.mockReset()
+    windowsInstallMock.mockResolvedValue(undefined)
   })
 
   it('is idempotent: skips install when the executable already resolves', async () => {
-    resolveExeMock.mockReturnValue('/userData/code-server/bin/code-server')
-    const exe = await ensureCodeServerInstalled()
-    expect(exe).toBe('/userData/code-server/bin/code-server')
+    resolveLaunchMock.mockReturnValue(launchFor('/userData/code-server/bin/code-server'))
+    const launch = await ensureCodeServerInstalled()
+    expect(launch.command).toBe('/userData/code-server/bin/code-server')
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
+  it('delegates to the Windows package installer on win32 and never consults install.sh', async () => {
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    try {
+      resolveLaunchMock
+        .mockReturnValueOnce(null)
+        .mockReturnValue(launchFor('/userData/code-server/lib/node.exe'))
+      await ensureCodeServerInstalled()
+      expect(windowsInstallMock).toHaveBeenCalledTimes(1)
+      expect(resolveScriptMock).not.toHaveBeenCalled()
+      expect(spawnMock).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
+  })
+
   it('throws no-install-script when the vendored script is missing', async () => {
-    resolveExeMock.mockReturnValue(null)
+    resolveLaunchMock.mockReturnValue(null)
     resolveScriptMock.mockReturnValue(null)
     await expect(ensureCodeServerInstalled()).rejects.toMatchObject({
       code: 'no-install-script'
@@ -76,9 +109,9 @@ describe('ensureCodeServerInstalled', () => {
 
   it('spawns sh install.sh with standalone/prefix/version flags', async () => {
     // First resolve null (not installed), then the path after install.
-    resolveExeMock
+    resolveLaunchMock
       .mockReturnValueOnce(null)
-      .mockReturnValue('/userData/code-server/bin/code-server')
+      .mockReturnValue(launchFor('/userData/code-server/bin/code-server'))
     resolveScriptMock.mockReturnValue('/res/code-server/install.sh')
     spawnMock.mockImplementation(() => {
       const listeners: Record<string, (arg: number) => void> = {}
@@ -110,7 +143,7 @@ describe('ensureCodeServerInstalled', () => {
   })
 
   it('classifies unsupported-arch by the install.sh sentinel message', async () => {
-    resolveExeMock.mockReturnValue(null)
+    resolveLaunchMock.mockReturnValue(null)
     resolveScriptMock.mockReturnValue('/res/code-server/install.sh')
     mockSpawnExit(1, 'There are no standalone releases for riscv64')
     await expect(ensureCodeServerInstalled()).rejects.toMatchObject({
@@ -124,7 +157,9 @@ describe('ensureCodeServerInstalled', () => {
     // --prefix at a space-free staging dir and relocate the result itself.
     const spaceRoot = '/Users/x/Library/Application Support/orca/code-server'
     cacheRootMock.mockReturnValue(spaceRoot)
-    resolveExeMock.mockReturnValueOnce(null).mockReturnValue(`${spaceRoot}/bin/code-server`)
+    resolveLaunchMock
+      .mockReturnValueOnce(null)
+      .mockReturnValue(launchFor(`${spaceRoot}/bin/code-server`))
     resolveScriptMock.mockReturnValue('/res/code-server/install.sh')
     mockSpawnExit(0)
 
@@ -145,9 +180,9 @@ describe('ensureCodeServerInstalled', () => {
   })
 
   it('installs directly (no staging) when the real prefix has no spaces', async () => {
-    resolveExeMock
+    resolveLaunchMock
       .mockReturnValueOnce(null)
-      .mockReturnValue('/userData/code-server/bin/code-server')
+      .mockReturnValue(launchFor('/userData/code-server/bin/code-server'))
     resolveScriptMock.mockReturnValue('/res/code-server/install.sh')
     mockSpawnExit(0)
 

@@ -51,8 +51,10 @@ const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
 }
-// Why: the embedded VSCode feature is hidden on Windows, so the installer
-// script is only packaged for mac and linux extraResources.
+// Why: Windows installs the embedded VSCode editor at runtime from Orca's own
+// CI-built package (coder ships no Windows release; see
+// config/code-server-windows-package.json), so the POSIX installer script is
+// only packaged for mac and linux extraResources.
 const codeServerInstallScriptResource = {
   from: 'resources/code-server/install.sh',
   to: 'code-server/install.sh'

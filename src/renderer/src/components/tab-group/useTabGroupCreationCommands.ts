@@ -16,7 +16,7 @@ import {
   getExecutionHostIdForWorktree,
   getRuntimeEnvironmentIdForWorktree
 } from '@/lib/worktree-runtime-owner'
-import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { isEmbeddedEditorSupported } from '@/lib/embedded-editor-support'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { translate } from '@/i18n/i18n'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
@@ -90,11 +90,10 @@ export function useTabGroupCreationCommands({
     },
     newVSCodeTab: () => {
       const state = useAppStore.getState()
-      const platform = getRendererAppPlatform()
       // Real safety boundary: code-server only runs against local checkouts
-      // on mac/linux (menu gating is just UX; SSH/remote case included).
+      // (menu gating is just UX; SSH/remote case included).
       const isLocal = getExecutionHostIdForWorktree(state, worktreeId) === LOCAL_EXECUTION_HOST_ID
-      if (!isLocal || (platform !== 'darwin' && platform !== 'linux')) {
+      if (!isLocal || !isEmbeddedEditorSupported()) {
         return
       }
       const worktree = state.getKnownWorktreeById(worktreeId)

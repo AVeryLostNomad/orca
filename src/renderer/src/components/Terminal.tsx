@@ -185,7 +185,7 @@ import {
   getRuntimeEnvironmentIdForWorktree
 } from '@/lib/worktree-runtime-owner'
 import { getResolvedExecutionHostIdForWorktree } from '@/lib/resolved-worktree-execution-host'
-import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { isEmbeddedEditorSupported } from '@/lib/embedded-editor-support'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
 import {
@@ -1673,12 +1673,11 @@ function Terminal(): React.JSX.Element | null {
       return
     }
     const state = useAppStore.getState()
-    const platform = getRendererAppPlatform()
     // Real safety boundary (menu gating is just UX): code-server only runs
-    // against local checkouts on mac/linux, SSH/remote case included.
+    // against local checkouts, SSH/remote case included.
     const isLocal =
       getExecutionHostIdForWorktree(state, activeWorktreeId) === LOCAL_EXECUTION_HOST_ID
-    if (!isLocal || (platform !== 'darwin' && platform !== 'linux')) {
+    if (!isLocal || !isEmbeddedEditorSupported()) {
       return
     }
     const worktree = state.getKnownWorktreeById(activeWorktreeId)

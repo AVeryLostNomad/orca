@@ -1,15 +1,11 @@
 import { request } from 'node:http'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { getCodeServerUserDataDir } from './code-server-paths'
-
-// code-server's session registry socket. Mirrors its own CLI flow
+// code-server's session registry socket (shared with the manager, which passes
+// it via --session-socket on Windows). Mirrors code-server's own CLI flow
 // (openInExistingInstance): GET /session resolves the attached workbench's
 // VS Code IPC pipe, and the open command is POSTed to that pipe — the
 // registry socket itself does not accept open commands.
-function getCodeServerSessionSocketPath(): string {
-  return join(getCodeServerUserDataDir(), 'code-server-ipc.sock')
-}
+import { getCodeServerSessionSocketPath } from './code-server-ipc-path'
 
 function requestOverSocket(options: {
   socketPath: string
@@ -67,7 +63,9 @@ async function resolveWorkbenchSocketPath(absolutePath: string): Promise<string 
  * so callers can fall back to Orca's own editor.
  */
 export async function openFileInCodeServer(absolutePath: string): Promise<boolean> {
-  if (!existsSync(getCodeServerSessionSocketPath())) {
+  // existsSync on \\.\pipe\ names is unreliable; on Windows rely on the
+  // connect error / 3s timeout in requestOverSocket instead.
+  if (process.platform !== 'win32' && !existsSync(getCodeServerSessionSocketPath())) {
     return false
   }
   const workbenchSocketPath = await resolveWorkbenchSocketPath(absolutePath)

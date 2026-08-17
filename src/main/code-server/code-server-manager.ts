@@ -11,11 +11,16 @@ import { setCodeServerPid } from './code-server-process-registry'
 import { hydrateShellPath, mergePathSegments } from '../startup/hydrate-shell-path'
 import { promoteVersionManagerShims } from './code-server-toolchain-path'
 import {
-  getCodeServerExtensionsDir,
+  getCodeServerCacheRoot,
   getCodeServerPidFilePath,
-  getCodeServerUserDataDir,
-  resolveCodeServerExecutable
+  resolveCodeServerLaunch
 } from './code-server-paths'
+import { buildCodeServerArgs } from './code-server-launch-args'
+import {
+  killWindowsCodeServerTree,
+  reapWindowsCodeServerOrphan,
+  type WindowsCodeServerTerminationDeps
+} from './code-server-windows-termination'
 
 // Per-attempt readiness cap. Warm starts are near-instant; a cold start
 // (unsigned binary + bundled Node incurring one-time macOS Gatekeeper scanning
@@ -27,26 +32,6 @@ const READY_TIMEOUT_MS = 10_000
 const READY_POLL_MS = 200
 // Cap retained stderr so a chatty code-server can't grow this unbounded while running.
 const STDERR_TAIL_MAX_BYTES = 8 * 1024
-
-export function buildCodeServerArgs(port: number): string[] {
-  return [
-    '--bind-addr',
-    `127.0.0.1:${port}`,
-    '--auth',
-    'none',
-    '--disable-telemetry',
-    // The embedded editor only ever opens worktrees the user set up in Orca, so
-    // Workspace Trust prompts are pure friction. Use code-server's native CLI
-    // flag rather than product.json's configurationDefaults, which code-server's
-    // server-side does not honor (verified: verifySignature=false there had no
-    // effect). The flag applies per session, and we spawn fresh every time.
-    '--disable-workspace-trust',
-    '--user-data-dir',
-    getCodeServerUserDataDir(),
-    '--extensions-dir',
-    getCodeServerExtensionsDir()
-  ]
-}
 
 async function pickFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -103,14 +88,20 @@ export type CodeServerProvider = {
   shutdown(): Promise<void>
 }
 
+export type CodeServerManagerDeps = WindowsCodeServerTerminationDeps & {
+  platform?: NodeJS.Platform
+}
+
 export class CodeServerManager implements CodeServerProvider {
+  constructor(private readonly deps: CodeServerManagerDeps = {}) {}
+
   private child: ChildProcess | null = null
   private port: number | null = null
   private refCount = 0
   private quitting = false
   // Reachable 'not-installed' start state (fix: was hardcoded 'stopped', hiding the
   // real state machine's entry point from callers that check status before acquire()).
-  private status: CodeServerStatus = resolveCodeServerExecutable() ? 'stopped' : 'not-installed'
+  private status: CodeServerStatus = resolveCodeServerLaunch() ? 'stopped' : 'not-installed'
   private errorMessage: string | undefined
   private readonly listeners = new Set<(e: CodeServerStatusEvent) => void>()
   // Single-flight guard: overlapping acquire() calls before the first reaches 'ready'
@@ -183,7 +174,7 @@ export class CodeServerManager implements CodeServerProvider {
     if (!this.child || this.refCount <= 0) {
       return null
     }
-    this.killChild()
+    void this.killChild()
     this.starting = this.startSequence().finally(() => {
       this.starting = null
     })
@@ -192,10 +183,10 @@ export class CodeServerManager implements CodeServerProvider {
 
   private async startSequence(): Promise<{ port: number }> {
     try {
-      this.reapOrphan()
+      await this.reapOrphan()
       // Only pass through 'installing' when an install will actually happen —
       // otherwise a normal start flashes "installing 0%" for an already-installed binary.
-      if (!resolveCodeServerExecutable()) {
+      if (!resolveCodeServerLaunch()) {
         this.emit('installing', { progress: 0 })
         await ensureCodeServerInstalled((fraction) =>
           this.emit('installing', { progress: fraction })
@@ -230,8 +221,12 @@ export class CodeServerManager implements CodeServerProvider {
     }
   }
 
+  private platform(): NodeJS.Platform {
+    return this.deps.platform ?? process.platform
+  }
+
   private async startProcess(): Promise<number> {
-    const exe = await ensureCodeServerInstalled()
+    const launch = await ensureCodeServerInstalled()
     const port = await pickFreePort()
     this.emit('starting')
     // Extensions in the embedded editor shell out to the user's toolchain
@@ -255,14 +250,21 @@ export class CodeServerManager implements CodeServerProvider {
     // resolution. code-server's CLI rejects the equivalent --force-disable-user-env
     // flag, but the server honors this env var. Windows already skips the probe.
     const spawnEnv =
-      process.platform === 'win32'
+      this.platform() === 'win32'
         ? process.env
         : { ...process.env, VSCODE_CLI: '1', PATH: promoteVersionManagerShims(process.env.PATH) }
-    const child = spawn(exe, buildCodeServerArgs(port), {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true,
-      env: spawnEnv
-    })
+    // launch.command is a real executable on every platform (Windows spawns the
+    // package's bundled node.exe against entry.js — never a .cmd), so no shell
+    // and no windows-batch-spawn routing is needed.
+    const child = spawn(
+      launch.command,
+      [...launch.args, ...buildCodeServerArgs(port, this.platform())],
+      {
+        stdio: ['ignore', 'ignore', 'pipe'],
+        windowsHide: true,
+        env: spawnEnv
+      }
+    )
     this.child = child
     this.port = port
     writeFileSync(getCodeServerPidFilePath(), String(child.pid ?? ''))
@@ -282,7 +284,7 @@ export class CodeServerManager implements CodeServerProvider {
 
     const ready = await waitForHealthz(port, () => !exited)
     if (!ready) {
-      this.killChild()
+      void this.killChild()
       const detail = stderrTail.trim()
       throw new Error(
         detail
@@ -319,34 +321,50 @@ export class CodeServerManager implements CodeServerProvider {
   release(): void {
     this.refCount = Math.max(0, this.refCount - 1)
     if (this.refCount === 0) {
-      this.killChild()
+      void this.killChild()
       this.emit('stopped')
     }
   }
 
-  private killChild(): void {
+  private killChild(): Promise<void> {
     const child = this.child
     this.child = null
     this.port = null
     setCodeServerPid(null)
+    let treeKill: Promise<void> = Promise.resolve()
     if (child && !child.killed) {
       child.removeAllListeners('exit')
-      child.kill('SIGTERM')
+      if (this.platform() === 'win32' && child.pid) {
+        // SIGTERM on Windows kills only the root node.exe; take the whole
+        // editor tree (extension host, LSPs, ripgrep) via taskkill /T /F.
+        treeKill = killWindowsCodeServerTree(child.pid, this.deps).finally(() => {
+          try {
+            child.kill()
+          } catch {
+            // already gone
+          }
+        })
+      } else {
+        child.kill('SIGTERM')
+      }
     }
     try {
       rmSync(getCodeServerPidFilePath(), { force: true })
     } catch {
       // best effort
     }
+    return treeKill
   }
 
   async shutdown(): Promise<void> {
     this.quitting = true
-    this.killChild()
+    // Await the Windows tree kill so quit doesn't outrun taskkill (bounded by
+    // its own 5s timeout); POSIX resolves immediately.
+    await this.killChild()
   }
 
   // Kill a stale process from a prior Orca run recorded in the pidfile.
-  reapOrphan(): void {
+  async reapOrphan(): Promise<void> {
     const pidFile = getCodeServerPidFilePath()
     if (!existsSync(pidFile)) {
       return
@@ -354,7 +372,13 @@ export class CodeServerManager implements CodeServerProvider {
     try {
       const pid = Number(readFileSync(pidFile, 'utf8').trim())
       if (Number.isInteger(pid) && pid > 0) {
-        process.kill(pid, 'SIGTERM')
+        if (this.platform() === 'win32') {
+          // Identity-gated: the PID may have been recycled since that run died,
+          // so only a process provably running our install gets tree-killed.
+          await reapWindowsCodeServerOrphan(pid, getCodeServerCacheRoot(), this.deps)
+        } else {
+          process.kill(pid, 'SIGTERM')
+        }
       }
     } catch {
       // process already gone or not ours; ignore
