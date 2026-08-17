@@ -67,6 +67,7 @@ function useStartupActions() {
       hydrateEditorSession: s.hydrateEditorSession,
       hydrateBrowserSession: s.hydrateBrowserSession,
       hydrateCodeServerSession: s.hydrateCodeServerSession,
+      hydrateDataStudioSession: s.hydrateDataStudioSession,
       fetchBrowserSessionProfiles: s.fetchBrowserSessionProfiles,
       reconnectPersistedTerminals: s.reconnectPersistedTerminals,
       setDeferredSshReconnectTargets: s.setDeferredSshReconnectTargets,
@@ -227,6 +228,7 @@ export function useAppStartupHydration(onOnboardingLoaded: (state: OnboardingSta
             actions.hydrateEditorSession(sessionRead.session, sessionHydrationOptions)
             actions.hydrateBrowserSession(sessionRead.session, sessionHydrationOptions)
             actions.hydrateCodeServerSession(sessionRead.session)
+            actions.hydrateDataStudioSession(sessionRead.session)
           })
           // Why: prune visit timestamps AFTER hydration (earlier, worktreesByRepo may be empty and prune would drop entries for worktrees about to appear); seed the active worktree if missing.
           // See docs/cmd-j-empty-query-ordering.md.

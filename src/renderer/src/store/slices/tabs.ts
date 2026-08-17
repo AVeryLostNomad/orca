@@ -420,7 +420,8 @@ function toVisibleTabType(contentType: TabContentType): WorkspaceVisibleTabType 
     contentType === 'browser' ||
     contentType === 'terminal' ||
     contentType === 'simulator' ||
-    contentType === 'vscode'
+    contentType === 'vscode' ||
+    contentType === 'datastudio'
   ) {
     return contentType
   }
@@ -709,6 +710,9 @@ export function projectWorktreeTabModelReconciliation(
   const liveCodeServerIds = new Set(
     (state.codeServerTabsByWorktree[worktreeId] ?? []).map((codeServerTab) => codeServerTab.id)
   )
+  const liveDataStudioIds = new Set(
+    (state.dataStudioTabsByWorktree[worktreeId] ?? []).map((dataStudioTab) => dataStudioTab.id)
+  )
 
   const isRenderableTab = (tab: Tab): boolean => {
     if (tab.contentType === 'terminal') {
@@ -719,6 +723,9 @@ export function projectWorktreeTabModelReconciliation(
     }
     if (tab.contentType === 'vscode') {
       return liveCodeServerIds.has(tab.entityId)
+    }
+    if (tab.contentType === 'datastudio') {
+      return liveDataStudioIds.has(tab.entityId)
     }
     if (tab.contentType === 'simulator') {
       return true

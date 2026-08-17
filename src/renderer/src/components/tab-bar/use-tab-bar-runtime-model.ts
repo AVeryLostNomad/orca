@@ -34,6 +34,7 @@ import type { TabAgentLaunchOption } from './tab-agent-launch-options'
 import { DEFAULT_DISABLED_TUI_AGENTS } from '../../../../shared/tui-agent-selection'
 import { shouldShowWindowsShellMenu } from './windows-shell-menu-visibility'
 import { createUnifiedTabLookup } from './tab-bar-item-model'
+import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { getClientCreationActionPolicy } from '@/lib/client-creation-action-policy'
 
 const isWindows = navigator.userAgent.includes('Windows')
@@ -89,6 +90,7 @@ export type TabBarRuntimeModel = {
   managedBrowserCreationEnabled: boolean
   mobileEmulatorCreationEnabled: boolean
   isLocalWorktree: boolean
+  hasRepoBackedWorkspace: boolean
 } & TabBarAgentProjections
 
 export function useTabBarRuntimeModel({
@@ -257,6 +259,12 @@ export function useTabBarRuntimeModel({
   const isLocalWorktree = useAppStore(
     (s) => getExecutionHostIdForWorktree(s, worktreeId) === LOCAL_EXECUTION_HOST_ID
   )
+  // Data Studio scopes connections per repo; workspaces without a real repo id
+  // (floating terminal's synthetic id, group folder workspaces) never offer it.
+  const hasRepoBackedWorkspace = useAppStore((s) => {
+    const candidate = getRepoIdFromWorktreeId(worktreeId)
+    return s.repos.some((repo) => repo.id === candidate)
+  })
 
   return {
     newTerminalShortcut,
@@ -287,6 +295,7 @@ export function useTabBarRuntimeModel({
     nativeChatTranscriptIsLocalReadable,
     managedBrowserCreationEnabled,
     mobileEmulatorCreationEnabled,
-    isLocalWorktree
+    isLocalWorktree,
+    hasRepoBackedWorkspace
   }
 }

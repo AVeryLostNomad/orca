@@ -37,7 +37,7 @@ import type {
 import type { Store } from '../persistence'
 import { ORPHAN_WORKTREE_ID } from '../../shared/constants'
 import { listRegisteredPtys } from './pty-registry'
-import { getCodeServerPid } from '../code-server/code-server-process-registry'
+import { getAllEmbeddedEditorPids } from '../code-server/code-server-process-registry'
 import { enumerateWindowsProcessResources } from './windows-process-resource-collector'
 import { collectHostMemory, fallbackHostMemory } from './host-memory'
 import { getProcessMemoryMetric } from './process-memory-metric'
@@ -299,29 +299,28 @@ function bucketElectronMetrics(processIndex: ProcIndex): AppBucketsRaw {
 
 // ─── Embedded editor (code-server) attribution ──────────────────────
 
-// Sum the shared code-server process subtree: the server plus its extension
-// host, language servers, and ripgrep are all descendants of its root pid, so
-// the same subtree walk used for PTYs captures them. `claimed` dedupes against
-// pids already attributed to a PTY (they never overlap in practice, but keeps
-// the invariant that each pid is counted once).
+// Sum every embedded code-server process subtree (the shared editor plus the
+// per-repo Data Studio servers): each server, its extension host, language
+// servers, and ripgrep are all descendants of its root pid, so the same
+// subtree walk used for PTYs captures them. `claimed` dedupes against pids
+// already attributed to a PTY (they never overlap in practice, but keeps the
+// invariant that each pid is counted once).
 function collectEditorBucket(index: ProcIndex, claimed: Set<number>): UsageValues {
-  const rootPid = getCodeServerPid()
-  if (rootPid == null) {
-    return { cpu: 0, memory: 0 }
-  }
   let cpu = 0
   let memory = 0
-  for (const pid of collectSubtree(index, rootPid)) {
-    if (claimed.has(pid)) {
-      continue
+  for (const rootPid of getAllEmbeddedEditorPids()) {
+    for (const pid of collectSubtree(index, rootPid)) {
+      if (claimed.has(pid)) {
+        continue
+      }
+      const row = index.byPid.get(pid)
+      if (!row) {
+        continue
+      }
+      claimed.add(pid)
+      cpu += row.cpu
+      memory += row.memory
     }
-    const row = index.byPid.get(pid)
-    if (!row) {
-      continue
-    }
-    claimed.add(pid)
-    cpu += row.cpu
-    memory += row.memory
   }
   return { cpu: clampNumber(cpu), memory: clampNumber(memory) }
 }

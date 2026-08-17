@@ -13,7 +13,8 @@ export const tabContentTypeSchema = z.enum([
   'check-details',
   'browser',
   'simulator',
-  'vscode'
+  'vscode',
+  'datastudio'
 ])
 
 export const workspaceVisibleTabTypeSchema = z.enum([
@@ -21,7 +22,8 @@ export const workspaceVisibleTabTypeSchema = z.enum([
   'editor',
   'browser',
   'simulator',
-  'vscode'
+  'vscode',
+  'datastudio'
 ])
 
 export const tabSchema = z.object({
@@ -87,6 +89,16 @@ export const tabGroupLayoutNodeSchema: z.ZodType<TabGroupLayoutNode> = z.lazy(()
 export const codeServerTabSchema = z.object({
   id: z.string(),
   worktreeId: z.string(),
+  folderPath: z.string(),
+  label: z.string()
+})
+
+// ─── Data Studio (embedded database workbench) ──────────────────────
+
+export const dataStudioTabSchema = z.object({
+  id: z.string(),
+  worktreeId: z.string(),
+  repoId: z.string(),
   folderPath: z.string(),
   label: z.string()
 })

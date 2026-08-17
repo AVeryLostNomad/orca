@@ -43,6 +43,11 @@ class BrowserSessionRegistry {
   private activeOrcaProfileId = DEFAULT_LOCAL_ORCA_PROFILE_ID
   private metadataPathOverride: string | null = null
   private defaultPartition = ORCA_BROWSER_PARTITION
+  // Why: some partitions are dynamic and owned elsewhere (Data Studio creates
+  // one per repo); those modules register a checker instead of duplicating
+  // their state here. Fail-closed — a checker only passes partitions its owner
+  // actually created and installed policies for.
+  private readonly extraPartitionCheckers = new Set<(partition: string) => boolean>()
 
   constructor() {
     this.resetDefaultProfile()
@@ -164,6 +169,10 @@ class BrowserSessionRegistry {
     return [...this.profiles.values()]
   }
 
+  registerExtraAllowedPartitionChecker(checker: (partition: string) => boolean): void {
+    this.extraPartitionCheckers.add(checker)
+  }
+
   isAllowedPartition(partition: string): boolean {
     if (partition === this.defaultPartition) {
       return true
@@ -172,7 +181,10 @@ class BrowserSessionRegistry {
     if (partition === ORCA_VSCODE_PARTITION) {
       return true
     }
-    return [...this.profiles.values()].some((p) => p.partition === partition)
+    if ([...this.profiles.values()].some((p) => p.partition === partition)) {
+      return true
+    }
+    return [...this.extraPartitionCheckers].some((checker) => checker(partition))
   }
 
   resolvePartition(profileId: string | null | undefined): string {

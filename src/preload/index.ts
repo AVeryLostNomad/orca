@@ -249,6 +249,10 @@ import type {
   CodeServerImportState,
   CodeServerStatusEvent
 } from '../shared/code-server-types'
+import type {
+  DataStudioEnsureRunningResult,
+  DataStudioStatusEvent
+} from '../shared/data-studio-types'
 import type { TelemetryConsentState } from '../shared/telemetry-consent-types'
 import type {
   PreflightRuntimeContext,
@@ -5090,6 +5094,28 @@ const api = {
       ipcRenderer.invoke('codeServer:registerGuest', args),
     unregisterGuest: (args: { codeServerTabId: string }): Promise<void> =>
       ipcRenderer.invoke('codeServer:unregisterGuest', args)
+  },
+
+  // Embedded Data Studio: per-repo code-server instances. Guest keyboard
+  // forwarding reuses api.codeServer.registerGuest/unregisterGuest.
+  dataStudio: {
+    ensureRunning: (args: {
+      repoId: string
+      repoPath?: string
+    }): Promise<DataStudioEnsureRunningResult | { error: string }> =>
+      ipcRenderer.invoke('dataStudio:ensureRunning', args),
+    retry: (args: { repoId: string }): Promise<DataStudioEnsureRunningResult | { error: string }> =>
+      ipcRenderer.invoke('dataStudio:retry', args),
+    release: (args: { repoId: string }): Promise<void> =>
+      ipcRenderer.invoke('dataStudio:release', args),
+    getStatus: (args: { repoId: string }): Promise<DataStudioStatusEvent | null> =>
+      ipcRenderer.invoke('dataStudio:getStatus', args),
+    onStatusChanged: (callback: (event: DataStudioStatusEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: DataStudioStatusEvent): void =>
+        callback(data)
+      ipcRenderer.on('dataStudio:statusChanged', listener)
+      return () => ipcRenderer.removeListener('dataStudio:statusChanged', listener)
+    }
   }
 }
 

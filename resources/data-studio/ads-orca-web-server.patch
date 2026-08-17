@@ -1,0 +1,175 @@
+diff --git a/product.json b/product.json
+index 720cf9c9..5041804a 100644
+--- a/product.json
++++ b/product.json
+@@ -113,5 +113,6 @@
+ 		"version": "0.0.76",
+ 		"serviceUrl": "https://sqlopsextensions.blob.core.windows.net/marketplace/v1/extensionsGallery.json"
+ 	},
+-	"builtInExtensions": [ ]
+-}
++	"builtInExtensions": [],
++	"version": "1.53.0"
++}
+\ No newline at end of file
+diff --git a/src/vs/code/browser/workbench/workbench-dev.html b/src/vs/code/browser/workbench/workbench-dev.html
+index 46519b2c..cd891520 100644
+--- a/src/vs/code/browser/workbench/workbench-dev.html
++++ b/src/vs/code/browser/workbench/workbench-dev.html
+@@ -34,6 +34,20 @@
+ 	</body>
+ 
+ 	<!-- Startup (do not modify order of script tags!) -->
++	<!-- {{ORCA EDIT}} SQL browser globals (jquery/slickgrid/zone/reflect) must load
++	     BEFORE the AMD loader: their UMD wrappers otherwise call anonymous define()
++	     and crash the loader. This mirrors the desktop bootstrap ordering; the old
++	     block below double-loaded loader.js from stale /static paths. -->
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/base/common/performance.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/jquery/dist/jquery.min.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/slickgrid/lib/jquery.event.drag-2.3.0.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/slickgrid/lib/jquery-ui-1.9.2.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/slickgrid/slick.core.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/slickgrid/slick.grid.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/slickgrid/slick.dataview.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/slickgrid/plugins/slick.cellrangedecorator.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/zone.js/dist/zone.min.js"></script>
++	<script src="{{WORKBENCH_WEB_BASE_URL}}/remote/web/node_modules/reflect-metadata/Reflect.js"></script>
+ 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
+ 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/webPackagePaths.js"></script>
+ 	<script>
+@@ -104,25 +118,59 @@
+ 				'mark.js': `${window.location.origin}/static/remote/web/node_modules/mark.js/dist/mark.min.js`,
+ 				'gridstack': `${window.location.origin}/static/node_modules/gridstack/dist/gridstack-h5.js`,
+ 				'plotly.js-dist-min': `${window.location.origin}/static/node_modules/plotly.js-dist-min/plotly.min.js`,
+-				'azdataGraph': `${window.location.origin}/static/node_modules/azdataGraph/dist/build.js`
++				'azdataGraph': `${window.location.origin}/static/node_modules/azdataGraph/dist/build.js`,
++				'moment': `${window.location.origin}/static/node_modules/moment/min/moment.min.js`,
++				'chartjs-adapter-moment': `${window.location.origin}/static/node_modules/chartjs-adapter-moment/dist/chartjs-adapter-moment.js`
+ 			}
+ 		});
+ 	</script>
+-	<script src="./static/remote/web/node_modules/jquery/dist/jquery.min.js"></script>
+-	<script src="./static/remote/web/node_modules/slickgrid/lib/jquery.event.drag-2.3.0.js"></script>
+-	<script src="./static/remote/web/node_modules/slickgrid/lib/jquery-ui-1.9.2.js"></script>
+-	<script src="./static/remote/web/node_modules/slickgrid/slick.core.js"></script>
+-	<script src="./static/remote/web/node_modules/slickgrid/slick.grid.js"></script>
+-	<script src="./static/remote/web/node_modules/slickgrid/slick.dataview.js"></script>
+-	<script src="./static/remote/web/node_modules/slickgrid/plugins/slick.cellrangedecorator.js"></script>
+-	<script src="./static/remote/web/node_modules/zone.js/dist/zone.min.js"></script>
+-	<script src="./static/remote/web/node_modules/reflect-metadata/Reflect.js"></script>
+-	<script src="./static/out/vs/base/common/performance.js"></script>
+-	<script src="./static/out/vs/loader.js"></script>
++	<script>
++		// {{ORCA EDIT}} First-run import of the user's desktop Azure Data Studio
++		// settings/keybindings. The web workbench keeps user data in IndexedDB
++		// ('vscode-web-db' / 'vscode-userdata-store', keys are user-data paths,
++		// values Uint8Array — see vs/workbench/browser/web.main.ts). Seed both
++		// files only when absent, so the import never clobbers web-side edits.
++		window.__orcaImportReady = (async () => {
++			const DB = 'vscode-web-db';
++			const STORES = ['vscode-userdata-store', 'vscode-logs-store', 'vscode-filehandles-store'];
++			const db = await new Promise((resolve, reject) => {
++				const open = indexedDB.open(DB, 3);
++				open.onupgradeneeded = () => {
++					for (const store of STORES) {
++						if (!open.result.objectStoreNames.contains(store)) {
++							open.result.createObjectStore(store);
++						}
++					}
++				};
++				open.onsuccess = () => resolve(open.result);
++				open.onerror = () => reject(open.error);
++			});
++			const request = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
++			for (const file of ['settings.json', 'keybindings.json']) {
++				try {
++					const key = '/User/' + file;
++					const tx = db.transaction('vscode-userdata-store', 'readonly');
++					const existing = await request(tx.objectStore('vscode-userdata-store').get(key));
++					if (existing !== undefined) { continue; }
++					const response = await fetch('/orca-import/' + file);
++					if (!response.ok) { continue; }
++					const bytes = new Uint8Array(await response.arrayBuffer());
++					const writeTx = db.transaction('vscode-userdata-store', 'readwrite');
++					await request(writeTx.objectStore('vscode-userdata-store').put(bytes, key));
++				} catch (error) {
++					console.warn('[orca] ADS config import skipped:', error);
++				}
++			}
++			db.close();
++		})().catch(() => {});
++	</script>
+ 	<script>
+ 		performance.mark('code/willLoadWorkbenchMain');
+ 	</script>
+ 	<script>
+-		require(['vs/code/browser/workbench/workbench'], function() {});
++		// {{ORCA EDIT}} gate workbench start on the first-run config import.
++		(window.__orcaImportReady || Promise.resolve()).then(function () {
++			require(['vs/code/browser/workbench/workbench'], function() {});
++		});
+ 	</script>
+ </html>
+diff --git a/src/vs/server/node/webClientServer.ts b/src/vs/server/node/webClientServer.ts
+index 14c389ce..e3d9722f 100644
+--- a/src/vs/server/node/webClientServer.ts
++++ b/src/vs/server/node/webClientServer.ts
+@@ -128,6 +128,18 @@ export class WebClientServer {
+ 			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CharCode.Slash) {
+ 				return this._handleStatic(req, res, parsedUrl);
+ 			}
++			// {{ORCA EDIT}} ADS's web assets (workbench-dev.html SQL package mappings)
++			// hardcode bare /static/ URLs from ADS's retired standalone web server;
++			// alias them onto the same APP_ROOT-rooted static handler.
++			if (pathname.startsWith('/static') && pathname.charCodeAt('/static'.length) === CharCode.Slash) {
++				return this._handleStatic(req, res, parsedUrl, '/static');
++			}
++			// {{ORCA EDIT}} First-run import of the user's desktop Azure Data Studio
++			// config: Orca stages settings/keybindings into $ORCA_ADS_IMPORT_DIR and
++			// the workbench html seeds them into browser user data if absent.
++			if (pathname === '/orca-import/settings.json' || pathname === '/orca-import/keybindings.json') {
++				return this._handleOrcaImport(req, res, pathname.endsWith('settings.json') ? 'settings.json' : 'keybindings.json');
++			}
+ 			if (pathname === '/') {
+ 				return this._handleRoot(req, res, parsedUrl);
+ 			}
+@@ -151,12 +163,12 @@ export class WebClientServer {
+ 	/**
+ 	 * Handle HTTP requests for /static/*
+ 	 */
+-	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
++	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery, staticRoute: string = this._staticRoute): Promise<void> { // {{ORCA EDIT}} route override for bare /static aliases
+ 		const headers: Record<string, string> = Object.create(null);
+ 
+-		// Strip the this._staticRoute from the path
++		// Strip the staticRoute from the path
+ 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
+-		const relativeFilePath = normalizedPathname.substring(this._staticRoute.length + 1);
++		const relativeFilePath = normalizedPathname.substring(staticRoute.length + 1);
+ 
+ 		const filePath = join(APP_ROOT, relativeFilePath); // join also normalizes the path
+ 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
+@@ -166,6 +178,16 @@ export class WebClientServer {
+ 		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.ETAG, this._logService, req, res, headers);
+ 	}
+ 
++	// {{ORCA EDIT}} Serve the staged desktop-ADS config for first-run import.
++	private async _handleOrcaImport(req: http.IncomingMessage, res: http.ServerResponse, fileName: 'settings.json' | 'keybindings.json'): Promise<void> {
++		const importDir = process.env['ORCA_ADS_IMPORT_DIR'];
++		if (!importDir) {
++			return serveError(req, res, 404, 'Not found.');
++		}
++		const filePath = join(importDir, fileName);
++		return serveFile(filePath, CacheControl.NO_CACHING, this._logService, req, res, { 'Content-Type': 'application/json' });
++	}
++
+ 	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {
+ 		const index = uri.authority.indexOf('.');
+ 		return index !== -1 ? uri.authority.substring(index + 1) : undefined;
+diff --git a/src/vs/webPackagePaths.js b/src/vs/webPackagePaths.js
+new file mode 100644
+index 00000000..2fd8a15c
+--- /dev/null
++++ b/src/vs/webPackagePaths.js
+@@ -0,0 +1 @@
++"use strict";self.webPackagePaths={"@microsoft/1ds-core-js":"dist/ms.core.min.js","@microsoft/1ds-post-js":"dist/ms.post.min.js","@vscode/iconv-lite-umd":"lib/iconv-lite-umd.js","@vscode/vscode-languagedetection":"dist/lib/index.js",jschardet:"dist/jschardet.min.js","tas-client-umd":"lib/tas-client-umd.js","vscode-oniguruma":"release/main.js","vscode-textmate":"release/main.js",xterm:"lib/xterm.js","xterm-addon-canvas":"lib/xterm-addon-canvas.js","xterm-addon-image":"lib/xterm-addon-image.js","xterm-addon-search":"lib/xterm-addon-search.js","xterm-addon-unicode11":"lib/xterm-addon-unicode11.js","xterm-addon-webgl":"lib/xterm-addon-webgl.js","@microsoft/dynamicproto-js":"lib/dist/umd/dynamicproto-js.min.js","@microsoft/applicationinsights-shims":"dist/umd/applicationinsights-shims.min.js","@microsoft/applicationinsights-core-js":"browser/applicationinsights-core-js.min.js"};

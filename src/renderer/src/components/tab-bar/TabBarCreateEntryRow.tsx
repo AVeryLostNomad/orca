@@ -1,5 +1,6 @@
 import React from 'react'
 import {
+  Database,
   FilePlus,
   FileText,
   GitCompare,
@@ -155,6 +156,8 @@ function getActionPresentation(option: ActiveOption): {
         <FileText className="size-3.5 shrink-0" aria-hidden="true" />
       ) : option.option.kind === 'new-simulator' || option.option.kind === 'go-to-simulator' ? (
         <Smartphone className="size-3.5 shrink-0" aria-hidden="true" />
+      ) : option.option.kind === 'new-datastudio' ? (
+        <Database className="size-3.5 shrink-0" aria-hidden="true" />
       ) : (
         <TerminalSquare className="size-3.5 shrink-0" aria-hidden="true" />
       )

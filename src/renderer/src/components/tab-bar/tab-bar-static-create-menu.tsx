@@ -1,5 +1,13 @@
 import React from 'react'
-import { FilePlus, FileText, Globe, Smartphone, SquareCode, TerminalSquare } from 'lucide-react'
+import {
+  Database,
+  FilePlus,
+  FileText,
+  Globe,
+  Smartphone,
+  SquareCode,
+  TerminalSquare
+} from 'lucide-react'
 import { translate } from '@/i18n/i18n'
 import { DropdownMenuItem, DropdownMenuShortcut } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -22,6 +30,8 @@ export function renderTabBarStaticCreateMenu({
   showMobileEmulatorIntroCallout,
   hasNewVSCode,
   vscodeRemoteDisabled,
+  hasNewDataStudio,
+  dataStudioRemoteDisabled,
   props,
   windowsShellEntries,
   defaultWindowsPowerShellImplementation,
@@ -42,6 +52,8 @@ export function renderTabBarStaticCreateMenu({
   showMobileEmulatorIntroCallout: boolean
   hasNewVSCode: boolean
   vscodeRemoteDisabled: boolean
+  hasNewDataStudio: boolean
+  dataStudioRemoteDisabled: boolean
   windowsShellEntries: WindowsShellMenuEntry[] | undefined
   defaultWindowsPowerShellImplementation: ReturnType<
     typeof resolveWindowsPowerShellImplementationSetting
@@ -60,6 +72,7 @@ export function renderTabBarStaticCreateMenu({
     onNewTerminalWithShell,
     onNewBrowserTab,
     onNewVSCodeTab,
+    onNewDataStudioTab,
     onNewSimulatorTab,
     onNewFileTab,
     onOpenFileTab
@@ -151,6 +164,43 @@ export function renderTabBarStaticCreateMenu({
       </TooltipContent>
     </Tooltip>
   ) : null
+  const newDataStudioMenuItem = hasNewDataStudio ? (
+    <DropdownMenuItem
+      onSelect={() => onNewDataStudioTab?.()}
+      className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+    >
+      <Database className="size-4 text-muted-foreground" />
+      {translate(
+        'auto.components.tab.bar.tab.create.menu.options.newDataStudio',
+        'New Data Studio Tab'
+      )}
+    </DropdownMenuItem>
+  ) : dataStudioRemoteDisabled ? (
+    // Radix disabled items swallow pointer events, so the tooltip trigger wraps
+    // a hoverable span around the disabled item to keep the "why" affordance.
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <DropdownMenuItem
+            disabled
+            className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+          >
+            <Database className="size-4 text-muted-foreground" />
+            {translate(
+              'auto.components.tab.bar.tab.create.menu.options.newDataStudio',
+              'New Data Studio Tab'
+            )}
+          </DropdownMenuItem>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8} className="z-[80]">
+        {translate(
+          'auto.components.tab.bar.tab.create.menu.options.newDataStudioRemoteDisabled',
+          'Data Studio is only available for local worktrees'
+        )}
+      </TooltipContent>
+    </Tooltip>
+  ) : null
   const newSimulatorMenuItem =
     !terminalOnly && mobileEmulatorEnabled && mobileEmulatorCreationEnabled && onNewSimulatorTab ? (
       workspaceHasSimulatorTab ? (
@@ -224,6 +274,7 @@ export function renderTabBarStaticCreateMenu({
       {defaultTerminalMenuItems}
       {newBrowserMenuItem}
       {newVSCodeMenuItem}
+      {newDataStudioMenuItem}
       {newSimulatorMenuItem}
       {mobileEmulatorIntroMenuBlock}
     </>
@@ -232,6 +283,7 @@ export function renderTabBarStaticCreateMenu({
       {defaultTerminalMenuItems}
       {newBrowserMenuItem}
       {newVSCodeMenuItem}
+      {newDataStudioMenuItem}
       {newMarkdownMenuItem}
       {openMarkdownMenuItem}
       {newSimulatorMenuItem}

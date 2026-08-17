@@ -22,6 +22,8 @@ export type TabBarProps = {
   onNewBrowserTab: () => void
   /** Absent for surfaces without a real local checkout (e.g. floating terminal). */
   onNewVSCodeTab?: () => void
+  /** Absent for surfaces without a repo-backed workspace (e.g. floating terminal). */
+  onNewDataStudioTab?: () => void
   onNewSimulatorTab?: () => void
   onOpenEntry?: (args: TabCreateEntryArgs) => Promise<void>
   terminalOnly?: boolean
@@ -35,9 +37,11 @@ export type TabBarProps = {
   editorFiles?: (OpenFile & { tabId?: string })[]
   browserTabs?: (BrowserTabState & { tabId?: string })[]
   codeServerTabs?: { id: string; label: string }[]
+  dataStudioTabs?: { id: string; label: string }[]
   activeFileId?: string | null
   activeBrowserTabId?: string | null
   activeCodeServerTabId?: string | null
+  activeDataStudioTabId?: string | null
   activeSimulatorTabId?: string | null
   activeTabType?: WorkspaceVisibleTabType
   onActivateFile?: (fileId: string) => void
@@ -47,6 +51,8 @@ export type TabBarProps = {
   onDuplicateBrowserTab?: (tabId: string) => void
   onActivateCodeServerTab?: (tabId: string) => void
   onCloseCodeServerTab?: (tabId: string) => void
+  onActivateDataStudioTab?: (tabId: string) => void
+  onCloseDataStudioTab?: (tabId: string) => void
   onCloseAllFiles?: () => void
   onMakePreviewFilePermanent?: (fileId: string, tabId?: string) => void
   onPinFile?: (fileId: string, tabId?: string) => void

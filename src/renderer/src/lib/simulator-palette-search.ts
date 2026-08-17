@@ -36,7 +36,13 @@ export type SimulatorPaletteSearchResult = {
   score: number
 }
 
-type SimulatorPaletteActiveTabType = 'browser' | 'editor' | 'terminal' | 'simulator' | 'vscode'
+type SimulatorPaletteActiveTabType =
+  | 'browser'
+  | 'editor'
+  | 'terminal'
+  | 'simulator'
+  | 'vscode'
+  | 'datastudio'
 
 export const SIMULATOR_PALETTE_QUERY_MAX_BYTES = 2 * 1024
 

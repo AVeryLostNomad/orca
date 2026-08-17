@@ -59,6 +59,7 @@ const {
   registerTerminalPreviewHandlersMock,
   registerSpeechHandlersMock,
   registerCodeServerHandlersMock,
+  registerDataStudioHandlersMock,
   registerSkillsHandlersMock,
   registerWorkspaceSpaceHandlersMock,
   registerWorkspacePortHandlersMock,
@@ -125,6 +126,7 @@ const {
   registerTerminalPreviewHandlersMock: vi.fn(),
   registerSpeechHandlersMock: vi.fn(),
   registerCodeServerHandlersMock: vi.fn(),
+  registerDataStudioHandlersMock: vi.fn(),
   registerSkillsHandlersMock: vi.fn(),
   registerWorkspaceSpaceHandlersMock: vi.fn(),
   registerWorkspacePortHandlersMock: vi.fn(),
@@ -173,6 +175,10 @@ vi.mock('./speech', () => ({
 }))
 vi.mock('./code-server', () => ({
   registerCodeServerHandlers: registerCodeServerHandlersMock
+}))
+
+vi.mock('./data-studio', () => ({
+  registerDataStudioHandlers: registerDataStudioHandlersMock
 }))
 
 vi.mock('./cli', () => ({

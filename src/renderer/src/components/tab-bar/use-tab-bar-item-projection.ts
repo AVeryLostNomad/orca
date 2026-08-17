@@ -39,12 +39,14 @@ export function useTabBarItemProjection({
     editorFiles,
     browserTabs,
     codeServerTabs,
+    dataStudioTabs,
     tabBarOrder,
     hoveredTabInsertion,
     activeTabId,
     activeFileId,
     activeBrowserTabId,
     activeCodeServerTabId,
+    activeDataStudioTabId,
     activeSimulatorTabId,
     activeTabType,
     expandedPaneByTabId
@@ -72,6 +74,14 @@ export function useTabBarItemProjection({
     () => codeServerTabs?.map((tab) => tab.id) ?? [],
     [codeServerTabs]
   )
+  const dataStudioMap = useMemo(
+    () => new Map((dataStudioTabs ?? []).map((tab) => [tab.id, tab])),
+    [dataStudioTabs]
+  )
+  const dataStudioTabIds = useMemo(
+    () => dataStudioTabs?.map((tab) => tab.id) ?? [],
+    [dataStudioTabs]
+  )
   const simulatorTabIds = useMemo(
     () =>
       unifiedTabs
@@ -88,10 +98,12 @@ export function useTabBarItemProjection({
         browserTabIds,
         simulatorTabIds,
         codeServerTabIds,
+        dataStudioTabIds,
         terminalMap,
         editorMap,
         browserMap,
         codeServerMap,
+        dataStudioMap,
         unifiedTabByVisibleId
       }),
     [
@@ -101,10 +113,12 @@ export function useTabBarItemProjection({
       browserTabIds,
       simulatorTabIds,
       codeServerTabIds,
+      dataStudioTabIds,
       terminalMap,
       editorMap,
       browserMap,
       codeServerMap,
+      dataStudioMap,
       unifiedTabByVisibleId
     ]
   )
@@ -122,12 +136,14 @@ export function useTabBarItemProjection({
         activeFileId,
         activeBrowserTabId,
         activeCodeServerTabId,
+        activeDataStudioTabId,
         activeSimulatorTabId,
         activeTabType
       }),
     [
       activeBrowserTabId,
       activeCodeServerTabId,
+      activeDataStudioTabId,
       activeFileId,
       activeSimulatorTabId,
       activeTabId,

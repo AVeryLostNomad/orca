@@ -27,6 +27,7 @@ import {
 } from './workspace-session-browser-schema'
 import {
   codeServerTabSchema,
+  dataStudioTabSchema,
   tabGroupLayoutNodeSchema,
   tabGroupSchema,
   tabSchema,
@@ -198,6 +199,14 @@ export const workspaceSessionStateSchema: z.ZodType<WorkspaceSessionState> = z.o
   ),
   activeCodeServerTabIdByWorktree: salvagedOptional(
     'activeCodeServerTabIdByWorktree',
+    salvagingRecord(worktreeIdSchema, z.string().nullable())
+  ),
+  dataStudioTabsByWorktree: salvagedOptional(
+    'dataStudioTabsByWorktree',
+    salvagingRecord(worktreeIdSchema, salvagingArray(dataStudioTabSchema))
+  ),
+  activeDataStudioTabIdByWorktree: salvagedOptional(
+    'activeDataStudioTabIdByWorktree',
     salvagingRecord(worktreeIdSchema, z.string().nullable())
   ),
   activeTabTypeByWorktree: salvagedOptional(

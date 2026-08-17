@@ -11,6 +11,7 @@ import { buildPersistedUnifiedTabSessionData } from './workspace-session-unified
 import { buildLastVisitedAtByWorktreeId } from './workspace-session-focus-recency'
 import { buildSleepingAgentSessionData } from './workspace-session-sleeping-agents'
 import { buildCodeServerSessionData } from './workspace-session-code-server'
+import { buildDataStudioSessionData } from './workspace-session-data-studio'
 import { buildBrowserSessionData } from './workspace-session-browser'
 import { buildActiveConnectionIdsAtShutdown } from './workspace-session-reconnect-targets'
 
@@ -43,6 +44,8 @@ export type WorkspaceSessionSnapshot = Pick<
   | 'activeBrowserTabIdByWorktree'
   | 'codeServerTabsByWorktree'
   | 'activeCodeServerTabIdByWorktree'
+  | 'dataStudioTabsByWorktree'
+  | 'activeDataStudioTabIdByWorktree'
   | 'browserUrlHistory'
   | 'unifiedTabsByWorktree'
   | 'groupsByWorktree'
@@ -80,6 +83,8 @@ export const SESSION_RELEVANT_FIELDS = [
   'activeBrowserTabIdByWorktree',
   'codeServerTabsByWorktree',
   'activeCodeServerTabIdByWorktree',
+  'dataStudioTabsByWorktree',
+  'activeDataStudioTabIdByWorktree',
   'browserUrlHistory',
   'unifiedTabsByWorktree',
   'groupsByWorktree',
@@ -286,6 +291,7 @@ export function buildWorkspaceSessionPayload(
       snapshot.activeBrowserTabIdByWorktree
     ),
     ...buildCodeServerSessionData(snapshot),
+    ...buildDataStudioSessionData(snapshot),
     // Why: enforce the history storage cap here so stale renderer state can't make every write stringify an oversized legacy array.
     browserUrlHistory: normalizeBrowserHistoryEntries(snapshot.browserUrlHistory),
     // Why: persist only layouts backed by real tabs so a reload can't restore a blank split pane from the split-before-tab midpoint.

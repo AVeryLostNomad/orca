@@ -63,6 +63,7 @@ export default function TabGroupPanel({
     activeTab,
     browserItems,
     codeServerItems,
+    dataStudioItems,
     commands,
     editorItems,
     tabBarOrder,
@@ -125,6 +126,7 @@ export default function TabGroupPanel({
       onNewTerminalWithShell={commands.newTerminalWithShell}
       onNewBrowserTab={commands.newBrowserTab}
       onNewVSCodeTab={commands.newVSCodeTab}
+      onNewDataStudioTab={commands.newDataStudioTab}
       onNewSimulatorTab={commands.newSimulatorTab}
       onOpenEntry={commands.openEntry}
       onNewFileTab={commands.newFileTab}
@@ -134,16 +136,19 @@ export default function TabGroupPanel({
       editorFiles={editorItems}
       browserTabs={browserItems}
       codeServerTabs={codeServerItems}
+      dataStudioTabs={dataStudioItems}
       activeFileId={
         activeTab?.contentType === 'terminal' ||
         activeTab?.contentType === 'browser' ||
         activeTab?.contentType === 'simulator' ||
-        activeTab?.contentType === 'vscode'
+        activeTab?.contentType === 'vscode' ||
+        activeTab?.contentType === 'datastudio'
           ? null
           : activeTab?.id
       }
       activeBrowserTabId={activeTab?.contentType === 'browser' ? activeTab.entityId : null}
       activeCodeServerTabId={activeTab?.contentType === 'vscode' ? activeTab.entityId : null}
+      activeDataStudioTabId={activeTab?.contentType === 'datastudio' ? activeTab.entityId : null}
       activeSimulatorTabId={activeTab?.contentType === 'simulator' ? activeTab.id : null}
       activeTabType={
         activeTab?.contentType === 'terminal'
@@ -152,9 +157,11 @@ export default function TabGroupPanel({
             ? 'browser'
             : activeTab?.contentType === 'vscode'
               ? 'vscode'
-              : activeTab?.contentType === 'simulator'
-                ? 'simulator'
-                : 'editor'
+              : activeTab?.contentType === 'datastudio'
+                ? 'datastudio'
+                : activeTab?.contentType === 'simulator'
+                  ? 'simulator'
+                  : 'editor'
       }
       onActivateFile={commands.activateEditor}
       onCloseFile={commands.closeItem}
@@ -173,6 +180,16 @@ export default function TabGroupPanel({
         const item = model.groupTabs.find(
           (candidate) =>
             candidate.entityId === codeServerTabId && candidate.contentType === 'vscode'
+        )
+        if (item) {
+          commands.closeItem(item.id)
+        }
+      }}
+      onActivateDataStudioTab={commands.activateDataStudio}
+      onCloseDataStudioTab={(dataStudioTabId) => {
+        const item = model.groupTabs.find(
+          (candidate) =>
+            candidate.entityId === dataStudioTabId && candidate.contentType === 'datastudio'
         )
         if (item) {
           commands.closeItem(item.id)
@@ -338,9 +355,10 @@ export default function TabGroupPanel({
           activeTab.contentType !== 'terminal' &&
           activeTab.contentType !== 'browser' &&
           activeTab.contentType !== 'simulator' &&
-          // Why: vscode renders in CodeServerPaneOverlayLayer, not inline — it
-          // has no editor file entity, so the editor branch would break on it.
-          activeTab.contentType !== 'vscode' && (
+          // Why: vscode/datastudio render in their overlay layers, not inline —
+          // they have no editor file entity, so the editor branch would break.
+          activeTab.contentType !== 'vscode' &&
+          activeTab.contentType !== 'datastudio' && (
             <div className="absolute inset-0 flex min-h-0 min-w-0">
               {/* Why: split groups render editor content in a plain relative pane body, not the legacy Terminal.tsx flex column. */}
               <Suspense

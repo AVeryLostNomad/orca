@@ -61,6 +61,10 @@ export const ONBOARDING_FLOW_VERSION = 4
 export const ORCA_BROWSER_PARTITION = 'persist:orca-browser'
 // Why: isolated from browser tabs so VS Code's localStorage/state never collides.
 export const ORCA_VSCODE_PARTITION = 'persist:orca-vscode'
+// Why per-repo suffix: Data Studio's saved DB passwords live in the guest's
+// origin-scoped browser storage, so each repo gets its own partition to keep
+// one project's secrets unreachable from another's webview.
+export const ORCA_DATASTUDIO_PARTITION_PREFIX = 'persist:orca-datastudio-'
 // Why: inert blank-tab URL shared by main/renderer so the attach policy can allow just this one data URL and reject others.
 export const ORCA_BROWSER_BLANK_URL = 'data:text/html,'
 

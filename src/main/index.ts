@@ -278,6 +278,7 @@ import { setMigrationUnsupportedPtyListener } from './agent-hooks/migration-unsu
 import { AgentBrowserBridge } from './browser/agent-browser-bridge'
 import { EmulatorBridge } from './emulator/emulator-bridge'
 import { getCodeServerService } from './code-server/code-server-service'
+import { getDataStudioRegistry } from './data-studio/data-studio-registry'
 import { browserCertificateTrustController, browserManager } from './browser/browser-manager'
 import { OffscreenBrowserBackend } from './browser/offscreen-browser-backend'
 import { initializeBrowserSessionsForApp } from './browser/browser-session-startup'
@@ -3290,6 +3291,7 @@ app.on('will-quit', (e) => {
   browserManager.setBrowserGuestStateChangedListener(null)
   const emulatorShutdown = runtime?.getEmulatorBridge()?.destroyAllSessions() ?? Promise.resolve()
   const codeServerShutdown = getCodeServerService().shutdown()
+  const dataStudioShutdown = getDataStudioRegistry().shutdownAll()
   // Why immediately before store.flushAsync() with no await in between: beginSshShutdown() marks every
   // active SSH lease detached in memory synchronously, and that flush is what persists it.
   const sshShutdown = beginSshShutdown()
@@ -3338,6 +3340,7 @@ app.on('will-quit', (e) => {
     { name: 'ssh', promise: sshShutdown },
     { name: 'plugin-hosts', promise: pluginHostShutdown },
     { name: 'code-server', promise: codeServerShutdown },
+    { name: 'data-studio', promise: dataStudioShutdown },
     { name: 'codex-backfill-recovery', promise: codexBackfillRecoveryShutdown },
     { name: 'usage-cache', promise: usageCacheFlush },
     { name: 'stats', promise: statsFlush },

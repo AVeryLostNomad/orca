@@ -1,4 +1,4 @@
-import { Globe, SquareCode, Terminal as TerminalIcon } from 'lucide-react'
+import { Database, Globe, SquareCode, Terminal as TerminalIcon } from 'lucide-react'
 import { getFileTypeIcon } from '@/lib/file-type-icons'
 import { AgentIcon } from '@/lib/agent-catalog'
 import type { TabDragItemData } from '../tab-group/useTabDragSplit'
@@ -11,6 +11,9 @@ function LeadingIcon({ drag }: { drag: TabDragItemData }): React.JSX.Element {
   }
   if (drag.tabType === 'vscode') {
     return <SquareCode className="h-3.5 w-3.5 shrink-0" />
+  }
+  if (drag.tabType === 'datastudio') {
+    return <Database className="h-3.5 w-3.5 shrink-0" />
   }
   if (drag.tabType === 'editor') {
     const FileIcon = getFileTypeIcon(drag.iconPath ?? drag.label)

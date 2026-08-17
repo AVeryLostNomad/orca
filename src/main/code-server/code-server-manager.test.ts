@@ -15,6 +15,10 @@ vi.mock('electron', () => ({
 }))
 vi.mock('./code-server-installer', () => ({ ensureCodeServerInstalled: vi.fn() }))
 vi.mock('./code-server-editor-user-config', () => ({ mirrorEditorUserConfig: vi.fn() }))
+vi.mock('./code-server-signature-verification', () => ({
+  disableExtensionSignatureVerification: vi.fn()
+}))
+vi.mock('./code-server-machine-settings', () => ({ applyCodeServerMachineSettings: vi.fn() }))
 // Hydration spawns the user's login shell via node:child_process (mocked here),
 // so stub it out to keep startProcess() tests hermetic. 'not ok' => no PATH merge.
 vi.mock('../startup/hydrate-shell-path', () => ({
@@ -40,12 +44,20 @@ vi.mock('./code-server-paths', async (importOriginal) => {
 })
 
 import { buildCodeServerArgs, CodeServerManager } from './code-server-manager'
+import { createEditorProfile } from './code-server-profile'
 import { ensureCodeServerInstalled } from './code-server-installer'
 import { mirrorEditorUserConfig } from './code-server-editor-user-config'
+import { disableExtensionSignatureVerification } from './code-server-signature-verification'
+import { applyCodeServerMachineSettings } from './code-server-machine-settings'
 
 describe('buildCodeServerArgs', () => {
   it('binds loopback, disables auth+telemetry+workspace-trust, isolates dirs', () => {
-    expect(buildCodeServerArgs(12345)).toEqual([
+    expect(
+      buildCodeServerArgs(12345, {
+        userDataDir: '/userData/code-server/user-data',
+        extensionsDir: '/userData/code-server/extensions'
+      })
+    ).toEqual([
       '--bind-addr',
       '127.0.0.1:12345',
       '--auth',
@@ -67,7 +79,7 @@ describe('reapOrphan', () => {
     vi.spyOn(fs, 'readFileSync').mockReturnValue('4242')
     const rmSpy = vi.spyOn(fs, 'rmSync').mockImplementation(() => {})
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
-    new CodeServerManager().reapOrphan()
+    new CodeServerManager(createEditorProfile()).reapOrphan()
     expect(killSpy).toHaveBeenCalledWith(4242, 'SIGTERM')
     expect(rmSpy).toHaveBeenCalled()
     killSpy.mockRestore()
@@ -81,12 +93,12 @@ describe('initial status', () => {
 
   it('is not-installed when the executable does not resolve', () => {
     resolveExeMock.mockReturnValue(null)
-    expect(new CodeServerManager().getStatus().status).toBe('not-installed')
+    expect(new CodeServerManager(createEditorProfile()).getStatus().status).toBe('not-installed')
   })
 
   it('is stopped when the executable already resolves', () => {
     resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
-    expect(new CodeServerManager().getStatus().status).toBe('stopped')
+    expect(new CodeServerManager(createEditorProfile()).getStatus().status).toBe('stopped')
   })
 })
 
@@ -138,6 +150,8 @@ describe('acquire single-flight', () => {
     netRequestMock.mockReset()
     vi.mocked(ensureCodeServerInstalled).mockReset()
     vi.mocked(mirrorEditorUserConfig).mockReset()
+    vi.mocked(disableExtensionSignatureVerification).mockReset()
+    vi.mocked(applyCodeServerMachineSettings).mockReset()
   })
 
   it('spawns exactly one child when two acquire() calls overlap before ready', async () => {
@@ -150,13 +164,34 @@ describe('acquire single-flight', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
     vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
 
-    const manager = new CodeServerManager()
+    const manager = new CodeServerManager(createEditorProfile())
     // Both calls fire before either awaits — this is the overlap the fix guards against.
     const [first, second] = await Promise.all([manager.acquire(), manager.acquire()])
 
     expect(spawnMock).toHaveBeenCalledTimes(1)
     expect(first).toEqual({ port: 4999 })
     expect(second).toEqual({ port: 4999 })
+  })
+
+  it('editor profile prepare() runs mirror -> signature-verification -> machine settings, in order', async () => {
+    resolveExeMock.mockReturnValue('/opt/code-server/bin/code-server')
+    vi.mocked(ensureCodeServerInstalled).mockResolvedValue('/opt/code-server/bin/code-server')
+    vi.mocked(mirrorEditorUserConfig).mockResolvedValue(undefined)
+    vi.mocked(disableExtensionSignatureVerification).mockResolvedValue(undefined)
+    vi.mocked(applyCodeServerMachineSettings).mockResolvedValue(undefined)
+    primeSuccessfulStart(4996)
+
+    const fs = await import('node:fs')
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
+
+    await new CodeServerManager(createEditorProfile()).acquire()
+
+    const mirrorOrder = vi.mocked(mirrorEditorUserConfig).mock.invocationCallOrder[0]
+    const sigOrder = vi.mocked(disableExtensionSignatureVerification).mock.invocationCallOrder[0]
+    const machineOrder = vi.mocked(applyCodeServerMachineSettings).mock.invocationCallOrder[0]
+    expect(mirrorOrder).toBeLessThan(sigOrder)
+    expect(sigOrder).toBeLessThan(machineOrder)
   })
 
   it('retry does not take a ref, so one release after acquire+retry stops the server', async () => {
@@ -180,7 +215,7 @@ describe('acquire single-flight', () => {
       kill: killMock
     }))
 
-    const manager = new CodeServerManager()
+    const manager = new CodeServerManager(createEditorProfile())
     await manager.acquire() // pane mount: refCount 0 -> 1
     await manager.retry() // Retry button: must NOT inflate refCount
     manager.release() // pane unmount: refCount 1 -> 0 stops the server
@@ -229,7 +264,7 @@ describe('acquire single-flight', () => {
       kill: vi.fn()
     }))
 
-    const manager = new CodeServerManager()
+    const manager = new CodeServerManager(createEditorProfile())
     await expect(manager.acquire()).rejects.toThrow(/did not become ready/)
     // startSequence retries the spawn once before surfacing the error, so two
     // spawns are expected. The startup exit must NOT trigger the *crash*

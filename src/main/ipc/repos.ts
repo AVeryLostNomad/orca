@@ -43,6 +43,7 @@ import { WorkspaceLinkedItemSchema } from '../../shared/workspace-linked-item-sc
 import { isWorkspaceLinkedItemSourceContextMatch } from '../../shared/workspace-linked-item-source-context'
 import { DiffCommentSchema } from '../../shared/diff-comment-schema'
 import { invalidateAuthorizedRootsCache } from './registered-worktree-roots-cache'
+import { getDataStudioRegistry } from '../data-studio/data-studio-registry'
 import type { ChildProcess } from 'node:child_process'
 import { access, mkdir, readdir, rm } from 'node:fs/promises'
 import {
@@ -2086,6 +2087,12 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
     store.removeProject(args.repoId)
     invalidateAuthorizedRootsCache()
     notifyReposChanged(mainWindow)
+    // Data Studio profile holds connection hostnames/usernames and the
+    // secret-storage key half — it must not outlive the project. Best-effort,
+    // off the removal's critical path.
+    void getDataStudioRegistry()
+      .removeProfile(args.repoId)
+      .catch((error) => console.warn('[data-studio] Profile cleanup failed:', error))
   })
 
   // Why: forget a project on one execution host without disturbing the same repo id on other hosts (SSH-workspace forget flow).

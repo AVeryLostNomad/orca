@@ -75,6 +75,19 @@ describe('BrowserSessionRegistry', () => {
     expect(browserSessionRegistry.isAllowedPartition('persist:orca-vscode')).toBe(true)
   })
 
+  it('consults registered extra checkers, fail-closed for unclaimed partitions', () => {
+    const claimed = 'persist:orca-datastudio-1234567890abcdef'
+    expect(browserSessionRegistry.isAllowedPartition(claimed)).toBe(false)
+    browserSessionRegistry.registerExtraAllowedPartitionChecker(
+      (partition) => partition === claimed
+    )
+    expect(browserSessionRegistry.isAllowedPartition(claimed)).toBe(true)
+    // A checker only passes what its owner actually created — anything else stays rejected.
+    expect(
+      browserSessionRegistry.isAllowedPartition('persist:orca-datastudio-0000000000000000')
+    ).toBe(false)
+  })
+
   it('creates an isolated profile with a unique partition', () => {
     const profile = browserSessionRegistry.createProfile('isolated', 'Test Isolated')
     expect(profile).not.toBeNull()

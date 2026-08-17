@@ -24,6 +24,8 @@ function createSnapshot(
     activeBrowserTabIdByWorktree: {},
     codeServerTabsByWorktree: {},
     activeCodeServerTabIdByWorktree: {},
+    dataStudioTabsByWorktree: {},
+    activeDataStudioTabIdByWorktree: {},
     browserUrlHistory: [],
     unifiedTabsByWorktree: {},
     groupsByWorktree: {},

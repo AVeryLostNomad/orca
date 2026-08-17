@@ -29,6 +29,7 @@ export function useTabGroupActivationCommands({
   const setActiveFile = useAppStore((state) => state.setActiveFile)
   const setActiveBrowserTab = useAppStore((state) => state.setActiveBrowserTab)
   const setActiveCodeServerTab = useAppStore((state) => state.setActiveCodeServerTab)
+  const setActiveDataStudioTab = useAppStore((state) => state.setActiveDataStudioTab)
 
   const activateTerminal = useCallback(
     (terminalId: string) => {
@@ -163,11 +164,37 @@ export function useTabGroupActivationCommands({
     ]
   )
 
+  const activateDataStudio = useCallback(
+    (dataStudioTabId: string) => {
+      const item = groupTabs.find(
+        (candidate) =>
+          candidate.entityId === dataStudioTabId && candidate.contentType === 'datastudio'
+      )
+      if (!item) {
+        return
+      }
+      focusGroup(worktreeId, groupId)
+      activateTab(item.id)
+      setActiveDataStudioTab(dataStudioTabId)
+      setActiveTabType('datastudio')
+    },
+    [
+      activateTab,
+      focusGroup,
+      groupId,
+      groupTabs,
+      setActiveDataStudioTab,
+      setActiveTabType,
+      worktreeId
+    ]
+  )
+
   return {
     activateTerminal,
     toggleTerminalPaneExpand,
     activateEditor,
     activateBrowser,
-    activateCodeServer
+    activateCodeServer,
+    activateDataStudio
   }
 }

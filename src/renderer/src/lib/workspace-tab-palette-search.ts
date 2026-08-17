@@ -50,7 +50,13 @@ export type SearchableWorkspaceTab = {
 // secondary crowds the row. Keep these matchable so typing "terminal" still finds them.
 export const TERMINAL_TYPE_SEARCH_ALIASES = ['terminal tab', 'terminal'] as const
 
-type WorkspaceTabPaletteActiveTabType = 'browser' | 'editor' | 'terminal' | 'simulator' | 'vscode'
+type WorkspaceTabPaletteActiveTabType =
+  | 'browser'
+  | 'editor'
+  | 'terminal'
+  | 'simulator'
+  | 'vscode'
+  | 'datastudio'
 
 export type BuildSearchableWorkspaceTabsOptions = WorkspaceTabAgentMetadataState & {
   worktrees: readonly Worktree[]

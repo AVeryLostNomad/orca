@@ -23,6 +23,7 @@ export function useTabGroupTabCloseCommands({
   const closeFile = useAppStore((state) => state.closeFile)
   const closeBrowserTab = useAppStore((state) => state.closeBrowserTab)
   const closeCodeServerTab = useAppStore((state) => state.closeCodeServerTab)
+  const closeDataStudioTab = useAppStore((state) => state.closeDataStudioTab)
   const setActiveWorktree = useAppStore((state) => state.setActiveWorktree)
 
   const closeEditorIfUnreferenced = useCallback(
@@ -109,6 +110,9 @@ export function useTabGroupTabCloseCommands({
         // Why: closeCodeServerTab already removes the matching unified tab
         // internally, so we must not also call closeUnifiedTab (double-close).
         closeCodeServerTab(item.entityId)
+      } else if (item.contentType === 'datastudio') {
+        // Why: closeDataStudioTab removes the matching unified tab internally.
+        closeDataStudioTab(item.entityId)
       } else {
         const canCloseTab = closeEditorIfUnreferenced(item.entityId, item.id)
         if (!canCloseTab) {
@@ -123,6 +127,7 @@ export function useTabGroupTabCloseCommands({
     [
       closeBrowserTab,
       closeCodeServerTab,
+      closeDataStudioTab,
       closeEditorIfUnreferenced,
       closeUnifiedTab,
       groupTabs,
@@ -176,6 +181,9 @@ export function useTabGroupTabCloseCommands({
           // Why: closeCodeServerTab removes the matching unified tab internally,
           // so calling closeUnifiedTab too would double-close.
           closeCodeServerTab(item.entityId)
+        } else if (item.contentType === 'datastudio') {
+          // Why: closeDataStudioTab removes the matching unified tab internally.
+          closeDataStudioTab(item.entityId)
         } else {
           const canCloseTab = closeEditorIfUnreferenced(item.entityId, item.id)
           if (canCloseTab) {
@@ -187,6 +195,7 @@ export function useTabGroupTabCloseCommands({
     [
       closeBrowserTab,
       closeCodeServerTab,
+      closeDataStudioTab,
       closeEditorIfUnreferenced,
       closeTab,
       closeUnifiedTab,

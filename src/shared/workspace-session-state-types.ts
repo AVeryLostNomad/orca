@@ -5,6 +5,7 @@ import type { Tab, TabGroup, TabGroupLayoutNode, WorkspaceVisibleTabType } from 
 import type { TerminalLayoutSnapshot, TerminalTab } from './terminal-tab-types'
 import type { BrowserHistoryEntry, BrowserPage, BrowserWorkspace } from './browser-workspace-types'
 import type { CodeServerTab } from './code-server-types'
+import type { DataStudioTab } from './data-studio-types'
 
 /** Minimal subset of OpenFile persisted across restarts.
  *  Only edit-mode files are saved — diffs, conflict reviews, and other
@@ -62,6 +63,10 @@ export type WorkspaceSessionState = {
   codeServerTabsByWorktree?: Record<string, CodeServerTab[]>
   /** Per-worktree active VS Code tab ID at shutdown. */
   activeCodeServerTabIdByWorktree?: Record<string, string | null>
+  /** Persisted Data Studio tabs, keyed by worktree ID. */
+  dataStudioTabsByWorktree?: Record<string, DataStudioTab[]>
+  /** Per-worktree active Data Studio tab ID at shutdown. */
+  activeDataStudioTabIdByWorktree?: Record<string, string | null>
   /** Per-worktree active tab type (terminal vs editor vs browser) at shutdown. */
   activeTabTypeByWorktree?: Record<string, WorkspaceVisibleTabType>
   /** Global browser URL history for address bar autocomplete. */

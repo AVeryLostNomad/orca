@@ -3078,7 +3078,14 @@
                   "vscode": "vscode",
                   "vsCode": "vs code",
                   "code": "code",
-                  "editor": "editor"
+                  "editor": "editor",
+                  "newDataStudio": "新しい Data Studio タブ",
+                  "newDataStudioRemoteDisabled": "Data Studio はローカルワークツリーでのみ利用できます",
+                  "dataStudio": "data studio",
+                  "database": "データベース",
+                  "sql": "sql",
+                  "db": "db",
+                  "query": "クエリ"
                 }
               }
             }
@@ -3106,6 +3113,13 @@
             "911542656f": "Pin Tab",
             "1611a1324b": "Close",
             "9dd880bd56": "Close Tabs To The Right"
+          },
+          "DataStudioTab": {
+            "1f7666419b": "タブのピン留めを解除",
+            "52fa615dce": "タブをピン留め",
+            "c4dee16431": "閉じる",
+            "31dc5c0d4f": "右側のタブを閉じる",
+            "title": "Data Studio"
           }
         }
       },
@@ -14279,6 +14293,7 @@
               "231da812b0": "code-server failed to load."
             },
             "CodeServerImportModal": {
+              "2084722876": "Importing…",
               "37836403ec": "Settings",
               "0c46f685c1": "Keybindings",
               "650939408f": "Snippets",
@@ -14295,7 +14310,6 @@
               "2c04a2e2cb": "Settings, keybindings, and snippets stay linked — edits made in either editor apply to both.",
               "30d1bf1217": "Done",
               "ac0db0202e": "Not Now",
-              "2084722876": "Importing…",
               "9ece26b2e4": "Import"
             }
           }
@@ -14322,6 +14336,19 @@
         "pendingChip": "{{value0}} 件保留中",
         "needsActionChip": "{{value0}} 件の対応が必要",
         "unresolvedChip": "{{value0}} 件未解決"
+      },
+      "data": {
+        "studio": {
+          "pane": {
+            "DataStudioPane": {
+              "6dfe584357": "Data Studio の読み込みに失敗しました。",
+              "160f61c356": "Data Studio をインストール中…",
+              "9c7b7b091e": "問題が発生しました。",
+              "73e18cb54e": "再試行",
+              "daf4265008": "Data Studio を起動中…"
+            }
+          }
+        }
       }
     },
     "i18n": {

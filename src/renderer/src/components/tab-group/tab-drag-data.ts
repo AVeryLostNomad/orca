@@ -10,7 +10,7 @@ export type TabDragItemData = {
   groupId: string
   unifiedTabId: string
   visibleTabId: string
-  tabType: 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode'
+  tabType: 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode' | 'datastudio'
   label: string
   iconPath?: string
   color?: string | null

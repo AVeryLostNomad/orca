@@ -3262,7 +3262,14 @@
                   "vscode": "vscode",
                   "vsCode": "vs code",
                   "code": "code",
-                  "editor": "editor"
+                  "editor": "editor",
+                  "newDataStudio": "New Data Studio Tab",
+                  "newDataStudioRemoteDisabled": "Data Studio is only available for local worktrees",
+                  "dataStudio": "data studio",
+                  "database": "database",
+                  "sql": "sql",
+                  "db": "db",
+                  "query": "query"
                 }
               }
             }
@@ -3298,6 +3305,13 @@
           "TabBarQuickCommandHostLoadStatus": {
             "82e294f3ca": "Host unavailable",
             "7c129b08ff": "Loading host…"
+          },
+          "DataStudioTab": {
+            "1f7666419b": "Unpin Tab",
+            "52fa615dce": "Pin Tab",
+            "c4dee16431": "Close",
+            "31dc5c0d4f": "Close Tabs To The Right",
+            "title": "Data Studio"
           }
         }
       },
@@ -15813,6 +15827,19 @@
             "fe1a0d0906": "Binary file changed",
             "1c569d7a56": "Text diff is unavailable for this file in branch compare.",
             "d66e68d349": "Text diff is unavailable for this file."
+          }
+        }
+      },
+      "data": {
+        "studio": {
+          "pane": {
+            "DataStudioPane": {
+              "6dfe584357": "Data Studio failed to load.",
+              "160f61c356": "Installing Data Studio…",
+              "9c7b7b091e": "Something went wrong.",
+              "73e18cb54e": "Retry",
+              "daf4265008": "Starting Data Studio…"
+            }
           }
         }
       }

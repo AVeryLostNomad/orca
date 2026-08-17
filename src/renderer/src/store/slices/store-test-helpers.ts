@@ -28,6 +28,7 @@ import {
 } from './usage-provider-slices'
 import { createBrowserSlice } from './browser'
 import { createCodeServerSlice } from './code-server'
+import { createDataStudioSlice } from './data-studio'
 import { createRateLimitSlice } from './rate-limits'
 import { createSshSlice } from './ssh'
 import { createRuntimeEnvironmentSshSlice } from './runtime-environment-ssh'
@@ -84,6 +85,7 @@ export function createTestStore() {
     ...createOpenCodeUsageSlice(...a),
     ...createBrowserSlice(...a),
     ...createCodeServerSlice(...a),
+    ...createDataStudioSlice(...a),
     ...createRateLimitSlice(...a),
     ...createSshSlice(...a),
     ...createRuntimeEnvironmentSshSlice(...a),
