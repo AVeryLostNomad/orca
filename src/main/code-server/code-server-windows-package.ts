@@ -25,7 +25,8 @@ export const CODE_SERVER_WINDOWS_DOWNLOAD_URL = `https://github.com/${CODE_SERVE
 // publish. The installer refuses to install while unset, so a version bump can
 // never ship an unpinned download. (Widened to string so guard-site narrowing
 // doesn't collapse the literal type.)
-export const CODE_SERVER_WINDOWS_SHA256: string = ''
+export const CODE_SERVER_WINDOWS_SHA256: string =
+  'a95f735a37047571a19e01d20f61ff44e9f73a65ad508c55677a814f94227210'
 
 // A truncated download can still be a valid-looking zip prefix; the sha256 pin
 // is the real integrity check, this only short-circuits obvious garbage.
