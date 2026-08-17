@@ -1,7 +1,8 @@
 import { rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { test, expect } from './helpers/orca-app'
+import { test as base, expect } from './helpers/orca-app'
+import { providePrivateSeededTestRepo } from './helpers/seeded-test-repo'
 import {
   createBranchCommit,
   openSourceControl,
@@ -9,6 +10,16 @@ import {
 } from './helpers/source-control-ai-generation'
 import { writeLinkedIssueEchoGenerator } from './helpers/source-control-ai-generators'
 import { waitForSessionReady } from './helpers/store'
+
+// Why: createBranchCommit commits in the seeded secondary worktree; a private
+// repo keeps parallel workers from colliding on the same git index.
+const test = base.extend({
+  testRepoPath: [
+    // oxlint-disable-next-line no-empty-pattern -- Playwright fixture callbacks require object destructuring here.
+    async ({}, provideFixture) => providePrivateSeededTestRepo(provideFixture),
+    { scope: 'worker' }
+  ]
+})
 
 // Why: the PR path reads the echoed issue from the generated title.
 function writeLinkedIssuePrEchoGenerator(scriptPath: string, base: string): void {

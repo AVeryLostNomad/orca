@@ -515,6 +515,14 @@ export function createRemoteRuntimePtyTransport(
     )
   }
 
+  // Why: a relaunched host answers with a 'none' epoch until its renderer's
+  // first session publication lands; tab absence in that window is unknown
+  // liveness, not removal evidence, so attach must keep polling instead of
+  // retiring the pane as closed.
+  function isPrePublicationHostSessionSnapshot(snapshot: RuntimeMobileSessionTabsResult): boolean {
+    return snapshot.publicationEpoch === 'none' || snapshot.publicationEpoch.startsWith('none:')
+  }
+
   // Why: pending host surfaces materialize only through activation.
   function activateHostSessionSurface(
     hostTabId: string,
@@ -549,19 +557,22 @@ export function createRemoteRuntimePtyTransport(
       return undefined
     }
     const worktree = toRuntimeWorktreeSelector(worktreeId)
-    let activated: RuntimeMobileSessionTabsResult
+    let activated: RuntimeMobileSessionTabsResult | null = null
     try {
       // Why: this runs when the pane itself is opened/attached — the user's wake gesture.
       activated = await activateHostSessionSurface(hostTabId, worktree, 'user')
     } catch (error) {
-      if (isMissingHostSessionSurfaceError(error)) {
-        return null
+      if (!isMissingHostSessionSurfaceError(error)) {
+        throw error
       }
-      throw error
+      // Why: tab_not_found can race a relaunched host's pre-publication window;
+      // the list poll below distinguishes that emptiness from real removal.
     }
-    const immediate = findReadyHostSessionHandle(activated, hostTabId)
-    if (immediate) {
-      return immediate
+    if (activated) {
+      const immediate = findReadyHostSessionHandle(activated, hostTabId)
+      if (immediate) {
+        return immediate
+      }
     }
 
     const startedAt = Date.now()
@@ -586,7 +597,10 @@ export function createRemoteRuntimePtyTransport(
       if (handle) {
         return handle
       }
-      if (!hasHostSessionTerminalSurface(listed, hostTabId)) {
+      if (
+        !hasHostSessionTerminalSurface(listed, hostTabId) &&
+        !isPrePublicationHostSessionSnapshot(listed)
+      ) {
         const siblingStillExists =
           getHostSessionTerminalSurfaces(listed, hostTabId, {
             matchRequestedLeaf: false
@@ -734,7 +748,10 @@ export function createRemoteRuntimePtyTransport(
           return { handle: nextHandle, inventoryFailed: false }
         }
         if (request === 'list') {
-          if (!hasHostSessionTerminalSurface(listed, hostTabId)) {
+          if (
+            !hasHostSessionTerminalSurface(listed, hostTabId) &&
+            !isPrePublicationHostSessionSnapshot(listed)
+          ) {
             return { handle: null, inventoryFailed: false }
           }
           if (!nextHandle) {

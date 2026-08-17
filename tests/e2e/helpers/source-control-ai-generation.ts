@@ -105,10 +105,20 @@ export async function seedCreatePrComposer(page: Page): Promise<{
       blockedReason: null,
       nextAction: null,
       defaultBaseRef: primaryBranch,
-      head: branch
+      head: branch,
+      // Why: the Checks composer fails closed while review existence is unproven.
+      reviewLookupOutcome: 'not_found' as const
     }
 
     store.setState((current) => ({
+      // Why: the isolated E2E home has no gh login, so any real PR refresh lands a
+      // hard `auth` error that keeps the Checks Create composer closed. Drop
+      // already-recorded states and block new refreshes from being enqueued or
+      // broadcast into the store.
+      prRefreshStates: {},
+      enqueueGitHubPRRefresh: () => undefined,
+      reportVisibleGitHubPRRefreshCandidates: () => undefined,
+      applyGitHubPRRefreshEvent: () => undefined,
       repos: current.repos.map((candidate) =>
         candidate.id === repo.id ? { ...candidate, worktreeBaseRef: primaryBranch } : candidate
       ),

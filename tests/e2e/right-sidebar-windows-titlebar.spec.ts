@@ -11,6 +11,15 @@ type RightSidebarHeaderGeometry = {
 }
 
 test.describe('Right sidebar Windows titlebar spacing', () => {
+  // Why: the sidebar picks its titlebar branch from the preload platform
+  // (window.api.platform.get, frozen by contextBridge), not the userAgent, so a
+  // darwin host can never render the Windows chrome this test measures. win32
+  // and linux hosts both take the desktop-window-chrome branch for real.
+  test.skip(
+    process.platform === 'darwin',
+    'Windows/Linux desktop chrome cannot be simulated on a darwin host'
+  )
+
   test('top activity buttons render inside the sidebar instead of the titlebar', async ({
     orcaPage
   }) => {

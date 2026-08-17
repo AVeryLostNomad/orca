@@ -198,15 +198,12 @@ async function injectQueuedWriteThenType(page: Page, paneKey: string): Promise<v
         throw new Error('xterm helper textarea unavailable')
       }
       textarea.focus()
-      const event = new KeyboardEvent('keydown', {
-        bubbles: true,
-        cancelable: true,
-        key: 'x',
-        code: 'KeyX'
-      })
-      Object.defineProperty(event, 'keyCode', { configurable: true, value: 88 })
-      Object.defineProperty(event, 'which', { configurable: true, value: 88 })
-      textarea.dispatchEvent(event)
+      // Why terminal.input instead of a synthetic keydown: on macOS the IME
+      // native-text forwarder claims plain printable keydowns and forwards the
+      // byte from the real `input` event via terminal.input — a bare synthetic
+      // keydown never becomes user input there. terminal.input(data) is the
+      // shared end of both platforms' typing paths (fires onUserInput + onData).
+      pane.terminal.input('x')
     } finally {
       terminal.write = originalWrite
     }

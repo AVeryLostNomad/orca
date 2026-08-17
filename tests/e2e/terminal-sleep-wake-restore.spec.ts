@@ -84,7 +84,14 @@ async function readRemoteSleepOracle(page: Page, worktreeId: string): Promise<Re
     }
     const summary = worktreePsResult.worktrees.find((worktree) => worktree.worktreeId === id)
     if (!summary) {
-      throw new Error(`worktree.ps omitted ${id}`)
+      // worktree.ps serves a short-TTL scan cache that can transiently omit a
+      // repo mid-refresh; report "not converged" so expect.poll retries
+      // instead of aborting on a thrown error.
+      return {
+        terminalListTotalCount: -1,
+        worktreePsLiveTerminalCount: -1,
+        worktreePsHasAttachedPty: true
+      }
     }
     return {
       terminalListTotalCount: terminalListResult.totalCount,

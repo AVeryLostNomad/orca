@@ -537,6 +537,13 @@ export function shouldApplyWebSessionTabsSnapshot(
     // Why: the floating workspace is a local synthetic terminal; a remote empty same-id snapshot would delete the user's local floating tabs.
     return false
   }
+  // Why: a relaunched host answers with a 'none' epoch until its first session
+  // publication lands; applying that placeholder would strip the mirrored tabs
+  // and deactivate the worktree client-side. Skip it without recording
+  // freshness so the real publication that follows applies normally.
+  if (snapshot.publicationEpoch === 'none' || snapshot.publicationEpoch.startsWith('none:')) {
+    return false
+  }
   rememberHostTerminalTabCount(environmentId, snapshot)
   const current = latestSessionTabsSnapshotByWorktree.get(key)
   const replayable = replayableSessionTabsSnapshotByWorktree.get(key)

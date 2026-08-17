@@ -109,10 +109,16 @@ test.describe('Terminal Panes', () => {
       })
       .toBe(titledLeafId)
     await expect
-      .poll(async () => (await getTerminalContent(orcaPage)).includes(droppedPath), {
-        timeout: 5_000,
-        message: 'Title-strip drop did not paste into the titled pane terminal'
-      })
+      .poll(
+        async () =>
+          // The echoed path can hard-wrap at the narrow split pane's right
+          // edge, splitting it across serialized lines; join before matching.
+          (await getTerminalContent(orcaPage)).replace(/\r?\n/g, '').includes(droppedPath),
+        {
+          timeout: 5_000,
+          message: 'Title-strip drop did not paste into the titled pane terminal'
+        }
+      )
       .toBe(true)
   })
 

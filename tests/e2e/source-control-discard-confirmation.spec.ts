@@ -40,7 +40,14 @@ async function seedUntrackedFile(page: Page): Promise<SeededUntrackedFile> {
       content: 'delete me\n'
     })
 
-    const status = await window.api.git.status({ worktreePath: worktree.path })
+    // Why: main dedupes concurrent identical status reads, so a call issued
+    // right after the write can join a pre-write in-flight read and come back
+    // without the seeded file. Re-read until a post-write scan includes it.
+    let status = await window.api.git.status({ worktreePath: worktree.path })
+    for (let i = 0; i < 10 && !status.entries.some((entry) => entry.path.endsWith(fileName)); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      status = await window.api.git.status({ worktreePath: worktree.path })
+    }
     state.setGitStatus(worktree.id, status)
     const statusEntry = status.entries.find((entry) => entry.path.endsWith(fileName))
     if (!statusEntry) {

@@ -88,10 +88,10 @@ test.describe('Combined diff invalidation freeze repro (STA-3420)', () => {
           let editorCount = 0
           while (performance.now() - startedAt < 30_000) {
             await new Promise((resolve) => window.setTimeout(resolve, 50))
-            editorCount = document.querySelectorAll('.monaco-diff-editor').length
+            editorCount = document.querySelectorAll('diffs-container').length
             if (editorCount > 0) {
               await new Promise((resolve) => window.setTimeout(resolve, 1_500))
-              editorCount = document.querySelectorAll('.monaco-diff-editor').length
+              editorCount = document.querySelectorAll('diffs-container').length
               break
             }
           }
@@ -148,7 +148,7 @@ test.describe('Combined diff invalidation freeze repro (STA-3420)', () => {
             maxLagMs,
             p95LagMs: sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0,
             sampleCount: samples.length,
-            editorCount: document.querySelectorAll('.monaco-diff-editor').length,
+            editorCount: document.querySelectorAll('diffs-container').length,
             loadingRowCount: Array.from(
               document.querySelectorAll('[data-combined-diff-section-row]')
             ).filter((row) => row.textContent?.includes('Loading diff')).length,
@@ -196,10 +196,10 @@ test.describe('Combined diff invalidation freeze repro (STA-3420)', () => {
           let editorCount = 0
           while (performance.now() - startedAt < 30_000) {
             await new Promise((resolve) => window.setTimeout(resolve, 50))
-            editorCount = document.querySelectorAll('.monaco-diff-editor').length
+            editorCount = document.querySelectorAll('diffs-container').length
             if (editorCount > 0) {
               await new Promise((resolve) => window.setTimeout(resolve, 1_500))
-              editorCount = document.querySelectorAll('.monaco-diff-editor').length
+              editorCount = document.querySelectorAll('diffs-container').length
               break
             }
           }
@@ -284,7 +284,7 @@ test.describe('Combined diff invalidation freeze repro (STA-3420)', () => {
             baseline,
             burst,
             expectedSampleCount: Math.floor(burstDurationMs / intervalMs),
-            editorCount: document.querySelectorAll('.monaco-diff-editor').length,
+            editorCount: document.querySelectorAll('diffs-container').length,
             sectionRowCount: rows.length,
             stuckLoadingRowCount: rows.filter((row) => row.textContent?.includes('Loading diff'))
               .length

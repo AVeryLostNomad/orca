@@ -12,9 +12,15 @@ export function fileExplorerRow(page: Page, relativePath: string): Locator {
   return page.locator(`file-tree-container [data-item-path="${relativePath}"]`)
 }
 
-/** Row filtered by visible name when only the basename is known. */
+/**
+ * Row matched by basename when only the file name is known.
+ *
+ * Why: @pierre/trees splits names into truncation segments (stem/dot/ext,
+ * each duplicated for overflow measurement), so textContent never contains
+ * the contiguous file name. Rows expose the basename as aria-label instead.
+ */
 export function fileExplorerRowByName(page: Page, name: string): Locator {
-  return page.locator('file-tree-container [data-item-path]').filter({ hasText: name })
+  return page.locator(`file-tree-container [data-item-path][aria-label="${name}"]`)
 }
 
 /** Open the right sidebar file explorer and wait for store state to match. */

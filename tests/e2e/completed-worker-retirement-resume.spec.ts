@@ -458,6 +458,23 @@ for (const closeMode of ['terminal-close-cli', 'worker-release'] as const) {
     await expect
       .poll(() => orcaPage.evaluate(() => window.__store?.getState().activeWorktreeId))
       .toBe(targetWorktreeId)
+    // Why: STA-4327 persists an explicit-empty terminal row when close retires the
+    // final tab; first activation must honor that tombstone instead of auto-creating
+    // a fallback terminal, so a fresh tab is created explicitly (the user's New Tab).
+    await expect
+      .poll(() =>
+        orcaPage.evaluate((worktreeId) => {
+          const state = window.__store?.getState()
+          return {
+            hasRow: Object.hasOwn(state?.tabsByWorktree ?? {}, worktreeId),
+            tabCount: state?.tabsByWorktree[worktreeId]?.length ?? 0
+          }
+        }, targetWorktreeId)
+      )
+      .toEqual({ hasRow: true, tabCount: 0 })
+    await orcaPage.evaluate((worktreeId) => {
+      window.__store?.getState().createTab(worktreeId)
+    }, targetWorktreeId)
     await waitForActiveTerminalManager(orcaPage)
     await waitForActivePanePtyId(orcaPage)
     const activatedPane = await waitForActivePaneHookDescriptor(orcaPage)

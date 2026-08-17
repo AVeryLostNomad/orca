@@ -3,6 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test as base, expect } from './helpers/orca-app'
+import { providePrivateSeededTestRepo } from './helpers/seeded-test-repo'
 import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 import { getTerminalContent } from './helpers/terminal'
 
@@ -94,12 +95,38 @@ function installFakeCli(name: 'gh' | 'claude', source: string): void {
 installFakeCli('gh', fakeGhSource)
 installFakeCli('claude', fakeClaudeSource)
 
+// Why: main's shell-PATH hydration re-probes $SHELL -ilc and promotes the
+// probed segments to the front of process.env.PATH. A real login shell can
+// reorder PATH (path_helper/rc files) and put the host gh ahead of the fake
+// one, so give hydration a no-rc shell that reports the launch PATH as-is.
+function installNoRcShell(): string {
+  if (process.platform === 'win32') {
+    return process.env.SHELL ?? ''
+  }
+  const shellPath = path.join(fakeCliDir, 'no-rc-shell')
+  writeFileSync(shellPath, '#!/bin/sh\nexec /bin/zsh -f "$@"\n')
+  chmodSync(shellPath, 0o755)
+  return shellPath
+}
+
+const noRcShell = installNoRcShell()
+
 const test = base.extend({
   launchEnv: [
     {
-      PATH: `${fakeCliDir}${path.delimiter}${process.env.PATH ?? ''}`
+      PATH: `${fakeCliDir}${path.delimiter}${process.env.PATH ?? ''}`,
+      ...(process.platform === 'win32' ? {} : { SHELL: noRcShell })
     },
     { option: true }
+  ],
+  // Why: this suite rewires origin to a nonexistent https remote, which makes
+  // concurrently running specs' git remote operations hang (e.g. PR generation
+  // never invokes its generator). A private repo keeps the rewire invisible to
+  // every other worker.
+  testRepoPath: [
+    // oxlint-disable-next-line no-empty-pattern -- Playwright fixture callbacks require object destructuring here.
+    async ({}, provideFixture) => providePrivateSeededTestRepo(provideFixture),
+    { scope: 'worker' }
   ]
 })
 

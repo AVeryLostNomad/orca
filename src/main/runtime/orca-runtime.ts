@@ -7769,12 +7769,49 @@ export class OrcaRuntimeService {
     }
     const pty = this.ptysById.get(candidatePtyId)
     const pane = parsePaneKey(pty?.paneKey ?? '')
-    return Boolean(
+    if (
       pty?.connected &&
       pty.worktreeId === worktreeId &&
       pty.tabId === parentTabId &&
       pane?.leafId === leafId
+    ) {
+      return true
+    }
+    // Why: retirement is durable only as removal from the workspace session. A
+    // surface the session still claims with this exact PTY binding is preserved,
+    // not a ghost — after a host relaunch its daemon PTY may simply not be in
+    // the controller inventory yet, and fencing it here strips the renderer's
+    // restored tabs from an accepted publication that is never resent.
+    return this.workspaceSessionClaimsTerminalSurface(
+      session,
+      worktreeId,
+      parentTabId,
+      leafId,
+      candidatePtyId
     )
+  }
+
+  private workspaceSessionClaimsTerminalSurface(
+    session: WorkspaceSessionState | undefined,
+    worktreeId: string,
+    parentTabId: string,
+    leafId: string,
+    ptyId: string
+  ): boolean {
+    const sessionWorktreeId = session ? resolveTerminalSessionWorktreeId(session, worktreeId) : null
+    if (!session || !sessionWorktreeId) {
+      return false
+    }
+    const tab = session.tabsByWorktree[sessionWorktreeId]?.find(
+      (candidate) => candidate.id === parentTabId
+    )
+    if (!tab) {
+      return false
+    }
+    const layout = session.terminalLayoutsByTabId?.[parentTabId]
+    const boundPtyId = layout?.ptyIdsByLeafId?.[leafId]
+    // Single-leaf tabs may bind their PTY at tab level only.
+    return boundPtyId === ptyId || (boundPtyId === undefined && tab.ptyId === ptyId)
   }
 
   private reconcileMobileSessionRetirementFences(

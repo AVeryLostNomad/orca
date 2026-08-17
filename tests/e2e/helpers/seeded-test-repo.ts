@@ -3,7 +3,7 @@
  * disposable test repo (plus its secondary worktree) that specs operate on.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
@@ -28,11 +28,14 @@ export function isValidGitRepo(repoPath: string): boolean {
   }
 }
 
-export function createSeededTestRepo(): string {
+export function createSeededTestRepo(options: { persistPathForRun?: boolean } = {}): string {
   // Why: realpathSync so the seeded path matches the store's repo.path on
   // macOS, where os.tmpdir() (/var/...) symlinks to /private/var/... and the
   // app canonicalizes repo.path via `git rev-parse --show-toplevel` on add.
-  const testRepoDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-repo-')))
+  // Why: a per-run parent dir keeps the repo and its sibling worktrees out of
+  // reach of other concurrent runs' teardown, which cleans by name prefix.
+  const runParentDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-run-')))
+  const testRepoDir = mkdtempSync(path.join(runParentDir, 'orca-e2e-repo-'))
 
   execSync('git init', { cwd: testRepoDir, stdio: 'pipe' })
   execSync('git config user.email "e2e@test.local"', { cwd: testRepoDir, stdio: 'pipe' })
@@ -63,6 +66,20 @@ export function createSeededTestRepo(): string {
     stdio: 'pipe'
   })
 
-  writeFileSync(TEST_REPO_PATH_FILE, testRepoDir)
+  if (options.persistPathForRun !== false) {
+    writeFileSync(TEST_REPO_PATH_FILE, testRepoDir)
+  }
   return testRepoDir
+}
+
+// Why: specs whose git mutations are visible beyond their own worker (rewiring
+// origin, committing in the seeded secondary worktree) opt into a private repo
+// via `testRepoPath: [async ({}, provide) => providePrivateSeededTestRepo(provide),
+// { scope: 'worker' }]` so parallel workers never share their git state.
+export async function providePrivateSeededTestRepo(
+  provideFixture: (repoPath: string) => Promise<void>
+): Promise<void> {
+  const repoPath = createSeededTestRepo({ persistPathForRun: false })
+  await provideFixture(repoPath)
+  rmSync(path.dirname(repoPath), { recursive: true, force: true })
 }

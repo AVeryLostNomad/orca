@@ -1,8 +1,10 @@
 import type { Page, TestInfo } from '@stablyai/playwright-test'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { test, expect } from './helpers/orca-app'
+import { test as base, expect } from './helpers/orca-app'
+import { providePrivateSeededTestRepo } from './helpers/seeded-test-repo'
 import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
+
 import {
   createBranchCommit,
   createStagedCommitMessageChange,
@@ -16,6 +18,17 @@ import {
   installDelayedCommitMessageGenerator,
   installDelayedPrGenerator
 } from './helpers/source-control-ai-generators'
+
+// Why: createBranchCommit/createStagedCommitMessageChange commit in the seeded
+// secondary worktree; a private repo keeps parallel workers from colliding on
+// the same git index.
+const test = base.extend({
+  testRepoPath: [
+    // oxlint-disable-next-line no-empty-pattern -- Playwright fixture callbacks require object destructuring here.
+    async ({}, provideFixture) => providePrivateSeededTestRepo(provideFixture),
+    { scope: 'worker' }
+  ]
+})
 
 function readLog(pathname: string): string {
   try {

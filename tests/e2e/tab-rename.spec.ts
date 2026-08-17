@@ -126,7 +126,9 @@ test.describe('Tab Rename (Inline)', () => {
     expect(originalTitle.length).toBeGreaterThan(0)
 
     await tabLocatorByTitle(orcaPage, originalTitle).click({ button: 'right' })
-    await orcaPage.getByRole('menuitem', { name: 'Change Title', exact: true }).click()
+    // Why: on macOS the accessible name includes the default ⌘R shortcut
+    // ("Change Title ⌘R"); anchor to the label but allow the platform suffix.
+    await orcaPage.getByRole('menuitem', { name: /^Change Title/ }).click()
 
     const renameInput = orcaPage.getByRole('textbox', {
       name: `Rename tab ${originalTitle}`,

@@ -104,7 +104,10 @@ export default function globalSetup(): void {
   // Why: realpathSync so the seeded path matches the store's repo.path on
   // macOS, where os.tmpdir() (/var/...) symlinks to /private/var/... and the
   // app canonicalizes repo.path via `git rev-parse --show-toplevel` on add.
-  const testRepoDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-repo-')))
+  // Why: a per-run parent dir keeps the repo and its sibling worktrees out of
+  // reach of other concurrent runs' teardown, which cleans by name prefix.
+  const runParentDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-run-')))
+  const testRepoDir = mkdtempSync(path.join(runParentDir, 'orca-e2e-repo-'))
 
   execSync('git init', { cwd: testRepoDir, stdio: 'pipe' })
   execSync('git config user.email "e2e@test.local"', { cwd: testRepoDir, stdio: 'pipe' })
