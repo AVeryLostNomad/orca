@@ -2,9 +2,9 @@
   "$comment": "Single source of truth for the self-built Windows code-server package (coder publishes no Windows releases). Bumping codeServerVersion, nodeVersion, or packageRevision here triggers .github/workflows/code-server-windows-package.yml to build+publish the asset; mirror the values (and the new sha256 the workflow prints) into src/main/code-server/code-server-windows-package.ts — a tripwire test asserts they agree. nodeVersion is the exact node.exe bundled as lib/node.exe AND the version that node-gyp builds native modules against, so it is the package's ABI contract. The release lives in the main repo (like ads-web-server-v*): tags are rare (one per pin) so they can't evict app entries from the 10-entry releases atom feed, and the prefixed tag never parses as semver, so electron-updater's feed scan skips it. packageRevision (-orca.N) lets a rebuild of the same upstream version get a fresh immutable tag.",
   "codeServerVersion": "4.127.0",
   "nodeVersion": "22.23.2",
-  "packageRevision": 1,
+  "packageRevision": 2,
   "assetName": "code-server-4.127.0-windows-amd64.zip",
   "releaseRepo": "AVeryLostNomad/orca",
-  "releaseTag": "code-server-win32-v4.127.0-orca.1",
-  "sha256": "e3b0e7a8d72f08023ad701fbc919e55d14027da8970da686a50fc51372ac3c3f"
+  "releaseTag": "code-server-win32-v4.127.0-orca.2",
+  "sha256": ""
 }

@@ -14,7 +14,16 @@
 
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { createServer } from 'node:net'
 import { get } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -69,17 +78,45 @@ export function packageDirName(pins) {
 
 // Everything the runtime needs, spot-checked; extraction-side layout detection
 // (code-server-windows-install.ts) relies on the single versioned top dir.
+// @coder/logger is entry.js's first require — its presence proves the hoisted
+// npm deps were folded into the package, not left behind in the install dir.
 export function assertPackageLayout(rootDir, exists = existsSync) {
   const required = [
     join(rootDir, 'lib', 'node.exe'),
     join(rootDir, 'out', 'node', 'entry.js'),
     join(rootDir, 'lib', 'vscode', 'product.json'),
-    join(rootDir, 'package.json')
+    join(rootDir, 'package.json'),
+    join(rootDir, 'node_modules', '@coder', 'logger', 'package.json')
   ]
   const missing = required.filter((p) => !exists(p))
   if (missing.length > 0) {
     throw new Error(`assembled package is missing: ${missing.join(', ')}`)
   }
+}
+
+// npm hoists code-server's runtime deps to the install dir's node_modules
+// root, so copying node_modules/code-server alone ships a package that dies
+// with MODULE_NOT_FOUND (@coder/logger et al). Enumerate what must be folded
+// back in: every hoisted package (scope-aware) except code-server itself.
+export function hoistedDependencyDirs(nodeModulesDir, readdirImpl = readdirSync) {
+  const dirs = []
+  for (const entry of readdirImpl(nodeModulesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'code-server') {
+      continue
+    }
+    if (entry.name.startsWith('@')) {
+      for (const scoped of readdirImpl(join(nodeModulesDir, entry.name), {
+        withFileTypes: true
+      })) {
+        if (scoped.isDirectory()) {
+          dirs.push(join(entry.name, scoped.name))
+        }
+      }
+    } else {
+      dirs.push(entry.name)
+    }
+  }
+  return dirs
 }
 
 // node-gyp build intermediates; keep build/Release/*.node (the artifacts).
@@ -226,13 +263,27 @@ async function main() {
 
   const installed = npmInstallCodeServer(pins, workDir)
 
-  const stagingRoot = join(workDir, packageDirName(pins))
+  // Staging lives OUTSIDE workDir: node resolves modules by walking up, so a
+  // staging dir under workDir would silently satisfy missing hoisted deps from
+  // workDir/node_modules and the smoke test could pass on a broken package.
+  const stageParent = join(tmpdir(), `orca-code-server-win-stage-${pins.codeServerVersion}`)
+  rmSync(stageParent, { recursive: true, force: true })
+  const stagingRoot = join(stageParent, packageDirName(pins))
   console.log('[code-server-win] assembling package layout')
   cpSync(installed, stagingRoot, { recursive: true, verbatimSymlinks: true })
+  for (const dep of hoistedDependencyDirs(join(workDir, 'node_modules'))) {
+    const target = join(stagingRoot, 'node_modules', dep)
+    // Already-present means npm nested a conflicting version; keep it.
+    if (!existsSync(target)) {
+      cpSync(join(workDir, 'node_modules', dep), target, {
+        recursive: true,
+        verbatimSymlinks: true
+      })
+    }
+  }
   cpSync(process.execPath, join(stagingRoot, 'lib', 'node.exe'))
 
   console.log('[code-server-win] pruning build intermediates')
-  const { readdirSync, statSync } = await import('node:fs')
   const stack = [stagingRoot]
   let prunedBytes = 0
   while (stack.length > 0) {
@@ -264,7 +315,7 @@ async function main() {
   rmSync(zipPath, { force: true })
   console.log('[code-server-win] zipping with System32 tar.exe (bsdtar)')
   const tarExe = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
-  execFileSync(tarExe, ['-a', '-cf', zipPath, '-C', workDir, packageDirName(pins)], {
+  execFileSync(tarExe, ['-a', '-cf', zipPath, '-C', stageParent, packageDirName(pins)], {
     stdio: 'inherit',
     windowsHide: true
   })

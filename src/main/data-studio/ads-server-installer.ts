@@ -76,10 +76,20 @@ function downloadToFile(
   })
 }
 
+// PATH `tar` on Windows can be Git for Windows' GNU tar, which parses C:\...
+// as remote host "C"; System32's bsdtar (Windows 10 1803+) handles drive
+// letters, and the absolute path dodges PATH hijack.
+export function tarExecutable(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  return platform === 'win32' ? join(env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+}
+
 function extractTarGz(archive: string, destination: string): Promise<void> {
   return new Promise((resolve, reject) => {
     mkdirSync(destination, { recursive: true })
-    const child = spawn('tar', ['-xzf', archive, '-C', destination], {
+    const child = spawn(tarExecutable(), ['-xzf', archive, '-C', destination], {
       stdio: ['ignore', 'ignore', 'pipe'],
       windowsHide: true
     })

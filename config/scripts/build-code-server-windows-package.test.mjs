@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { join } from 'node:path'
 import {
   assertPackageLayout,
   assertRuntimeMatchesPins,
   hasUnsafeCmdArg,
+  hoistedDependencyDirs,
   loadPins,
   packageDirName,
   shouldPrune
@@ -50,11 +52,34 @@ describe('build-code-server-windows-package helpers', () => {
       '/pkg/lib/node.exe',
       '/pkg/out/node/entry.js',
       '/pkg/lib/vscode/product.json',
-      '/pkg/package.json'
+      '/pkg/package.json',
+      '/pkg/node_modules/@coder/logger/package.json'
     ])
     const exists = (p) => present.has(p.replace(/\\/g, '/'))
     expect(() => assertPackageLayout('/pkg', exists)).not.toThrow()
     present.delete('/pkg/lib/node.exe')
     expect(() => assertPackageLayout('/pkg', exists)).toThrow(/node\.exe/)
+    present.add('/pkg/lib/node.exe')
+    // v4.127.0-orca.1 regression: hoisted deps left out of the zip.
+    present.delete('/pkg/node_modules/@coder/logger/package.json')
+    expect(() => assertPackageLayout('/pkg', exists)).toThrow(/@coder/)
+  })
+
+  it('enumerates hoisted deps scope-aware, excluding code-server itself', () => {
+    const tree = {
+      '/nm': [
+        { name: '@coder', dir: true },
+        { name: 'code-server', dir: true },
+        { name: 'express', dir: true },
+        { name: '.package-lock.json', dir: false },
+        { name: '.bin', dir: true }
+      ],
+      [join('/nm', '@coder')]: [
+        { name: 'logger', dir: true },
+        { name: 'README.md', dir: false }
+      ]
+    }
+    const readdirImpl = (dir) => tree[dir].map((e) => ({ name: e.name, isDirectory: () => e.dir }))
+    expect(hoistedDependencyDirs('/nm', readdirImpl)).toEqual([join('@coder', 'logger'), 'express'])
   })
 })

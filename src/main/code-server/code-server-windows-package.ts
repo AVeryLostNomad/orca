@@ -13,7 +13,9 @@ export const CODE_SERVER_WINDOWS_RELEASE_REPO = 'AVeryLostNomad/orca'
 
 // Bumped for rebuilds of the same upstream version (new native-module build,
 // different bundled Node) — release tags are immutable once published.
-export const CODE_SERVER_WINDOWS_PACKAGE_REVISION = 1
+// orca.2: orca.1 shipped without code-server's hoisted npm deps (entry.js
+// died with MODULE_NOT_FOUND on @coder/logger).
+export const CODE_SERVER_WINDOWS_PACKAGE_REVISION = 2
 
 export const CODE_SERVER_WINDOWS_RELEASE_TAG = `code-server-win32-v${CODE_SERVER_VERSION}-orca.${CODE_SERVER_WINDOWS_PACKAGE_REVISION}`
 
@@ -23,8 +25,7 @@ export const CODE_SERVER_WINDOWS_DOWNLOAD_URL = `https://github.com/${CODE_SERVE
 // publish. The installer refuses to install while unset, so a version bump can
 // never ship an unpinned download. (Widened to string so guard-site narrowing
 // doesn't collapse the literal type.)
-export const CODE_SERVER_WINDOWS_SHA256: string =
-  'e3b0e7a8d72f08023ad701fbc919e55d14027da8970da686a50fc51372ac3c3f'
+export const CODE_SERVER_WINDOWS_SHA256: string = ''
 
 // A truncated download can still be a valid-looking zip prefix; the sha256 pin
 // is the real integrity check, this only short-circuits obvious garbage.
