@@ -17,6 +17,7 @@ import { getProjectGroupSubtreeIds } from '../../shared/project-groups'
 import { projectResolvedWorktreeLineage } from '../../shared/resolved-worktree-lineage'
 import { isPathInsideOrEqual, isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { deleteWorktreeHistoryDir } from '../terminal-history-deletion'
+import { deleteWorkspaceNotesDir } from '../workspace-notes-deletion'
 import {
   pruneWorkspaceCleanupScanSnapshot,
   pruneWorkspaceCleanupScanSnapshots
@@ -350,6 +351,7 @@ function removeWorktreeMetadataAndTransientState(
   localhostWorktreeLabelProxy.unregisterWorktree(worktreeId)
   // Why: schedule async history tree removal — never recursive-rmSync on the delete critical path.
   deleteWorktreeHistoryDir(worktreeId)
+  deleteWorkspaceNotesDir(worktreeId)
   // Why: release the removed worktree's PR-refresh aliases so coalesced queue entries don't retain it all session (memory creep).
   pruneWorktreePRRefreshAliases(worktreeId)
   // Why: removed workspaces must never resurrect from the persisted cleanup/space scan snapshots.

@@ -101,6 +101,7 @@ import type { NestedRepoScanResult } from '../shared/project-group-types'
 import type { BaseRefDefaultResult, BaseRefSearchResult } from '../shared/repo-types'
 import type { TuiAgent } from '../shared/tui-agent'
 import type { FloatingTerminalCwdRequest } from '../shared/ui-chrome-types'
+import type { WorkspaceNotesEnsureRequest } from '../shared/workspace-notes-types'
 import type { UpdateStatus } from '../shared/update-status-types'
 import type {
   WorktreeBaseStatusEvent,
@@ -587,6 +588,8 @@ const api = {
       ipcRenderer.invoke('app:pickFloatingMarkdownDocument'),
     pickFloatingWorkspaceDirectory: (): Promise<string | null> =>
       ipcRenderer.invoke('app:pickFloatingWorkspaceDirectory'),
+    ensureWorkspaceNotesFile: (args: WorkspaceNotesEnsureRequest) =>
+      ipcRenderer.invoke('workspaceNotes:ensureFile', args),
     writeTerminalRenderDesyncEvidence: (args: WriteTerminalRenderDesyncEvidenceArgs) =>
       ipcRenderer.invoke('terminal:writeRenderDesyncEvidence', args)
   },

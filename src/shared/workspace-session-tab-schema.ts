@@ -14,7 +14,8 @@ export const tabContentTypeSchema = z.enum([
   'browser',
   'simulator',
   'vscode',
-  'datastudio'
+  'datastudio',
+  'workspace-notes'
 ])
 
 export const workspaceVisibleTabTypeSchema = z.enum([

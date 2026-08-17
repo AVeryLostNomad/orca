@@ -45,6 +45,7 @@ import {
 } from '../updater'
 import { isTrustedUIRenderer } from '../ipc/ui'
 import { scheduleHistoryGc } from '../terminal-history-gc'
+import { schedulePendingWorkspaceNotesRemovals } from '../workspace-notes-deletion'
 import { hydrateLocalPtyRegistryAtBoot } from '../memory/hydrate-local-pty-registry'
 import type { ClaudeRuntimeAuthPreparation } from '../claude-accounts/runtime-auth-service'
 import { getKnownWorktreeIdsForHistoryGc } from './history-gc-worktree-ids'
@@ -142,6 +143,11 @@ export function attachMainWindowServices(
   scheduleHistoryGc(async () => {
     return getKnownWorktreeIdsForHistoryGc(store)
   })
+  // Why no orphan GC for notes (unlike terminal history): notes must outlive app
+  // reinstalls, and a freshly-wiped orca-data.json would make every notes dir look
+  // orphaned. Only explicit workspace removal deletes notes; this just finishes
+  // tombstones a quit interrupted mid-removal.
+  schedulePendingWorkspaceNotesRemovals()
   // Why: daemon PTYs survive renderer restarts, so at boot they're unregistered; hydrate so they aren't mislabeled REMOTE (idempotent, safe to re-run).
   void hydrateLocalPtyRegistryAtBoot(store)
   const localPtyStartupReady = options?.awaitLocalPtyStartup?.()

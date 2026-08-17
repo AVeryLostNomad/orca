@@ -25,6 +25,8 @@ export type TabContentType =
   | 'simulator'
   | 'vscode'
   | 'datastudio'
+  // Permanent floating-workspace scratchpad; content tracks the selected workspace.
+  | 'workspace-notes'
 
 export type WorkspaceVisibleTabType =
   | 'terminal'

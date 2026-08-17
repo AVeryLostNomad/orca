@@ -22,6 +22,7 @@ import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { translate } from '@/i18n/i18n'
 import { browserWorkspaceHasRemoteOwner } from '@/runtime/remote-browser-tab-ownership'
 import { getClientCreationActionPolicy } from '@/lib/client-creation-action-policy'
+import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
 import type { TabGroupWorktreeSnapshot } from './useTabGroupItemProjections'
 
 export function recordTerminalTabGroupSplit(createdTerminal: TerminalTab | null | undefined): void {

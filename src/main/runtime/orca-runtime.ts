@@ -1032,6 +1032,7 @@ import {
   resolveWorktreeSharedDirectories
 } from '../git/worktree-shared-directories'
 import { deleteWorktreeHistoryDir } from '../terminal-history-deletion'
+import { deleteWorkspaceNotesDir } from '../workspace-notes-deletion'
 import {
   cleanupUnusedWorktreePushTargetRemote,
   cleanupUnusedWorktreePushTargetRemoteSsh,
@@ -19810,6 +19811,8 @@ export class OrcaRuntimeService {
     }
     const deleted = this.store.removeFolderWorkspace(folderWorkspaceId)
     if (deleted) {
+      // Folder removal bypasses the worktree removal funnel; reap its notes here.
+      deleteWorkspaceNotesDir(folderWorkspaceKey(folderWorkspaceId))
       this.notifyReposChanged()
     }
     return { deleted }

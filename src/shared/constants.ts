@@ -120,6 +120,9 @@ export const ORPHAN_WORKTREE_ID = '__orphan__'
 // Why: synthetic local workspace; persistence pruning must classify it without the repo catalog.
 export const FLOATING_TERMINAL_WORKTREE_ID = 'global-floating-terminal'
 
+/** Fixed id of the permanent floating-workspace notes tab; single instance, recreated when missing. */
+export const FLOATING_WORKSPACE_NOTES_TAB_ID = 'floating-workspace-notes'
+
 export const REPO_COLORS = [
   '#737373', // neutral
   '#ef4444', // red

@@ -14,6 +14,7 @@ import { folderWorkspaceKey } from '../../../shared/workspace-scope'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { useAllWorktrees } from '../store/selectors'
 import { getConnectionId } from '../lib/connection-context'
+import { getRendererAppPlatform } from '../lib/renderer-app-platform'
 import { basename } from '../lib/path'
 import {
   Dialog,

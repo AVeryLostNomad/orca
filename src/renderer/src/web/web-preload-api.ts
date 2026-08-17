@@ -589,6 +589,8 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       getFloatingMarkdownDirectory: () => Promise.resolve(''),
       pickFloatingMarkdownDocument: () => Promise.resolve(null),
       pickFloatingWorkspaceDirectory: () => Promise.resolve(null),
+      // Web clients have no local userData notes store; the pane shows a placeholder.
+      ensureWorkspaceNotesFile: () => Promise.resolve(null),
       // Browser fallback has no app-owned userData dir; reject so the sentinel can't claim sensitive evidence was persisted.
       writeTerminalRenderDesyncEvidence: () =>
         Promise.reject(

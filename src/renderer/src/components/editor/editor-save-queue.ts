@@ -167,13 +167,16 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
   const syncAutoSave = (): void => {
     const state = store.getState()
     const openFilesById = new Map(state.openFiles.map((file) => [file.id, file]))
+    // Why: per-file override — workspace notes autosave even with the global setting off.
+    const autoSaveEnabledForFile = (file: OpenFile): boolean =>
+      state.settings?.editorAutoSave === true || file.alwaysAutoSave === true
 
     for (const fileId of Array.from(autoSaveTimers.keys())) {
       const file = openFilesById.get(fileId)
       const draft = state.editorDrafts[fileId]
       const shouldKeepTimer =
-        state.settings?.editorAutoSave &&
         file &&
+        autoSaveEnabledForFile(file) &&
         file.isDirty &&
         canAutoSaveOpenFile(file) &&
         // Why: suspension holds until the user picks a side via the banner (or saves manually).
@@ -184,14 +187,11 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
       }
     }
 
-    if (!state.settings?.editorAutoSave) {
-      return
-    }
-
-    const autoSaveDelayMs = normalizeAutoSaveDelayMs(state.settings.editorAutoSaveDelayMs)
+    const autoSaveDelayMs = normalizeAutoSaveDelayMs(state.settings?.editorAutoSaveDelayMs)
     for (const file of state.openFiles) {
       const draft = state.editorDrafts[file.id]
       if (
+        !autoSaveEnabledForFile(file) ||
         !file.isDirty ||
         draft === undefined ||
         !canAutoSaveOpenFile(file) ||
