@@ -31,6 +31,55 @@ export const getGeneralEditorSearchEntries = createLocalizedCatalog(() => [
   },
   {
     title: translate(
+      'auto.components.settings.general.search.editorColorTheme',
+      'Editor Color Theme'
+    ),
+    description: translate(
+      'auto.components.settings.general.search.editorColorThemeDesc',
+      'Syntax and editor colors for code files — bundled themes plus color themes installed in VS Code, Cursor, or VSCodium.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.general.search.e1ee631696', 'editor'),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorThemeKw', 'theme'),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorColorKw', 'color'),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.editorSyntaxKw',
+        'syntax highlighting'
+      ),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorVsCodeKw', 'vs code')
+    ]
+  },
+  {
+    title: translate(
+      'auto.components.settings.general.search.languageServers',
+      'Code Intelligence (Language Servers)'
+    ),
+    description: translate(
+      'auto.components.settings.general.search.languageServersDesc',
+      'Rich intellisense in the file editor: completions, diagnostics, go-to-definition and more.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.general.search.lspKw', 'lsp'),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.languageServerKw',
+        'language server'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.intellisenseKw',
+        'intellisense'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.completionsKw',
+        'completions'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.diagnosticsKw',
+        'diagnostics'
+      )
+    ]
+  },
+  {
+    title: translate(
       'auto.components.settings.general.search.editorFontFamily',
       'Editor Font Family'
     ),

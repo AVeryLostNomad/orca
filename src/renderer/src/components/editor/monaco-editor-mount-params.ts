@@ -64,4 +64,7 @@ export type MonacoEditorMountParams = {
     setGutterMenuPoint: Dispatch<SetStateAction<{ x: number; y: number }>>
     setGutterMenuLine: Dispatch<SetStateAction<number>>
   }
+  askAgent: {
+    setAskAgentTarget: Dispatch<SetStateAction<MonacoMarkdownSelectionAnnotationTarget | null>>
+  }
 }

@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { DiffEditor, type DiffOnMount } from '@monaco-editor/react'
+import { useMonacoThemeName } from '@/lib/monaco-highlighting/use-monaco-theme-name'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { DiffCommentPopover } from '../diff-comments/DiffCommentPopover'
@@ -31,7 +32,6 @@ type DiffSectionBodyProps = {
   addLineCommentLabel?: string
   isBranchMode: boolean
   sideBySide: boolean
-  isDark: boolean
   language: string
   modelPathBase: string
   isEditable: boolean
@@ -56,7 +56,6 @@ export function DiffSectionBody({
   addLineCommentLabel,
   isBranchMode,
   sideBySide,
-  isDark,
   language,
   modelPathBase,
   isEditable,
@@ -69,6 +68,7 @@ export function DiffSectionBody({
   onSaveLimitedDiff,
   onMount
 }: DiffSectionBodyProps): React.JSX.Element {
+  const monacoThemeName = useMonacoThemeName()
   const renderLimit = section.largeDiffRenderLimit?.limited ? section.largeDiffRenderLimit : null
 
   return (
@@ -177,7 +177,7 @@ export function DiffSectionBody({
           language={language}
           original={section.originalContent}
           modified={section.modifiedContent}
-          theme={isDark ? 'vs-dark' : 'vs'}
+          theme={monacoThemeName}
           onMount={onMount}
           // Why: @monaco-editor/react can dispose models before widget teardown.
           // Keep them through unmount and dispose unattached models next tick.

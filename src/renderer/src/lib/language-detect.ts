@@ -67,7 +67,7 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   '.ps1': 'powershell',
   '.yaml': 'yaml',
   '.yml': 'yaml',
-  '.toml': 'ini',
+  '.toml': 'toml',
   '.ini': 'ini',
   '.cfg': 'ini',
   '.conf': 'ini',

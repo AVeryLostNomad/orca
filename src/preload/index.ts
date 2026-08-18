@@ -255,6 +255,21 @@ import type {
   DataStudioEnsureRunningResult,
   DataStudioStatusEvent
 } from '../shared/data-studio-types'
+import type {
+  LocalEditorThemeDescriptor,
+  LocalEditorThemeReadRequest,
+  MergedVSCodeTheme
+} from '../shared/editor-theme-types'
+import type {
+  LspEnsureSessionArgs,
+  LspEnsureSessionResult,
+  LspRequestResult,
+  LspResponseError,
+  LspServerId,
+  LspServerInstallState,
+  LspServerStateSnapshot,
+  LspSessionEvent
+} from '../shared/lsp-types'
 import type { TelemetryConsentState } from '../shared/telemetry-consent-types'
 import type {
   PreflightRuntimeContext,
@@ -5126,6 +5141,68 @@ const api = {
         callback(data)
       ipcRenderer.on('dataStudio:statusChanged', listener)
       return () => ipcRenderer.removeListener('dataStudio:statusChanged', listener)
+    }
+  },
+
+  // Color themes contributed by extensions installed in local editors
+  // (VS Code / Insiders / VSCodium / Cursor), for the embedded Monaco editor.
+  editorThemes: {
+    list: (): Promise<LocalEditorThemeDescriptor[]> => ipcRenderer.invoke('editorThemes:list'),
+    read: (request: LocalEditorThemeReadRequest): Promise<MergedVSCodeTheme> =>
+      ipcRenderer.invoke('editorThemes:read', request)
+  },
+
+  // Language Server Protocol bridge for the embedded Monaco editor. Servers
+  // run in the main process; notify/cancel are fire-and-forget send() because
+  // didChange rides the typing hot path.
+  lsp: {
+    ensureSession: (args: LspEnsureSessionArgs): Promise<LspEnsureSessionResult> =>
+      ipcRenderer.invoke('lsp:ensureSession', args),
+    releaseSession: (args: { sessionId: string }): Promise<void> =>
+      ipcRenderer.invoke('lsp:releaseSession', args),
+    request: (args: {
+      sessionId: string
+      clientRequestId: string
+      method: string
+      params: unknown
+    }): Promise<LspRequestResult> => ipcRenderer.invoke('lsp:request', args),
+    cancelRequest: (args: { sessionId: string; clientRequestId: string }): void => {
+      ipcRenderer.send('lsp:cancelRequest', args)
+    },
+    notify: (args: { sessionId: string; method: string; params: unknown }): void => {
+      ipcRenderer.send('lsp:notify', args)
+    },
+    respondToServerRequest: (args: {
+      sessionId: string
+      serverRequestId: number
+      result?: unknown
+      error?: LspResponseError
+    }): void => {
+      ipcRenderer.send('lsp:respondToServerRequest', args)
+    },
+    onEvent: (
+      callback: (payload: { sessionId: string; event: LspSessionEvent }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { sessionId: string; event: LspSessionEvent }
+      ): void => callback(payload)
+      ipcRenderer.on('lsp:event', listener)
+      return () => ipcRenderer.removeListener('lsp:event', listener)
+    },
+    getServerStates: (): Promise<LspServerStateSnapshot[]> =>
+      ipcRenderer.invoke('lsp:getServerStates'),
+    retryServer: (args: { serverId: LspServerId }): Promise<LspServerStateSnapshot[]> =>
+      ipcRenderer.invoke('lsp:retryServer', args),
+    onServerStateChanged: (
+      callback: (payload: { serverId: LspServerId; state: LspServerInstallState }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { serverId: LspServerId; state: LspServerInstallState }
+      ): void => callback(payload)
+      ipcRenderer.on('lsp:serverStateChanged', listener)
+      return () => ipcRenderer.removeListener('lsp:serverStateChanged', listener)
     }
   }
 }

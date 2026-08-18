@@ -1,0 +1,100 @@
+{
+  "releaseTag": "lsp-node-bundles-v1",
+  "bundles": {
+    "typescript-language-server": {
+      "bundleId": "typescript-language-server",
+      "version": "5.3.0",
+      "asset": "typescript-language-server-5.3.0.tar.gz",
+      "sha256": "6fa1f578f6dd518717b57c0a50c749518919cf1ba038e0b01bd6b8324d942666",
+      "servers": {
+        "typescript": {
+          "entryRelativePath": "node_modules/typescript-language-server/lib/cli.mjs"
+        }
+      }
+    },
+    "vscode-langservers": {
+      "bundleId": "vscode-langservers",
+      "version": "4.10.0",
+      "asset": "vscode-langservers-4.10.0.tar.gz",
+      "sha256": "9c430d62b8142b15469547b89cd2405e236d7cdcb5502c3d85670460c74c41de",
+      "servers": {
+        "json": {
+          "entryRelativePath": "node_modules/vscode-langservers-extracted/bin/vscode-json-language-server"
+        },
+        "css": {
+          "entryRelativePath": "node_modules/vscode-langservers-extracted/bin/vscode-css-language-server"
+        },
+        "html": {
+          "entryRelativePath": "node_modules/vscode-langservers-extracted/bin/vscode-html-language-server"
+        }
+      }
+    },
+    "yaml-language-server": {
+      "bundleId": "yaml-language-server",
+      "version": "1.24.0",
+      "asset": "yaml-language-server-1.24.0.tar.gz",
+      "sha256": "d301f58c395d46f3285151a7bb496d8381df5833256df5d6de3332db878442a9",
+      "servers": {
+        "yaml": {
+          "entryRelativePath": "node_modules/yaml-language-server/bin/yaml-language-server"
+        }
+      }
+    },
+    "pyright": {
+      "bundleId": "pyright",
+      "version": "1.1.413",
+      "asset": "pyright-1.1.413.tar.gz",
+      "sha256": "f5a93ba84cb12e0a721d4694364c8c10f1f57ea4acd091035ee37286ab875bae",
+      "servers": {
+        "pyright": {
+          "entryRelativePath": "node_modules/pyright/langserver.index.js"
+        }
+      }
+    },
+    "bash-language-server": {
+      "bundleId": "bash-language-server",
+      "version": "5.6.0",
+      "asset": "bash-language-server-5.6.0.tar.gz",
+      "sha256": "9fd0e99c2c3f6715dd05a500c1df7ca9976767f94ae2744a58cf781018f2fe7d",
+      "servers": {
+        "bash": {
+          "entryRelativePath": "node_modules/bash-language-server/out/cli.js",
+          "extraArgs": ["start"]
+        }
+      }
+    },
+    "dockerfile-language-server": {
+      "bundleId": "dockerfile-language-server",
+      "version": "0.15.0",
+      "asset": "dockerfile-language-server-0.15.0.tar.gz",
+      "sha256": "ba1213b848ce4b37e83cfa88cabfbc8e20602e8f4b4cf51dfaf310c9dbcc0895",
+      "servers": {
+        "dockerfile": {
+          "entryRelativePath": "node_modules/dockerfile-language-server-nodejs/bin/docker-langserver"
+        }
+      }
+    },
+    "intelephense": {
+      "bundleId": "intelephense",
+      "version": "1.18.5",
+      "asset": "intelephense-1.18.5.tar.gz",
+      "sha256": "d07f4d3c2c60a2e77cfde2b6c75b8cc970c1be3351025a9149afffe94f40065d",
+      "servers": {
+        "intelephense": {
+          "entryRelativePath": "node_modules/intelephense/lib/intelephense.js"
+        }
+      }
+    },
+    "vue-language-server": {
+      "bundleId": "vue-language-server",
+      "version": "3.3.10",
+      "asset": "vue-language-server-3.3.10.tar.gz",
+      "sha256": "3f4b37750b51713acade03a92afc370dd2842309ddf792250aab5a49e7229efb",
+      "servers": {
+        "vue": {
+          "entryRelativePath": "node_modules/@vue/language-server/bin/vue-language-server.js"
+        }
+      }
+    }
+  }
+}

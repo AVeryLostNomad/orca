@@ -68,5 +68,103 @@
     "text": "ghostty",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/lsp/lsp-client.ts",
+    "kind": "object-property:message",
+    "text": "unhandled server request:",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/lsp/use-lsp-for-editor.ts",
+    "kind": "object-property:message",
+    "text": "Language server unavailable",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Light+ (VS Code Default)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Dark+ (VS Code Default)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "One Dark Pro",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Dracula",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "GitHub Dark",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "GitHub Light",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Monokai",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Solarized Dark",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Solarized Light",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Nord",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Catppuccin Mocha",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Catppuccin Latte",
+    "dynamic": false,
+    "count": 1
   }
 ]

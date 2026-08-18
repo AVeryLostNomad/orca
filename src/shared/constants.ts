@@ -202,6 +202,13 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     // Why empty: the editor keeps following the terminal font unless the user opts in.
     editorFontFamily: '',
     editorWordWrap: true,
+    editorThemeLight: 'light-plus',
+    editorThemeDark: 'dark-plus',
+    // On by default: servers download on demand the first time a matching file opens.
+    lspEnabled: true,
+    lspDisabledServers: [],
+    newTabVSCodeEnabled: true,
+    newTabDataStudioEnabled: true,
     richMarkdownSpellcheckEnabled: true,
     markdownReviewToolsEnabled: true,
     primarySelectionMiddleClickPaste: getDefaultPrimarySelectionMiddleClickPaste(),

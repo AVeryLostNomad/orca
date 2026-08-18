@@ -29,7 +29,6 @@ export function DiffSectionItem({
   index,
   isBranchMode,
   sideBySide,
-  isDark,
   settings,
   sectionHeight,
   worktreeId,
@@ -366,7 +365,6 @@ export function DiffSectionItem({
           addLineCommentLabel={addLineCommentLabel}
           isBranchMode={isBranchMode}
           sideBySide={sideBySide}
-          isDark={isDark}
           language={language}
           modelPathBase={modelPathBase}
           isEditable={isEditable}

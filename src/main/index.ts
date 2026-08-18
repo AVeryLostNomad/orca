@@ -293,6 +293,7 @@ import { registerSystemResumeBroadcast } from './system-resume-broadcast'
 import { settleTeardownWithinDeadline } from './quit-teardown-deadline'
 import { quitTeardownStartGate } from './quit-teardown-start-gate'
 import { beginSshShutdown } from './ipc/ssh'
+import { shutdownLspSessions } from './ipc/lsp'
 import { PluginService } from './plugins/plugin-service'
 import { PluginKillListService } from './plugins/plugin-kill-list-service'
 import { getPluginsDataDir } from './plugins/plugin-discovery'
@@ -3294,6 +3295,7 @@ app.on('will-quit', (e) => {
   const emulatorShutdown = runtime?.getEmulatorBridge()?.destroyAllSessions() ?? Promise.resolve()
   const codeServerShutdown = getCodeServerService().shutdown()
   const dataStudioShutdown = getDataStudioRegistry().shutdownAll()
+  const lspShutdown = shutdownLspSessions()
   // Why immediately before store.flushAsync() with no await in between: beginSshShutdown() marks every
   // active SSH lease detached in memory synchronously, and that flush is what persists it.
   const sshShutdown = beginSshShutdown()
@@ -3343,6 +3345,7 @@ app.on('will-quit', (e) => {
     { name: 'plugin-hosts', promise: pluginHostShutdown },
     { name: 'code-server', promise: codeServerShutdown },
     { name: 'data-studio', promise: dataStudioShutdown },
+    { name: 'lsp', promise: lspShutdown },
     { name: 'codex-backfill-recovery', promise: codexBackfillRecoveryShutdown },
     { name: 'usage-cache', promise: usageCacheFlush },
     { name: 'stats', promise: statsFlush },

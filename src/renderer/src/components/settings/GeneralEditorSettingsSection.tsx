@@ -19,6 +19,8 @@ import { translate } from '@/i18n/i18n'
 import { RichMarkdownSpellcheckSetting } from './RichMarkdownSpellcheckSetting'
 import { EditorWordWrapSetting } from './EditorWordWrapSetting'
 import { EditorFontFamilySetting } from './EditorFontFamilySetting'
+import { EditorColorThemeSetting } from './EditorColorThemeSetting'
+import { LanguageServerSettings } from './LanguageServerSettings'
 import {
   createAutoSaveDelayDraftState,
   resolveAutoSaveDelayDraftState,
@@ -222,6 +224,10 @@ export function GeneralEditorSettingsSection({
           ]}
         />
       </SearchableSetting>
+
+      <EditorColorThemeSetting settings={settings} updateSettings={updateSettings} />
+
+      <LanguageServerSettings settings={settings} updateSettings={updateSettings} />
 
       <EditorFontFamilySetting
         settings={settings}

@@ -54,6 +54,8 @@ import { registerEmulatorVideoStreamHandlers } from './emulator-video-stream'
 import { registerSpeechHandlers } from './speech'
 import { registerCodeServerHandlers } from './code-server'
 import { registerDataStudioHandlers } from './data-studio'
+import { registerEditorThemeHandlers } from './editor-themes'
+import { registerLspHandlers } from './lsp'
 import { registerTerminalRenderDesyncEvidenceHandler } from './terminal-render-desync-evidence'
 import { registerOrcaProfileHandlers } from './orca-profiles'
 import { registerCodexAccountHandlers } from './codex-accounts'
@@ -232,4 +234,6 @@ export function registerCoreHandlers(
   registerSpeechHandlers(store)
   registerCodeServerHandlers({ getKeybindings: () => keybindings?.getOverrides() })
   registerDataStudioHandlers()
+  registerEditorThemeHandlers()
+  registerLspHandlers()
 }

@@ -136,6 +136,40 @@ export const getGeneralNavigationSearchEntries = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate('auto.components.settings.general.search.newTabVscode', 'VS Code Tab'),
+    description: translate(
+      'auto.components.settings.general.search.newTabVscodeDesc',
+      'Offer "New VS Code Tab" in the new tab menu.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.general.search.vscodeKw', 'vscode'),
+      ...translateSearchKeyword('auto.components.settings.general.search.vsCodeKw', 'vs code'),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.codeServerKw',
+        'code server'
+      ),
+      ...translateSearchKeyword('auto.components.settings.general.search.newTabKw', 'new tab'),
+      ...translateSearchKeyword('auto.components.settings.general.search.menuKw', 'menu')
+    ]
+  },
+  {
+    title: translate('auto.components.settings.general.search.newTabDataStudio', 'Data Studio Tab'),
+    description: translate(
+      'auto.components.settings.general.search.newTabDataStudioDesc',
+      'Offer "New Data Studio Tab" in the new tab menu.'
+    ),
+    keywords: [
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.dataStudioKw',
+        'data studio'
+      ),
+      ...translateSearchKeyword('auto.components.settings.general.search.databaseKw', 'database'),
+      ...translateSearchKeyword('auto.components.settings.general.search.sqlKw', 'sql'),
+      ...translateSearchKeyword('auto.components.settings.general.search.newTabKw', 'new tab'),
+      ...translateSearchKeyword('auto.components.settings.general.search.menuKw', 'menu')
+    ]
+  },
+  {
     title: translate(
       'auto.components.settings.general.search.161a86a9da',
       'Confirm before closing pinned tabs'

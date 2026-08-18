@@ -17,6 +17,7 @@ import {
   getGeneralWorkspaceSearchEntries
 } from './general-search'
 import { getGeneralProjectRuntimeSearchEntries } from './general-project-runtime-search'
+import { NewTabMenuTabTypeSettings } from './NewTabMenuTabTypeSettings'
 import { RecentTabOrderControl } from './RecentTabOrderControl'
 import { matchesSettingsSearch, type SettingsSearchEntry } from './settings-search'
 import { SearchableSetting } from './SearchableSetting'
@@ -158,6 +159,7 @@ export function GeneralPane({
             }
           />
         </SearchableSetting>
+        <NewTabMenuTabTypeSettings settings={settings} updateSettings={updateSettings} />
       </section>
     ) : null,
     matchesSettingsSearch(searchQuery, getGeneralWorkspaceSearchEntries()) ? (

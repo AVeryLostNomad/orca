@@ -187,6 +187,7 @@ export const launchSourceSchema = z.enum([
   'onboarding',
   'diff_notes_send',
   'notes_send',
+  'editor_selection_ask',
   'conflict_resolution',
   'source_control_recovery',
   'terminal_context_menu',

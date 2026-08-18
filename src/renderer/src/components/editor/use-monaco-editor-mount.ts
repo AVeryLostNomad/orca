@@ -59,7 +59,8 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
       setCommentPopover,
       setSelectionAnnotationTarget
     },
-    gutterMenu: { setGutterMenuOpen, setGutterMenuPoint, setGutterMenuLine }
+    gutterMenu: { setGutterMenuOpen, setGutterMenuPoint, setGutterMenuLine },
+    askAgent: { setAskAgentTarget }
   } = params
 
   return useCallback<OnMount>(
@@ -140,7 +141,8 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
         commentPopoverRef,
         shouldShowMarkdownAnnotationsRef,
         setCommentPopover,
-        setSelectionAnnotationTarget
+        setSelectionAnnotationTarget,
+        setAskAgentTarget
       })
 
       const { cursorPositionSub, scrollStateSub } = installMonacoViewStateTracking({
@@ -183,6 +185,7 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
         editorRef.current = null
         setMountedEditor(null)
         setCommentPopover(null)
+        setAskAgentTarget(null)
       })
 
       // If there's a pending reveal at mount time, execute it now
@@ -241,6 +244,7 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
       shouldShowMarkdownAnnotationsRef,
       setCommentPopover,
       setSelectionAnnotationTarget,
+      setAskAgentTarget,
       setGutterMenuOpen,
       setGutterMenuPoint,
       setGutterMenuLine

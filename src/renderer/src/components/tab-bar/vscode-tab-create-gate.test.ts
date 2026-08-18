@@ -24,6 +24,21 @@ describe('resolveVSCodeTabCreateGate', () => {
     })
   })
 
+  it('hides both entries when the new-tab-menu setting turns VS Code off', () => {
+    expect(
+      resolveVSCodeTabCreateGate({ ...base, settingEnabled: false, editorSupported: true })
+    ).toEqual({ hasNewVSCode: false, vscodeRemoteDisabled: false })
+    // The remote disabled-with-tooltip row vanishes too, not just the live entry.
+    expect(
+      resolveVSCodeTabCreateGate({
+        ...base,
+        isLocalWorktree: false,
+        settingEnabled: false,
+        editorSupported: true
+      })
+    ).toEqual({ hasNewVSCode: false, vscodeRemoteDisabled: false })
+  })
+
   it('offers nothing for terminal-only surfaces or without a create callback', () => {
     expect(
       resolveVSCodeTabCreateGate({ ...base, terminalOnly: true, editorSupported: true })

@@ -9186,7 +9186,15 @@
             "editorFontFamily": "Editor Font Family",
             "editorFontFamilyDesc": "Font used by file editors and diff views. Leave empty to follow the terminal font.",
             "externalWorktrees": "External worktrees",
-            "externalWorktreesDescription": "Choose whether worktrees created outside Orca appear by default."
+            "externalWorktreesDescription": "Choose whether worktrees created outside Orca appear by default.",
+            "editorColorTheme": "Editor Color Theme",
+            "editorColorThemeDesc": "Syntax and editor colors for code files — bundled themes plus color themes installed in VS Code, Cursor, or VSCodium.",
+            "languageServers": "Code Intelligence (Language Servers)",
+            "languageServersDesc": "Rich intellisense in the file editor: completions, diagnostics, go-to-definition and more.",
+            "newTabVscode": "VS Code Tab",
+            "newTabVscodeDesc": "Offer \"New VS Code Tab\" in the new tab menu.",
+            "newTabDataStudio": "Data Studio Tab",
+            "newTabDataStudioDesc": "Offer \"New Data Studio Tab\" in the new tab menu."
           }
         },
         "git": {
@@ -11293,6 +11301,29 @@
           "patTokenPlaceholder": "ghp_…",
           "cancel": "Cancel",
           "save": "Save"
+        },
+        "EditorColorThemeSetting": {
+          "missing": "Missing theme",
+          "title": "Editor Color Theme",
+          "description": "Syntax and editor colors for code files — bundled themes plus color themes installed in VS Code, Cursor, or VSCodium.",
+          "lightTheme": "Light Theme",
+          "darkTheme": "Dark Theme"
+        },
+        "LanguageServerSettings": {
+          "onDemand": "Downloads on first use",
+          "installing": "Installing… {{value0}}%",
+          "running": "Running · v{{value0}}",
+          "installed": "Installed · v{{value0}}",
+          "toolchainMissing": "Requires {{value0}} on PATH",
+          "title": "Code Intelligence (Language Servers)",
+          "description": "Rich intellisense in the file editor: completions, diagnostics, go-to-definition and more. Servers download automatically the first time a matching file opens.",
+          "retry": "Retry"
+        },
+        "NewTabMenuTabTypeSettings": {
+          "vscodeTitle": "VS Code Tab",
+          "vscodeDescription": "Offer \"New VS Code Tab\" in the new tab menu.",
+          "dataStudioTitle": "Data Studio Tab",
+          "dataStudioDescription": "Offer \"New Data Studio Tab\" in the new tab menu."
         }
       },
       "right": {
@@ -14219,7 +14250,8 @@
         "MonacoEditor": {
           "68cb83f4a7": "Add note on selected text",
           "fd68ae03b3": "Search in Files",
-          "largePasteTooLarge": "Paste is too large."
+          "largePasteTooLarge": "Paste is too large.",
+          "askAgentAboutSelection": "Ask Agent About Selection"
         },
         "MonacoGutterContextMenu": {
           "7b57b1b468": "Copy Remote URL",
@@ -14597,6 +14629,19 @@
           "insertColumnRight": "Insert column right",
           "deleteRow": "Delete row",
           "deleteColumn": "Delete column"
+        },
+        "AskAgentSelectionPopover": {
+          "scopeLabel": "Code selection",
+          "titleRange": "Ask agent about lines {{value0}}-{{value1}}",
+          "titleLine": "Ask agent about line {{value0}}",
+          "placeholder": "Ask a question about this code (optional)",
+          "cancel": "Cancel",
+          "send": "Send to agent"
+        },
+        "EditorLspStatusChip": {
+          "installing": "Installing {{value0}} support… {{value1}}%",
+          "starting": "Starting {{value0}} language server…",
+          "error": "{{value0}} language server unavailable"
         }
       },
       "diff": {

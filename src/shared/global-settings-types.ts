@@ -89,6 +89,22 @@ export type GlobalSettings = {
   editorFontFamily?: string
   /** Defaults on for profiles saved before file-editor wrapping became configurable. */
   editorWordWrap?: boolean
+  /** Editor color theme used while the app is in light mode. Bundled shiki
+   *  theme id, or `local:...` for a theme scanned from an installed VS Code /
+   *  Cursor / VSCodium theme extension. */
+  editorThemeLight?: string
+  /** Editor color theme used while the app is in dark mode. Same id space as
+   *  `editorThemeLight`. */
+  editorThemeDark?: string
+  /** Master switch for language-server intellisense in the embedded editor.
+   *  Servers download on demand when a matching file opens. */
+  lspEnabled?: boolean
+  /** Server ids (LspServerId) the user turned off individually. */
+  lspDisabledServers?: string[]
+  /** Offer "New VS Code Tab" in the new-tab menu (like disabling an agent type). */
+  newTabVSCodeEnabled?: boolean
+  /** Offer "New Data Studio Tab" in the new-tab menu. */
+  newTabDataStudioEnabled?: boolean
   /** Persisted opt-out for browser spellcheck noise in rich Markdown editing surfaces. */
   richMarkdownSpellcheckEnabled?: boolean
   /** Whether local markdown review note controls and the review panel are shown. */
