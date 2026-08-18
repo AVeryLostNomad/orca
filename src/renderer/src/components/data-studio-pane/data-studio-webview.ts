@@ -1,4 +1,5 @@
 import { ORCA_BROWSER_GUEST_WEB_PREFERENCES_ATTRIBUTE } from '../../../../shared/browser-guest-web-preferences'
+import { normalizeCodeServerPathParam } from '../code-server-pane/code-server-webview'
 
 // Keyed by data-studio tab id, so the pane can re-attach the same guest
 // element across re-renders. The guest is destroyed when the tab's pane
@@ -7,8 +8,12 @@ import { ORCA_BROWSER_GUEST_WEB_PREFERENCES_ATTRIBUTE } from '../../../../shared
 // owned by the tab host, not this registry).
 const dataStudioWebviewRegistry = new Map<string, Electron.WebviewTag>()
 
+// Same ?folder= contract as code-server: a raw `C:\...` path parses its drive
+// letter as the URI scheme, no file system provider matches, the workspace
+// turns "virtual", and every virtualWorkspaces:false extension (mssql and most
+// ADS builtins) is silently disabled — connections then show "Unsupported".
 export function buildDataStudioUrl(port: number, folderPath: string): string {
-  return `http://127.0.0.1:${port}/?folder=${encodeURIComponent(folderPath)}`
+  return `http://127.0.0.1:${port}/?folder=${encodeURIComponent(normalizeCodeServerPathParam(folderPath))}`
 }
 
 export function ensureDataStudioWebview({

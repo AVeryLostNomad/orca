@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 // Pinned code-server release. Bump manually via PR; verify latest stable at
@@ -7,6 +7,25 @@ import { dirname, join, resolve } from 'node:path'
 // package pin in config/code-server-windows-package.json must be bumped in the
 // same PR (a tripwire test asserts they agree).
 export const CODE_SERVER_VERSION = '4.127.0'
+
+// Revision of Orca's CI-built Windows package for this upstream version (the
+// -orca.N tag suffix). Lives here, not code-server-windows-package.ts, because
+// that module imports CODE_SERVER_VERSION from this one.
+export const CODE_SERVER_WINDOWS_PACKAGE_REVISION = 2
+
+// Stamped into the install by code-server-windows-install.ts. The install dir
+// is named by upstream version only, so without the stamp a revision bump
+// (orca.1 shipped a broken package) could never evict an existing extraction.
+export const CODE_SERVER_WINDOWS_REVISION_STAMP = 'orca-package-revision'
+
+function windowsInstallRevisionCurrent(versionRoot: string): boolean {
+  try {
+    const stamp = readFileSync(join(versionRoot, CODE_SERVER_WINDOWS_REVISION_STAMP), 'utf8')
+    return Number.parseInt(stamp.trim(), 10) === CODE_SERVER_WINDOWS_PACKAGE_REVISION
+  } catch {
+    return false
+  }
+}
 
 export function getCodeServerCacheRoot(): string {
   return join(app.getPath('userData'), 'code-server')
@@ -71,7 +90,9 @@ export function resolveCodeServerLaunch(
   }
   const versionRoot = getCodeServerVersionRoot()
   if (platform === 'win32') {
-    return resolveNodeEntryLaunch(versionRoot, platform)
+    // A stale-revision tree resolves as not-installed so the installer replaces it.
+    const launch = resolveNodeEntryLaunch(versionRoot, platform)
+    return launch && windowsInstallRevisionCurrent(versionRoot) ? launch : null
   }
   const versionedBin = join(versionRoot, 'bin', 'code-server')
   if (existsSync(versionedBin)) {

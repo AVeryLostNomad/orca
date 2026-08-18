@@ -5,9 +5,10 @@
 # install-ads-server.sh + package-ads-server.sh in one self-contained pass.
 #
 # Differences from the hand-built artifact:
-#   - mssql/kusto/azuremonitor tools services are NOT pre-bundled (they only
-#     exist after a first activation); they self-download from GitHub releases
-#     at runtime, exactly like desktop ADS did on first run.
+#   - mssql's sqltoolsservice IS bundled for the build platform (yarn install's
+#     postinstall downloads it on the runner; verified in published artifacts).
+#     kusto/azuremonitor services self-download from GitHub releases at runtime,
+#     exactly like desktop ADS did on first run.
 #   - pgsql IS pre-bundled via Microsoft's platform vsix where one exists
 #     (linux-arm64 gets the generic vsix; its service self-downloads).
 #   - win32: remote/web/node_modules is a real copy (tar symlinks need

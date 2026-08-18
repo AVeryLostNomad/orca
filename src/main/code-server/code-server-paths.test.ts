@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { join } from 'node:path'
 import type * as NodeFs from 'node:fs'
 
-const { existsSyncMock, statSyncMock } = vi.hoisted(() => ({
+const { existsSyncMock, readFileSyncMock, statSyncMock } = vi.hoisted(() => ({
   existsSyncMock: vi.fn(),
+  readFileSyncMock: vi.fn(),
   statSyncMock: vi.fn()
 }))
 
@@ -15,12 +16,15 @@ vi.mock('node:fs', async (importOriginal) => {
   return {
     ...original,
     existsSync: existsSyncMock,
+    readFileSync: readFileSyncMock,
     statSync: statSyncMock
   }
 })
 
 import {
   CODE_SERVER_VERSION,
+  CODE_SERVER_WINDOWS_PACKAGE_REVISION,
+  CODE_SERVER_WINDOWS_REVISION_STAMP,
   getCodeServerCacheRoot,
   getCodeServerExtensionsDir,
   getCodeServerUserDataDir,
@@ -30,12 +34,24 @@ import {
 } from './code-server-paths'
 
 const versionRoot = join('/userData/code-server/lib', `code-server-${CODE_SERVER_VERSION}`)
+const revisionStamp = join(versionRoot, CODE_SERVER_WINDOWS_REVISION_STAMP)
+
+function stampRevision(value: string): void {
+  readFileSyncMock.mockImplementation((p: string) => {
+    if (p === revisionStamp) {
+      return value
+    }
+    throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+  })
+}
 
 describe('code-server-paths', () => {
   beforeEach(() => {
     existsSyncMock.mockReset()
+    readFileSyncMock.mockReset()
     statSyncMock.mockReset()
     statSyncMock.mockReturnValue({ isDirectory: () => false })
+    stampRevision(`${CODE_SERVER_WINDOWS_PACKAGE_REVISION}\n`)
     delete process.env.ORCA_CODE_SERVER_PATH
   })
   afterEach(() => vi.restoreAllMocks())
@@ -97,6 +113,32 @@ describe('code-server-paths', () => {
 
     existsSyncMock.mockImplementation((p: string) => p === node)
     expect(resolveCodeServerLaunch('win32')).toBeNull()
+  })
+
+  // The install dir is named by upstream version only, so the revision stamp is
+  // what lets a package-revision bump evict a previously extracted tree.
+  it('treats a missing or stale win32 revision stamp as not installed', () => {
+    const node = join(versionRoot, 'lib', 'node.exe')
+    const entry = join(versionRoot, 'out', 'node', 'entry.js')
+    existsSyncMock.mockImplementation((p: string) => p === node || p === entry)
+
+    stampRevision(`${CODE_SERVER_WINDOWS_PACKAGE_REVISION - 1}\n`)
+    expect(resolveCodeServerLaunch('win32')).toBeNull()
+
+    readFileSyncMock.mockImplementation(() => {
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    })
+    expect(resolveCodeServerLaunch('win32')).toBeNull()
+
+    // Env-override directories are a dev escape hatch and skip the stamp check.
+    process.env.ORCA_CODE_SERVER_PATH = '/unpacked'
+    statSyncMock.mockReturnValue({ isDirectory: () => true })
+    const overrideNode = join('/unpacked', 'lib', 'node.exe')
+    const overrideEntry = join('/unpacked', 'out', 'node', 'entry.js')
+    existsSyncMock.mockImplementation((p: string) =>
+      ['/unpacked', overrideNode, overrideEntry].includes(p)
+    )
+    expect(resolveCodeServerLaunch('win32')).not.toBeNull()
   })
 
   it('returns null when nothing resolves', () => {

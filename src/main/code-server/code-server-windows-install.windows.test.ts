@@ -16,13 +16,16 @@ const { pkgState, fsPromisesMocks, createReadStreamMock } = vi.hoisted(() => ({
     readdir: vi.fn(),
     rename: vi.fn(() => Promise.resolve()),
     rm: vi.fn(() => Promise.resolve()),
-    stat: vi.fn()
+    stat: vi.fn(),
+    writeFile: vi.fn(() => Promise.resolve())
   },
   createReadStreamMock: vi.fn()
 }))
 
 vi.mock('./code-server-paths', () => ({
   CODE_SERVER_VERSION: '4.127.0',
+  CODE_SERVER_WINDOWS_PACKAGE_REVISION: 2,
+  CODE_SERVER_WINDOWS_REVISION_STAMP: 'orca-package-revision',
   getCodeServerCacheRoot: () => CACHE_ROOT,
   getCodeServerVersionRoot: () => VERSION_ROOT
 }))
@@ -99,6 +102,19 @@ describe('installCodeServerWindows', () => {
       join(STAGING, 'code-server-4.127.0-windows-amd64'),
       VERSION_ROOT
     )
+    // Revision stamp lands inside the staged tree before the rename.
+    expect(fsPromisesMocks.writeFile).toHaveBeenCalledWith(
+      join(STAGING, 'code-server-4.127.0-windows-amd64', 'orca-package-revision'),
+      '2\n',
+      'utf8'
+    )
+    const writeOrder = fsPromisesMocks.writeFile.mock.invocationCallOrder[0]
+    const renameCalls = fsPromisesMocks.rename.mock.calls as unknown as [string, string][]
+    const renameToRootOrder =
+      fsPromisesMocks.rename.mock.invocationCallOrder[
+        renameCalls.findIndex(([, to]) => to === VERSION_ROOT)
+      ]
+    expect(writeOrder).toBeLessThan(renameToRootOrder)
     // zip + staging removed on success
     expect(fsPromisesMocks.rm).toHaveBeenCalledWith(ZIP, { force: true })
     expect(fsPromisesMocks.rm).toHaveBeenCalledWith(STAGING, { recursive: true, force: true })

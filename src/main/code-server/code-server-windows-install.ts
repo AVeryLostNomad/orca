@@ -1,13 +1,15 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { get } from 'node:https'
 import type { IncomingMessage } from 'node:http'
 import { join } from 'node:path'
 import { CodeServerInstallError, type InstallProgress } from './code-server-install-error'
 import {
   CODE_SERVER_VERSION,
+  CODE_SERVER_WINDOWS_PACKAGE_REVISION,
+  CODE_SERVER_WINDOWS_REVISION_STAMP,
   getCodeServerCacheRoot,
   getCodeServerVersionRoot
 } from './code-server-paths'
@@ -114,6 +116,13 @@ export async function installCodeServerWindows(
         'code-server package zip had an unexpected layout.'
       )
     }
+    // Stamp before the rename: an install can never look current unless it
+    // finished, and resolveCodeServerLaunch treats a stale stamp as not-installed.
+    await writeFile(
+      join(stagingDir, packageDir.name, CODE_SERVER_WINDOWS_REVISION_STAMP),
+      `${CODE_SERVER_WINDOWS_PACKAGE_REVISION}\n`,
+      'utf8'
+    )
     await rm(versionRoot, { recursive: true, force: true }).catch(() => {})
     await rename(join(stagingDir, packageDir.name), versionRoot)
 

@@ -1,4 +1,4 @@
-import { CODE_SERVER_VERSION } from './code-server-paths'
+import { CODE_SERVER_VERSION, CODE_SERVER_WINDOWS_PACKAGE_REVISION } from './code-server-paths'
 
 // coder publishes no Windows release, so Orca builds its own package in CI
 // (.github/workflows/code-server-windows-package.yml) and downloads it at
@@ -11,12 +11,11 @@ export const CODE_SERVER_WINDOWS_ASSET_NAME = `code-server-${CODE_SERVER_VERSION
 // prefixed tag never parses as semver so electron-updater's feed scan skips it.
 export const CODE_SERVER_WINDOWS_RELEASE_REPO = 'AVeryLostNomad/orca'
 
-// Bumped for rebuilds of the same upstream version (new native-module build,
+// Revision (CODE_SERVER_WINDOWS_PACKAGE_REVISION, defined in code-server-paths)
+// is bumped for rebuilds of the same upstream version (new native-module build,
 // different bundled Node) — release tags are immutable once published.
 // orca.2: orca.1 shipped without code-server's hoisted npm deps (entry.js
 // died with MODULE_NOT_FOUND on @coder/logger).
-export const CODE_SERVER_WINDOWS_PACKAGE_REVISION = 2
-
 export const CODE_SERVER_WINDOWS_RELEASE_TAG = `code-server-win32-v${CODE_SERVER_VERSION}-orca.${CODE_SERVER_WINDOWS_PACKAGE_REVISION}`
 
 export const CODE_SERVER_WINDOWS_DOWNLOAD_URL = `https://github.com/${CODE_SERVER_WINDOWS_RELEASE_REPO}/releases/download/${CODE_SERVER_WINDOWS_RELEASE_TAG}/${CODE_SERVER_WINDOWS_ASSET_NAME}`

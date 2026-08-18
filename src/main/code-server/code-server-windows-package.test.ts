@@ -4,11 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn(() => '/userData') } }))
 
-import { CODE_SERVER_VERSION } from './code-server-paths'
+import { CODE_SERVER_VERSION, CODE_SERVER_WINDOWS_PACKAGE_REVISION } from './code-server-paths'
 import {
   CODE_SERVER_WINDOWS_ASSET_NAME,
   CODE_SERVER_WINDOWS_DOWNLOAD_URL,
-  CODE_SERVER_WINDOWS_PACKAGE_REVISION,
   CODE_SERVER_WINDOWS_RELEASE_REPO,
   CODE_SERVER_WINDOWS_RELEASE_TAG,
   CODE_SERVER_WINDOWS_SHA256
