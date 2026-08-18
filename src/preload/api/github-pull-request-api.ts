@@ -1,5 +1,6 @@
 import type { AppStarSource } from '../../shared/gh-star-source'
 import type { GhAuthDiagnostic } from '../../shared/github/auth-types'
+import type { GithubPatAccountMeta } from '../../shared/github/github-account-ref'
 import type { TaskSourceContext } from '../../shared/task-source-context'
 import type { PRCheckDetail, PRCheckRunDetails } from '../../shared/github/check-types'
 import type {
@@ -196,4 +197,11 @@ export type GithubPullRequestApi = {
   rateLimit: (args?: { force?: boolean }) => Promise<GetRateLimitResult>
   /** Explains scope_missing ProjectV2 failures — notably a shell `GITHUB_TOKEN` shadowing the keyring credential, where `gh auth refresh` is a no-op. */
   diagnoseAuth: (args?: { host?: string }) => Promise<GhAuthDiagnostic>
+  /** Store a personal access token as a pinnable per-project account; the token is encrypted main-side, metadata lands in settings. */
+  addPatAccount: (args: {
+    label: string
+    host?: string
+    token: string
+  }) => Promise<GithubPatAccountMeta>
+  removePatAccount: (args: { id: string }) => Promise<boolean>
 }

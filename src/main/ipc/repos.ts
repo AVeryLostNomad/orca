@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { z } from 'zod'
 import type { Store } from '../persistence'
+import { isValidGithubAccountRefString } from '../../shared/github/github-account-ref'
+import { prewarmGithubAccountTokens } from '../github/github-account-env'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import type { FolderWorkspace } from '../../shared/folder-workspace-types'
 import type {
@@ -2147,6 +2149,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
           externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null
           agentWorktreeVisibility?: Repo['agentWorktreeVisibility'] | null
           sourceControlAi?: Repo['sourceControlAi'] | null
+          githubAccountRef?: Repo['githubAccountRef'] | null
           externalWorktreeDiscoverySuppressedAt?:
             | Repo['externalWorktreeDiscoverySuppressedAt']
             | null
@@ -2307,6 +2310,16 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
           updates.sourceControlAi = normalizedSourceControlAi
         }
       }
+      // Why: null is the transport sentinel for clearing the account pin.
+      if ('githubAccountRef' in updates && updates.githubAccountRef === null) {
+        updates.githubAccountRef = undefined
+      } else if (
+        'githubAccountRef' in updates &&
+        updates.githubAccountRef !== undefined &&
+        !isValidGithubAccountRefString(updates.githubAccountRef)
+      ) {
+        delete updates.githubAccountRef
+      }
       const hostId = args.hostId ? normalizeExecutionHostId(args.hostId) : null
       if (args.hostId && !hostId) {
         return null
@@ -2315,6 +2328,9 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         ? store.updateRepo(args.repoId, updates, hostId)
         : store.updateRepo(args.repoId, updates)
       if (updated) {
+        if ('githubAccountRef' in updates) {
+          prewarmGithubAccountTokens()
+        }
         if ('worktreeBasePath' in updates) {
           void prepareLocalWorktreeRootForRepo(store, updated)
           invalidateAuthorizedRootsCache()

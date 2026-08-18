@@ -120,6 +120,38 @@ export function getRepositoryPaneSearchEntries(
           }
         ]
       : []),
+    ...(isFolder
+      ? []
+      : [
+          {
+            title: translate(
+              'auto.components.settings.repository.search.githubAccountTitle',
+              'GitHub Account'
+            ),
+            description: translate(
+              'auto.components.settings.repository.search.githubAccountDescription',
+              'Pin the GitHub account Orca uses for this project.'
+            ),
+            keywords: [
+              repo.displayName,
+              ...translateSearchKeyword(
+                'auto.components.settings.repository.search.githubAccount',
+                'github account'
+              ),
+              ...translateSearchKeyword(
+                'auto.components.settings.repository.search.personalAccessToken',
+                'personal access token'
+              ),
+              ...translateSearchKeyword('auto.components.settings.repository.search.gh', 'gh'),
+              ...translateSearchKeyword(
+                'auto.components.settings.repository.search.token',
+                'token'
+              ),
+              ...translateSearchKeyword('auto.components.settings.repository.search.pat', 'pat'),
+              ...translateSearchKeyword('auto.components.settings.repository.search.auth', 'auth')
+            ]
+          }
+        ]),
     ...(isFolder || !isLocalWindowsProject
       ? []
       : [

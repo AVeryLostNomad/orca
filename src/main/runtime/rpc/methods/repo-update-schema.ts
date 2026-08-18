@@ -3,6 +3,7 @@ import { OptionalFiniteNumber, OptionalString } from '../schemas'
 import { sanitizeRepoIcon } from '../../../../shared/repo-icon'
 import { normalizeRepoBadgeColor } from '../../../../shared/repo-badge-color'
 import { normalizeRepoSourceControlAiOverrides } from '../../../../shared/source-control-ai'
+import { isValidGithubAccountRefString } from '../../../../shared/github/github-account-ref'
 import {
   normalizeCustomWorktreeVisibilitySources,
   normalizeWorktreeVisibilitySourcePreferences
@@ -70,7 +71,20 @@ export function createRepoUpdateSchema<T extends z.ZodRawShape>(
       externalWorktreeDiscoverySuppressedAt: z.number().finite().nullable().optional(),
       projectGroupId: OptionalString.nullable().optional(),
       projectGroupOrder: OptionalFiniteNumber,
-      sourceControlAi: RepoSourceControlAiOverrides
+      sourceControlAi: RepoSourceControlAiOverrides,
+      // Why: null clears the pin; invalid ref strings collapse to undefined (dropped).
+      githubAccountRef: z
+        .unknown()
+        .optional()
+        .transform((value) =>
+          value === undefined
+            ? undefined
+            : value === null
+              ? null
+              : isValidGithubAccountRefString(value)
+                ? value
+                : undefined
+        )
     })
   }) as z.ZodObject<T & { updates: z.ZodObject<z.ZodRawShape> }>
 }

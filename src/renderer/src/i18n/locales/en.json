@@ -3312,6 +3312,9 @@
             "c4dee16431": "Close",
             "31dc5c0d4f": "Close Tabs To The Right",
             "title": "Data Studio"
+          },
+          "WorkspaceNotesTab": {
+            "a91f4c07d2": "Notes"
           }
         }
       },
@@ -9675,7 +9678,9 @@
             "projectRuntime": "Project Runtime",
             "projectRuntimeDescription": "Choose whether this project runs on Windows or WSL.",
             "externalWorktrees": "External worktrees",
-            "externalWorktreesDescription": "Override whether worktrees created outside Orca appear for this project."
+            "externalWorktreesDescription": "Override whether worktrees created outside Orca appear for this project.",
+            "githubAccountTitle": "GitHub Account",
+            "githubAccountDescription": "Pin the GitHub account Orca uses for this project."
           }
         },
         "runtime": {
@@ -11271,6 +11276,23 @@
         },
         "shortcutDefinitionCatalog": {
           "missionControlConflict": "Blocked by Mission Control. Remap here or change it in System Settings."
+        },
+        "RepositoryGithubAccountSection": {
+          "patSaveFailed": "Could not save token",
+          "title": "GitHub Account",
+          "description": "Pin the GitHub account Orca uses for this project.",
+          "explainer": "Issues, pull requests, and terminals opened in this project authenticate as the pinned account. Terminals get a scoped GH_TOKEN, so `gh auth switch` inside them has no effect.",
+          "defaultOption": "Default (active gh account)",
+          "unavailableOption": "{{ref}} (unavailable)",
+          "addPatOption": "Add personal access token…",
+          "removePat": "Remove stored token",
+          "patDialogTitle": "Add Personal Access Token",
+          "patDialogDescription": "The token is stored encrypted on this machine and never synced.",
+          "patLabelPlaceholder": "Label (e.g. Work account)",
+          "patHostPlaceholder": "github.com",
+          "patTokenPlaceholder": "ghp_…",
+          "cancel": "Cancel",
+          "save": "Save"
         }
       },
       "right": {
@@ -13372,6 +13394,11 @@
             "109870e023": "Maximize",
             "b5686fee1e": "Restore",
             "1e502f1284": "Open"
+          },
+          "WorkspaceNotesPane": {
+            "3f1c62a8d4": "Loading editor...",
+            "b74a09e1c5": "Workspace notes are unavailable in this client.",
+            "7e5d20cf91": "Click on a workspace to see workspace notes"
           }
         }
       },

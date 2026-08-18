@@ -70,6 +70,7 @@ export type RepositoryApi = {
       agentWorktreeVisibility?: Repo['agentWorktreeVisibility'] | null
       sourceControlAi?: Repo['sourceControlAi'] | null
       externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
+      githubAccountRef?: Repo['githubAccountRef'] | null
     }
   }) => Promise<Repo>
   pickFolder: () => Promise<string | null>

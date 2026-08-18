@@ -318,7 +318,9 @@ describe('isGitHubHostAuthenticated', () => {
     await expect(
       isGitHubHostAuthenticated('github.acme-corp.com', '/remote/repo', 'ssh-1')
     ).resolves.toBe(true)
-    expect(ghExecFileAsyncMock).toHaveBeenCalledWith(['auth', 'status'], {})
+    expect(ghExecFileAsyncMock).toHaveBeenCalledWith(['auth', 'status'], {
+      accountCwdHint: '/remote/repo'
+    })
   })
 
   it('caches per runtime+host so detection polling does not re-spawn gh', async () => {

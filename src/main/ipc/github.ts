@@ -3,7 +3,9 @@ the repo-path validation, preference-threading, and stats wiring patterns are
 reviewable as one surface. Splitting by feature area would risk drifting
 validation/gate conventions across handler files. */
 import { ipcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
+import { ghExecFileAsync, setGhAccountEnvResolver } from '../git/runner'
 import type { GitHubReactionContent } from '../../shared/github/comment-types'
 import type {
   GitHubPRRefreshCandidate,
@@ -67,6 +69,14 @@ import {
 import { getWorkItemDetails, getPRFileContents } from '../github/work-item-details'
 import { getRateLimit } from '../github/rate-limit'
 import { diagnoseGhAuth } from '../github/auth-diagnose'
+import {
+  configureGithubAccountEnv,
+  githubAccountTokenForCwd,
+  invalidateGithubAccountToken,
+  prewarmGithubAccountTokens
+} from '../github/github-account-env'
+import { deleteGithubPatToken, saveGithubPatToken } from '../github/github-pat-store'
+import type { GithubPatAccountMeta } from '../../shared/github/github-account-ref'
 import {
   notePRRefreshValidationDenial,
   type PRRefreshValidationDenialReason
@@ -241,6 +251,41 @@ function validateAutomaticPRRefreshCandidate(
 }
 
 export function registerGitHubHandlers(store: Store, stats: StatsCollector): void {
+  // Per-project GitHub account pinning: wire the cwd→account resolver into the
+  // gh runner (setter registration avoids an import cycle) and pre-resolve
+  // pinned tokens so terminal spawns can inject synchronously.
+  configureGithubAccountEnv({ getRepos: () => store.getRepos(), ghExec: ghExecFileAsync })
+  setGhAccountEnvResolver(githubAccountTokenForCwd, invalidateGithubAccountToken)
+  prewarmGithubAccountTokens()
+
+  ipcMain.handle(
+    'gh:addPatAccount',
+    (_event, args: { label: string; host?: string; token: string }) => {
+      const label = String(args.label ?? '').trim()
+      const token = String(args.token ?? '').trim()
+      const host = String(args.host ?? '').trim() || 'github.com'
+      if (!label || !token) {
+        throw new Error('A label and token are required')
+      }
+      const meta: GithubPatAccountMeta = { id: randomUUID(), label, host }
+      saveGithubPatToken(meta.id, token)
+      const existing = store.getSettings().githubPatAccounts ?? []
+      store.updateSettings({ githubPatAccounts: [...existing, meta] }, { notifyListeners: true })
+      return meta
+    }
+  )
+
+  ipcMain.handle('gh:removePatAccount', (_event, args: { id: string }) => {
+    const existing = store.getSettings().githubPatAccounts ?? []
+    store.updateSettings(
+      { githubPatAccounts: existing.filter((meta) => meta.id !== args.id) },
+      { notifyListeners: true }
+    )
+    deleteGithubPatToken(args.id)
+    invalidateGithubAccountToken(`pat:${args.id}`)
+    return true
+  })
+
   function recordPRIfNeeded(repo: Repo, outcome: PRRefreshOutcome): void {
     if (outcome.kind === 'found' && !stats.hasCountedPR(outcome.pr.url)) {
       stats.record({

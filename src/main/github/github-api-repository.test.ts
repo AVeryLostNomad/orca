@@ -160,7 +160,7 @@ describe('resolveGitHubRepoExecution', () => {
         async () => ({ owner: 'upstream', repo: 'widgets' }),
         'ssh-1'
       )
-    ).resolves.toEqual({ ownerRepo: null, ghOptions: {} })
+    ).resolves.toEqual({ ownerRepo: null, ghOptions: { accountCwdHint: '/remote/repo' } })
   })
 
   it('rejects a host-less caller-specific resolver for an unresolved local repository', async () => {

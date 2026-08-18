@@ -1466,6 +1466,42 @@ type GhExecOptions = Omit<GitExecOptions, 'cwd'> & {
   // runner qualify every spawn once, so call sites can't silently fall back
   // to github.com for GHES repos; it also scopes the rate-limit breaker.
   host?: string
+  /** Repo path used only for per-project account lookup — SSH-backed repos run
+   *  gh cwd-less, so `cwd` alone can't key the account pin. */
+  accountCwdHint?: string
+  /** Bypass per-project GH_TOKEN injection (the token probe itself, auth diagnostics). */
+  skipAccountEnv?: boolean
+}
+
+// ─── Per-project GitHub account injection ───────────────────────────
+// Registered by github-account-env at startup (setter avoids an import cycle:
+// that module shells out through ghExecFileAsync for `gh auth token`).
+
+type GhAccountEnvResolver = (cwd: string | undefined) => Promise<{
+  ref: string
+  token: string
+} | null>
+
+let ghAccountEnvResolver: GhAccountEnvResolver | null = null
+let ghAccountTokenInvalidator: ((ref: string) => void) | null = null
+
+export function setGhAccountEnvResolver(
+  resolver: GhAccountEnvResolver | null,
+  invalidator?: (ref: string) => void
+): void {
+  ghAccountEnvResolver = resolver
+  ghAccountTokenInvalidator = invalidator ?? null
+}
+
+function ghAccountInjectionAllowed(args: readonly string[], options: GhExecOptions): boolean {
+  // `gh auth …` reads/writes the keyring itself; an injected env token would
+  // shadow it and corrupt diagnostics. Explicit caller env tokens also win.
+  return (
+    !options.skipAccountEnv &&
+    args[0] !== 'auth' &&
+    options.env?.GH_TOKEN === undefined &&
+    options.env?.GITHUB_TOKEN === undefined
+  )
 }
 
 const NON_IDEMPOTENT_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
@@ -1706,7 +1742,8 @@ function explicitGhRepoHostname(args: readonly string[]): string | undefined {
 function ghRateLimitScope(
   args: readonly string[],
   options: GhExecOptions,
-  resolved: ResolvedCommand
+  resolved: ResolvedCommand,
+  accountRef?: string | null
 ): string {
   const runtime = resolved.wsl ? `wsl:${resolved.wsl.distro.toLowerCase()}` : 'native'
   // Why: an explicit argv hostname controls the actual gh request even when
@@ -1718,7 +1755,9 @@ function ghRateLimitScope(
     options.env?.GH_HOST ??
     process.env.GH_HOST ??
     'github.com'
-  return ghRateLimitScopeKey(runtime, host)
+  const scope = ghRateLimitScopeKey(runtime, host)
+  // Why: each account has its own GitHub quota; one account's exhaustion must not trip the other's breaker.
+  return accountRef ? `${scope}\0acct:${accountRef}` : scope
 }
 
 function assertGhRateLimitScopeAvailable(
@@ -1726,7 +1765,8 @@ function assertGhRateLimitScopeAvailable(
   options: GhExecOptions,
   resolved: ResolvedCommand,
   bucket: GhRateLimitBucket,
-  exemptProbe: boolean
+  exemptProbe: boolean,
+  accountRef?: string | null
 ): void {
   if (exemptProbe) {
     return
@@ -1734,7 +1774,7 @@ function assertGhRateLimitScopeAvailable(
   const blockedUntilMs = getGhRateLimitBlockedUntilMs(
     bucket,
     Date.now(),
-    ghRateLimitScope(args, options, resolved)
+    ghRateLimitScope(args, options, resolved, accountRef)
   )
   if (blockedUntilMs !== null) {
     throw createGhRateLimitBlockedError(bucket, blockedUntilMs)
@@ -1760,10 +1800,33 @@ export async function ghExecFileAsync(
   // Why: scope by runtime and host so unrelated github.com, GHES, and WSL quotas cannot block each other.
   const rateLimitBucket = classifyGhRateLimitBucket(args)
   const rateLimitProbe = isGhRateLimitProbe(args)
-  assertGhRateLimitScopeAvailable(args, options, resolved, rateLimitBucket, rateLimitProbe)
+  // Per-project account pin: inject the pinned account's token so this spawn
+  // authenticates as that account regardless of gh's globally-active login.
+  let injectedAccount: { ref: string; token: string } | null = null
+  if (ghAccountEnvResolver && ghAccountInjectionAllowed(args, options)) {
+    injectedAccount = await ghAccountEnvResolver(options.cwd ?? options.accountCwdHint)
+  }
+  const spawnEnv = (): NodeJS.ProcessEnv => {
+    const env = nonInteractiveGhEnv(options.env)
+    if (injectedAccount) {
+      env.GH_TOKEN = injectedAccount.token
+      // Why: env does not cross the wsl.exe boundary unless WSLENV names it.
+      addWslEnvKeys(env, ['GH_TOKEN'])
+    }
+    return env
+  }
+  assertGhRateLimitScopeAvailable(
+    args,
+    options,
+    resolved,
+    rateLimitBucket,
+    rateLimitProbe,
+    injectedAccount?.ref
+  )
   let lastError: unknown
   let attemptedHostFallback = false
   let attemptedDefaultWslFallback = false
+  let attemptedAccountTokenRefresh = false
   for (let attempt = 0; attempt <= GH_RETRY_DELAYS_MS.length; attempt++) {
     try {
       const { stdout, stderr } = await execFileCapture(resolved.binary, resolved.args, {
@@ -1772,7 +1835,7 @@ export async function ghExecFileAsync(
         maxBuffer: options.maxBuffer,
         // Why: bound gh so one stuck child fails visibly instead of wedging the IPC lane.
         timeout: options.timeout ?? defaultGhExecTimeoutMs(options.env),
-        env: nonInteractiveGhEnv(options.env),
+        env: spawnEnv(),
         signal: options.signal
       })
       return { stdout: stdout as string, stderr: stderr as string }
@@ -1780,7 +1843,25 @@ export async function ghExecFileAsync(
       lastError = err
       const { stderr } = extractExecError(err)
       if (isGhPrimaryRateLimitStderr(stderr)) {
-        notifyGhPrimaryRateLimit(rateLimitBucket, ghRateLimitScope(args, options, resolved))
+        notifyGhPrimaryRateLimit(
+          rateLimitBucket,
+          ghRateLimitScope(args, options, resolved, injectedAccount?.ref)
+        )
+      }
+      // Why: an injected token can go stale (revoked PAT, gh re-login). Refresh once, then surface the auth error.
+      if (
+        injectedAccount &&
+        !attemptedAccountTokenRefresh &&
+        /HTTP 401|not logged in|authentication required|bad credentials/i.test(stderr)
+      ) {
+        attemptedAccountTokenRefresh = true
+        ghAccountTokenInvalidator?.(injectedAccount.ref)
+        const refreshed = await ghAccountEnvResolver?.(options.cwd ?? options.accountCwdHint)
+        if (refreshed && refreshed.token !== injectedAccount.token) {
+          injectedAccount = refreshed
+          attempt = -1
+          continue
+        }
       }
       if (
         process.platform === 'win32' &&
@@ -1795,7 +1876,14 @@ export async function ghExecFileAsync(
           // Why: WSL-only Windows installs have no host gh.exe, and global calls (rate_limit/auth) carry no cwd to route by.
           resolved = wslResolved
           attemptedDefaultWslFallback = true
-          assertGhRateLimitScopeAvailable(args, options, resolved, rateLimitBucket, rateLimitProbe)
+          assertGhRateLimitScopeAvailable(
+            args,
+            options,
+            resolved,
+            rateLimitBucket,
+            rateLimitProbe,
+            injectedAccount?.ref
+          )
           attempt = -1
           continue
         }
@@ -1803,7 +1891,14 @@ export async function ghExecFileAsync(
       if (!attemptedHostFallback && canFallBackToHostGitHubCli('gh', args, resolved, stderr)) {
         resolved = resolveHostGitHubCli('gh', args)
         attemptedHostFallback = true
-        assertGhRateLimitScopeAvailable(args, options, resolved, rateLimitBucket, rateLimitProbe)
+        assertGhRateLimitScopeAvailable(
+          args,
+          options,
+          resolved,
+          rateLimitBucket,
+          rateLimitProbe,
+          injectedAccount?.ref
+        )
         attempt = -1
         continue
       }

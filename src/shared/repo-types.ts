@@ -107,6 +107,9 @@ export type Repo = {
   sourceControlAi?: RepoSourceControlAiOverrides
   /** Transitional source for ProjectHostSetup.setupMethod while Repo remains compatibility storage. */
   projectHostSetupMethod?: RepoProjectHostSetupMethod
+  /** Pinned GitHub account for this project (see shared/github/github-account-ref).
+   *  Undefined = gh's active account / ambient env (current behavior). */
+  githubAccountRef?: string | null
 }
 
 /**
