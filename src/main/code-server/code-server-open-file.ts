@@ -39,6 +39,28 @@ function requestOverSocket(options: {
   })
 }
 
+// VS Code's CLI server runs the payload through URI.parse, which reads a raw
+// `C:\...` drive letter as the URI scheme and silently drops the open. Bare
+// POSIX paths only survive because scheme-less strings get promoted to file:.
+// Mirror server-cli.js and always send a real file URI. URI.parse
+// percent-decodes components, so only %, ? and # need encoding.
+export function toFileOpenUri(
+  absolutePath: string,
+  platform: NodeJS.Platform = process.platform
+): string {
+  const encoded = absolutePath.replace(/%/g, '%25').replace(/\?/g, '%3F').replace(/#/g, '%23')
+  if (platform === 'win32') {
+    if (/^[A-Za-z]:[\\/]/.test(encoded)) {
+      return `file:///${encoded.replace(/\\/g, '/')}`
+    }
+    if (encoded.startsWith('\\\\')) {
+      // UNC (\\wsl.localhost\...) → file://wsl.localhost/... (host as authority)
+      return `file:${encoded.replace(/\\/g, '/')}`
+    }
+  }
+  return `file://${encoded}`
+}
+
 async function resolveWorkbenchSocketPath(absolutePath: string): Promise<string | null> {
   const raw = await requestOverSocket({
     socketPath: getCodeServerSessionSocketPath(),
@@ -75,7 +97,7 @@ export async function openFileInCodeServer(absolutePath: string): Promise<boolea
   const payload = JSON.stringify({
     type: 'open',
     folderURIs: [],
-    fileURIs: [absolutePath],
+    fileURIs: [toFileOpenUri(absolutePath)],
     forceReuseWindow: true,
     gotoLineMode: true
   })

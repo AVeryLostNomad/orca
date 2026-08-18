@@ -71,13 +71,21 @@ if (j.scripts && j.scripts.postinstall) {
 }
 '
 git apply "$PATCH_FILE"
-cat > product.overrides.json <<'JSON'
-{
-	"version": "1.53.0",
-	"vscodeVersion": "1.82.0",
-	"date": "2026-08-17T00:00:00.000Z"
-}
-JSON
+# vscodeVersion makes `vscode.version` valid in the remote extension host;
+# commit/quality must mirror product.json or the browser computes its
+# remote-resource root as /oss-dev while the server serves /oss-<commit>,
+# 404ing every theme/grammar/extension resource.
+node -e '
+const fs = require("fs");
+const product = JSON.parse(fs.readFileSync("product.json", "utf8"));
+fs.writeFileSync("product.overrides.json", JSON.stringify({
+  version: "1.53.0",
+  vscodeVersion: "1.82.0",
+  date: "2026-08-17T00:00:00.000Z",
+  commit: product.commit,
+  quality: product.quality
+}, null, "\t") + "\n");
+'
 echo "::endgroup::"
 
 echo "::group::PostgreSQL builtin (azuredatastudio-postgresql $PGSQL_VERSION)"

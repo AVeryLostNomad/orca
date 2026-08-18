@@ -29,6 +29,7 @@ import { allocateStablePort, releaseStablePort } from './data-studio-ports'
 import { applyDataStudioMachineSettings } from './data-studio-machine-settings'
 import { buildAdsServerSpawn, getAdsServerRoot, resolveAdsServerEntry } from './ads-server'
 import { ensureAdsServerInstalled } from './ads-server-installer'
+import { repairAdsProductOverrides } from './ads-product-overrides'
 import { getAdsImportDir, stageAdsDesktopImport } from './ads-desktop-import'
 
 // Why: rename first so a quit mid-rm leaves a tombstone the next startup sweep finishes.
@@ -96,6 +97,9 @@ class DataStudioRegistry {
       // from-source script stays the fallback for unsupported platforms.
       ensureInstalled: ensureAdsServerInstalled,
       async prepare() {
+        // Older artifacts shipped product.overrides.json without `commit`,
+        // breaking every vscode-remote-resource fetch (themes, grammars, …).
+        repairAdsProductOverrides()
         await applyDataStudioMachineSettings(repoId)
         // First-run import of desktop ADS settings/keybindings (incl. the
         // user's datasource.connections/connectionGroups). Seeding on the
