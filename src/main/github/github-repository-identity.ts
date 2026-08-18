@@ -42,9 +42,14 @@ export function ghRepoExecOptions(context: GitHubRepoContext): {
   cwd?: string
   encoding?: BufferEncoding
   wslDistro?: string
+  accountCwdHint?: string
 } {
   return context.connectionId
-    ? {}
+    ? // Why: SSH-backed repos run gh cwd-less (host pinning routes the request),
+      // but the repo path still keys any per-project account pin.
+      context.repoPath
+      ? { accountCwdHint: context.repoPath }
+      : {}
     : {
         cwd: context.repoPath,
         ...(context.wslDistro ? { wslDistro: context.wslDistro } : {})

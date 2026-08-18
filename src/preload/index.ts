@@ -192,6 +192,7 @@ import type { WorkspaceSpaceScanProgress } from '../shared/workspace-space-types
 import type { WorkspaceCleanupScanProgress } from '../shared/workspace-cleanup'
 import type { WorkspacePortAdvertisedUrlChangedEvent } from '../shared/workspace-ports'
 import type { GhAuthDiagnostic } from '../shared/github/auth-types'
+import type { GithubPatAccountMeta } from '../shared/github/github-account-ref'
 import type { TaskSourceContext } from '../shared/task-source-context'
 import type {
   GetProjectViewTableResult,
@@ -1720,6 +1721,13 @@ const api = {
 
     diagnoseAuth: (args?: { host?: string }): Promise<GhAuthDiagnostic> =>
       ipcRenderer.invoke('gh:diagnoseAuth', args),
+    addPatAccount: (args: {
+      label: string
+      host?: string
+      token: string
+    }): Promise<GithubPatAccountMeta> => ipcRenderer.invoke('gh:addPatAccount', args),
+    removePatAccount: (args: { id: string }): Promise<boolean> =>
+      ipcRenderer.invoke('gh:removePatAccount', args),
 
     // ── ProjectV2 (GitHub Projects) ───────────────────────────────────
     listAccessibleProjects: (

@@ -223,6 +223,8 @@ import {
 import type { CodexSessionResumePreparation } from '../codex/codex-session-resume-home'
 import { dropUnverifiedCodexResumeArgv } from '../codex/codex-unverified-resume-launch'
 import { isHostCodexHomeForWsl, isWslCodexHomeForHost } from '../pty/codex-home-wsl-env'
+import { addWslEnvKeys } from '../wsl-env'
+import { cachedGithubAccountTokenForCwd } from '../github/github-account-env'
 import { buildConfiguredProxyEnv, type NetworkProxySettings } from '../../shared/network-proxy'
 import {
   resolveSetupAgentSequenceLaunchCommand,
@@ -1141,6 +1143,8 @@ export type BuildPtyHostEnvOptions = {
   networkProxySettings?: NetworkProxySettings
   /** Keep indexed Git config off the sparse daemon wire; the daemon appends guard entries after merging its inherited env. */
   deferGitConfigGuardToDaemon?: boolean
+  /** Spawn cwd; keys the per-project GitHub account pin (GH_TOKEN injection). */
+  cwd?: string
 }
 
 function readInheritedPath(baseEnv: Record<string, string>): string {
@@ -1699,6 +1703,20 @@ export function buildPtyHostEnv(
 ): Record<string, string> {
   mergePersistedWindowsPath(baseEnv)
   Object.assign(baseEnv, buildConfiguredProxyEnv(opts.networkProxySettings))
+
+  // Per-project GitHub account pin: scope every gh call in this terminal to the
+  // repo's pinned account. Explicit pane-provided tokens win; the pin only
+  // fills in when the spawn request carried none.
+  if (baseEnv.GH_TOKEN === undefined && baseEnv.GITHUB_TOKEN === undefined) {
+    const pinnedGhToken = cachedGithubAccountTokenForCwd(opts.cwd)
+    if (pinnedGhToken) {
+      baseEnv.GH_TOKEN = pinnedGhToken
+      if (opts.isWsl === true) {
+        // Why: env does not cross the wsl.exe boundary unless WSLENV names it.
+        addWslEnvKeys(baseEnv, ['GH_TOKEN'])
+      }
+    }
+  }
 
   // Why: local path's baseEnv includes process.env but the daemon path doesn't (fork inheritance, not IPC); check both sources so guards stay in lock-step across spawn paths.
   const preexistingOpenCodeConfigDir = resolveOpenCodeSourceConfigDir(baseEnv)
@@ -2472,6 +2490,7 @@ export function registerPtyHandlers(
           }),
           launchCommand: ctx?.command,
           launchAgent: ctx?.launchAgent,
+          cwd: ctx?.cwd,
           isWsl: ctx?.isWsl,
           wslDistro: ctx?.wslDistro ?? null,
           agentStatusHooksEnabled: isAgentStatusHooksEnabled(ptySettings),
@@ -4716,6 +4735,7 @@ export function registerPtyHandlers(
           selectedCodexHomePath,
           skipCodexHomeEnv,
           stripInheritedOrcaCodexHome,
+          cwd,
           launchCommand,
           launchAgent: isTuiAgent(args.launchAgent) ? args.launchAgent : undefined,
           isWsl: shouldSkipCodexHomeEnvForWindowsShell(daemonShellOverride, cwd),
@@ -6406,6 +6426,7 @@ export function registerPtyHandlers(
               selectedCodexHomePath,
               skipCodexHomeEnv,
               stripInheritedOrcaCodexHome,
+              cwd,
               launchCommand,
               launchAgent: isTuiAgent(args.launchAgent) ? args.launchAgent : undefined,
               isWsl: shouldSkipCodexHomeEnvForWindowsShell(effectiveShellOverride, cwd),

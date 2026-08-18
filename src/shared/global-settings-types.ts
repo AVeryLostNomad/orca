@@ -41,6 +41,7 @@ import type {
   ExternalWorktreeVisibility,
   WorktreeVisibilitySourcePreferences
 } from './repo-types'
+import type { GithubPatAccountMeta } from './github/github-account-ref'
 
 export type WorktreeVisibilityDefaults = {
   /** Default for worktrees outside a recognized source. */
@@ -261,6 +262,8 @@ export type GlobalSettings = {
   combinedDiffFileTreeVisibleByDefault: boolean
   /** Bot-marked comment-author logins (stored lowercased); escape hatch for review bots on regular accounts that defeat provider metadata/heuristics. */
   prBotAuthorOverrides: string[]
+  /** Metadata for Orca-stored GitHub PAT accounts; tokens live in encrypted credential files, never here. */
+  githubPatAccounts?: GithubPatAccountMeta[]
   notifications: NotificationSettings
   /** Countdown after a Claude agent goes idle showing time left before the prompt cache expires. */
   promptCacheTimerEnabled: boolean

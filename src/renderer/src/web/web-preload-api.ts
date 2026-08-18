@@ -2607,7 +2607,11 @@ function createGitHubApi(): WebGitHubApi {
       route<WebGitHubResult<'updateIssueTypeBySlug'>>(
         GITHUB_WEB_RPC_METHODS.updateIssueTypeBySlug,
         args
-      )
+      ),
+    // PAT storage is desktop-local (encrypted on the host machine), not a web-client capability.
+    addPatAccount: () =>
+      Promise.reject(new Error('Storing GitHub tokens is not supported in the web client')),
+    removePatAccount: () => Promise.resolve(false)
   } satisfies WebGitHubApi
 
   return githubApi
