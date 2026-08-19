@@ -54,4 +54,27 @@ export const FILE_EXPLORER_TREE_UNSAFE_CSS = `
     var(--orca-file-tree-zebra-stripe) calc(var(--trees-row-height) * 2)
   );
 }
+/* Middle-truncation markers need an opaque backing to hide the clipped text
+   under the ellipsis; --trees-bg is transparent here, so back with the
+   sidebar surface the tree sits on. */
+[data-type="item"] {
+  --truncate-marker-background-color: var(--sidebar);
+}
+/* Rows inherit line-height = row height, so the marker's 1lh backing paints a
+   full-height band that clashes with the zebra stripes; normal line-height
+   shrinks it to text height. */
+[data-type="item"] [data-truncate-container] {
+  line-height: normal;
+}
+/* Selected rows always show the focused-style outline, not only on focus. */
+[data-type="item"][data-item-selected="true"]::before {
+  content: "";
+  border-radius: var(--trees-border-radius);
+  outline: var(--trees-focus-ring-width) solid var(--trees-selected-focused-border-color);
+  outline-offset: var(--trees-focus-ring-offset);
+  pointer-events: none;
+  display: block;
+  position: absolute;
+  inset: 0;
+}
 `
