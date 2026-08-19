@@ -9,6 +9,7 @@ import {
   updateAutoSaveDelayDraftState
 } from './GeneralPane'
 import { matchesSettingsSearch } from './settings-search'
+import { getEditorPaneSearchEntries } from './editor-search'
 
 describe('GeneralPane auto-save delay drafts', () => {
   it('keeps a committed draft tied to the current persisted source while settings save is pending', () => {
@@ -95,18 +96,22 @@ describe('GeneralPane search entries', () => {
     expect(matchesSettingsSearch('wsl', entries)).toBe(true)
   })
 
-  it('includes file-editor word-wrap and horizontal-scroll keywords', () => {
-    const entries = getGeneralPaneSearchEntries()
+  it('moved editor settings to the Editor pane so General no longer matches them', () => {
+    const generalEntries = getGeneralPaneSearchEntries()
+    const editorEntries = getEditorPaneSearchEntries()
 
-    expect(matchesSettingsSearch('editor word wrap', entries)).toBe(true)
-    expect(matchesSettingsSearch('horizontal scroll', entries)).toBe(true)
+    expect(matchesSettingsSearch('editor word wrap', generalEntries)).toBe(false)
+    expect(matchesSettingsSearch('editor word wrap', editorEntries)).toBe(true)
+    expect(matchesSettingsSearch('horizontal scroll', editorEntries)).toBe(true)
+    expect(matchesSettingsSearch('spellcheck', generalEntries)).toBe(false)
+    expect(matchesSettingsSearch('spellcheck', editorEntries)).toBe(true)
+    expect(matchesSettingsSearch('red underline', editorEntries)).toBe(true)
   })
 
-  it('includes rich Markdown spellcheck keywords', () => {
-    const entries = getGeneralPaneSearchEntries()
+  it('includes the new editor font size setting in the Editor pane', () => {
+    const editorEntries = getEditorPaneSearchEntries()
 
-    expect(matchesSettingsSearch('spellcheck', entries)).toBe(true)
-    expect(matchesSettingsSearch('red underline', entries)).toBe(true)
+    expect(matchesSettingsSearch('editor font size', editorEntries)).toBe(true)
   })
 
   it('omits the default project runtime setting when Windows runtimes are unsupported', () => {

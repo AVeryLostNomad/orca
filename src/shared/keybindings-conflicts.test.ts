@@ -162,10 +162,10 @@ describe('keybindings', () => {
     // Why: it fires from the global capture handler even while the editor is
     // focused, so Settings must warn when a user binds it over Add Review Note.
     expect(
-      findKeybindingConflicts('darwin', { 'sourceControl.sendReviewNotes': ['Mod+Shift+A'] })
+      findKeybindingConflicts('darwin', { 'sourceControl.sendReviewNotes': ['Mod+Shift+Comma'] })
     ).toContainEqual(
       expect.objectContaining({
-        binding: 'Mod+Shift+A',
+        binding: 'Mod+Shift+Comma',
         actionIds: expect.arrayContaining(['editor.addReviewNote', 'sourceControl.sendReviewNotes'])
       })
     )

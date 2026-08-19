@@ -9,6 +9,7 @@ import {
   recordRendererCrashBreadcrumb
 } from './lib/crash-diagnostics'
 import { applyDocumentTheme } from './lib/document-theme'
+import { ensureAppThemeController } from './lib/app-theme/app-theme-controller'
 import { buildAppFontFamily } from './lib/app-font-family'
 import { I18nProvider } from './i18n/I18nProvider'
 import { translate } from './i18n/i18n'
@@ -56,6 +57,12 @@ const requestedView = new URLSearchParams(window.location.search).get('view')
 
 function PopoutSettingsSync(): null {
   const settings = useAppStore((state) => state.settings)
+
+  useEffect(() => {
+    // Why: pop-outs are separate documents; each needs its own app-theme
+    // controller instance applying token overrides to its own root.
+    ensureAppThemeController()
+  }, [])
 
   useEffect(() => {
     let disposed = false

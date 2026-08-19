@@ -24,7 +24,11 @@ import type { SplitTerminalPaneDetail, CloseTerminalPaneDetail } from '@/constan
 import { getVisibleWorktreeIds } from '@/components/sidebar/visible-worktrees'
 import { activateTabNumberShortcut } from '@/lib/tab-number-shortcuts'
 import { emitCmdJRowIndexJump } from '@/lib/cmd-j-row-index-jump'
-import { nextEditorFontZoomLevel, computeEditorFontSize } from '@/lib/editor-font-zoom'
+import {
+  nextEditorFontZoomLevel,
+  computeEditorFontSize,
+  resolveEditorBaseFontSize
+} from '@/lib/editor-font-zoom'
 import { canConnectSshStatus } from '@/ssh/ssh-connection-recoverability'
 import type {
   TerminalLayoutSnapshot,
@@ -1367,7 +1371,9 @@ export function useIpcEvents(): void {
       window.api.ui.onOpenQuickOpen(() => {
         const store = useAppStore.getState()
         if (store.activeView === 'terminal' && store.activeWorktreeId !== null) {
-          store.openModal('quick-open')
+          // Why: file search lives in the command bar now. Re-invoking while
+          // open just updates modalData, giving an in-place mode switch.
+          store.openModal('worktree-palette', { paletteMode: 'files' })
         }
       })
     )
@@ -1405,7 +1411,7 @@ export function useIpcEvents(): void {
       unsubs.push(
         window.api.ui.onOpenWorkspaceBoard(() => {
           const store = useAppStore.getState()
-          if (store.activeView === 'settings') {
+          if (store.settingsOpen) {
             return
           }
           store.setSidebarOpen(true)
@@ -1417,7 +1423,7 @@ export function useIpcEvents(): void {
     unsubs.push(
       window.api.ui.onOpenTasks(() => {
         const store = useAppStore.getState()
-        if (store.activeView === 'settings' || !store.repos.some((repo) => isGitRepoKind(repo))) {
+        if (store.settingsOpen || !store.repos.some((repo) => isGitRepoKind(repo))) {
           return
         }
         store.openTaskPage()
@@ -3093,8 +3099,8 @@ export function useIpcEvents(): void {
           setEditorFontZoomLevel(next)
           void window.api.ui.set({ editorFontZoomLevel: next })
 
-          // Why: mirror the editor's base font (terminalFontSize) + clamping so the overlay percent matches the rendered size.
-          const baseFontSize = settings?.terminalFontSize ?? 13
+          // Why: mirror the editor's base font resolution + clamping so the overlay percent matches the rendered size.
+          const baseFontSize = resolveEditorBaseFontSize(settings)
           const actual = computeEditorFontSize(baseFontSize, next)
           const percent = Math.round((actual / baseFontSize) * 100)
           dispatchZoomLevelChanged('editor', percent)

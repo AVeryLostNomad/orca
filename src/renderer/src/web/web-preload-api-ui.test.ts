@@ -28,7 +28,7 @@ describe('web before-unload persistence', () => {
           hostId: 'runtime:web-env-1'
         }
       ],
-      ui: { activeView: 'settings' }
+      ui: { activeView: 'tasks' }
     })
 
     expect(JSON.parse(storage.getItem('orca.web.workspaceSession.v1') ?? '{}')).toMatchObject({
@@ -38,7 +38,7 @@ describe('web before-unload persistence', () => {
       JSON.parse(storage.getItem('orca.web.workspaceSession.v1.runtime:web-env-1') ?? '{}')
     ).toMatchObject({ activeWorktreeId: 'remote-worktree' })
     expect(JSON.parse(storage.getItem('orca.web.ui.v1') ?? '{}')).toMatchObject({
-      activeView: 'settings'
+      activeView: 'tasks'
     })
   })
 })

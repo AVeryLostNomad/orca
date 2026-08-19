@@ -23,6 +23,7 @@ import {
 import { getFitOverrideForPty } from '@/lib/pane-manager/mobile-fit-overrides'
 import type { PtyTransport } from './pty-transport'
 import type { EffectiveMacOptionAsAlt } from '@/lib/keyboard-layout/detect-option-as-alt'
+import type { AppThemeTerminalTheme } from '@/lib/app-theme/app-theme-terminal-theme'
 import { HEX_COLOR_RE } from '../../../../shared/color-validation'
 import type { TerminalViewAttributes } from '../../../../shared/terminal-view-attributes'
 import { publishTerminalViewAttributes } from './terminal-view-attributes-publisher'
@@ -94,12 +95,17 @@ export function composeActiveTerminalTheme(
 export function publishTerminalViewAttributesAtAppStart(
   settings: GlobalSettings | null | undefined,
   systemPrefersDark: boolean,
-  send?: (attributes: TerminalViewAttributes) => boolean
+  send?: (attributes: TerminalViewAttributes) => boolean,
+  appThemeTerminalTheme?: AppThemeTerminalTheme | null
 ): boolean {
   if (!settings) {
     return false
   }
-  const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
+  const appearance = resolveEffectiveTerminalAppearance(
+    settings,
+    systemPrefersDark,
+    appThemeTerminalTheme
+  )
   const baseTheme: ITheme | null = appearance.theme ?? getBuiltinTheme(appearance.themeName)
   const theme = composeActiveTerminalTheme(baseTheme, settings)
   return send !== undefined
@@ -140,9 +146,14 @@ export function applyTerminalAppearance(
   paneTransports: Map<number, PtyTransport>,
   effectiveMacOptionAsAlt: EffectiveMacOptionAsAlt,
   paneMode2031: Map<number, boolean>,
-  paneLastThemeMode: Map<number, 'dark' | 'light'>
+  paneLastThemeMode: Map<number, 'dark' | 'light'>,
+  appThemeTerminalTheme?: AppThemeTerminalTheme | null
 ): void {
-  const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
+  const appearance = resolveEffectiveTerminalAppearance(
+    settings,
+    systemPrefersDark,
+    appThemeTerminalTheme
+  )
   const paneStyles = resolvePaneStyleOptions(settings)
   const baseTheme: ITheme | null = appearance.theme ?? getBuiltinTheme(appearance.themeName)
   const theme = composeActiveTerminalTheme(baseTheme, settings)

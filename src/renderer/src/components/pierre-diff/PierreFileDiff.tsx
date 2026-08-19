@@ -15,7 +15,11 @@ import {
 } from '../editor/large-diff-render-limit'
 import { buildPierreDiffFileInput } from './pierre-diff-file-input'
 import { PierreDiffProvider } from './pierre-diff-worker-pool'
-import { usePierreDiffStyleVars, usePierreDiffThemeType } from './pierre-diff-theme'
+import {
+  usePierreDiffStyleVars,
+  usePierreDiffThemeType,
+  usePierreSyntaxTheme
+} from './pierre-diff-theme'
 import {
   buildPierreDiffAnnotations,
   PierreDiffCommentAnnotation,
@@ -55,6 +59,7 @@ export default function PierreFileDiff({
   const scrollToDiffCommentId = useAppStore((s) => s.scrollToDiffCommentId)
   const setScrollToDiffCommentId = useAppStore((s) => s.setScrollToDiffCommentId)
   const themeType = usePierreDiffThemeType()
+  const syntaxTheme = usePierreSyntaxTheme()
   const styleVars = usePierreDiffStyleVars()
   const allDiffComments = useAppStore((s): DiffComment[] | undefined =>
     selectWorktreeDiffComments(s, worktreeId)
@@ -89,13 +94,14 @@ export default function PierreFileDiff({
     (): FileDiffOptions<PierreDiffAnnotationData> => ({
       diffStyle: sideBySide ? 'split' : 'unified',
       themeType,
+      theme: syntaxTheme,
       overflow: diffWordWrap === true ? 'wrap' : 'scroll',
       stickyHeader: true,
       // Why: click handling lives on the renderGutterUtility slot node — the
       // library forbids combining renderGutterUtility with onGutterUtilityClick.
       enableGutterUtility: canComment
     }),
-    [sideBySide, themeType, diffWordWrap, canComment]
+    [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment]
   )
 
   const lineAnnotations = useMemo(

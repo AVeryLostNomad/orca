@@ -59,7 +59,7 @@ describe('resolveZoomTarget', () => {
   it('routes to ui zoom outside terminal view', () => {
     expect(
       resolveZoomTarget({
-        activeView: 'settings',
+        activeView: 'tasks',
         activeTabType: 'terminal',
         activeElement: makeTarget({ hasXtermClass: true })
       })

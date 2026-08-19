@@ -6,6 +6,7 @@ import type { Tab } from '../../../shared/tab-types'
 import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import type { AppState } from '@/store/types'
+import { translate } from '@/i18n/i18n'
 
 /** Permanent tabs have no close/unpin affordance anywhere and survive every bulk close. */
 export function isPermanentFloatingTab(tab: Pick<Tab, 'contentType'>): boolean {
@@ -29,7 +30,7 @@ export function ensureFloatingWorkspaceNotesTab(store: FloatingWorkspaceNotesSto
   return store.createUnifiedTab(FLOATING_TERMINAL_WORKTREE_ID, 'workspace-notes', {
     id: FLOATING_WORKSPACE_NOTES_TAB_ID,
     entityId: FLOATING_WORKSPACE_NOTES_TAB_ID,
-    label: 'Notes',
+    label: translate('auto.lib.floatingWorkspaceNotesTab.label', 'Notes'),
     isPinned: true,
     activate: false,
     recordInteraction: false,

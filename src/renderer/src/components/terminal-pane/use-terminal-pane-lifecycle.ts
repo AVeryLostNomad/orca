@@ -681,6 +681,10 @@ export function useTerminalPaneLifecycle({
   configureTerminalOutputBacklogCap(settings?.terminalScrollbackRows)
   const systemPrefersDarkRef = useRef(systemPrefersDark)
   systemPrefersDarkRef.current = systemPrefersDark
+  // Store-derived: the app theme loads async, so panes must re-theme when it lands.
+  const appThemeTerminalTheme = useAppStore((state) => state.appThemeTerminalTheme)
+  const appThemeTerminalThemeRef = useRef(appThemeTerminalTheme)
+  appThemeTerminalThemeRef.current = appThemeTerminalTheme
   const previousVisibleForReconcileRef = useRef<TerminalPaneVisibilitySnapshot | null>(null)
   const mountFollowsTerminalPark = useTerminalParkMountIntent(tabId)
   const linkProviderDisposablesRef = useRef(new Map<number, IDisposable>())
@@ -717,7 +721,8 @@ export function useTerminalPaneLifecycle({
       paneTransportsRef.current,
       effectiveMacOptionAsAltRef.current,
       paneMode2031Ref.current,
-      paneLastThemeModeRef.current
+      paneLastThemeModeRef.current,
+      appThemeTerminalThemeRef.current
     )
   }
 
@@ -2003,7 +2008,7 @@ export function useTerminalPaneLifecycle({
     applyAppearance(manager)
     // Why: effectiveMacOptionAsAlt can change mid-session (layout switch or override flip); re-apply macOptionIsMeta live on every pane.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, systemPrefersDark, effectiveMacOptionAsAlt])
+  }, [settings, systemPrefersDark, effectiveMacOptionAsAlt, appThemeTerminalTheme])
 
   useEffect(() => {
     managerRef.current?.setTerminalGpuAcceleration(settings?.terminalGpuAcceleration ?? 'auto')

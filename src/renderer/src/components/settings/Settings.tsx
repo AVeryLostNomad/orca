@@ -37,6 +37,7 @@ import {
   LOCAL_EXECUTION_HOST_ID,
   parseExecutionHostId
 } from '../../../../shared/execution-host'
+import { EditorPane } from './EditorPane'
 import { GeneralPane } from './GeneralPane'
 import { BrowserPane } from './BrowserPane'
 import { AppearancePane } from './AppearancePane'
@@ -82,6 +83,10 @@ import { resolveAppearanceAccordionDeepLink } from './appearance-usage-percentag
 import { cn } from '@/lib/utils'
 import { isIntentionalAppRestartInProgress } from '@/lib/updater-beforeunload'
 import { registerWindowCloseGuard } from '../window-close-request-coordinator'
+import {
+  registerSettingsModalCloseHandler,
+  wasSettingsModalEscapePrevented
+} from './settings-modal-close'
 import { checkRuntimeHooks } from '@/runtime/runtime-hooks-client'
 import {
   isWindowsTerminalCapabilityHost,
@@ -561,6 +566,11 @@ function Settings(): React.JSX.Element {
         if (!(element instanceof HTMLElement)) {
           return false
         }
+        // Why: Settings itself lives inside a dialog now; counting the modal
+        // shell as an overlay would permanently suppress Escape-to-close.
+        if (element.hasAttribute('data-settings-modal-root')) {
+          return false
+        }
         if (element.closest('[aria-hidden="true"]')) {
           return false
         }
@@ -573,7 +583,12 @@ function Settings(): React.JSX.Element {
       })
 
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.defaultPrevented) {
+      if (event.key !== 'Escape') {
+        return
+      }
+      // Why: the modal shell preventDefaults Escape to stop Radix's instant
+      // dismiss — treat only inner-widget prevention as "already handled".
+      if (event.defaultPrevented && !wasSettingsModalEscapePrevented(event)) {
         return
       }
       // Why: nested dialogs/menus own Escape before Settings page-level navigation.
@@ -613,6 +628,12 @@ function Settings(): React.JSX.Element {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [activeSectionId, closeSettingsPageWithPromptGuard])
+
+  // Why: Escape/outside-click land on the modal shell; route them through the
+  // same discard guard as the sidebar Close button.
+  useEffect(() => {
+    return registerSettingsModalCloseHandler(closeSettingsPageWithPromptGuard)
+  }, [closeSettingsPageWithPromptGuard])
 
   // Why: route window close/quit through the discard dialog; a bare beforeunload veto shows no UI and reads as an unquittable window.
   useEffect(() => {
@@ -1156,7 +1177,7 @@ function Settings(): React.JSX.Element {
     return (
       <div
         ref={setSettingsRootNode}
-        className="settings-view-shell flex min-h-0 flex-1 overflow-hidden bg-background"
+        className="settings-view-shell flex h-full min-h-0 w-full flex-1 overflow-hidden bg-background"
       >
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           {translate('auto.components.settings.Settings.c7ad095d96', 'Loading settings...')}
@@ -1194,11 +1215,14 @@ function Settings(): React.JSX.Element {
     activeSectionId === 'shortcuts' && settingsSearchQuery.trim() === ''
   const isFocusedSetupGuidePane =
     activeSectionId === 'setup-guide' && settingsSearchQuery.trim() === ''
+  // Why: the editor pane's live preview column needs the extra width to avoid
+  // squeezing the settings list.
+  const isFocusedEditorPane = activeSectionId === 'editor' && settingsSearchQuery.trim() === ''
 
   return (
     <div
       ref={setSettingsRootNode}
-      className="settings-view-shell flex min-h-0 flex-1 overflow-hidden bg-background"
+      className="settings-view-shell flex h-full min-h-0 w-full flex-1 overflow-hidden bg-background"
     >
       <SettingsSidebar
         settings={settings}
@@ -1227,7 +1251,7 @@ function Settings(): React.JSX.Element {
             className={cn(
               'mx-auto flex w-full flex-col gap-10 px-8 pt-10',
               isFocusedShortcutsPane ? 'h-full pb-6' : 'pb-24',
-              isFocusedSetupGuidePane ? 'max-w-6xl' : 'max-w-4xl'
+              isFocusedSetupGuidePane || isFocusedEditorPane ? 'max-w-6xl' : 'max-w-4xl'
             )}
           >
             {visibleNavSections.length === 0 ? (
@@ -1394,8 +1418,6 @@ function Settings(): React.JSX.Element {
                       settings={settings}
                       updateSettings={updateSettings}
                       updateSettingsOrThrow={updateSettingsOrThrow}
-                      fontSuggestions={terminalFontSuggestions}
-                      onRequestFontSuggestions={requestFontSuggestions}
                       wslSupportedPlatform={localWslSupportedPlatform}
                       wslAvailable={localWindowsRuntimeCapabilities.wslAvailable}
                       wslDistros={localWindowsRuntimeCapabilities.wslDistros}
@@ -1650,6 +1672,25 @@ function Settings(): React.JSX.Element {
                       systemPrefersDark={systemPrefersDark}
                       ghostty={ghostty}
                       warpThemes={warpThemes}
+                    />
+                  ) : null}
+                </SettingsSection>
+
+                <SettingsSection
+                  id="editor"
+                  title={translate('auto.components.settings.Settings.editorSection', 'Editor')}
+                  description={translate(
+                    'auto.components.settings.Settings.editorSectionDescription',
+                    'Code editor themes, fonts, saving, diffs, and language servers.'
+                  )}
+                  searchEntries={getSectionSearchEntries('editor')}
+                >
+                  {isSectionMounted('editor') ? (
+                    <EditorPane
+                      settings={settings}
+                      updateSettings={updateSettings}
+                      fontSuggestions={terminalFontSuggestions}
+                      onRequestFontSuggestions={requestFontSuggestions}
                     />
                   ) : null}
                 </SettingsSection>

@@ -213,19 +213,19 @@ describe('installEditorAddReviewNoteShortcut', () => {
     const dispose = installEditorAddReviewNoteShortcut(container, onAddReviewNote)
 
     const defaultEvent = dispatchKeyDown(input, {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       shiftKey: true
     })
     const repeatEvent = dispatchKeyDown(input, {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       shiftKey: true,
       repeat: true
     })
-    const unrelatedEvent = dispatchKeyDown(input, { key: 'a', code: 'KeyA', metaKey: true })
+    const unrelatedEvent = dispatchKeyDown(input, { key: ',', code: 'Comma', metaKey: true })
 
     expect(defaultEvent.defaultPrevented).toBe(true)
     expect(repeatEvent.defaultPrevented).toBe(false)
@@ -258,8 +258,8 @@ describe('installEditorAddReviewNoteShortcut', () => {
     const dispose = installEditorAddReviewNoteShortcut(container, onAddReviewNote)
 
     const event = dispatchKeyDown(input, {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       shiftKey: true
     })
@@ -284,19 +284,19 @@ describe('installOpenDraftAddReviewNoteGuard', () => {
     const dispose = installOpenDraftAddReviewNoteGuard(container)
 
     const first = dispatchKeyDown(input, {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       shiftKey: true
     })
     const repeat = dispatchKeyDown(input, {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       shiftKey: true,
       repeat: true
     })
-    const unrelated = dispatchKeyDown(input, { key: 'a', code: 'KeyA', metaKey: true })
+    const unrelated = dispatchKeyDown(input, { key: ',', code: 'Comma', metaKey: true })
 
     expect(first.defaultPrevented).toBe(true)
     expect(repeat.defaultPrevented).toBe(true)
@@ -306,8 +306,8 @@ describe('installOpenDraftAddReviewNoteGuard', () => {
 
     dispose()
     const afterDispose = dispatchKeyDown(input, {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       shiftKey: true
     })

@@ -70,7 +70,7 @@ export function SshStatusSegment({
   const remoteWorkspaceSyncStatusByTargetId = useAppStore(
     (s) => s.remoteWorkspaceSyncStatusByTargetId
   )
-  const setActiveView = useAppStore((s) => s.setActiveView)
+  const openSettingsPage = useAppStore((s) => s.openSettingsPage)
   const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
   const recordFeatureInteraction = useAppStore((s) => s.recordFeatureInteraction)
 
@@ -297,7 +297,7 @@ export function SshStatusSegment({
           onSelect={() => {
             recordFeatureInteraction('ssh')
             openSettingsTarget({ pane: 'servers', repoId: null })
-            setActiveView('settings')
+            openSettingsPage()
           }}
         >
           {translate(

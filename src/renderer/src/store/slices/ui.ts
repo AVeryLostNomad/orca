@@ -612,25 +612,17 @@ export type UISlice = {
   activeView: TopLevelView
   previousViewBeforeTasks:
     | 'terminal'
-    | 'settings'
     | 'activity'
     | 'automations'
     | 'space'
     | 'skills'
     | 'artifacts'
     | 'mobile'
-  previousViewBeforeSettings:
-    | 'terminal'
-    | 'tasks'
-    | 'activity'
-    | 'automations'
-    | 'space'
-    | 'skills'
-    | 'artifacts'
-    | 'mobile'
+  /** Why: Settings renders as a modal over the active view — renderer-only,
+   *  never persisted (absent from the debounced UI writer). */
+  settingsOpen: boolean
   previousViewBeforeActivity:
     | 'terminal'
-    | 'settings'
     | 'tasks'
     | 'automations'
     | 'space'
@@ -639,7 +631,6 @@ export type UISlice = {
     | 'mobile'
   previousViewBeforeAutomations:
     | 'terminal'
-    | 'settings'
     | 'tasks'
     | 'activity'
     | 'space'
@@ -648,7 +639,6 @@ export type UISlice = {
     | 'mobile'
   previousViewBeforeSpace:
     | 'terminal'
-    | 'settings'
     | 'tasks'
     | 'activity'
     | 'automations'
@@ -657,7 +647,6 @@ export type UISlice = {
     | 'mobile'
   previousViewBeforeSkills:
     | 'terminal'
-    | 'settings'
     | 'tasks'
     | 'activity'
     | 'automations'
@@ -666,7 +655,6 @@ export type UISlice = {
     | 'mobile'
   previousViewBeforeMobile:
     | 'terminal'
-    | 'settings'
     | 'tasks'
     | 'activity'
     | 'automations'
@@ -675,7 +663,6 @@ export type UISlice = {
     | 'artifacts'
   previousViewBeforeArtifacts:
     | 'terminal'
-    | 'settings'
     | 'tasks'
     | 'activity'
     | 'automations'
@@ -805,7 +792,6 @@ export type UISlice = {
     | 'confirm-non-git-folder'
     | 'confirm-remove-folder'
     | 'add-repo'
-    | 'quick-open'
     | 'worktree-palette'
     | 'workspace-cleanup'
     | 'project-added'
@@ -1260,7 +1246,7 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
 
   activeView: 'terminal',
   previousViewBeforeTasks: 'terminal',
-  previousViewBeforeSettings: 'terminal',
+  settingsOpen: false,
   previousViewBeforeActivity: 'terminal',
   previousViewBeforeAutomations: 'terminal',
   previousViewBeforeSpace: 'terminal',
@@ -1557,22 +1543,9 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   openSettingsPage: () => {
     // Why: settings search is a transient filter; opening Settings shouldn't inherit hidden sections from last visit.
     get().setSettingsSearchQuery('')
-    set((state) => ({
-      activeView: 'settings',
-      // Why: preserve the originating view so Settings back returns there (e.g. in-progress draft), not always terminal.
-      previousViewBeforeSettings:
-        state.activeView === 'settings' ? state.previousViewBeforeSettings : state.activeView
-    }))
+    set({ settingsOpen: true })
   },
-  closeSettingsPage: () =>
-    set((state) => {
-      const previousView =
-        state.previousViewBeforeSettings === 'activity' &&
-        state.settings?.experimentalActivity !== true
-          ? 'terminal'
-          : state.previousViewBeforeSettings
-      return { activeView: previousView }
-    }),
+  closeSettingsPage: () => set({ settingsOpen: false }),
   settingsNavigationTarget: null,
   openSettingsTarget: (target) => {
     if (!isSettingsNavigationTarget(target)) {

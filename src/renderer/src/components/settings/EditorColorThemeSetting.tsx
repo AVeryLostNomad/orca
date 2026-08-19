@@ -1,120 +1,29 @@
-import { useEffect, useState } from 'react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import type { LocalEditorThemeDescriptor } from '../../../../shared/editor-theme-types'
 import {
   BUNDLED_EDITOR_THEMES,
   DEFAULT_EDITOR_THEME_DARK,
-  DEFAULT_EDITOR_THEME_LIGHT,
-  encodeLocalEditorThemeId
+  DEFAULT_EDITOR_THEME_LIGHT
 } from '@/lib/monaco-highlighting/editor-theme-catalog'
 import { translate } from '@/i18n/i18n'
 import { Label } from '../ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue
-} from '../ui/select'
 import { SearchableSetting } from './SearchableSetting'
+import {
+  localThemeOptions,
+  ThemeSlotSelect,
+  useLocalEditorThemes,
+  type ThemeOption
+} from './theme-slot-select'
 
 type EditorColorThemeSettingProps = {
   settings: GlobalSettings
   updateSettings: (updates: Partial<GlobalSettings>) => void
 }
 
-type ThemeOption = { value: string; label: string }
-
-function isLightUiTheme(uiTheme: string): boolean {
-  return uiTheme === 'vs' || uiTheme === 'hc-light'
-}
-
-function localThemeOptions(
-  localThemes: LocalEditorThemeDescriptor[],
-  kind: 'light' | 'dark'
-): ThemeOption[] {
-  return localThemes
-    .filter((theme) => isLightUiTheme(theme.uiTheme) === (kind === 'light'))
-    .map((theme) => ({
-      value: encodeLocalEditorThemeId(theme),
-      label: `${theme.sourceName} · ${theme.label}`
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label))
-}
-
-function ThemeSlotSelect({
-  label,
-  value,
-  bundled,
-  local,
-  onChange
-}: {
-  label: string
-  value: string
-  bundled: ThemeOption[]
-  local: ThemeOption[]
-  onChange: (value: string) => void
-}): React.JSX.Element {
-  // A stored local theme whose extension was uninstalled still needs a visible
-  // entry, or the Select would render empty.
-  const missingSelection =
-    value && !bundled.some((o) => o.value === value) && !local.some((o) => o.value === value)
-  return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <Label className="min-w-0 flex-1">{label}</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-64">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {bundled.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-          {local.length > 0 ? <SelectSeparator /> : null}
-          {local.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-          {missingSelection ? (
-            <SelectItem value={value}>
-              {translate(
-                'auto.components.settings.EditorColorThemeSetting.missing',
-                'Missing theme'
-              )}
-            </SelectItem>
-          ) : null}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
-
 export function EditorColorThemeSetting({
   settings,
   updateSettings
 }: EditorColorThemeSettingProps): React.JSX.Element {
-  const [localThemes, setLocalThemes] = useState<LocalEditorThemeDescriptor[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const themes = await window.api?.editorThemes?.list()
-        if (!cancelled && Array.isArray(themes)) {
-          setLocalThemes(themes)
-        }
-      } catch {
-        // Local editors are optional; the bundled list stands alone.
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const localThemes = useLocalEditorThemes()
 
   const bundledLight: ThemeOption[] = BUNDLED_EDITOR_THEMES.filter((t) => t.kind === 'light').map(
     (t) => ({ value: t.id, label: t.label })

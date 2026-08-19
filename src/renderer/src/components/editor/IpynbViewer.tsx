@@ -34,6 +34,7 @@ import {
 import { monaco } from '@/lib/monaco-setup'
 import {
   computeEditorFontSize,
+  resolveEditorBaseFontSize,
   resolveEditorFontFamily,
   resolveEditorFontFamilyOrInherit
 } from '@/lib/editor-font-zoom'
@@ -342,7 +343,7 @@ function CodeCell({
   // latest callbacks without rebuilding the embedded editor.
   onDeactivateRef.current = onDeactivate
   onSaveRequestRef.current = onSaveRequest
-  const fontSize = computeEditorFontSize(settings?.terminalFontSize ?? 13, editorFontZoomLevel)
+  const fontSize = computeEditorFontSize(resolveEditorBaseFontSize(settings), editorFontZoomLevel)
   const editorHeight = getIpynbCodeCellEditorHeight(source, fontSize)
   const monacoThemeName = useMonacoThemeName()
   const lines = useMemo(() => getIpynbCodeCellPreviewLines(source), [source])

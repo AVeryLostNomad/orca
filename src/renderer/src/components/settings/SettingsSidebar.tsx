@@ -18,6 +18,7 @@ import type { SettingsSetupGuideProgress } from './settings-setup-guide-progress
 import { translate } from '@/i18n/i18n'
 import { resolveLeftSidebarStyleVariables } from '@/lib/left-sidebar-appearance'
 import { useSystemPrefersDark } from '../terminal-pane/use-system-prefers-dark'
+import { useAppStore } from '@/store'
 
 type NavSection = {
   id: string
@@ -143,9 +144,10 @@ export function SettingsSidebar({
 }: SettingsSidebarProps): React.JSX.Element {
   const setupGuideProgress = useSettingsSetupGuideProgress(true)
   const systemPrefersDark = useSystemPrefersDark()
+  const appThemeTerminalTheme = useAppStore((s) => s.appThemeTerminalTheme)
   const leftSidebarStyle = useMemo(
-    () => resolveLeftSidebarStyleVariables(settings, systemPrefersDark),
-    [settings, systemPrefersDark]
+    () => resolveLeftSidebarStyleVariables(settings, systemPrefersDark, appThemeTerminalTheme),
+    [settings, systemPrefersDark, appThemeTerminalTheme]
   ) as CSSProperties | undefined
   const setupActive = activeSectionId === 'setup-guide'
   // Why: "Hide from sidebar" only hides the top-left app sidebar prompt;
@@ -190,7 +192,7 @@ export function SettingsSidebar({
           className="w-full justify-start gap-2 text-[13px] text-muted-foreground"
         >
           <ArrowLeft className="size-4" />
-          {translate('auto.components.settings.SettingsSidebar.60f8a673a7', 'Back to app')}
+          {translate('auto.components.settings.SettingsSidebar.close', 'Close')}
         </Button>
       </div>
 
@@ -202,6 +204,20 @@ export function SettingsSidebar({
             autoFocus={searchAutoFocus}
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') {
+                return
+              }
+              // Why: Escape clears an active search first; a second Escape (input
+              // now blurred and empty) falls through to the modal close handler.
+              if (searchQuery !== '') {
+                event.preventDefault()
+                event.stopPropagation()
+                onSearchChange('')
+                return
+              }
+              event.currentTarget.blur()
+            }}
             placeholder={translate(
               'auto.components.settings.SettingsSidebar.dbceaa8840',
               'Search settings'

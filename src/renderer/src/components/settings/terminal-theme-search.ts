@@ -51,6 +51,31 @@ export const getTerminalThemeTargetSearchEntries = createLocalizedCatalog(() => 
   }
 ])
 
+export const getTerminalFollowAppThemeSearchEntries = createLocalizedCatalog(() => [
+  {
+    title: translate(
+      'auto.components.settings.terminal.search.follow_app_theme_title',
+      'Follow App Theme'
+    ),
+    description: translate(
+      'auto.components.settings.terminal.search.follow_app_theme_description',
+      'Color the terminal from the app theme. Turn off to pick separate terminal themes below.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.terminal.search.f66a7cf715', 'terminal'),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.0ce176909a', 'theme'),
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.follow_app_theme_keyword_app',
+        'app theme'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.follow_app_theme_keyword_follow',
+        'follow'
+      )
+    ]
+  }
+])
+
 export const getTerminalLightThemeSearchEntries = createLocalizedCatalog(() => [
   {
     title: translate(

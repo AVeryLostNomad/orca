@@ -39,7 +39,7 @@ describe('ActiveViewPreference', () => {
     vi.useFakeTimers()
     const preference = new ActiveViewPreference(dataFile, 'terminal')
 
-    preference.set('settings')
+    preference.set('tasks')
     vi.advanceTimersByTime(50)
     preference.set('automations')
     vi.advanceTimersByTime(50)
@@ -57,15 +57,15 @@ describe('ActiveViewPreference', () => {
     vi.useFakeTimers()
     const preference = new ActiveViewPreference(dataFile, 'terminal')
 
-    preference.set('settings')
+    preference.set('tasks')
     preference.flushOrThrow()
 
     expect(JSON.parse(readFileSync(getActiveViewPreferenceFile(dataFile), 'utf-8'))).toEqual({
-      activeView: 'settings'
+      activeView: 'tasks'
     })
     vi.advanceTimersByTime(100)
     expect(JSON.parse(readFileSync(getActiveViewPreferenceFile(dataFile), 'utf-8'))).toEqual({
-      activeView: 'settings'
+      activeView: 'tasks'
     })
   })
 

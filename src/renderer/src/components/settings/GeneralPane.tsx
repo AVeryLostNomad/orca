@@ -3,13 +3,11 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { useAppStore } from '../../store'
 import { Separator } from '../ui/separator'
 import { CliSection } from './CliSection'
-import { GeneralEditorSettingsSection } from './GeneralEditorSettingsSection'
 import { GeneralSupportSection } from './GeneralSupportSection'
 import { GeneralUpdateSettingsSection } from './GeneralUpdateSettingsSection'
 import { GeneralWorkspaceSettingsSection } from './GeneralWorkspaceSettingsSection'
 import {
   getGeneralCliSearchEntries,
-  getGeneralEditorSearchEntries,
   getGeneralNavigationSearchEntries,
   getGeneralPaneSearchEntries,
   getGeneralSupportSearchEntries,
@@ -82,8 +80,6 @@ type GeneralPaneProps = {
   settings: GlobalSettings
   updateSettings: (updates: Partial<GlobalSettings>) => void
   updateSettingsOrThrow?: (updates: Partial<GlobalSettings>) => void | Promise<void>
-  fontSuggestions: string[]
-  onRequestFontSuggestions?: () => void
   wslSupportedPlatform?: boolean
   wslAvailable?: boolean
   wslDistros?: string[]
@@ -94,8 +90,6 @@ export function GeneralPane({
   settings,
   updateSettings,
   updateSettingsOrThrow,
-  fontSuggestions,
-  onRequestFontSuggestions,
   wslSupportedPlatform,
   wslAvailable,
   wslDistros = EMPTY_WSL_DISTROS,
@@ -197,15 +191,6 @@ export function GeneralPane({
           wslCapabilitiesLoading={Boolean(wslCapabilitiesLoading)}
         />
       </section>
-    ) : null,
-    matchesSettingsSearch(searchQuery, getGeneralEditorSearchEntries()) ? (
-      <GeneralEditorSettingsSection
-        key="editor"
-        settings={settings}
-        updateSettings={updateSettings}
-        fontSuggestions={fontSuggestions}
-        onRequestFontSuggestions={onRequestFontSuggestions}
-      />
     ) : null,
     matchesSettingsSearch(searchQuery, getGeneralCliSearchEntries()) ? (
       <CliSection

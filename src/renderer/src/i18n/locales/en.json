@@ -807,6 +807,9 @@
       },
       "ephemeralVmWorktreeCreation": {
         "sparseCheckoutUnsupported": "Provisioned-root recipes do not support sparse checkout."
+      },
+      "floatingWorkspaceNotesTab": {
+        "label": "Notes"
       }
     },
     "hooks": {
@@ -942,7 +945,9 @@
         "automationsDescription": "Schedule agent work and choose whether Automations appears in the sidebar.",
         "shareSkillsTitle": "Share Skills",
         "shareSkillsDescription": "Share your skills with an unlisted link. Anyone who has it can install them.",
-        "floatingWorkspaceWebDescription": "Global terminal and markdown tabs."
+        "floatingWorkspaceWebDescription": "Global terminal and markdown tabs.",
+        "editorTitle": "Editor",
+        "editorDescription": "Code editor themes, fonts, saving, diffs, and language servers."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "Paste is too large."
@@ -2170,7 +2175,12 @@
         "27f10cca63": "Search chats, terminals, worktrees, settings, and actions...",
         "2770f02910": "Search chats, terminals, worktrees, settings, and actions",
         "paletteOpenTabBranch": "Branch name",
-        "paletteOpenTabWorkspace": "Workspace name"
+        "paletteOpenTabWorkspace": "Workspace name",
+        "filesHeader": "Files",
+        "quickAiNoAgent": "No AI agent is available to ask.",
+        "quickAiNoWorkspace": "Open a workspace first to ask an agent.",
+        "goToFilePlaceholder": "Go to file...",
+        "loadingFiles": "Loading files..."
       },
       "github": {
         "pr": {
@@ -7836,7 +7846,9 @@
           "devDescription": "Dev-only tools for exercising UI states.",
           "linearTitle": "Linear",
           "linearDescription": "How Linear works in Orca, setup checklist, agent skill, and example prompts.",
-          "tasksDescription": "Connect providers, install the Linear skill, and choose what appears in Tasks."
+          "tasksDescription": "Connect providers, install the Linear skill, and choose what appears in Tasks.",
+          "editorSection": "Editor",
+          "editorSectionDescription": "Code editor themes, fonts, saving, diffs, and language servers."
         },
         "SettingsFormControls": {
           "42a4d15a30": "No matching fonts.",
@@ -7866,7 +7878,8 @@
           "6503182299": "Onboarding checklist",
           "82db1b7de4": "Onboarding checklist, {{value0}} of {{value1}} done. Show setup guide.",
           "df38d612b7": "No projects added yet.",
-          "3e483e256b": "No matching project settings."
+          "3e483e256b": "No matching project settings.",
+          "close": "Close"
         },
         "ShortcutFilterRail": {
           "28b63545bf": "Status",
@@ -8279,7 +8292,9 @@
           "match_dark_mode": "Match dark mode",
           "match_dark_mode_description": "Share the dark terminal theme and divider color in light mode.",
           "light_preview_description": "Shows the effective light terminal appearance.",
-          "dark_preview_description": "Shows the effective dark terminal appearance."
+          "dark_preview_description": "Shows the effective dark terminal appearance.",
+          "follow_app_theme": "Follow App Theme",
+          "follow_app_theme_description": "Color the terminal from the app theme. Turn off to pick separate terminal themes below."
         },
         "TerminalWindowSection": {
           "1705318506": "ANSI magenta color",
@@ -8709,7 +8724,9 @@
             "d6c0a9e2f4": "grok",
             "c5b9f8d1e3": "xai",
             "usagePercentageDisplayTitle": "Usage percentages",
-            "usagePercentageDisplayDescription": "Choose whether provider limits show the percentage used or remaining."
+            "usagePercentageDisplayDescription": "Choose whether provider limits show the percentage used or remaining.",
+            "appTheme": "App Theme",
+            "appThemeDesc": "Color the Orca window chrome from an editor theme’s palette."
           }
         },
         "auto": {
@@ -9991,7 +10008,9 @@
               "title": "Theme Mode",
               "keyword_target": "target",
               "keyword_editing": "editing"
-            }
+            },
+            "follow_app_theme_title": "Follow App Theme",
+            "follow_app_theme_description": "Color the terminal from the app theme. Turn off to pick separate terminal themes below."
           },
           "windows": {
             "search": {
@@ -11324,6 +11343,36 @@
           "vscodeDescription": "Offer \"New VS Code Tab\" in the new tab menu.",
           "dataStudioTitle": "Data Studio Tab",
           "dataStudioDescription": "Offer \"New Data Studio Tab\" in the new tab menu."
+        },
+        "AppThemeSetting": {
+          "orcaDefault": "Orca Default",
+          "title": "App Theme",
+          "description": "Color the Orca window chrome from an editor theme’s palette — separate from the editor theme itself.",
+          "lightTheme": "Light Theme",
+          "darkTheme": "Dark Theme"
+        },
+        "EditorCoreSettingsSection": {
+          "title": "Editing"
+        },
+        "EditorDiffMarkdownSettingsSection": {
+          "title": "Diffs & Markdown"
+        },
+        "EditorFontSizeSetting": {
+          "title": "Editor Font Size",
+          "description": "Font size for file editors and diffs. Leave empty to follow the terminal font size.",
+          "placeholder": "Same as terminal"
+        },
+        "EditorSettingsPreview": {
+          "title": "Preview"
+        },
+        "SettingsModal": {
+          "title": "Settings"
+        },
+        "editor": {
+          "search": {
+            "fontSize": "Editor Font Size",
+            "fontSizeDesc": "Font size for file editors and diffs. Leave empty to follow the terminal font size."
+          }
         }
       },
       "right": {
@@ -14827,6 +14876,138 @@
           "pluginQuickActions": {
             "description": "{{value0}} plugin command",
             "keyword": "plugin command"
+          },
+          "QuickAiRow": {
+            "prompt": "Or quick AI?",
+            "tabKey": "Tab",
+            "hint": "to ask your agent"
+          },
+          "automations": {
+            "run": "Run Automation: {{value0}}",
+            "runDesc": "Start this automation now.",
+            "kw": {
+              "run": "run automation",
+              "open": "open automation",
+              "automation": "automation"
+            },
+            "started": "Automation started: {{value0}}",
+            "failed": "Failed to run automation: {{value0}}",
+            "open": "Open Automation: {{value0}}",
+            "openDesc": "View this automation and its runs."
+          },
+          "commands": {
+            "toggleLeftSidebar": "Toggle Left Sidebar",
+            "toggleLeftSidebarDesc": "Show or hide the workspace sidebar.",
+            "kw": {
+              "toggleSidebar": "toggle sidebar",
+              "hideSidebar": "hide sidebar",
+              "showSidebar": "show sidebar",
+              "toggleRightSidebar": "toggle right sidebar",
+              "explorer": "explorer",
+              "files": "files",
+              "fileTree": "file tree",
+              "search": "search",
+              "findInFiles": "find in files",
+              "grep": "grep",
+              "sourceControl": "source control",
+              "git": "git",
+              "changes": "changes",
+              "diff": "diff",
+              "checks": "checks",
+              "ci": "ci",
+              "ports": "ports",
+              "devServer": "dev server",
+              "localhost": "localhost",
+              "sleeping": "sleeping workspaces",
+              "renameWorkspace": "rename workspace",
+              "renameWorktree": "rename worktree",
+              "renameTab": "rename tab",
+              "board": "board",
+              "kanban": "kanban",
+              "tasks": "tasks",
+              "issues": "issues",
+              "back": "back",
+              "forward": "forward",
+              "floating": "floating workspace",
+              "newAgent": "new agent",
+              "aiSession": "ai session",
+              "startAgent": "start agent",
+              "claude": "claude",
+              "codex": "codex",
+              "settings": "settings",
+              "preferences": "preferences"
+            },
+            "toggleRightSidebar": "Toggle Right Sidebar",
+            "toggleRightSidebarDesc": "Show or hide the explorer/source-control sidebar.",
+            "showExplorer": "Show Explorer",
+            "showExplorerDesc": "Open the file explorer panel.",
+            "showSearch": "Show Search",
+            "showSearchDesc": "Open workspace-wide text search.",
+            "showSourceControl": "Show Source Control",
+            "showSourceControlDesc": "Open the source control panel.",
+            "showChecks": "Show Checks",
+            "showChecksDesc": "Open the checks panel.",
+            "showPorts": "Show Ports",
+            "showPortsDesc": "Open the forwarded ports panel.",
+            "toggleSleepingWorkspaces": "Toggle Sleeping Workspaces",
+            "toggleSleepingWorkspacesDesc": "Show or hide sleeping workspaces in the sidebar.",
+            "renameWorkspace": "Rename Workspace",
+            "renameWorkspaceDesc": "Rename the current workspace.",
+            "renameTab": "Rename Tab",
+            "renameTabDesc": "Rename the active tab.",
+            "openBoard": "Open Workspace Board",
+            "openBoardDesc": "Open the workspace kanban board.",
+            "openTasks": "Open Tasks",
+            "openTasksDesc": "Open the tasks page.",
+            "historyBack": "Navigate Back",
+            "historyBackDesc": "Go back in workspace history.",
+            "historyForward": "Navigate Forward",
+            "historyForwardDesc": "Go forward in workspace history.",
+            "maximizeFloating": "Maximize Floating Workspace",
+            "maximizeFloatingDesc": "Expand the floating workspace panel.",
+            "newAgentTab": "New Agent Tab",
+            "newAgentTabDesc": "Start your default AI agent in the active workspace.",
+            "openSettings": "Open Settings",
+            "openSettingsDesc": "Open the Orca settings."
+          },
+          "quickCommands": {
+            "run": "Run: {{value0}}",
+            "agentDesc": "Start {{value0}} with this saved prompt.",
+            "terminalDesc": "Run this saved command in a new terminal tab.",
+            "kw": {
+              "run": "run",
+              "quickCommand": "quick command"
+            }
+          },
+          "sourceControl": {
+            "commit": "Commit Changes",
+            "commitDesc": "Open Source Control and commit staged changes.",
+            "kw": {
+              "commit": "commit",
+              "commitChanges": "commit changes",
+              "push": "push",
+              "pushCode": "push code",
+              "upload": "upload commits",
+              "pull": "pull",
+              "sync": "sync",
+              "pullPush": "pull push",
+              "publish": "publish branch",
+              "publishUpstream": "set upstream",
+              "createPr": "create pr",
+              "pullRequest": "pull request",
+              "mergeRequest": "merge request",
+              "openPr": "open pr"
+            },
+            "push": "Push",
+            "pushDesc": "Push commits to the remote branch.",
+            "pull": "Pull",
+            "pullDesc": "Pull the latest changes from the remote branch.",
+            "sync": "Sync",
+            "syncDesc": "Pull then push to sync with the remote branch.",
+            "publish": "Publish Branch",
+            "publishDesc": "Publish the current branch to the remote.",
+            "createPr": "Create Pull Request",
+            "createPrDesc": "Open Source Control and start a pull request."
           }
         }
       },

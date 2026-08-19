@@ -2,7 +2,7 @@ import { translate } from '@/i18n/i18n'
 import { translateSearchKeyword } from './settings-search-keywords'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
 
-export const getGeneralEditorSearchEntries = createLocalizedCatalog(() => [
+export const getEditorPaneSearchEntries = createLocalizedCatalog(() => [
   {
     title: translate('auto.components.settings.general.search.ae21e806ce', 'Auto Save Files'),
     description: translate(
@@ -91,6 +91,19 @@ export const getGeneralEditorSearchEntries = createLocalizedCatalog(() => [
       ...translateSearchKeyword('auto.components.settings.general.search.e1ee631696', 'editor'),
       ...translateSearchKeyword('auto.components.settings.general.search.editorFontKw', 'font'),
       ...translateSearchKeyword('auto.components.settings.general.search.3ca5ab78a5', 'code')
+    ]
+  },
+  {
+    title: translate('auto.components.settings.editor.search.fontSize', 'Editor Font Size'),
+    description: translate(
+      'auto.components.settings.editor.search.fontSizeDesc',
+      'Font size for file editors and diffs. Leave empty to follow the terminal font size.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.general.search.e1ee631696', 'editor'),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorFontKw', 'font'),
+      ...translateSearchKeyword('auto.components.settings.editor.search.fontSizeKw', 'size'),
+      ...translateSearchKeyword('auto.components.settings.editor.search.textSizeKw', 'text size')
     ]
   },
   {

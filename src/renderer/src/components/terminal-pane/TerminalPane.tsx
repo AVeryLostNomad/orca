@@ -717,6 +717,7 @@ function TerminalPane(
   const openSpacePage = useAppStore((store) => store.openSpacePage)
   const refreshWorkspaceSpace = useAppStore((store) => store.refreshWorkspaceSpace)
   const settings = useAppStore((store) => store.settings)
+  const appThemeTerminalTheme = useAppStore((store) => store.appThemeTerminalTheme)
   const updateSettings = useAppStore((store) => store.updateSettings)
   const requestLinkRoutingPreference = useLinkRoutingPreferenceDialog()
   const keybindings = useAppStore((store) => store.keybindings)
@@ -2846,7 +2847,7 @@ function TerminalPane(
   )
 
   const effectiveAppearance = settings
-    ? resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
+    ? resolveEffectiveTerminalAppearance(settings, systemPrefersDark, appThemeTerminalTheme)
     : null
   const terminalBackground =
     settings?.terminalColorOverrides?.background ?? effectiveAppearance?.theme?.background

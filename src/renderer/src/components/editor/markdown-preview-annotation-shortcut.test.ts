@@ -78,8 +78,8 @@ describe('getMarkdownAnnotationBlockKeyForSelection', () => {
 describe('isMarkdownPreviewAddReviewNoteShortcut', () => {
   it('matches the default binding and respects overrides', () => {
     const defaultEvent = {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       metaKey: true,
       ctrlKey: false,
       altKey: false,
@@ -110,8 +110,8 @@ describe('isMarkdownPreviewAddReviewNoteShortcut', () => {
 
 describe('resolveMarkdownPreviewAddReviewNoteKey', () => {
   const chord = {
-    key: 'a',
-    code: 'KeyA',
+    key: ',',
+    code: 'Comma',
     metaKey: true,
     ctrlKey: false,
     altKey: false,

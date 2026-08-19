@@ -52,9 +52,10 @@ function Sidebar({
   const activeModal = useAppStore((s) => s.activeModal)
   const statusBarVisible = useAppStore((s) => s.statusBarVisible)
   const systemPrefersDark = useSystemPrefersDark()
+  const appThemeTerminalTheme = useAppStore((s) => s.appThemeTerminalTheme)
   const leftSidebarStyle = useMemo(
-    () => resolveLeftSidebarStyleVariables(settings, systemPrefersDark),
-    [settings, systemPrefersDark]
+    () => resolveLeftSidebarStyleVariables(settings, systemPrefersDark, appThemeTerminalTheme),
+    [settings, systemPrefersDark, appThemeTerminalTheme]
   ) as React.CSSProperties | undefined
   const { nativeDropTarget, dropHandlers, affordance } = useSidebarProjectDrop()
   const {

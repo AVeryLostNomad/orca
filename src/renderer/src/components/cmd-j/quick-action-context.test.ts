@@ -85,7 +85,7 @@ describe('Cmd+J quick action context', () => {
       available: false,
       reason: 'no-active-workspace'
     })
-    expect(getCurrentWorkspaceActionAvailability(ctx({ activeView: 'settings' }))).toEqual({
+    expect(getCurrentWorkspaceActionAvailability(ctx({ activeView: 'tasks' }))).toEqual({
       available: false,
       reason: 'no-active-workspace'
     })
@@ -184,7 +184,7 @@ describe('Cmd+J quick action context', () => {
         actionById.get(actionId)?.isAvailable({ ...baseContext, activeGroupId: null })
       ).toEqual({ available: true })
       expect(
-        actionById.get(actionId)?.isAvailable({ ...baseContext, activeView: 'settings' })
+        actionById.get(actionId)?.isAvailable({ ...baseContext, activeView: 'tasks' })
       ).toEqual({ available: false, reason: 'no-active-workspace' })
       expect(
         actionById.get(actionId)?.isAvailable({ ...baseContext, sshStatus: 'disconnected' })

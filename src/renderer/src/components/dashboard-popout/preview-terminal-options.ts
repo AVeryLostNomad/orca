@@ -12,6 +12,30 @@ import {
 import { buildLocalConptyTerminalOptions } from '@/lib/pane-manager/windows-pty-compatibility'
 import { buildFontFamily } from '@/components/terminal-pane/layout-serialization'
 import { resolveTerminalMinimumContrastRatio } from '@/lib/terminal-contrast-correction'
+import { composeActiveTerminalTheme } from '@/components/terminal-pane/terminal-appearance'
+import { getBuiltinTheme, resolveEffectiveTerminalAppearance } from '@/lib/terminal-theme'
+import type { AppThemeTerminalTheme } from '@/lib/app-theme/app-theme-terminal-theme'
+
+/** The composed xterm theme + mode a preview terminal should render with. */
+export function resolvePreviewTerminalTheme(
+  settings: GlobalSettings | null,
+  systemPrefersDark: boolean,
+  appThemeTerminalTheme?: AppThemeTerminalTheme | null
+): { terminalTheme: ITheme | null; terminalMode: 'dark' | 'light' } {
+  if (!settings) {
+    return { terminalTheme: null, terminalMode: 'dark' }
+  }
+  const appearance = resolveEffectiveTerminalAppearance(
+    settings,
+    systemPrefersDark,
+    appThemeTerminalTheme
+  )
+  const theme = composeActiveTerminalTheme(
+    appearance.theme ?? getBuiltinTheme(appearance.themeName),
+    settings
+  )
+  return { terminalTheme: theme, terminalMode: appearance.mode }
+}
 
 /** Options a live settings change can write onto an open preview terminal. */
 export function buildPreviewAppearanceOptions(

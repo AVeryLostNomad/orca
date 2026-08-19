@@ -69,7 +69,9 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
       process.platform,
       getKeybindings?.()
     )
-    return formatKeybindingList(bindings, process.platform)
+    // Why slice(0, 1): menu hints show the primary chord; actions with several
+    // bindings (e.g. the command bar) would otherwise render a comma list.
+    return formatKeybindingList(bindings.slice(0, 1), process.platform)
   }
 
   const reloadFocusedWindow = (ignoreCache: boolean): void => {

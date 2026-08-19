@@ -3,14 +3,14 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { subscribeToTerminalUserInput } from '@/components/terminal-pane/terminal-user-input-signal'
-import { composeActiveTerminalTheme } from '@/components/terminal-pane/terminal-appearance'
 import { useSystemPrefersDark } from '@/components/terminal-pane/use-system-prefers-dark'
 import { TerminalKittyKeyboardModeTracker } from '../../../../shared/terminal-kitty-keyboard-mode-tracker'
 import { replayPreviewConnectionSnapshot } from './preview-terminal-snapshot-replay'
 import { useEffectiveMacOptionAsAlt } from '@/lib/keyboard-layout/use-effective-mac-option-as-alt'
 import {
   buildPreviewAppearanceOptions,
-  buildPreviewTerminalOptions
+  buildPreviewTerminalOptions,
+  resolvePreviewTerminalTheme
 } from './preview-terminal-options'
 import { syncPreviewTerminalLigatures } from './preview-terminal-ligatures'
 import { installPreviewTerminalCompatibility } from './preview-terminal-compatibility'
@@ -18,7 +18,6 @@ import { createPreviewClipboardPaster } from './preview-terminal-paste'
 import { installPreviewImeBridge, type PreviewImeBridge } from './preview-terminal-ime-bridge'
 import type { DashboardCardTerminalInput } from '../../../../shared/dashboard-snapshot'
 import { translate } from '@/i18n/i18n'
-import { getBuiltinTheme, resolveEffectiveTerminalAppearance } from '@/lib/terminal-theme'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { installPreviewTerminalKeyHandler } from './preview-terminal-key-handler'
@@ -62,6 +61,7 @@ export function AgentTerminalPreview({
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const settings = useAppStore((state) => state.settings)
+  const appThemeTerminalTheme = useAppStore((state) => state.appThemeTerminalTheme)
   const systemPrefersDark = useSystemPrefersDark()
   const macOptionAsAlt = useEffectiveMacOptionAsAlt(settings?.terminalMacOptionAsAlt)
   // Why: keys and appearance must read live values without remounting the
@@ -69,17 +69,10 @@ export function AgentTerminalPreview({
   const settingsRef = useRef(settings)
   const macOptionAsAltRef = useRef(macOptionAsAlt)
   const terminalInputRef = useRef(terminalInput)
-  const { terminalTheme, terminalMode } = useMemo(() => {
-    if (!settings) {
-      return { terminalTheme: null, terminalMode: 'dark' as const }
-    }
-    const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
-    const theme = composeActiveTerminalTheme(
-      appearance.theme ?? getBuiltinTheme(appearance.themeName),
-      settings
-    )
-    return { terminalTheme: theme, terminalMode: appearance.mode }
-  }, [settings, systemPrefersDark])
+  const { terminalTheme, terminalMode } = useMemo(
+    () => resolvePreviewTerminalTheme(settings, systemPrefersDark, appThemeTerminalTheme),
+    [settings, systemPrefersDark, appThemeTerminalTheme]
+  )
   // A null snapshot means no serializer knows this pty (it died or was never
   // spawned this session) — say so instead of painting a silent blank terminal.
   const [ptyGone, setPtyGone] = useState(false)

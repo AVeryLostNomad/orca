@@ -270,31 +270,33 @@ describe('createUISlice settings navigation', () => {
     )
   })
 
-  it('returns to the tasks page after visiting settings from an in-progress draft', () => {
+  it('keeps the underlying view while the settings modal is open', () => {
     const store = createUIStore()
 
     store.getState().openTaskPage({ preselectedRepoId: 'repo-1' })
     store.getState().openSettingsPage()
 
-    expect(store.getState().activeView).toBe('settings')
-    expect(store.getState().previousViewBeforeSettings).toBe('tasks')
+    expect(store.getState().settingsOpen).toBe(true)
+    expect(store.getState().activeView).toBe('tasks')
 
     store.getState().closeSettingsPage()
 
+    expect(store.getState().settingsOpen).toBe(false)
     expect(store.getState().activeView).toBe('tasks')
   })
 
-  it('keeps the original return target when settings is reopened while already visible', () => {
+  it('stays open when settings is reopened while already visible', () => {
     const store = createUIStore()
 
     store.getState().openTaskPage()
     store.getState().openSettingsPage()
     store.getState().openSettingsPage()
 
-    expect(store.getState().previousViewBeforeSettings).toBe('tasks')
+    expect(store.getState().settingsOpen).toBe(true)
 
     store.getState().closeSettingsPage()
 
+    expect(store.getState().settingsOpen).toBe(false)
     expect(store.getState().activeView).toBe('tasks')
   })
 
@@ -304,7 +306,7 @@ describe('createUISlice settings navigation', () => {
     store.setState({ settingsSearchInputQuery: 'terminal', settingsSearchQuery: 'terminal' })
     store.getState().openSettingsPage()
 
-    expect(store.getState().activeView).toBe('settings')
+    expect(store.getState().settingsOpen).toBe(true)
     expect(store.getState().settingsSearchInputQuery).toBe('')
     expect(store.getState().settingsSearchQuery).toBe('')
   })

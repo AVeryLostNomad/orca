@@ -41,18 +41,18 @@ describe('active-view persistence boundary', () => {
     store.flush()
     const durableBefore = readFileSync(dataFile, 'utf-8')
 
-    store.updateUI({ activeView: 'settings' })
+    store.updateUI({ activeView: 'tasks' })
     vi.advanceTimersByTime(1_000)
     await store.waitForPendingWrite()
 
     const preferenceFile = getActiveViewPreferenceFile(dataFile)
     const preferencePayload = readFileSync(preferenceFile, 'utf-8')
     expect(Buffer.byteLength(preferencePayload)).toBeLessThan(64)
-    expect(JSON.parse(preferencePayload)).toEqual({ activeView: 'settings' })
+    expect(JSON.parse(preferencePayload)).toEqual({ activeView: 'tasks' })
     expect(readFileSync(dataFile, 'utf-8')).toBe(durableBefore)
-    expect(store.getUI().activeView).toBe('settings')
+    expect(store.getUI().activeView).toBe('tasks')
 
     const reloaded = new Store({ dataFile })
-    expect(reloaded.getUI().activeView).toBe('settings')
+    expect(reloaded.getUI().activeView).toBe('tasks')
   })
 })

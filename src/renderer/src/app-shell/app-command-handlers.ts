@@ -194,7 +194,7 @@ export function createAppCommandHandlers(
     [
       'workspace.openBoard',
       () => {
-        if (activeView === 'settings') {
+        if (useAppStore.getState().settingsOpen) {
           return false
         }
         return claim('workspace.openBoard', () => {
@@ -207,7 +207,7 @@ export function createAppCommandHandlers(
       'view.tasks',
       () => {
         const store = useAppStore.getState()
-        if (activeView === 'settings' || !store.repos.some((repo) => isGitRepoKind(repo))) {
+        if (store.settingsOpen || !store.repos.some((repo) => isGitRepoKind(repo))) {
           return false
         }
         return claim('view.tasks', () => store.openTaskPage())

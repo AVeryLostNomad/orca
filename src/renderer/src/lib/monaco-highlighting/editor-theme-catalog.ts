@@ -85,6 +85,71 @@ export const BUNDLED_EDITOR_THEMES: BundledEditorThemeDescriptor[] = [
     label: 'Catppuccin Latte',
     kind: 'light',
     loadTheme: () => import('@shikijs/themes/catppuccin-latte')
+  },
+  // Pierre's shipped themes — the diff viewer's historical default look.
+  // Full VS Code registrations, so they work in Monaco, the app-theme
+  // controller, and pass to Pierre diffs by name with no registration.
+  {
+    id: 'pierre-dark',
+    label: 'Pierre Dark',
+    kind: 'dark',
+    loadTheme: () => import('@pierre/theme/pierre-dark') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-light',
+    label: 'Pierre Light',
+    kind: 'light',
+    loadTheme: () => import('@pierre/theme/pierre-light') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-dark-soft',
+    label: 'Pierre Dark Soft',
+    kind: 'dark',
+    loadTheme: () => import('@pierre/theme/pierre-dark-soft') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-light-soft',
+    label: 'Pierre Light Soft',
+    kind: 'light',
+    loadTheme: () => import('@pierre/theme/pierre-light-soft') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-dark-vibrant',
+    label: 'Pierre Dark Vibrant',
+    kind: 'dark',
+    loadTheme: () => import('@pierre/theme/pierre-dark-vibrant') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-light-vibrant',
+    label: 'Pierre Light Vibrant',
+    kind: 'light',
+    loadTheme: () => import('@pierre/theme/pierre-light-vibrant') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-dark-protanopia-deuteranopia',
+    label: 'Pierre Dark (Protanopia/Deuteranopia)',
+    kind: 'dark',
+    loadTheme: () =>
+      import('@pierre/theme/pierre-dark-protanopia-deuteranopia') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-light-protanopia-deuteranopia',
+    label: 'Pierre Light (Protanopia/Deuteranopia)',
+    kind: 'light',
+    loadTheme: () =>
+      import('@pierre/theme/pierre-light-protanopia-deuteranopia') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-dark-tritanopia',
+    label: 'Pierre Dark (Tritanopia)',
+    kind: 'dark',
+    loadTheme: () => import('@pierre/theme/pierre-dark-tritanopia') as Promise<ShikiThemeModule>
+  },
+  {
+    id: 'pierre-light-tritanopia',
+    label: 'Pierre Light (Tritanopia)',
+    kind: 'light',
+    loadTheme: () => import('@pierre/theme/pierre-light-tritanopia') as Promise<ShikiThemeModule>
   }
 ]
 

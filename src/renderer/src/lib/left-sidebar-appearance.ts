@@ -5,6 +5,7 @@ import {
   normalizeLeftSidebarTintOpacity
 } from '../../../shared/left-sidebar-appearance'
 import { resolveEffectiveTerminalAppearance } from './terminal-theme'
+import type { AppThemeTerminalTheme } from './app-theme/app-theme-terminal-theme'
 
 type LeftSidebarAppearanceSettings = Pick<
   GlobalSettings,
@@ -20,6 +21,7 @@ type LeftSidebarAppearanceSettings = Pick<
   | 'terminalDividerColorLight'
   | 'terminalColorOverrides'
   | 'terminalBackgroundOpacity'
+  | 'terminalFollowsAppTheme'
 >
 
 export type LeftSidebarStyleVariables = Record<string, string>
@@ -91,9 +93,14 @@ function buildSurfaceVariables(args: {
 
 function resolveTerminalSurfaceVariables(
   settings: LeftSidebarAppearanceSettings,
-  systemPrefersDark: boolean
+  systemPrefersDark: boolean,
+  appThemeTerminalTheme?: AppThemeTerminalTheme | null
 ): LeftSidebarStyleVariables {
-  const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
+  const appearance = resolveEffectiveTerminalAppearance(
+    settings,
+    systemPrefersDark,
+    appThemeTerminalTheme
+  )
   const background = applyAlpha(
     settings.terminalColorOverrides?.background ?? appearance.theme?.background ?? '#000000',
     settings.terminalBackgroundOpacity
@@ -115,7 +122,8 @@ function resolveTintedSurfaceVariables(
 
 export function resolveLeftSidebarStyleVariables(
   settings: LeftSidebarAppearanceSettings | null | undefined,
-  systemPrefersDark: boolean
+  systemPrefersDark: boolean,
+  appThemeTerminalTheme?: AppThemeTerminalTheme | null
 ): LeftSidebarStyleVariables | undefined {
   if (!settings) {
     return undefined
@@ -124,7 +132,7 @@ export function resolveLeftSidebarStyleVariables(
     case 'default':
       return undefined
     case 'match-terminal':
-      return resolveTerminalSurfaceVariables(settings, systemPrefersDark)
+      return resolveTerminalSurfaceVariables(settings, systemPrefersDark, appThemeTerminalTheme)
     case 'tinted':
       return resolveTintedSurfaceVariables(settings)
   }

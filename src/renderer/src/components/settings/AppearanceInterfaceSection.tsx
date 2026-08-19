@@ -4,6 +4,7 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { UIZoomControl } from './UIZoomControl'
 import { SearchableSetting } from './SearchableSetting'
+import { AppThemeSetting } from './AppThemeSetting'
 import { AppearanceAdvancedDisclosure } from './AppearanceAdvancedDisclosure'
 import { useAppStore } from '../../store'
 import { useShortcutKeyComboDetails } from '@/hooks/useShortcutLabel'
@@ -112,6 +113,8 @@ export function AppearanceInterfaceSection({
           }
         />
       </SearchableSetting>
+
+      <AppThemeSetting settings={settings} updateSettings={updateSettings} />
 
       {SHOW_UI_LANGUAGE_SETTING ? (
         <SearchableSetting

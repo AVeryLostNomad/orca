@@ -128,7 +128,7 @@ describe('resolveTabNumberShortcutTarget', () => {
     })
 
     expect(resolveTabNumberShortcutTarget(base, 2)).toBeNull()
-    expect(resolveTabNumberShortcutTarget({ ...base, activeView: 'settings' }, 0)).toBeNull()
+    expect(resolveTabNumberShortcutTarget({ ...base, activeView: 'tasks' }, 0)).toBeNull()
     expect(resolveTabNumberShortcutTarget({ ...base, activeWorktreeId: null }, 0)).toBeNull()
     expect(resolveTabNumberShortcutTarget(base, -1)).toBeNull()
   })

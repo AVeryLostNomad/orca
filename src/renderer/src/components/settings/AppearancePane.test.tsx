@@ -94,7 +94,8 @@ vi.mock('../ui/select', async () => {
           {children}
         </button>
       )
-    }
+    },
+    SelectSeparator: () => <hr data-slot="select-separator" />
   }
 })
 
