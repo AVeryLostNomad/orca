@@ -18,6 +18,7 @@ import {
   getAvailableTerminalThemeOptions,
   resolveEffectiveTerminalAppearance
 } from '@/lib/terminal-theme'
+import { DEFAULT_APP_THEME } from '@/lib/app-theme/app-theme-controller'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 
@@ -126,6 +127,14 @@ export function TerminalThemeCatalogSection({
         'auto.components.settings.TerminalThemeSections.cbe56a0f79',
         'Controls the split divider line between panes in dark mode.'
       )
+  const hasAppTheme =
+    (!!settings.appThemeDark && settings.appThemeDark !== DEFAULT_APP_THEME) ||
+    (!!settings.appThemeLight && settings.appThemeLight !== DEFAULT_APP_THEME)
+  const followsAppTheme = settings.terminalFollowsAppTheme !== false
+  const followAppThemeTitle = translate(
+    'auto.components.settings.TerminalThemeSections.follow_app_theme',
+    'Follow App Theme'
+  )
 
   return (
     <section className="space-y-5">
@@ -148,6 +157,24 @@ export function TerminalThemeCatalogSection({
       <div className="ml-4 grid gap-4">
         <div className={advancedContent ? 'border-b border-border/40' : undefined}>
           <div className="space-y-3">
+            {hasAppTheme ? (
+              <SearchableSetting
+                title={followAppThemeTitle}
+                keywords={['terminal', 'app theme', 'follow', 'match', 'colors']}
+                forceVisible
+              >
+                <SettingsSwitchRow
+                  label={followAppThemeTitle}
+                  description={translate(
+                    'auto.components.settings.TerminalThemeSections.follow_app_theme_description',
+                    'Color the terminal from the app theme. Turn off to pick separate terminal themes below.'
+                  )}
+                  checked={followsAppTheme}
+                  onChange={() => updateSettings({ terminalFollowsAppTheme: !followsAppTheme })}
+                />
+              </SearchableSetting>
+            ) : null}
+
             <SearchableSetting
               title={translate(
                 'auto.components.settings.TerminalThemeSections.target_title',

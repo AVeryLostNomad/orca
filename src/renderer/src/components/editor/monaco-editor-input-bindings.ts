@@ -7,6 +7,7 @@ import { getMonacoCodebaseSearchQuery } from './monaco-codebase-search'
 import { getDiffCommentPopoverLeft } from '../diff-comments/diff-comment-popover-position'
 import {
   installEditorAddReviewNoteShortcut,
+  installEditorAskAgentAboutSelectionShortcut,
   installEditorSaveShortcut,
   installMonacoEditorFindShortcut
 } from './editor-shortcuts'
@@ -32,6 +33,7 @@ type MonacoEditorInputBindingsParams = {
   setSelectionAnnotationTarget: Dispatch<
     SetStateAction<MonacoMarkdownSelectionAnnotationTarget | null>
   >
+  setAskAgentTarget: Dispatch<SetStateAction<MonacoMarkdownSelectionAnnotationTarget | null>>
 }
 
 // Why: save/find/review-note chords, the context-menu action, and the large-paste capture share one teardown so onDidDispose keeps their original order.
@@ -49,7 +51,8 @@ export function installMonacoEditorInputBindings(params: MonacoEditorInputBindin
     commentPopoverRef,
     shouldShowMarkdownAnnotationsRef,
     setCommentPopover,
-    setSelectionAnnotationTarget
+    setSelectionAnnotationTarget,
+    setAskAgentTarget
   } = params
 
   const editorDomNode = editorInstance.getContainerDomNode()
@@ -80,6 +83,40 @@ export function installMonacoEditorInputBindings(params: MonacoEditorInputBindin
     setCommentPopover(target)
     setSelectionAnnotationTarget(null)
     return true
+  })
+  // Shared by the context-menu action and the bindable chord; returns whether
+  // the popover actually opened so the chord is only consumed on success.
+  const openAskAgentPopover = (): boolean => {
+    if (!worktreeId) {
+      return false
+    }
+    const target = getMonacoMarkdownSelectionAnnotationTarget(
+      editorInstance,
+      editorInstance.getSelection(),
+      getDiffCommentPopoverLeft(editorInstance, editorContainerRef.current) ?? undefined
+    )
+    if (!target) {
+      return false
+    }
+    setAskAgentTarget(target)
+    return true
+  }
+  const cleanupAskAgentShortcut = installEditorAskAgentAboutSelectionShortcut(
+    editorDomNode,
+    openAskAgentPopover
+  )
+  const askAgentAction = editorInstance.addAction({
+    id: 'orca.askAgentAboutSelection',
+    label: translate(
+      'auto.components.editor.MonacoEditor.askAgentAboutSelection',
+      'Ask Agent About Selection'
+    ),
+    precondition: 'editorHasSelection',
+    contextMenuGroupId: 'navigation',
+    contextMenuOrder: 3,
+    run: () => {
+      openAskAgentPopover()
+    }
   })
   const searchInFilesAction = editorInstance.addAction({
     id: 'orca.searchInFiles',
@@ -133,8 +170,10 @@ export function installMonacoEditorInputBindings(params: MonacoEditorInputBindin
       cleanupSaveShortcut()
       cleanupFindShortcut()
       cleanupAddReviewNoteShortcut()
+      cleanupAskAgentShortcut()
       editorDomNode.removeEventListener('paste', onLargeTextPaste, { capture: true })
       searchInFilesAction.dispose()
+      askAgentAction.dispose()
     }
   }
 }

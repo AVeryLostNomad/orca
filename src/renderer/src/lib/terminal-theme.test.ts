@@ -338,3 +338,48 @@ describe('resolveOpaqueTerminalBackground', () => {
     expect(resolveOpaqueTerminalBackground('var(--background)')).toBe(null)
   })
 })
+
+describe('resolveEffectiveTerminalAppearance app theme override', () => {
+  const baseSettings = {
+    theme: 'dark' as const,
+    terminalThemeDark: DEFAULT_TERMINAL_THEME_DARK,
+    terminalDividerColorDark: '#3f3f46',
+    terminalUseSeparateLightTheme: true,
+    terminalThemeLight: DEFAULT_TERMINAL_THEME_LIGHT,
+    terminalDividerColorLight: '#d4d4d8'
+  }
+  const override = {
+    mode: 'dark' as const,
+    appThemeId: 'one-dark-pro',
+    theme: { background: '#282c34', foreground: '#abb2bf' }
+  }
+
+  it('prefers the app theme terminal colors when modes match', () => {
+    const appearance = resolveEffectiveTerminalAppearance(baseSettings, true, override)
+
+    expect(appearance.followsAppTheme).toBe(true)
+    expect(appearance.theme?.background).toBe('#282c34')
+  })
+
+  it('ignores an override derived for the opposite mode', () => {
+    const appearance = resolveEffectiveTerminalAppearance(
+      { ...baseSettings, theme: 'light' },
+      true,
+      override
+    )
+
+    expect(appearance.followsAppTheme).toBe(false)
+    expect(appearance.theme?.background).not.toBe('#282c34')
+  })
+
+  it('keeps the selected terminal theme when following is disabled', () => {
+    const appearance = resolveEffectiveTerminalAppearance(
+      { ...baseSettings, terminalFollowsAppTheme: false },
+      true,
+      override
+    )
+
+    expect(appearance.followsAppTheme).toBe(false)
+    expect(appearance.theme).toEqual(getBuiltinTheme(DEFAULT_TERMINAL_THEME_DARK))
+  })
+})

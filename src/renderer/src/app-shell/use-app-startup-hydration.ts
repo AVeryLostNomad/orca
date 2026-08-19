@@ -120,7 +120,9 @@ export function useAppStartupHydration(onOnboardingLoaded: (state: OnboardingSta
         // Why: hidden-at-launch PTYs can query OSC 10/11 before any pane mounts; publish view attributes as soon as settings exist so main's silent-until-push responder has data.
         publishTerminalViewAttributesAtAppStart(
           useAppStore.getState().settings,
-          getSystemPrefersDark()
+          getSystemPrefersDark(),
+          undefined,
+          useAppStore.getState().appThemeTerminalTheme
         )
         // Why: start keybindings + onboarding now so their IPC overlaps the local catalog scans; await them at their original spots. The .catch marks rejections handled if an earlier await throws first.
         // Why: browser session profiles are NOT started early — on a remote runtime the RPC may be unconnected and a failed fetch clears the list.

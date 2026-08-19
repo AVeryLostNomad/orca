@@ -14,7 +14,11 @@ import type { DiffSection } from '../editor/diff-section-types'
 import { DiffSectionHeader } from '../editor/DiffSectionHeader'
 import { LargeDiffFallback } from '../editor/LargeDiffFallback'
 import { buildPierreDiffFileInput } from './pierre-diff-file-input'
-import { usePierreDiffStyleVars, usePierreDiffThemeType } from './pierre-diff-theme'
+import {
+  usePierreDiffStyleVars,
+  usePierreDiffThemeType,
+  usePierreSyntaxTheme
+} from './pierre-diff-theme'
 import {
   buildPierreDiffAnnotations,
   PierreDiffCommentAnnotation,
@@ -61,6 +65,7 @@ export function PierreDiffSection({
   const scrollToDiffCommentId = useAppStore((s) => s.scrollToDiffCommentId)
   const setScrollToDiffCommentId = useAppStore((s) => s.setScrollToDiffCommentId)
   const themeType = usePierreDiffThemeType()
+  const syntaxTheme = usePierreSyntaxTheme()
   const styleVars = usePierreDiffStyleVars()
   // Why: subscribe to the reference-stable worktree array and filter in a memo
   // so unrelated store updates don't re-render every section.
@@ -103,6 +108,7 @@ export function PierreDiffSection({
     (): FileDiffOptions<PierreDiffAnnotationData> => ({
       diffStyle: sideBySide ? 'split' : 'unified',
       themeType,
+      theme: syntaxTheme,
       overflow: diffWordWrap === true ? 'wrap' : 'scroll',
       // Why: the Orca DiffSectionHeader above is the sticky per-file header.
       disableFileHeader: true,
@@ -110,7 +116,7 @@ export function PierreDiffSection({
       // library forbids combining renderGutterUtility with onGutterUtilityClick.
       enableGutterUtility: canComment
     }),
-    [sideBySide, themeType, diffWordWrap, canComment]
+    [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment]
   )
 
   const lineAnnotations = useMemo(

@@ -48,9 +48,10 @@ export function useAppChromeLayout() {
   )
 
   const systemPrefersDark = useSystemPrefersDark()
+  const appThemeTerminalTheme = useAppStore((s) => s.appThemeTerminalTheme)
   const leftSidebarStyle = useMemo(
-    () => resolveLeftSidebarStyleVariables(settings, systemPrefersDark),
-    [settings, systemPrefersDark]
+    () => resolveLeftSidebarStyleVariables(settings, systemPrefersDark, appThemeTerminalTheme),
+    [settings, systemPrefersDark, appThemeTerminalTheme]
   ) as React.CSSProperties | undefined
 
   const canMountTerminalWorkbenchNow = activeWorktreeId !== null || backgroundTerminalMountRequested
@@ -73,8 +74,7 @@ export function useAppChromeLayout() {
     activeView === 'terminal' && activeWorktreeId !== null && !creationLayoutActive
   const hasTabBar = tabCount >= 2
   // Activity/Space are full-page navigation surfaces (like Settings), so the worktree sidebar is hidden there.
-  const showSidebar =
-    activeView !== 'settings' && activeView !== 'activity' && activeView !== 'space'
+  const showSidebar = activeView !== 'activity' && activeView !== 'space'
   // Tasks/Landing show the full titlebar only when the sidebar is collapsed; open, they mirror workspace view (creation suppresses it).
   const stackedSidebarOpen =
     !workspaceChromeActive && !creationLayoutActive && showSidebar && sidebarOpen

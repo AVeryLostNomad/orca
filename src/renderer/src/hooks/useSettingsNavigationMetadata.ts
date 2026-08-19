@@ -14,6 +14,7 @@ import {
   Cable,
   CalendarClock,
   CircleUserRound,
+  FileCode2,
   FlaskConical,
   GitBranch,
   Globe,
@@ -46,6 +47,7 @@ import { useAppStore } from '@/store'
 import { isMacUserAgent, isWindowsUserAgent } from '@/components/terminal-pane/pane-helpers'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
 import { getGeneralPaneSearchEntries } from '@/components/settings/general-search'
+import { getEditorPaneSearchEntries } from '@/components/settings/editor-search'
 import { getAgentsPaneSearchEntries } from '@/components/settings/agents-search'
 import { getAccountsPaneSearchEntries } from '@/components/settings/accounts-search'
 import { getIntegrationsPaneSearchEntries } from '@/components/settings/integrations-search'
@@ -487,6 +489,17 @@ export function buildSettingsNavigationMetadata({
         showSystemTray: showDesktopOnlySettings && isWindows,
         showMenuBarIcon: showDesktopOnlySettings && isMac
       }),
+      group: 'interface'
+    },
+    {
+      id: 'editor',
+      title: translate('auto.hooks.useSettingsNavigationMetadata.editorTitle', 'Editor'),
+      description: translate(
+        'auto.hooks.useSettingsNavigationMetadata.editorDescription',
+        'Code editor themes, fonts, saving, diffs, and language servers.'
+      ),
+      icon: FileCode2,
+      searchEntries: getEditorPaneSearchEntries(),
       group: 'interface'
     },
     {

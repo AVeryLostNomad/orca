@@ -11,20 +11,24 @@ export type VSCodeTabCreateGate = {
 // VS Code (code-server) only runs against local checkouts; the capability +
 // local-host checks are load-bearing (SSH/remote case included). Gating on the
 // callback's presence too: surfaces without a real local checkout (e.g. the
-// floating terminal) omit it.
+// floating terminal) omit it. A settings opt-out hides both entries entirely —
+// no disabled-with-tooltip row — matching how a disabled agent type vanishes.
 export function resolveVSCodeTabCreateGate({
   terminalOnly,
   isLocalWorktree,
   hasCreateCallback,
+  settingEnabled = true,
   editorSupported = isEmbeddedEditorSupported()
 }: {
   terminalOnly: boolean
   isLocalWorktree: boolean
   hasCreateCallback: boolean
+  settingEnabled?: boolean
   editorSupported?: boolean
 }): VSCodeTabCreateGate {
+  const base = !terminalOnly && editorSupported && hasCreateCallback && settingEnabled
   return {
-    hasNewVSCode: !terminalOnly && editorSupported && isLocalWorktree && hasCreateCallback,
-    vscodeRemoteDisabled: !terminalOnly && editorSupported && !isLocalWorktree && hasCreateCallback
+    hasNewVSCode: base && isLocalWorktree,
+    vscodeRemoteDisabled: base && !isLocalWorktree
   }
 }

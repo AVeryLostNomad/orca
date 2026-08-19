@@ -19,7 +19,8 @@ import { useLazyModalMounts } from './use-lazy-modal-mounts'
 import type { FloatingWorkspacePanelState } from './use-floating-workspace-panel'
 import type { OnboardingGate } from './use-onboarding-and-feature-tips'
 
-const QuickOpen = lazy(() => import('../components/QuickOpen'))
+import { SettingsModal } from '../components/settings/SettingsModal'
+
 const WorktreeJumpPalette = lazy(() => import('../components/WorktreeJumpPalette'))
 const WorkspaceCleanupDialog = lazy(
   () => import('../components/workspace-cleanup/WorkspaceCleanupDialog')
@@ -122,6 +123,7 @@ export function AppRootSurfaces(props: {
   const { mountedLazyModalIds, shouldMountAddRepoDialog } = useLazyModalMounts()
   const activeView = useAppStore((s) => s.activeView)
   const activeModal = useAppStore((s) => s.activeModal)
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
   const settings = useAppStore((s) => s.settings)
   const statusBarVisible = useAppStore((s) => s.statusBarVisible)
   const persistedUIReady = useAppStore((s) => s.persistedUIReady)
@@ -178,6 +180,11 @@ export function AppRootSurfaces(props: {
           </OverlayBoundary>
         </Suspense>
       ) : null}
+      {/* Why: the shell stays mounted so Radix keeps the close animation; the
+          heavy Settings tree inside is lazy and only fetches on first open. */}
+      <ModalBoundary boundaryId="modal.settings" resetKey={settingsOpen}>
+        <SettingsModal />
+      </ModalBoundary>
       {/* Why: keep in the entry bundle so a stale/corrupt lazy chunk can't strand users at Create. */}
       {activeModal === 'new-workspace-composer' ? (
         <ModalBoundary boundaryId="modal.new-workspace-composer" resetKey>
@@ -219,11 +226,6 @@ export function AppRootSurfaces(props: {
         ) : null}
       </Suspense>
       <Suspense fallback={null}>
-        {mountedLazyModalIds.has('quick-open') ? (
-          <ModalBoundary boundaryId="modal.quick-open" resetKey={activeModal === 'quick-open'}>
-            <QuickOpen />
-          </ModalBoundary>
-        ) : null}
         {mountedLazyModalIds.has('worktree-palette') ? (
           <ModalBoundary
             boundaryId="modal.worktree-palette"

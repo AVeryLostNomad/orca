@@ -1,5 +1,6 @@
 import { FileText, FolderPlus, Globe, Play, SquareTerminal, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { KeybindingActionId } from '../../../../shared/keybindings'
 import type { CmdJQuickActionAvailability, CmdJQuickActionContext } from './quick-action-context'
 import {
   getCurrentWorkspaceActionAvailability,
@@ -23,6 +24,8 @@ export type CmdJQuickAction = {
   description: string
   icon: LucideIcon
   verbKeywords: string[]
+  /** Renders the action's live chord (with user overrides) on the palette row. */
+  shortcutActionId?: KeybindingActionId
   isAvailable: (ctx: CmdJQuickActionContext) => CmdJQuickActionAvailability
   run: (ctx: CmdJQuickActionContext) => Promise<CmdJQuickActionRunResult>
 }
@@ -73,6 +76,7 @@ export const getCmdJQuickActions = createLocalizedCatalog((): CmdJQuickAction[] 
       'Open a browser tab in the active workspace.'
     ),
     icon: Globe,
+    shortcutActionId: 'tab.newBrowser',
     verbKeywords: [
       translate('auto.components.cmd.j.quick.actions.verbs.newBrowser', 'new browser'),
       translate('auto.components.cmd.j.quick.actions.verbs.newBrowserTab', 'new browser tab'),
@@ -97,6 +101,7 @@ export const getCmdJQuickActions = createLocalizedCatalog((): CmdJQuickAction[] 
       'Create an untitled markdown file in the active workspace.'
     ),
     icon: FileText,
+    shortcutActionId: 'tab.newMarkdown',
     verbKeywords: [
       translate('auto.components.cmd.j.quick.actions.verbs.newMarkdown', 'new markdown'),
       translate('auto.components.cmd.j.quick.actions.verbs.newMarkdownFile', 'new markdown file'),
@@ -116,6 +121,7 @@ export const getCmdJQuickActions = createLocalizedCatalog((): CmdJQuickAction[] 
       'Open a terminal tab in the active workspace.'
     ),
     icon: SquareTerminal,
+    shortcutActionId: 'tab.newTerminal',
     verbKeywords: [
       translate('auto.components.cmd.j.quick.actions.verbs.newTerminal', 'new terminal'),
       translate('auto.components.cmd.j.quick.actions.verbs.newTerminalTab', 'new terminal tab'),
@@ -134,6 +140,7 @@ export const getCmdJQuickActions = createLocalizedCatalog((): CmdJQuickAction[] 
       'Start a new worktree.'
     ),
     icon: FolderPlus,
+    shortcutActionId: 'workspace.create',
     verbKeywords: [
       translate('auto.components.cmd.j.quick.actions.verbs.createWorktree', 'create worktree'),
       translate('auto.components.cmd.j.quick.actions.verbs.addWorktree', 'add worktree'),

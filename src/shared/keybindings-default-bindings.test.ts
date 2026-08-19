@@ -44,21 +44,20 @@ describe('keybindings', () => {
   })
 
   it('defines a default shortcut for adding an editor review note', () => {
+    // Why: Mod+Shift+A moved to the command bar; review notes live on Mod+Shift+Comma.
     expect(getEffectiveKeybindingsForAction('editor.addReviewNote', 'darwin')).toEqual([
-      'Mod+Shift+A'
+      'Mod+Shift+Comma'
     ])
     expect(getEffectiveKeybindingsForAction('editor.addReviewNote', 'linux')).toEqual([
-      'Mod+Shift+A'
+      'Mod+Shift+Comma'
     ])
     expect(getEffectiveKeybindingsForAction('editor.addReviewNote', 'win32')).toEqual([
-      'Mod+Shift+A'
+      'Mod+Shift+Comma'
     ])
-    expect(formatKeybindingList(['Mod+Shift+A'], 'darwin')).toBe('⌘⇧A')
-    expect(formatKeybindingList(['Mod+Shift+A'], 'linux')).toBe('Ctrl+Shift+A')
 
     const macChord = {
-      key: 'a',
-      code: 'KeyA',
+      key: ',',
+      code: 'Comma',
       meta: true,
       control: false,
       alt: false,

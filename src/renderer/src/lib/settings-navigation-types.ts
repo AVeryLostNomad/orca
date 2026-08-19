@@ -20,6 +20,7 @@ const SETTINGS_NAV_TARGETS = [
   'git',
   'tasks',
   'appearance',
+  'editor',
   'input',
   'floating-workspace',
   'terminal',

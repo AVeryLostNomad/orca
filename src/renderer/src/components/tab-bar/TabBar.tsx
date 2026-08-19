@@ -29,13 +29,15 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
   const vscodeCreateGate = resolveVSCodeTabCreateGate({
     terminalOnly,
     isLocalWorktree: runtime.isLocalWorktree,
-    hasCreateCallback: Boolean(onNewVSCodeTab)
+    hasCreateCallback: Boolean(onNewVSCodeTab),
+    settingEnabled: runtime.vscodeTabOptionEnabled
   })
   const dataStudioCreateGate = resolveDataStudioTabCreateGate({
     terminalOnly,
     isLocalWorktree: runtime.isLocalWorktree,
     hasRepoId: runtime.hasRepoBackedWorkspace,
-    hasCreateCallback: Boolean(onNewDataStudioTab)
+    hasCreateCallback: Boolean(onNewDataStudioTab),
+    settingEnabled: runtime.dataStudioTabOptionEnabled
   })
   const createMenu = useTabBarCreateMenuController({
     worktreeId,

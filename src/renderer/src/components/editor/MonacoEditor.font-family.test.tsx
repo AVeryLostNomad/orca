@@ -19,21 +19,26 @@ vi.mock('@monaco-editor/react', () => ({
   },
   loader: { config: vi.fn() }
 }))
-vi.mock('@/store', () => ({
-  useAppStore: (selector: (state: Record<string, unknown>) => unknown) =>
-    selector({
-      settings: storeState.current,
-      editorFontZoomLevel: 0,
-      setPendingEditorReveal: vi.fn(),
-      setEditorCursorLine: vi.fn(),
-      addDiffComment: vi.fn(),
-      deleteDiffComment: vi.fn(),
-      updateDiffComment: vi.fn(),
-      scrollToDiffCommentId: null,
-      setScrollToDiffCommentId: vi.fn(),
-      worktreeDiffComments: {}
-    })
-}))
+vi.mock('@/store', () => {
+  const state = (): Record<string, unknown> => ({
+    settings: storeState.current,
+    editorFontZoomLevel: 0,
+    setPendingEditorReveal: vi.fn(),
+    setEditorCursorLine: vi.fn(),
+    addDiffComment: vi.fn(),
+    deleteDiffComment: vi.fn(),
+    updateDiffComment: vi.fn(),
+    scrollToDiffCommentId: null,
+    setScrollToDiffCommentId: vi.fn(),
+    worktreeDiffComments: {}
+  })
+  const useAppStore = (selector: (state: Record<string, unknown>) => unknown): unknown =>
+    selector(state())
+  // Why: the theme controller and LSP hook read the store imperatively.
+  useAppStore.getState = state
+  useAppStore.subscribe = () => () => {}
+  return { useAppStore }
+})
 vi.mock('../diff-comments/useDiffCommentDecorator', () => ({
   useDiffCommentDecorator: vi.fn()
 }))

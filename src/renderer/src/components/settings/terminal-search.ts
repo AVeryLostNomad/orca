@@ -11,6 +11,7 @@ import {
 } from './terminal-pane-appearance-search'
 import {
   getTerminalDarkThemeSearchEntries,
+  getTerminalFollowAppThemeSearchEntries,
   getTerminalLightThemeSearchEntries,
   getTerminalThemeTargetSearchEntries,
   getTerminalWarpImportSearchEntries,
@@ -45,6 +46,7 @@ export {
 } from './terminal-pane-appearance-search'
 export {
   getTerminalDarkThemeSearchEntries,
+  getTerminalFollowAppThemeSearchEntries,
   getTerminalLightThemeSearchEntries,
   getTerminalThemeTargetSearchEntries,
   getTerminalWarpImportSearchEntries,
@@ -71,6 +73,7 @@ const getTerminalAppearanceSearchEntriesWithoutWarp = createLocalizedCatalog(
     ...getTerminalTypographySearchEntries(),
     ...getTerminalCursorSearchEntries(),
     ...getTerminalPaneAppearanceSearchEntries(),
+    ...getTerminalFollowAppThemeSearchEntries(),
     ...getTerminalThemeTargetSearchEntries(),
     ...getTerminalDarkThemeSearchEntries(),
     ...getTerminalLightThemeSearchEntries(),

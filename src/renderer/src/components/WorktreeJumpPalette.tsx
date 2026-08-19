@@ -175,6 +175,27 @@ import { resolvePaletteFocusRestoreTarget } from '@/components/cmd-j/palette-foc
 import { selectWorktreePaletteCacheInputs } from '@/components/cmd-j/worktree-palette-cache-inputs'
 import { getRepoHostIdentity } from '@/store/slices/repo-host-identity'
 import { buildPluginQuickActions } from '@/components/cmd-j/plugin-quick-actions'
+import { buildKeybindingCommandItems } from '@/components/cmd-j/keybinding-command-items'
+import { buildSourceControlCommandItems } from '@/components/cmd-j/source-control-command-items'
+import { buildQuickCommandItems } from '@/components/cmd-j/quick-command-items'
+import {
+  buildAutomationCommandItems,
+  useCommandBarAutomations
+} from '@/components/cmd-j/automation-command-items'
+import { parseCommandBarMode, type CommandBarMode } from '@/components/cmd-j/command-bar-mode'
+import { useCommandBarFiles } from '@/components/cmd-j/use-command-bar-files'
+import { PaletteFileRow } from '@/components/cmd-j/PaletteFileRow'
+import { PaletteActionShortcutBadge } from '@/components/cmd-j/PaletteActionShortcutBadge'
+import { QuickAiRow } from '@/components/cmd-j/QuickAiRow'
+import { launchQuickAi, shouldShowQuickAiRow } from '@/components/cmd-j/quick-ai'
+import {
+  parseQuickOpenInstallRgGuidance,
+  QuickOpenInstallRgGuidance
+} from '@/components/quick-open-install-rg-guidance'
+import { detectLanguage } from '@/lib/language-detect'
+import { joinPath } from '@/lib/path'
+
+const QUICK_AI_ITEM_ID = '__quick_ai__'
 import { PaletteCreateWorktreeRow } from '@/components/cmd-j/PaletteCreateWorktreeRow'
 import { WorkspaceEmojiSuggestionPopover } from '@/components/workspace-emoji/WorkspaceEmojiSuggestionPopover'
 import { useWorkspaceEmojiShortcodeInput } from '@/components/workspace-emoji/useWorkspaceEmojiShortcodeInput'
@@ -273,6 +294,18 @@ type CreateWorktreePaletteItem = {
   type: 'create-worktree'
 }
 
+type FilePaletteItem = {
+  id: string
+  type: 'file'
+  path: string
+}
+
+type QuickAiPaletteItem = {
+  id: typeof QUICK_AI_ITEM_ID
+  type: 'quick-ai'
+  query: string
+}
+
 type CmdJLinearIssuePreview = {
   query: string
   issue: LinearIssue | null
@@ -298,6 +331,8 @@ type PaletteItem =
   | BrowserPaletteItem
   | SimulatorPaletteItem
   | WorkspaceTabPaletteItem
+  | FilePaletteItem
+  | QuickAiPaletteItem
 
 type PaletteListEntry = PaletteItem | CreateWorktreePaletteItem | SectionHeader | HintRow
 
@@ -754,6 +789,15 @@ function WorktreeJumpPaletteContent({
   const deferredQuery = useDeferredValue(query)
   const liveQueryRef = useRef(query)
   liveQueryRef.current = query
+  const modalData = useAppStore((s) => s.modalData)
+  // Why: Backspace on an empty query drops file mode back to the full bar.
+  const [fileModeCleared, setFileModeCleared] = useState(false)
+  useEffect(() => {
+    setFileModeCleared(false)
+  }, [modalData])
+  const paletteMode: CommandBarMode = fileModeCleared ? 'all' : parseCommandBarMode(modalData)
+  const commandBarAutomations = useCommandBarAutomations(visible)
+  const openFile = useAppStore((s) => s.openFile)
   const taskSourceUrl = useMemo(() => parseCmdJTaskSourceUrl(query), [query])
   const linearIssueUrlIntent = taskSourceUrl?.provider === 'linear' ? taskSourceUrl.intent : null
   const githubUrlLink = taskSourceUrl?.provider === 'github' ? taskSourceUrl.link : null
@@ -881,6 +925,30 @@ function WorktreeJumpPaletteContent({
   const paletteSearchQuery = taskSourceUrl ? query.trim() : deferredQuery.trim()
   const hasQuery = paletteSearchQuery.length > 0
   const isLoading = repos.length > 0 && Object.keys(worktreesByRepo).length === 0
+
+  // Files section (absorbed QuickOpen): the runtime file list warms on open so
+  // Cmd+P and typed-query file hits are instant.
+  const {
+    items: fileMatches,
+    loading: filesLoading,
+    loadError: filesLoadError
+  } = useCommandBarFiles({
+    enabled: visible && activeWorktreeId !== null,
+    worktreeId: activeWorktreeId,
+    query: deferredQuery,
+    limit: paletteMode === 'files' ? 50 : 6
+  })
+  const fileItems = useMemo<FilePaletteItem[]>(
+    () =>
+      activeWorktreeId !== null && (paletteMode === 'files' || hasQuery)
+        ? fileMatches.map((match) => ({
+            id: `file:${match.path}`,
+            type: 'file' as const,
+            path: match.path
+          }))
+        : [],
+    [activeWorktreeId, fileMatches, hasQuery, paletteMode]
+  )
 
   // Why: keep running-agent workspaces visible under "Hide sleeping" even when the live PTY is momentarily absent, matching sidebar. #7197
   // Why snapshot-scoped: this decides which rows exist, and rows appearing or vanishing mid-open
@@ -1476,13 +1544,23 @@ function WorktreeJumpPaletteContent({
     () => buildCmdJSettingsResults(settingsSections),
     [settingsSections]
   )
+  const activeWorktreeRepoId = activeWorktreeId
+    ? (worktreeMap.get(activeWorktreeId)?.repoId ?? null)
+    : null
   const actionResults = useMemo(
     () =>
       buildCmdJActionResults([
         ...getCmdJQuickActions(),
+        ...buildKeybindingCommandItems(),
+        ...buildSourceControlCommandItems(),
+        ...buildQuickCommandItems({
+          activeRepoId: activeWorktreeRepoId,
+          quickCommands: settings?.terminalQuickCommands
+        }),
+        ...buildAutomationCommandItems(commandBarAutomations),
         ...buildPluginQuickActions(pluginCommands)
       ]),
-    [pluginCommands]
+    [pluginCommands, commandBarAutomations, activeWorktreeRepoId, settings?.terminalQuickCommands]
   )
   // Why: only offer project jumps the sidebar can reveal — archived-only repos are excluded from navigation.
   const renderableProjectRepoIds = useMemo(() => {
@@ -1670,6 +1748,38 @@ function WorktreeJumpPaletteContent({
           : { id: `quick-action:${result.id}`, type: 'quick-action' as const, result }
       ),
     [availableActionResults, deferredQuery, settingsResults]
+  )
+
+  // Why the mode split: file mode renders only files, so only files count as matches there.
+  const showQuickAi = useMemo(
+    () =>
+      shouldShowQuickAiRow({
+        query: deferredQuery,
+        matchCounts:
+          paletteMode === 'files'
+            ? { worktrees: 0, openTabs: 0, middle: 0, projectTargets: 0, files: fileItems.length }
+            : {
+                worktrees: worktreeItems.length,
+                openTabs: openTabItems.length,
+                middle: middleItems.length,
+                projectTargets: projectTargetItems.length,
+                files: fileItems.length
+              },
+        hasUrlIntent: taskSourceUrl !== null,
+        eligible: activeWorktreeId !== null && !isLoading
+      }),
+    [
+      activeWorktreeId,
+      deferredQuery,
+      fileItems.length,
+      isLoading,
+      middleItems.length,
+      openTabItems.length,
+      paletteMode,
+      projectTargetItems.length,
+      taskSourceUrl,
+      worktreeItems.length
+    ]
   )
 
   // Why: both lists are relevance-sorted, so their heads carry each section's best hit. The stronger
@@ -1921,6 +2031,16 @@ function WorktreeJumpPaletteContent({
 
   const listEntries = useMemo<PaletteListEntry[]>(() => {
     const entries: PaletteListEntry[] = []
+    // Why first: per spec the quick-AI fallback is the top item, so Enter (which
+    // lands on the auto-selected head) and Tab both launch it.
+    if (showQuickAi) {
+      entries.push({ id: QUICK_AI_ITEM_ID, type: 'quick-ai', query: paletteSearchQuery })
+    }
+    // File mode (Cmd+P): the bar becomes the file finder — files only.
+    if (paletteMode === 'files') {
+      appendPaletteListEntries(entries, fileItems)
+      return entries
+    }
     const {
       visibleWorktreeItems,
       visibleProjectTargetItems,
@@ -2042,6 +2162,15 @@ function WorktreeJumpPaletteContent({
         appendPaletteListEntries(entries, visibleMiddleItems)
         pushOverflowHint('__hint_middle_overflow__', middleOverflowCount)
       }
+      // Why after the middle: filename fuzz must never outrank intent verbs like "push".
+      if (fileItems.length > 0) {
+        entries.push({
+          id: '__header_files__',
+          type: 'section-header',
+          label: translate('auto.components.WorktreeJumpPalette.filesHeader', 'Files')
+        })
+        appendPaletteListEntries(entries, fileItems)
+      }
     }
 
     // Why: a pasted issue/PR URL is decisive. Show linked worktrees first so
@@ -2133,10 +2262,14 @@ function WorktreeJumpPaletteContent({
     }
     return entries
   }, [
+    fileItems,
     hasQuery,
     openTabsLeadSections,
+    paletteMode,
+    paletteSearchQuery,
     paletteSections,
     showCreateAction,
+    showQuickAi,
     taskSourceUrl,
     worktreeItems.length
   ])
@@ -2525,6 +2658,47 @@ function WorktreeJumpPaletteContent({
     ]
   )
 
+  const handleSelectFile = useCallback(
+    (relativePath: string) => {
+      const worktreePath = activeWorktreeId ? worktreeMap.get(activeWorktreeId)?.path : undefined
+      if (!activeWorktreeId || !worktreePath) {
+        return
+      }
+      // Why: opening a file moves focus into the editor; don't restore focus to
+      // the surface that was active before the palette opened.
+      skipRestoreFocusRef.current = true
+      closeModal()
+      openFile({
+        filePath: joinPath(worktreePath, relativePath),
+        relativePath,
+        worktreeId: activeWorktreeId,
+        language: detectLanguage(relativePath),
+        mode: 'edit'
+      })
+    },
+    [activeWorktreeId, closeModal, openFile, worktreeMap]
+  )
+
+  const handleQuickAi = useCallback(() => {
+    const result = launchQuickAi({ query: liveQueryRef.current.trim() })
+    if (result.launched) {
+      skipRestoreFocusRef.current = true
+      closeModal()
+      return
+    }
+    toast.error(
+      result.reason === 'no-agent-available'
+        ? translate(
+            'auto.components.WorktreeJumpPalette.quickAiNoAgent',
+            'No AI agent is available to ask.'
+          )
+        : translate(
+            'auto.components.WorktreeJumpPalette.quickAiNoWorkspace',
+            'Open a workspace first to ask an agent.'
+          )
+    )
+  }, [closeModal])
+
   const handleSelectItem = useCallback(
     (item: PaletteItem) => {
       if (item.type === 'worktree') {
@@ -2539,12 +2713,18 @@ function WorktreeJumpPaletteContent({
         handleSelectWorkspaceTab(item.result)
       } else if (item.type === 'settings') {
         handleSelectSettings(item.result)
+      } else if (item.type === 'file') {
+        handleSelectFile(item.path)
+      } else if (item.type === 'quick-ai') {
+        handleQuickAi()
       } else {
         handleSelectQuickAction(item.result)
       }
     },
     [
+      handleQuickAi,
       handleSelectBrowserPage,
+      handleSelectFile,
       handleSelectProjectTarget,
       handleSelectQuickAction,
       handleSelectSettings,
@@ -2923,15 +3103,31 @@ function WorktreeJumpPaletteContent({
     >
       <CommandInput
         ref={inputRef}
-        placeholder={translate(
-          'auto.components.WorktreeJumpPalette.27f10cca63',
-          'Search chats, terminals, worktrees, settings, and actions...'
-        )}
+        placeholder={
+          paletteMode === 'files'
+            ? translate('auto.components.WorktreeJumpPalette.goToFilePlaceholder', 'Go to file...')
+            : translate(
+                'auto.components.WorktreeJumpPalette.27f10cca63',
+                'Search chats, terminals, worktrees, settings, and actions...'
+              )
+        }
         value={query}
         onValueChange={emojiInput.handleValueChange}
         onClick={(event) => emojiInput.syncCursor(event.currentTarget)}
         onSelect={(event) => emojiInput.syncCursor(event.currentTarget)}
-        onKeyDown={(event) => emojiInput.handleKeyDown(event)}
+        onKeyDown={(event) => {
+          // Why Tab: cmdk doesn't own Tab, so the quick-AI fallback can claim it.
+          if (event.key === 'Tab' && !event.shiftKey && showQuickAi) {
+            event.preventDefault()
+            handleQuickAi()
+            return
+          }
+          if (paletteMode === 'files' && event.key === 'Backspace' && query === '') {
+            setFileModeCleared(true)
+            return
+          }
+          emojiInput.handleKeyDown(event)
+        }}
         wrapperClassName="mx-3 mt-3 rounded-lg border border-border/55 bg-muted/28 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
         iconClassName="mr-2.5 h-4 w-4 text-muted-foreground/60"
         className="h-12 text-[14px] placeholder:text-muted-foreground/75"
@@ -2965,7 +3161,27 @@ function WorktreeJumpPaletteContent({
         ref={listRef}
         className="max-h-[min(600px,calc(100vh-14rem))] px-2.5 pb-2.5 pt-2"
       >
-        {isLoading && selectableItems.length === 0 && !showCreateAction ? (
+        {paletteMode === 'files' && filesLoadError ? (
+          (() => {
+            const guidance = parseQuickOpenInstallRgGuidance(filesLoadError)
+            return guidance ? (
+              <QuickOpenInstallRgGuidance
+                reason={guidance.reason}
+                location={guidance.location}
+                command={guidance.command}
+                guidance={guidance.guidance}
+              />
+            ) : (
+              <div className="py-6 px-4 text-center text-sm text-muted-foreground whitespace-pre-wrap">
+                {filesLoadError}
+              </div>
+            )
+          })()
+        ) : paletteMode === 'files' && filesLoading && selectableItems.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            {translate('auto.components.WorktreeJumpPalette.loadingFiles', 'Loading files...')}
+          </div>
+        ) : isLoading && selectableItems.length === 0 && !showCreateAction ? (
           <PaletteState
             title={translate(
               'auto.components.WorktreeJumpPalette.ff908adfe9',
@@ -3207,6 +3423,32 @@ function WorktreeJumpPaletteContent({
                 )
               }
 
+              if (entry.type === 'file') {
+                return (
+                  <CommandItem
+                    key={entry.id}
+                    value={entry.id}
+                    onSelect={() => handleSelectItem(entry)}
+                    className={cn(JUMP_PALETTE_ITEM_CLASSNAME, 'min-w-0 !px-0 py-1')}
+                  >
+                    <PaletteFileRow path={entry.path} />
+                  </CommandItem>
+                )
+              }
+
+              if (entry.type === 'quick-ai') {
+                return (
+                  <CommandItem
+                    key={entry.id}
+                    value={entry.id}
+                    onSelect={() => handleSelectItem(entry)}
+                    className={cn(JUMP_PALETTE_ITEM_CLASSNAME, 'min-w-0 !px-0 py-1')}
+                  >
+                    <QuickAiRow query={entry.query} />
+                  </CommandItem>
+                )
+              }
+
               if (entry.type === 'settings' || entry.type === 'quick-action') {
                 const result = entry.result
                 const Icon = result.icon
@@ -3232,6 +3474,11 @@ function WorktreeJumpPaletteContent({
                         <span className="shrink-0 rounded-[6px] border border-border/60 bg-background/45 px-1.5 py-px text-[9px] font-medium leading-normal text-muted-foreground/88">
                           {kindLabel}
                         </span>
+                        {entry.type === 'quick-action' && entry.result.shortcutActionId ? (
+                          <span className="ml-auto flex shrink-0 items-center">
+                            <PaletteActionShortcutBadge actionId={entry.result.shortcutActionId} />
+                          </span>
+                        ) : null}
                       </div>
                       <div className="mt-1 truncate text-[12px] leading-5 text-muted-foreground/88">
                         {result.description}

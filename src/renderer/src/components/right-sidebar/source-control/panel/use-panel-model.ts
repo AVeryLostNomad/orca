@@ -9,6 +9,7 @@ import { useSourceControlCreatePrIntentFlows } from '../review/use-create-pr-int
 import { useSourceControlReviewFlows } from '../review/use-review-flows'
 import { useSourceControlUpstreamStatusFetch } from '../sync/use-upstream-status-fetch'
 import { useSourceControlPanelFoundation } from './use-panel-foundation'
+import { useCommandBarSourceControlIntent } from './use-command-bar-intent'
 
 /**
  * The panel's single entry point: foundation, then the flows that act on it, then the action model
@@ -117,6 +118,11 @@ export function useSourceControlPanelModel() {
     runCompoundCommitAction,
     runCreatePrIntent: createPrIntentFlows.runCreatePrIntent,
     runRemoteAction
+  })
+  useCommandBarSourceControlIntent({
+    activeWorktreeId,
+    remoteStatusLoaded: remoteStatus != null,
+    handleActionInvoke: actionDispatch.handleActionInvoke
   })
   useSourceControlUpstreamStatusFetch({
     activeRepoSettings,

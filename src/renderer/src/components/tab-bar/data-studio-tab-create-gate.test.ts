@@ -50,6 +50,20 @@ describe('resolveDataStudioTabCreateGate', () => {
     })
   })
 
+  it('hides both entries when the new-tab-menu setting turns Data Studio off', () => {
+    expect(resolveDataStudioTabCreateGate({ ...ENABLED_INPUT, settingEnabled: false })).toEqual({
+      hasNewDataStudio: false,
+      dataStudioRemoteDisabled: false
+    })
+    expect(
+      resolveDataStudioTabCreateGate({
+        ...ENABLED_INPUT,
+        isLocalWorktree: false,
+        settingEnabled: false
+      })
+    ).toEqual({ hasNewDataStudio: false, dataStudioRemoteDisabled: false })
+  })
+
   it('hides both entries for terminal-only surfaces and missing callbacks', () => {
     expect(
       resolveDataStudioTabCreateGate({ ...ENABLED_INPUT, terminalOnly: true }).hasNewDataStudio

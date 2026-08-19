@@ -105,10 +105,12 @@ export type ManualRepoOrderEntry = {
   repoId: string
 }
 
-/** The active top-level section shown in the main content area. */
+/** The active top-level section shown in the main content area.
+ *  Settings is deliberately absent: it renders as a modal over the active view
+ *  (`settingsOpen` in the ui slice), so a persisted legacy `'settings'` value
+ *  falls back to 'terminal' via isTopLevelView. */
 export type TopLevelView =
   | 'terminal'
-  | 'settings'
   | 'tasks'
   | 'activity'
   | 'automations'

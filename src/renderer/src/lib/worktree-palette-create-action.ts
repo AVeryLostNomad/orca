@@ -43,7 +43,9 @@ const SELECTABLE_ENTRY_TYPES = [
   'browser-page',
   'workspace-tab',
   'simulator-tab',
-  'project-target'
+  'project-target',
+  'file',
+  'quick-ai'
 ] as const
 
 type WorktreePaletteSelectableEntryType = (typeof SELECTABLE_ENTRY_TYPES)[number]

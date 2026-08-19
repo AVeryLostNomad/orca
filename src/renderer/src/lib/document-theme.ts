@@ -56,6 +56,40 @@ export function resolveDocumentTheme(
   return systemPrefersDark(matchMedia)
 }
 
+type MutateRoot = { classList: ThemeClassList }
+
+/**
+ * Why: shares the pending-frame state with applyDocumentTheme so simultaneous
+ * mode + app-theme changes coalesce into one transition-disabled window
+ * instead of racing to re-enable transitions mid-mutation.
+ */
+export function runWithThemeTransitionsDisabled(
+  mutate: () => void,
+  options: Pick<ApplyDocumentThemeOptions, 'requestAnimationFrame' | 'cancelAnimationFrame'> & {
+    root?: MutateRoot
+  } = {}
+): void {
+  const root = options.root ?? document.documentElement
+  root.classList.add(THEME_TRANSITION_DISABLED_CLASS)
+  mutate()
+  const requestFrame = options.requestAnimationFrame ?? window.requestAnimationFrame.bind(window)
+  const cancelFrame = options.cancelAnimationFrame ?? window.cancelAnimationFrame.bind(window)
+  cancelPendingTransitionDisableFrames(cancelFrame)
+  const firstFrame = requestFrame(() => {
+    pendingTransitionDisableFrames = pendingTransitionDisableFrames.filter(
+      (id) => id !== firstFrame
+    )
+    const secondFrame = requestFrame(() => {
+      pendingTransitionDisableFrames = pendingTransitionDisableFrames.filter(
+        (id) => id !== secondFrame
+      )
+      root.classList.remove(THEME_TRANSITION_DISABLED_CLASS)
+    })
+    pendingTransitionDisableFrames.push(secondFrame)
+  })
+  pendingTransitionDisableFrames.push(firstFrame)
+}
+
 export function applyDocumentTheme(
   theme: DocumentThemePreference,
   options: ApplyDocumentThemeOptions = {}

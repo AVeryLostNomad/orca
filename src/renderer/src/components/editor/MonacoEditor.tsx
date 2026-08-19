@@ -5,7 +5,14 @@ import type { editor } from 'monaco-editor'
 import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types'
 import { useAppStore } from '@/store'
 import '@/lib/monaco-setup'
-import { computeEditorFontSize, resolveEditorFontFamily } from '@/lib/editor-font-zoom'
+import {
+  computeEditorFontSize,
+  resolveEditorBaseFontSize,
+  resolveEditorFontFamily
+} from '@/lib/editor-font-zoom'
+import { useMonacoThemeName } from '@/lib/monaco-highlighting/use-monaco-theme-name'
+import { useLspForEditor } from '@/lib/lsp/use-lsp-for-editor'
+import { EditorLspStatusChip } from './EditorLspStatusChip'
 
 import { useContextualCopySetup } from './useContextualCopySetup'
 import { MonacoGutterContextMenu } from './MonacoGutterContextMenu'
@@ -21,6 +28,8 @@ import { useMonacoEditorDecorations } from './use-monaco-editor-decorations'
 import { useMonacoEditorMount } from './use-monaco-editor-mount'
 import { snapshotMonacoViewState } from './monaco-view-state-persistence'
 import { MonacoMarkdownAnnotationOverlay } from './MonacoMarkdownAnnotationOverlay'
+import { AskAgentSelectionPopover } from './AskAgentSelectionPopover'
+import type { MonacoMarkdownSelectionAnnotationTarget } from './monaco-markdown-selection-annotation'
 
 type MonacoEditorProps = {
   fileId: string
@@ -89,7 +98,7 @@ export default function MonacoEditor({
   const setPendingEditorReveal = useAppStore((s) => s.setPendingEditorReveal)
   const setEditorCursorLine = useAppStore((s) => s.setEditorCursorLine)
   const editorFontSize = computeEditorFontSize(
-    settings?.terminalFontSize ?? 13,
+    resolveEditorBaseFontSize(settings),
     editorFontZoomLevel
   )
   const editorFontFamily = resolveEditorFontFamily(settings)
@@ -114,9 +123,9 @@ export default function MonacoEditor({
   const [gutterMenuOpen, setGutterMenuOpen] = useState(false)
   const [gutterMenuPoint, setGutterMenuPoint] = useState({ x: 0, y: 0 })
   const [gutterMenuLine, setGutterMenuLine] = useState(1)
-  const isDark =
-    settings?.theme === 'dark' ||
-    (settings?.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const [askAgentTarget, setAskAgentTarget] =
+    useState<MonacoMarkdownSelectionAnnotationTarget | null>(null)
+  const monacoThemeName = useMonacoThemeName()
 
   const { queueReveal, cancelScheduledReveal, clearTransientRevealHighlight } =
     useMonacoRevealScheduler()
@@ -128,6 +137,7 @@ export default function MonacoEditor({
     filePath,
     onContentChange
   })
+  const lspStatus = useLspForEditor({ mountedEditor, filePath, language, worktreeId })
   const annotations = useMonacoMarkdownAnnotations({
     mountedEditor,
     editorContainerRef,
@@ -198,7 +208,8 @@ export default function MonacoEditor({
     contentSync,
     decorations,
     annotations,
-    gutterMenu: { setGutterMenuOpen, setGutterMenuPoint, setGutterMenuLine }
+    gutterMenu: { setGutterMenuOpen, setGutterMenuPoint, setGutterMenuLine },
+    askAgent: { setAskAgentTarget }
   })
 
   // Navigate to line and highlight match when requested (for already-mounted editor)
@@ -218,6 +229,15 @@ export default function MonacoEditor({
       className={autoHeight ? 'relative' : 'relative h-full'}
       style={renderedEditorHeight === null ? undefined : { height: renderedEditorHeight }}
     >
+      {askAgentTarget && worktreeId ? (
+        <AskAgentSelectionPopover
+          target={askAgentTarget}
+          worktreeId={worktreeId}
+          relativePath={relativePath}
+          language={language}
+          onClose={() => setAskAgentTarget(null)}
+        />
+      ) : null}
       <MonacoMarkdownAnnotationOverlay
         shouldShowMarkdownAnnotations={annotations.shouldShowMarkdownAnnotations}
         commentPopover={annotations.commentPopover}
@@ -231,7 +251,7 @@ export default function MonacoEditor({
         language={language}
         // Why: defaultValue, not controlled value — Orca owns post-mount content sync; a controlled path would double setValue.
         defaultValue={content}
-        theme={isDark ? 'vs-dark' : 'vs'}
+        theme={monacoThemeName}
         onChange={contentSync.handleChange}
         onMount={handleMount}
         options={{
@@ -254,6 +274,9 @@ export default function MonacoEditor({
             : undefined,
           smoothScrolling: true,
           cursorSmoothCaretAnimation: 'off',
+          // Why: LSP semantic tokens colorize only when the editor opts in;
+          // converted themes carry synthesized semantic token rules.
+          'semanticHighlighting.enabled': true,
           padding: { top: 0 },
           find: monacoFindOptions,
           // Why: Monaco owns its rendered line surface, so align its selection-clipboard with the app opt-out (the global DOM hook can't).
@@ -265,6 +288,7 @@ export default function MonacoEditor({
         keepCurrentModel
       />
 
+      <EditorLspStatusChip status={lspStatus} />
       {toastNode}
       <MonacoGutterContextMenu
         open={gutterMenuOpen}

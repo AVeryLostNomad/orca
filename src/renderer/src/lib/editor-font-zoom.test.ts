@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeDiffEditorFontSize,
   computeEditorFontSize,
+  resolveEditorBaseFontSize,
   resolveEditorFontFamily,
   resolveEditorFontFamilyOrInherit
 } from './editor-font-zoom'
@@ -16,6 +17,21 @@ describe('editor font zoom', () => {
   it('keeps diff editor font size within the editor safety bounds', () => {
     expect(computeDiffEditorFontSize(10, -6)).toBe(8)
     expect(computeDiffEditorFontSize(24, 18)).toBe(32)
+  })
+})
+
+describe('resolveEditorBaseFontSize', () => {
+  it('follows the terminal font size when no editor size is set (legacy behavior)', () => {
+    expect(resolveEditorBaseFontSize({ terminalFontSize: 15 })).toBe(15)
+  })
+
+  it('uses the editor size override when the user opts in', () => {
+    expect(resolveEditorBaseFontSize({ editorFontSize: 18, terminalFontSize: 15 })).toBe(18)
+  })
+
+  it('falls back to 13 when neither size is set', () => {
+    expect(resolveEditorBaseFontSize(undefined)).toBe(13)
+    expect(resolveEditorBaseFontSize({})).toBe(13)
   })
 })
 

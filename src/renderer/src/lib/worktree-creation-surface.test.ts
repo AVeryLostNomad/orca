@@ -25,7 +25,7 @@ describe('shouldShowWorktreeCreationSurface', () => {
   it('stays hidden outside the terminal surface', () => {
     expect(
       shouldShowWorktreeCreationSurface({
-        activeView: 'settings',
+        activeView: 'tasks',
         activePendingCreationId: 'creation-1',
         hasActivePendingCreation: true
       })

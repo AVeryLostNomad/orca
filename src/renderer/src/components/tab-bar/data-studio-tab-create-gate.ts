@@ -17,16 +17,20 @@ export function resolveDataStudioTabCreateGate({
   terminalOnly,
   isLocalWorktree,
   hasRepoId,
-  hasCreateCallback
+  hasCreateCallback,
+  settingEnabled = true
 }: {
   terminalOnly: boolean
   isLocalWorktree: boolean
   hasRepoId: boolean
   hasCreateCallback: boolean
+  /** Settings opt-out hides both entries (no disabled-with-tooltip row). */
+  settingEnabled?: boolean
 }): DataStudioTabCreateGate {
   const platform = getRendererAppPlatform()
   const platformSupported = platform === 'darwin' || platform === 'linux' || platform === 'win32'
-  const base = !terminalOnly && platformSupported && hasRepoId && hasCreateCallback
+  const base =
+    !terminalOnly && platformSupported && hasRepoId && hasCreateCallback && settingEnabled
   return {
     hasNewDataStudio: base && isLocalWorktree,
     dataStudioRemoteDisabled: base && !isLocalWorktree

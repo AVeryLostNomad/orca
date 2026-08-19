@@ -35,9 +35,13 @@ import {
 import * as ownerHydration from './settings-owner-hydration-publication'
 import { persistVisibilityAwareSettings } from './worktree-visibility-settings-write'
 import { getSettingsFocusedExecutionHostId } from '../../../../shared/execution-host'
+import type { AppThemeTerminalTheme } from '@/lib/app-theme/app-theme-terminal-theme'
 
 export type SettingsSlice = SettingsSearchState & {
   settings: GlobalSettings | null
+  /** Ephemeral: xterm colors derived from the active app theme (null when the app theme is Orca default). */
+  appThemeTerminalTheme: AppThemeTerminalTheme | null
+  setAppThemeTerminalTheme: (theme: AppThemeTerminalTheme | null) => void
   worktreeVisibilityDefaultsByHost: WorktreeVisibilityDefaultsByHost
   worktreeVisibilityDefaultsSupportedRuntimeEnvironmentId: string | null
   worktreeVisibilitySourceDefaultsSupportedRuntimeEnvironmentId: string | null
@@ -179,6 +183,17 @@ async function verifyRuntimeEnvironmentReachable(environmentId: string | null): 
 
 export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> = (set, get) => ({
   settings: null,
+  appThemeTerminalTheme: null,
+  setAppThemeTerminalTheme: (theme) => {
+    const current = get().appThemeTerminalTheme
+    if (
+      current === theme ||
+      (current && theme && current.appThemeId === theme.appThemeId && current.mode === theme.mode)
+    ) {
+      return
+    }
+    set({ appThemeTerminalTheme: theme })
+  },
   worktreeVisibilityDefaultsByHost: {},
   worktreeVisibilityDefaultsSupportedRuntimeEnvironmentId: null,
   worktreeVisibilitySourceDefaultsSupportedRuntimeEnvironmentId: null,

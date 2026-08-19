@@ -108,6 +108,11 @@ export function activateAndRevealFolderWorkspace(
   if (state.activeView !== 'terminal') {
     state.setActiveView('terminal')
   }
+  // Why: activating a workspace is explicit navigation — the settings modal
+  // closing here matches the old full-page view being switched away.
+  if (state.settingsOpen) {
+    state.closeSettingsPage()
+  }
 
   state.setActiveFolderWorkspace(folderWorkspaceId, opts?.executionHostId)
 
@@ -167,6 +172,9 @@ export function activateAndRevealWorktree(
   // 2. Switch any non-terminal view back to terminal
   if (state.activeView !== 'terminal') {
     state.setActiveView('terminal')
+  }
+  if (state.settingsOpen) {
+    state.closeSettingsPage()
   }
 
   // 3. Core activation: setActiveWorktree also restores per-worktree state, clears unread, bumps dead PTY generations, refreshes GitHub

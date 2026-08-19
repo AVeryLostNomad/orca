@@ -1782,7 +1782,11 @@ function resolveMobileTerminalTheme(
   if (!settings) {
     return undefined
   }
-  const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
+  const appearance = resolveEffectiveTerminalAppearance(
+    settings,
+    systemPrefersDark,
+    state.appThemeTerminalTheme
+  )
   const resolvedTheme = appearance.theme
     ? { ...appearance.theme, ...settings.terminalColorOverrides }
     : undefined

@@ -91,6 +91,8 @@ export type TabBarRuntimeModel = {
   mobileEmulatorCreationEnabled: boolean
   isLocalWorktree: boolean
   hasRepoBackedWorkspace: boolean
+  vscodeTabOptionEnabled: boolean
+  dataStudioTabOptionEnabled: boolean
 } & TabBarAgentProjections
 
 export function useTabBarRuntimeModel({
@@ -265,6 +267,11 @@ export function useTabBarRuntimeModel({
     const candidate = getRepoIdFromWorktreeId(worktreeId)
     return s.repos.some((repo) => repo.id === candidate)
   })
+  // New-tab-menu opt-outs, mirroring how disabled agent types vanish from it.
+  const vscodeTabOptionEnabled = useAppStore((s) => s.settings?.newTabVSCodeEnabled !== false)
+  const dataStudioTabOptionEnabled = useAppStore(
+    (s) => s.settings?.newTabDataStudioEnabled !== false
+  )
 
   return {
     newTerminalShortcut,
@@ -296,6 +303,8 @@ export function useTabBarRuntimeModel({
     managedBrowserCreationEnabled,
     mobileEmulatorCreationEnabled,
     isLocalWorktree,
-    hasRepoBackedWorkspace
+    hasRepoBackedWorkspace,
+    vscodeTabOptionEnabled,
+    dataStudioTabOptionEnabled
   }
 }

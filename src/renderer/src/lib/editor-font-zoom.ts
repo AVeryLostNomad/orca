@@ -31,6 +31,20 @@ export function computeDiffEditorFontSize(baseFontSize: number, zoomLevel: numbe
   return computeEditorFontSize(baseFontSize - 0.5, zoomLevel)
 }
 
+export type EditorFontSizeSettings = {
+  editorFontSize?: number
+  terminalFontSize?: number
+}
+
+/**
+ * Why: mirrors resolveEditorFontFamily — the editor size is opt-in, so an unset
+ * value must keep falling back to the terminal font size exactly as before the
+ * setting existed.
+ */
+export function resolveEditorBaseFontSize(settings?: EditorFontSizeSettings | null): number {
+  return settings?.editorFontSize ?? settings?.terminalFontSize ?? 13
+}
+
 export type EditorFontFamilySettings = {
   editorFontFamily?: string
   terminalFontFamily?: string

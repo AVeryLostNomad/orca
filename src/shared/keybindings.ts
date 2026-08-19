@@ -93,6 +93,7 @@ export type KeybindingActionId =
   | 'editor.previousChange'
   | 'editor.nextChange'
   | 'editor.addReviewNote'
+  | 'editor.askAgentAboutSelection'
   | 'sourceControl.sendReviewNotes'
   | 'fileExplorer.undo'
   | 'fileExplorer.redo'
@@ -234,14 +235,26 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
   {
     id: 'worktree.palette',
     allowInVsCode: true,
-    title: 'Switch worktree',
+    title: 'Open Command Bar',
     group: 'Global',
     scope: 'global',
-    searchKeywords: ['shortcut', 'global', 'worktree', 'switch', 'jump'],
+    searchKeywords: [
+      'shortcut',
+      'global',
+      'worktree',
+      'switch',
+      'jump',
+      'command bar',
+      'command palette',
+      'actions'
+    ],
+    // Why: Mod+Shift+A shadows VS Code's block-comment chord inside the
+    // embedded editor (allowInVsCode) — accepted so the command bar opens from
+    // every surface; Mod+J was already intercepted there.
     defaultBindings: {
-      darwin: ['Mod+J'],
-      linux: ['Mod+Shift+J'],
-      win32: ['Mod+Shift+J']
+      darwin: ['Mod+J', 'Mod+Shift+A'],
+      linux: ['Mod+Shift+J', 'Mod+Shift+A'],
+      win32: ['Mod+Shift+J', 'Mod+Shift+A']
     }
   },
   {
@@ -887,8 +900,19 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
     group: 'Editors',
     scope: 'editor',
     searchKeywords: ['shortcut', 'editor', 'markdown', 'note', 'comment', 'annotation', 'review'],
-    // Why: Ctrl+Alt+letter is AltGr text input on Windows/Linux, so an editor default must not reserve chars like Polish `ń`.
-    defaultBindings: platformBindings(['Mod+Shift+A'])
+    // Why: Mod+Shift+A now opens the command bar globally (main-process
+    // interception would shadow this editor chord). Comma pairs with Ask
+    // Agent's Mod+Shift+Period; Ctrl+Alt+letter stays off-limits (AltGr text
+    // input on Windows/Linux must not reserve chars like Polish `ń`).
+    defaultBindings: platformBindings(['Mod+Shift+Comma'])
+  },
+  {
+    id: 'editor.askAgentAboutSelection',
+    title: 'Ask Agent About Selection',
+    group: 'Editors',
+    scope: 'editor',
+    searchKeywords: ['shortcut', 'editor', 'agent', 'ask', 'selection', 'ai', 'claude', 'question'],
+    defaultBindings: platformBindings(['Mod+Shift+.'])
   },
   {
     id: 'sourceControl.sendReviewNotes',

@@ -1,4 +1,5 @@
 import type { ITheme } from '@xterm/xterm'
+import type { AppThemeTerminalTheme } from './app-theme/app-theme-terminal-theme'
 import { getTheme, getThemeNames } from './terminal-themes-data'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import {
@@ -22,6 +23,8 @@ export type EffectiveTerminalAppearance = {
   themeName: string
   dividerColor: string
   theme: ITheme | null
+  /** True when the theme came from the active app theme rather than the terminal theme setting. */
+  followsAppTheme: boolean
   systemPrefersDark: boolean
 }
 
@@ -118,8 +121,10 @@ export function resolveEffectiveTerminalAppearance(
     | 'terminalThemeLight'
     | 'terminalCustomThemes'
     | 'terminalDividerColorLight'
+    | 'terminalFollowsAppTheme'
   >,
-  systemPrefersDark = getSystemPrefersDark()
+  systemPrefersDark = getSystemPrefersDark(),
+  appThemeTerminalTheme?: AppThemeTerminalTheme | null
 ): EffectiveTerminalAppearance {
   const sourceTheme =
     settings.theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : settings.theme
@@ -130,13 +135,22 @@ export function resolveEffectiveTerminalAppearance(
   const dividerColor = useLightVariant
     ? normalizeColor(settings.terminalDividerColorLight, DEFAULT_TERMINAL_DIVIDER_LIGHT)
     : normalizeColor(settings.terminalDividerColorDark, DEFAULT_TERMINAL_DIVIDER_DARK)
+  // Mode gate: the override is derived for one mode only; a stale opposite-mode
+  // override (e.g. mid theme-flip, before the async app-theme load lands) must not leak in.
+  const followsAppTheme =
+    settings.terminalFollowsAppTheme !== false &&
+    appThemeTerminalTheme != null &&
+    appThemeTerminalTheme.mode === sourceTheme
 
   return {
     mode: sourceTheme,
     sourceTheme: settings.theme,
     themeName,
     dividerColor,
-    theme: getTerminalThemePreview(themeName, settings, useLightVariant ? 'light' : 'dark'),
+    theme: followsAppTheme
+      ? appThemeTerminalTheme.theme
+      : getTerminalThemePreview(themeName, settings, useLightVariant ? 'light' : 'dark'),
+    followsAppTheme,
     systemPrefersDark
   }
 }

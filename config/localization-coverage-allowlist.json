@@ -9,28 +9,28 @@
   {
     "filePath": "src/renderer/src/components/settings/appearance-search.ts",
     "kind": "object-property:keywords",
-    "text": "语言",
+    "text": "\u8bed\u8a00",
     "dynamic": false,
     "count": 1
   },
   {
     "filePath": "src/renderer/src/components/settings/appearance-search.ts",
     "kind": "object-property:keywords",
-    "text": "語言",
+    "text": "\u8a9e\u8a00",
     "dynamic": false,
     "count": 1
   },
   {
     "filePath": "src/renderer/src/components/settings/appearance-search.ts",
     "kind": "object-property:keywords",
-    "text": "언어",
+    "text": "\uc5b8\uc5b4",
     "dynamic": false,
     "count": 1
   },
   {
     "filePath": "src/renderer/src/components/settings/appearance-search.ts",
     "kind": "object-property:keywords",
-    "text": "言語",
+    "text": "\u8a00\u8a9e",
     "dynamic": false,
     "count": 1
   },
@@ -66,6 +66,195 @@
     "filePath": "src/renderer/src/components/settings/terminal-pane-appearance-search.ts",
     "kind": "object-property:keywords",
     "text": "ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/lsp/lsp-client.ts",
+    "kind": "object-property:message",
+    "text": "unhandled server request:",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/lsp/use-lsp-for-editor.ts",
+    "kind": "object-property:message",
+    "text": "Language server unavailable",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Light+ (VS Code Default)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Dark+ (VS Code Default)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "One Dark Pro",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Dracula",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "GitHub Dark",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "GitHub Light",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Monokai",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Solarized Dark",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Solarized Light",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Nord",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Catppuccin Mocha",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Catppuccin Latte",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark Soft",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light Soft",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark Vibrant",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light Vibrant",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark (Protanopia/Deuteranopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light (Protanopia/Deuteranopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark (Tritanopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light (Tritanopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
+    "kind": "object-property:label",
+    "text": "TypeScript",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
+    "kind": "object-property:label",
+    "text": "Python",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
+    "kind": "object-property:label",
+    "text": "Markdown",
     "dynamic": false,
     "count": 1
   }

@@ -105,6 +105,26 @@ export function installEditorAddReviewNoteShortcut(
   return () => target.removeEventListener('keydown', handleKeyDown, true)
 }
 
+export function installEditorAskAgentAboutSelectionShortcut(
+  target: HTMLElement,
+  onAskAgent: () => boolean
+): () => void {
+  const handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.repeat || !editorShortcutMatches('editor.askAgentAboutSelection', event)) {
+      return
+    }
+    // Why: only consume the chord when the popover actually opens — with no
+    // selection the key stays available to whatever else the user bound it to.
+    if (onAskAgent()) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }
+
+  target.addEventListener('keydown', handleKeyDown, true)
+  return () => target.removeEventListener('keydown', handleKeyDown, true)
+}
+
 /**
  * While a review-note/diff-comment draft composer is mounted, consume the
  * bindable add-review-note chord (including OS key-repeat) so a second press

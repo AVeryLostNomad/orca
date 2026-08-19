@@ -21,6 +21,7 @@ import { applyAppIcon } from '../app-icon'
 import { normalizeTerminalCustomThemes } from '../../shared/terminal-custom-themes'
 import { normalizeDesktopTerminalScrollbackRows } from '../../shared/terminal-scrollback-policy'
 import { normalizeTerminalLineHeight } from '../../shared/terminal-line-height-settings'
+import { normalizeEditorFontSize } from '../../shared/editor-font-size'
 import { prepareLocalWorktreeRootsForRepos } from '../worktree-root-preparation'
 import { scheduleCurrentWorktreeBaseDirectoryWatcherSync } from './worktree-base-directory-watcher'
 import { applyPRBotAuthorOverride } from '../../shared/pr-bot-author-overrides'
@@ -168,6 +169,9 @@ export function registerSettingsHandlers(
     }
     if ('terminalLineHeight' in args) {
       sanitizedArgs.terminalLineHeight = normalizeTerminalLineHeight(args.terminalLineHeight)
+    }
+    if ('editorFontSize' in args) {
+      sanitizedArgs.editorFontSize = normalizeEditorFontSize(args.editorFontSize)
     }
     if ('uiLanguage' in args) {
       sanitizedArgs.uiLanguage = normalizeUiLanguage(args.uiLanguage)

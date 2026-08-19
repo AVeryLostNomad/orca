@@ -34,11 +34,12 @@ import {
 import { monaco } from '@/lib/monaco-setup'
 import {
   computeEditorFontSize,
+  resolveEditorBaseFontSize,
   resolveEditorFontFamily,
   resolveEditorFontFamilyOrInherit
 } from '@/lib/editor-font-zoom'
 import { getConnectionId } from '@/lib/connection-context'
-import { resolveDocumentTheme } from '@/lib/document-theme'
+import { useMonacoThemeName } from '@/lib/monaco-highlighting/use-monaco-theme-name'
 import { useAppStore } from '@/store'
 import { scrollTopCache, setWithLRU } from '@/lib/scroll-cache'
 import { cn } from '@/lib/utils'
@@ -342,9 +343,9 @@ function CodeCell({
   // latest callbacks without rebuilding the embedded editor.
   onDeactivateRef.current = onDeactivate
   onSaveRequestRef.current = onSaveRequest
-  const fontSize = computeEditorFontSize(settings?.terminalFontSize ?? 13, editorFontZoomLevel)
+  const fontSize = computeEditorFontSize(resolveEditorBaseFontSize(settings), editorFontZoomLevel)
   const editorHeight = getIpynbCodeCellEditorHeight(source, fontSize)
-  const isDark = resolveDocumentTheme(settings?.theme ?? 'system')
+  const monacoThemeName = useMonacoThemeName()
   const lines = useMemo(() => getIpynbCodeCellPreviewLines(source), [source])
   const handleMount: OnMount = useCallback((editorInstance, monacoInstance) => {
     editorInstance.focus()
@@ -371,8 +372,8 @@ function CodeCell({
   }, [])
 
   useEffect(() => {
-    monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs')
-  }, [isDark])
+    monaco.editor.setTheme(monacoThemeName)
+  }, [monacoThemeName])
 
   if (!active) {
     return (
@@ -404,7 +405,7 @@ function CodeCell({
         height={editorHeight}
         defaultLanguage={cell.language}
         language={cell.language}
-        theme={isDark ? 'vs-dark' : 'vs'}
+        theme={monacoThemeName}
         value={source}
         onMount={handleMount}
         onChange={(value) => onChange(value ?? '')}

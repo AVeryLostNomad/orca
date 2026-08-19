@@ -31,6 +31,33 @@ export const getThemeEntries = createLocalizedCatalog((): SettingsSearchEntry[] 
   }
 ])
 
+export const getAppThemeEntries = createLocalizedCatalog((): SettingsSearchEntry[] => [
+  {
+    title: translate('auto.components.settings.appearance.search.appTheme', 'App Theme'),
+    description: translate(
+      'auto.components.settings.appearance.search.appThemeDesc',
+      'Color the Orca window chrome from an editor theme\u2019s palette.'
+    ),
+    keywords: [
+      ...translateSearchKeyword(
+        'auto.components.settings.appearance.search.appThemeKw',
+        'app theme'
+      ),
+      ...translateSearchKeyword('auto.components.settings.appearance.search.chromeKw', 'chrome'),
+      ...translateSearchKeyword(
+        'auto.components.settings.appearance.search.workbenchKw',
+        'workbench'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.appearance.search.vsCodeThemeKw',
+        'vs code theme'
+      ),
+      ...translateSearchKeyword('auto.components.settings.appearance.search.262fe1d24f', 'dark'),
+      ...translateSearchKeyword('auto.components.settings.appearance.search.44d873fd18', 'light')
+    ]
+  }
+])
+
 export const getLanguageEntries = createLocalizedCatalog((): SettingsSearchEntry[] => [
   {
     title: translate('settings.appearance.language.title', 'Language'),
@@ -232,6 +259,7 @@ function buildAppearancePaneSearchEntries(
   return [
     ...getAppearanceSectionEntries(),
     ...getThemeEntries(),
+    ...getAppThemeEntries(),
     ...(SHOW_UI_LANGUAGE_SETTING ? getLanguageEntries() : []),
     ...getTypographyEntries(),
     ...getZoomEntries(),
