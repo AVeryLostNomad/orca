@@ -83,10 +83,18 @@ export async function assertSha256(path: string, expected: string): Promise<void
   }
 }
 
-export function extractTarGz(archive: string, destination: string): Promise<void> {
+export function extractTarGz(
+  archive: string,
+  destination: string,
+  options?: { excludePatterns?: string[] }
+): Promise<void> {
   return new Promise((resolve, reject) => {
     mkdirSync(destination, { recursive: true })
-    const child = spawn(tarExecutable(), ['-xzf', archive, '-C', destination], {
+    const excludeArgs = (options?.excludePatterns ?? []).flatMap((pattern) => [
+      '--exclude',
+      pattern
+    ])
+    const child = spawn(tarExecutable(), ['-xzf', archive, '-C', destination, ...excludeArgs], {
       stdio: ['ignore', 'ignore', 'pipe'],
       windowsHide: true
     })

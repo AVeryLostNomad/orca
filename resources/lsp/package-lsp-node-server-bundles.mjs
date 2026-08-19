@@ -109,6 +109,23 @@ function resolveBinEntry(stagingDir, binSpec) {
     .join('/')
 }
 
+function removeDotBinDirs(dir) {
+  if (!existsSync(dir)) {
+    return
+  }
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue
+    }
+    const child = join(dir, entry.name)
+    if (entry.name === '.bin') {
+      rmSync(child, { recursive: true, force: true })
+    } else {
+      removeDotBinDirs(child)
+    }
+  }
+}
+
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' })
   if (result.status !== 0) {
@@ -136,6 +153,9 @@ function packageBundle(bundle) {
   const asset = `${bundle.bundleId}-${version}.tar.gz`
   const assetPath = join(distDir, asset)
   rmSync(assetPath, { force: true })
+  // .bin shims are symlinks Windows bsdtar can't extract; sessions spawn the
+  // resolved entry file directly, so drop them from the payload.
+  removeDotBinDirs(join(stagingDir, 'node_modules'))
   // Deterministic-ish tar: sort names; contents come from the npm registry.
   run('tar', ['-czf', assetPath, '-C', stagingDir, 'package.json', 'node_modules'], repoRoot)
 

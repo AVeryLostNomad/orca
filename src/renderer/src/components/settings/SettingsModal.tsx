@@ -32,10 +32,14 @@ export function SettingsModal(): React.JSX.Element | null {
           markSettingsModalEscapePrevented(e)
           e.preventDefault()
         }}
-        onInteractOutside={(e) => {
+        onPointerDownOutside={(e) => {
           e.preventDefault()
           requestSettingsModalClose()
         }}
+        // Why: a closing dropdown (e.g. sidebar "Project Settings") returns
+        // focus to its trigger after this dialog opens; that focus-outside
+        // must not dismiss the freshly opened modal.
+        onFocusOutside={(e) => e.preventDefault()}
       >
         <DialogTitle className="sr-only">
           {translate('auto.components.settings.SettingsModal.title', 'Settings')}

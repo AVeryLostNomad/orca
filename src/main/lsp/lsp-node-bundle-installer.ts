@@ -67,7 +67,9 @@ async function install(bundleId: string, onProgress: (fraction: number) => void)
     onProgress(0.8)
     await assertSha256(archivePath, pin.sha256)
     onProgress(0.85)
-    await extractTarGz(archivePath, extractDir)
+    // npm .bin shims are symlinks Windows bsdtar can't create (exit 1); every
+    // pinned entryRelativePath targets the real file, so skip them everywhere.
+    await extractTarGz(archivePath, extractDir, { excludePatterns: ['*/.bin', '*/.bin/*'] })
     onProgress(0.98)
     if (!existsSync(join(extractDir, 'package.json'))) {
       throw new LspInstallError('bundle archive did not contain package.json')
