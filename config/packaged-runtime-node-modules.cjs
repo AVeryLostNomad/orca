@@ -27,6 +27,8 @@ const PACKAGED_RUNTIME_PACKAGE_ROOTS = [
   'qrcode',
   'ssh2',
   'tweetnacl',
+  'vscode-jsonrpc',
+  'vscode-uri',
   'ws',
   'yaml',
   'zod'
