@@ -4,6 +4,7 @@ import { parse as parseJsonc } from 'jsonc-parser'
 import type {
   LocalEditorThemeReadRequest,
   MergedVSCodeTheme,
+  VSCodeSemanticTokenStyle,
   VSCodeTokenColorSetting
 } from '../../shared/editor-theme-types'
 import type { CodeServerImportSourceId } from '../../shared/code-server-types'
@@ -24,6 +25,7 @@ type RawVSCodeTheme = {
   tokenColors?: VSCodeTokenColorSetting[] | string
   settings?: VSCodeTokenColorSetting[]
   semanticHighlighting?: boolean
+  semanticTokenColors?: Record<string, VSCodeSemanticTokenStyle>
 }
 
 function assertContainedPath(candidate: string, containerDir: string): string {
@@ -67,6 +69,7 @@ async function loadThemeWithIncludes(
 ): Promise<{
   colors: Record<string, string>
   tokenColors: VSCodeTokenColorSetting[]
+  semanticTokenColors: Record<string, VSCodeSemanticTokenStyle>
   theme: RawVSCodeTheme
 }> {
   if (depth > MAX_INCLUDE_DEPTH) {
@@ -75,19 +78,23 @@ async function loadThemeWithIncludes(
   const theme = await readThemeFile(filePath)
   let colors: Record<string, string> = {}
   let tokenColors: VSCodeTokenColorSetting[] = []
+  let semanticTokenColors: Record<string, VSCodeSemanticTokenStyle> = {}
   let parentTheme: RawVSCodeTheme | undefined
   if (typeof theme.include === 'string' && theme.include) {
     const includePath = assertContainedPath(join(dirname(filePath), theme.include), containerDir)
     const parent = await loadThemeWithIncludes(includePath, containerDir, depth + 1)
     colors = parent.colors
     tokenColors = parent.tokenColors
+    semanticTokenColors = parent.semanticTokenColors
     parentTheme = parent.theme
   }
   colors = { ...colors, ...theme.colors }
   tokenColors = [...tokenColors, ...tokenColorsOf(theme)]
+  semanticTokenColors = { ...semanticTokenColors, ...theme.semanticTokenColors }
   return {
     colors,
     tokenColors,
+    semanticTokenColors,
     theme: {
       ...parentTheme,
       ...theme,
@@ -143,7 +150,7 @@ export async function readLocalEditorTheme(
     join(extensionDir, contribution.path),
     resolve(extensionDir)
   )
-  const { colors, tokenColors, theme } = await loadThemeWithIncludes(
+  const { colors, tokenColors, semanticTokenColors, theme } = await loadThemeWithIncludes(
     themePath,
     resolve(extensionDir),
     0
@@ -159,6 +166,7 @@ export async function readLocalEditorTheme(
     type,
     colors,
     tokenColors,
-    semanticHighlighting: theme.semanticHighlighting
+    semanticHighlighting: theme.semanticHighlighting,
+    semanticTokenColors
   }
 }

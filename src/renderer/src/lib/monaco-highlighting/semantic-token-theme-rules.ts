@@ -73,6 +73,125 @@ function resolveThemeStyleForScope(
   return best?.foreground || best?.fontStyle ? best : undefined
 }
 
+// VS Code `semanticTokenColors` value: a color string or a style object.
+type SemanticTokenStyleObject = {
+  foreground?: string
+  fontStyle?: string
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+}
+type SemanticTokenStyle = string | SemanticTokenStyleObject
+
+// Shiki types semanticTokenColors as Record<string, string>, but real VS Code
+// themes use style objects too.
+type ThemeWithSemanticTokenColors = ThemeRegistrationResolved & {
+  semanticTokenColors?: Record<string, SemanticTokenStyle>
+}
+
+const FONT_STYLE_FLAGS = ['italic', 'bold', 'underline', 'strikethrough'] as const
+
+// `undefined` means "not specified" (Monaco inherits); `''` explicitly clears.
+function fontStyleOfSemanticStyle(style: SemanticTokenStyle): string | undefined {
+  if (typeof style === 'string') {
+    return undefined
+  }
+  if (typeof style.fontStyle === 'string') {
+    return style.fontStyle
+  }
+  const explicit = FONT_STYLE_FLAGS.some((flag) => typeof style[flag] === 'boolean')
+  return explicit ? FONT_STYLE_FLAGS.filter((flag) => style[flag] === true).join(' ') : undefined
+}
+
+type ParsedSemanticSelector = { token: string; hasModifiers: boolean; language: string | undefined }
+
+// Selector grammar: `type(.modifier)*(:language)?`.
+function parseSemanticTokenSelector(selector: string): ParsedSemanticSelector | undefined {
+  const colonParts = selector.split(':')
+  if (colonParts.length > 2) {
+    return undefined
+  }
+  const [key, language] = colonParts
+  const parts = key.split('.').map((part) => part.trim())
+  if (parts.some((part) => !part || part.includes('*'))) {
+    return undefined
+  }
+  return { token: parts.join('.'), hasModifiers: parts.length > 1, language }
+}
+
+function semanticTokenRuleForStyle(
+  token: string,
+  style: SemanticTokenStyle,
+  normalizeColor: (color: string | undefined) => string | undefined,
+  normalizeFontStyle: (fontStyle: string | undefined) => string
+): Monaco.editor.ITokenThemeRule | undefined {
+  const foreground = normalizeColor(typeof style === 'string' ? style : style.foreground)
+  const rawFontStyle = fontStyleOfSemanticStyle(style)
+  const fontStyle = rawFontStyle === undefined ? undefined : normalizeFontStyle(rawFontStyle)
+  if (foreground === undefined && fontStyle === undefined) {
+    return undefined
+  }
+  return { token, foreground, fontStyle }
+}
+
+// Rules from the theme's own `semanticTokenColors`. Monaco's standalone theme
+// matches semantic tokens as `type.modifier1.modifier2` with no language
+// dimension, so `:language` selectors can't be honored per-language. Entries
+// with modifiers (e.g. `type.defaultLibrary:go`) are specific enough to apply
+// globally; bare `type:language` entries are skipped — globalizing them would
+// restyle every language.
+function semanticTokenColorRules(
+  theme: ThemeRegistrationResolved,
+  normalizeColor: (color: string | undefined) => string | undefined,
+  normalizeFontStyle: (fontStyle: string | undefined) => string
+): Monaco.editor.ITokenThemeRule[] {
+  const semanticTokenColors = (theme as ThemeWithSemanticTokenColors).semanticTokenColors
+  if (!semanticTokenColors) {
+    return []
+  }
+  const rules: Monaco.editor.ITokenThemeRule[] = []
+  const unqualifiedTokens = new Set<string>()
+  const entries: { parsed: ParsedSemanticSelector; style: SemanticTokenStyle }[] = []
+  for (const [selector, style] of Object.entries(semanticTokenColors)) {
+    const parsed = parseSemanticTokenSelector(selector)
+    if (parsed) {
+      entries.push({ parsed, style })
+    }
+  }
+  for (const { parsed, style } of entries) {
+    if (parsed.language !== undefined) {
+      continue
+    }
+    const rule = semanticTokenRuleForStyle(parsed.token, style, normalizeColor, normalizeFontStyle)
+    if (rule) {
+      rules.push(rule)
+      unqualifiedTokens.add(parsed.token)
+    }
+  }
+  // Sorted so the winner among same-token entries from different languages is
+  // deterministic; an unqualified entry for the token always wins instead.
+  const emittedQualified = new Set<string>()
+  const qualified = entries
+    .filter(({ parsed }) => parsed.language !== undefined && parsed.hasModifiers)
+    .sort(
+      (a, b) =>
+        a.parsed.token.localeCompare(b.parsed.token) ||
+        (a.parsed.language ?? '').localeCompare(b.parsed.language ?? '')
+    )
+  for (const { parsed, style } of qualified) {
+    if (unqualifiedTokens.has(parsed.token) || emittedQualified.has(parsed.token)) {
+      continue
+    }
+    const rule = semanticTokenRuleForStyle(parsed.token, style, normalizeColor, normalizeFontStyle)
+    if (rule) {
+      rules.push(rule)
+      emittedQualified.add(parsed.token)
+    }
+  }
+  return rules
+}
+
 export function synthesizeSemanticTokenThemeRules(
   theme: ThemeRegistrationResolved,
   normalizeColor: (color: string | undefined) => string | undefined,
@@ -93,5 +212,7 @@ export function synthesizeSemanticTokenThemeRules(
       break
     }
   }
+  // Last so they win over the synthesized fallbacks for the same token key.
+  rules.push(...semanticTokenColorRules(theme, normalizeColor, normalizeFontStyle))
   return rules
 }

@@ -18,6 +18,18 @@ export type LocalEditorThemeReadRequest = {
   label: string
 }
 
+/** `semanticTokenColors` value: a color string or a VS Code style object. */
+export type VSCodeSemanticTokenStyle =
+  | string
+  | {
+      foreground?: string
+      fontStyle?: string
+      bold?: boolean
+      italic?: boolean
+      underline?: boolean
+      strikethrough?: boolean
+    }
+
 export type VSCodeTokenColorSetting = {
   scope?: string | string[]
   settings?: {
@@ -34,4 +46,5 @@ export type MergedVSCodeTheme = {
   colors?: Record<string, string>
   tokenColors?: VSCodeTokenColorSetting[]
   semanticHighlighting?: boolean
+  semanticTokenColors?: Record<string, VSCodeSemanticTokenStyle>
 }
