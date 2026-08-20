@@ -2316,6 +2316,14 @@ function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
         await mutateGitPath('git.discard', worktreePath, filePath)
       }
     },
+    moveChanges: async ({ worktreePath, targetWorktreePath }) => {
+      const source = await resolveRuntimeWorktreeByPath(worktreePath)
+      const target = await resolveRuntimeWorktreeByPath(targetWorktreePath)
+      return callRuntimeResult('git.moveChanges', {
+        worktree: toRuntimeWorktreeSelector(source.id),
+        targetWorktree: toRuntimeWorktreeSelector(target.id)
+      })
+    },
     remoteFileUrl: async ({ worktreePath, relativePath, line }) => {
       const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
       return callRuntimeResult('git.remoteFileUrl', {

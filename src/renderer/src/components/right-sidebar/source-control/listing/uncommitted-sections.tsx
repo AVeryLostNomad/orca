@@ -1,5 +1,5 @@
 import React from 'react'
-import { Minus, Plus, Trash, Undo2 } from 'lucide-react'
+import { FolderInput, Minus, Plus, Trash, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
@@ -57,6 +57,8 @@ export function SourceControlUncommittedSections(props: {
   onViewSection: (action: SourceControlSectionViewAction) => void
   isExecutingBulk: boolean
   requestDiscardAllInArea: (area: DiscardAllArea, paths?: readonly string[]) => void
+  canMoveChanges: boolean
+  requestMoveChanges: () => void
   handleStageAllPaths: (paths: readonly string[]) => Promise<void>
   handleUnstagePaths: (paths: readonly string[]) => Promise<void>
   sourceControlViewMode: SourceControlViewMode
@@ -88,7 +90,7 @@ export function SourceControlUncommittedSections(props: {
 }): React.JSX.Element {
   return (
     <>
-      {props.displaySections.map((section) => {
+      {props.displaySections.map((section, sectionIndex) => {
         const { area, id, items } = section
         const isCollapsed = props.collapsedSections.has(id)
         // Why: bulk stage/unstage act on the *unfiltered* group; the +/- hides while filtering to avoid acting on more than what's shown.
@@ -99,6 +101,8 @@ export function SourceControlUncommittedSections(props: {
         const unstageAllPaths = getUnstageAllPaths(actionItems)
         const discardAllPaths = getDiscardAllPaths(actionItems, area)
         const canStageAll = !props.normalizedFilter && stageAllPaths.length > 0
+        // Why: the move acts on every uncommitted change, so it renders once on the first section rather than per area.
+        const canMoveAll = !props.normalizedFilter && sectionIndex === 0 && props.canMoveChanges
         const canUnstageAll = !props.normalizedFilter && unstageAllPaths.length > 0
         const canRevertAll = !props.normalizedFilter && discardAllPaths.length > 0
         const sectionLabel = id === 'conflicts' ? CONFLICTS_SECTION_LABEL : SECTION_LABELS[area]
@@ -115,6 +119,20 @@ export function SourceControlUncommittedSections(props: {
                 <>
                   {/* Why: bulk actions are hover-only, but forced visible on no-hover pointers (touch/SSH; see AGENTS.md "SSH Use Case"). One wrapper so focusing any action reveals all three (else keyboard tabs into an invisible stop). */}
                   <div className="flex items-center can-hover:opacity-0 transition-opacity group-hover/section:opacity-100 focus-within:opacity-100">
+                    {canMoveAll && (
+                      <ActionButton
+                        icon={FolderInput}
+                        title={translate(
+                          'auto.components.right.sidebar.SourceControl.moveChangesAction',
+                          'Move changes to another worktree'
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          props.requestMoveChanges()
+                        }}
+                        disabled={props.isExecutingBulk}
+                      />
+                    )}
                     {canRevertAll && (
                       <ActionButton
                         icon={area === 'untracked' ? Trash : Undo2}

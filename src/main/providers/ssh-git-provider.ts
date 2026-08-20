@@ -10,6 +10,7 @@ import type {
   GitDiffResult
 } from '../../shared/git-diff-compare-types'
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
+import type { GitMoveChangesResult } from '../../shared/git-move-changes'
 import type {
   GitConflictOperation,
   GitStagingArea,
@@ -466,6 +467,29 @@ export class SshGitProvider implements IGitProvider {
   async bulkDiscardChanges(worktreePath: string, filePaths: string[]): Promise<void> {
     await this.runWithGitReadInvalidation(async () => {
       await this.mux.request('git.bulkDiscard', { worktreePath, filePaths })
+    })
+  }
+
+  async moveChangesToWorktree(
+    worktreePath: string,
+    targetWorktreePath: string
+  ): Promise<GitMoveChangesResult> {
+    return this.runWithGitReadInvalidation(async () => {
+      try {
+        return (await this.mux.request('git.moveChanges', {
+          worktreePath,
+          targetWorktreePath
+        })) as GitMoveChangesResult
+      } catch (error) {
+        // Why: an older relay predates this RPC; surface an actionable message
+        // instead of the raw method-not-found (see remote-wire-compatibility.md).
+        if (error instanceof Error && error.message.includes('Method not found')) {
+          throw new Error(
+            'The remote Orca agent is out of date and cannot move changes between worktrees. Reconnect to update it.'
+          )
+        }
+        throw error
+      }
     })
   }
 

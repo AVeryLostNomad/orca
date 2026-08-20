@@ -70,6 +70,7 @@ import type {
   MarkdownDocument
 } from '../shared/filesystem-entry-types'
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../shared/git-fork-sync'
+import type { GitMoveChangesResult } from '../shared/git-move-changes'
 import type { GitStagingArea, GitUpstreamStatus } from '../shared/git-status-types'
 import type { GitHubCommentResult, GitHubReactionContent } from '../shared/github/comment-types'
 import type {
@@ -3661,6 +3662,11 @@ const api = {
       filePaths: string[]
       connectionId?: string
     }): Promise<void> => ipcRenderer.invoke('git:bulkDiscard', args),
+    moveChanges: (args: {
+      worktreePath: string
+      targetWorktreePath: string
+      connectionId?: string
+    }): Promise<GitMoveChangesResult> => ipcRenderer.invoke('git:moveChanges', args),
     remoteFileUrl: (args: {
       worktreePath: string
       relativePath: string

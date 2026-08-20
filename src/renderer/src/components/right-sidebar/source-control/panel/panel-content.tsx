@@ -17,6 +17,7 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
     activeOpenRowKeys,
     branchEntries,
     branchSummary,
+    canMoveChanges,
     collapsedSections,
     collapsedTreeDirs,
     conflictOperation,
@@ -56,6 +57,7 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
     refreshGitHistory,
     repositoryHuge,
     requestDiscardAllInArea,
+    requestMoveChanges,
     requestDiscardEntry,
     requestDiscardPaths,
     revealInExplorer,
@@ -145,6 +147,8 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
           }}
           isExecutingBulk={isExecutingBulk}
           requestDiscardAllInArea={requestDiscardAllInArea}
+          canMoveChanges={canMoveChanges}
+          requestMoveChanges={requestMoveChanges}
           handleStageAllPaths={handleStageAllPaths}
           handleUnstagePaths={handleUnstagePaths}
           sourceControlViewMode={sourceControlViewMode}

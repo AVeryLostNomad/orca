@@ -1,4 +1,5 @@
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
+import type { GitMoveChangesResult } from '../../shared/git-move-changes'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { GitPushTarget } from '../../shared/worktree/types'
 import type { HostedReviewProvider } from '../../shared/hosted-review'
@@ -122,4 +123,9 @@ export type GitOperationApi = {
     filePaths: string[]
     connectionId?: string
   }) => Promise<void>
+  moveChanges: (args: {
+    worktreePath: string
+    targetWorktreePath: string
+    connectionId?: string
+  }) => Promise<GitMoveChangesResult>
 }

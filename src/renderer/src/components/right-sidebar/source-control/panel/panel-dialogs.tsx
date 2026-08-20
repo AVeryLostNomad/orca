@@ -1,4 +1,5 @@
 import { readSourceControlLaunchRecipeAgentId } from '@/lib/source-control-launch-agent-selection'
+import { SourceControlMoveChangesDialog } from '../commit/move-changes-dialog'
 import { SourceControlDialogLayer } from './dialog-layer'
 import type { SourceControlPanelReadyProps } from './panel-props'
 
@@ -11,6 +12,10 @@ export function SourceControlPanelDialogs({
   const {
     activeConnectionId,
     activeGroupId,
+    branchName,
+    executeMoveChanges,
+    moveChangesDialogOpen,
+    setMoveChangesDialogOpen,
     activeSourceControlLaunchPlatform,
     activeWorktreeId,
     baseRefDialogOpen,
@@ -49,72 +54,82 @@ export function SourceControlPanelDialogs({
   } = model
 
   return (
-    <SourceControlDialogLayer
-      clearNotesOpen={resolvedPendingDiffCommentsClear !== null}
-      clearNotesDescription={pendingDiffCommentsClearDescription}
-      clearNotesCount={pendingDiffCommentsClearCount}
-      isClearingNotes={isClearingDiffComments}
-      onDismissClearNotes={() => setPendingDiffCommentsClear(null)}
-      onConfirmClearNotes={() => void handleConfirmDiffCommentsClear()}
-      pendingDiscard={pendingDiscard}
-      onCancelDiscard={cancelPendingDiscard}
-      onConfirmDiscard={confirmPendingDiscard}
-      baseRefDialogOpen={baseRefDialogOpen}
-      onBaseRefDialogOpenChange={setBaseRefDialogOpen}
-      baseRefRepoId={activeRepo.id}
-      pickerBaseRef={pickerBaseRef}
-      onSelectBaseRef={(ref) => {
-        if (baseRefOwnedByWorktree && activeWorktreeId) {
-          void updateWorktreeMeta(activeWorktreeId, { baseRef: ref })
-        } else {
-          void updateRepo(activeRepo.id, { worktreeBaseRef: ref })
+    <>
+      <SourceControlMoveChangesDialog
+        open={moveChangesDialogOpen}
+        onOpenChange={setMoveChangesDialogOpen}
+        repoId={activeRepo.id}
+        currentWorktreeId={activeWorktreeId}
+        sourceBranchName={branchName}
+        onSelectTarget={(target) => void executeMoveChanges(target)}
+      />
+      <SourceControlDialogLayer
+        clearNotesOpen={resolvedPendingDiffCommentsClear !== null}
+        clearNotesDescription={pendingDiffCommentsClearDescription}
+        clearNotesCount={pendingDiffCommentsClearCount}
+        isClearingNotes={isClearingDiffComments}
+        onDismissClearNotes={() => setPendingDiffCommentsClear(null)}
+        onConfirmClearNotes={() => void handleConfirmDiffCommentsClear()}
+        pendingDiscard={pendingDiscard}
+        onCancelDiscard={cancelPendingDiscard}
+        onConfirmDiscard={confirmPendingDiscard}
+        baseRefDialogOpen={baseRefDialogOpen}
+        onBaseRefDialogOpenChange={setBaseRefDialogOpen}
+        baseRefRepoId={activeRepo.id}
+        pickerBaseRef={pickerBaseRef}
+        onSelectBaseRef={(ref) => {
+          if (baseRefOwnedByWorktree && activeWorktreeId) {
+            void updateWorktreeMeta(activeWorktreeId, { baseRef: ref })
+          } else {
+            void updateRepo(activeRepo.id, { worktreeBaseRef: ref })
+          }
+          setBaseRefDialogOpen(false)
+          window.setTimeout(() => void refreshBranchCompare(), 0)
+        }}
+        onUsePrimaryBaseRef={() => {
+          if (baseRefOwnedByWorktree && activeWorktreeId) {
+            void updateWorktreeMeta(activeWorktreeId, { baseRef: undefined })
+          } else {
+            void updateRepo(activeRepo.id, { worktreeBaseRef: undefined })
+          }
+          setBaseRefDialogOpen(false)
+          window.setTimeout(() => void refreshBranchCompare(), 0)
+        }}
+        sourceControlAiActionsVisible={sourceControlAiActionsVisible}
+        resolveConflictsComposerOpen={resolveConflictsComposerOpen}
+        onResolveConflictsComposerOpenChange={setResolveConflictsComposerOpen}
+        resolveConflictsPrompt={resolveConflictsPrompt}
+        worktreeId={activeWorktreeId}
+        groupId={activeGroupId ?? activeWorktreeId}
+        connectionId={activeConnectionId}
+        repoId={activeRepo.id}
+        launchPlatform={activeSourceControlLaunchPlatform}
+        savedResolveConflictsAgentId={readSourceControlLaunchRecipeAgentId(
+          getLaunchActionRecipe('resolveConflicts')
+        )}
+        savedResolveConflictsCommandInputTemplate={
+          getLaunchActionRecipe('resolveConflicts').commandInputTemplate ?? null
         }
-        setBaseRefDialogOpen(false)
-        window.setTimeout(() => void refreshBranchCompare(), 0)
-      }}
-      onUsePrimaryBaseRef={() => {
-        if (baseRefOwnedByWorktree && activeWorktreeId) {
-          void updateWorktreeMeta(activeWorktreeId, { baseRef: undefined })
-        } else {
-          void updateRepo(activeRepo.id, { worktreeBaseRef: undefined })
-        }
-        setBaseRefDialogOpen(false)
-        window.setTimeout(() => void refreshBranchCompare(), 0)
-      }}
-      sourceControlAiActionsVisible={sourceControlAiActionsVisible}
-      resolveConflictsComposerOpen={resolveConflictsComposerOpen}
-      onResolveConflictsComposerOpenChange={setResolveConflictsComposerOpen}
-      resolveConflictsPrompt={resolveConflictsPrompt}
-      worktreeId={activeWorktreeId}
-      groupId={activeGroupId ?? activeWorktreeId}
-      connectionId={activeConnectionId}
-      repoId={activeRepo.id}
-      launchPlatform={activeSourceControlLaunchPlatform}
-      savedResolveConflictsAgentId={readSourceControlLaunchRecipeAgentId(
-        getLaunchActionRecipe('resolveConflicts')
-      )}
-      savedResolveConflictsCommandInputTemplate={
-        getLaunchActionRecipe('resolveConflicts').commandInputTemplate ?? null
-      }
-      savedResolveConflictsAgentArgs={getLaunchActionRecipe('resolveConflicts').agentArgs ?? null}
-      onSaveAgentDefault={saveLaunchActionDefault}
-      onOpenSourceControlAiSettings={openSourceControlAiSettings}
-      commitGenerationDialogOpen={commitGenerationDialogOpen}
-      onCommitGenerationDialogOpenChange={setCommitGenerationDialogOpen}
-      pullRequestGenerationDialogOpen={pullRequestGenerationDialogOpen}
-      onPullRequestGenerationDialogOpenChange={setPullRequestGenerationDialogOpen}
-      settings={settings}
-      repo={activeRepo}
-      discoveryHostKey={sourceControlAiDiscoveryHostKey}
-      linkedIssue={activeWorktree.linkedIssue ?? null}
-      onGenerateCommitMessage={(params) => {
-        void handleGenerate({ sourceControlAiResolvedParams: params })
-      }}
-      onSaveCommitMessageDefaults={handleSaveCommitMessageGenerationDefaults}
-      onGeneratePullRequestFields={(params) => {
-        void handleGeneratePullRequestFields({ sourceControlAiResolvedParams: params })
-      }}
-      onSavePullRequestDefaults={handleSavePullRequestGenerationDefaults}
-    />
+        savedResolveConflictsAgentArgs={getLaunchActionRecipe('resolveConflicts').agentArgs ?? null}
+        onSaveAgentDefault={saveLaunchActionDefault}
+        onOpenSourceControlAiSettings={openSourceControlAiSettings}
+        commitGenerationDialogOpen={commitGenerationDialogOpen}
+        onCommitGenerationDialogOpenChange={setCommitGenerationDialogOpen}
+        pullRequestGenerationDialogOpen={pullRequestGenerationDialogOpen}
+        onPullRequestGenerationDialogOpenChange={setPullRequestGenerationDialogOpen}
+        settings={settings}
+        repo={activeRepo}
+        discoveryHostKey={sourceControlAiDiscoveryHostKey}
+        linkedIssue={activeWorktree.linkedIssue ?? null}
+        onGenerateCommitMessage={(params) => {
+          void handleGenerate({ sourceControlAiResolvedParams: params })
+        }}
+        onSaveCommitMessageDefaults={handleSaveCommitMessageGenerationDefaults}
+        onGeneratePullRequestFields={(params) => {
+          void handleGeneratePullRequestFields({ sourceControlAiResolvedParams: params })
+        }}
+        onSavePullRequestDefaults={handleSavePullRequestGenerationDefaults}
+      />
+    </>
   )
 }

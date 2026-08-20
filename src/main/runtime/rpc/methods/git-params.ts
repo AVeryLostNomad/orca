@@ -202,6 +202,13 @@ export const GitBulkPaths = WorktreeSelector.extend({
   filePaths: z.array(z.string().min(1, 'Missing file path'))
 })
 
+export const GitMoveChanges = WorktreeSelector.extend({
+  targetWorktree: z
+    .unknown()
+    .transform((v) => (typeof v === 'string' ? v : ''))
+    .pipe(z.string().min(1, 'Missing target worktree selector'))
+})
+
 const GitPushTargetParam = z.object({
   remoteName: z.string(),
   branchName: z.string(),

@@ -59,6 +59,8 @@ import {
   getCommitCompare,
   getCommitDiff
 } from '../git/status'
+import { moveChangesToWorktree } from '../git/move-changes'
+import type { GitMoveChangesResult } from '../../shared/git-move-changes'
 import { getHistory } from '../git/history'
 import {
   cancelGenerateCommitMessageLocal,
@@ -2299,6 +2301,31 @@ export function registerFilesystemHandlers(
         worktreePath
       )
       await bulkUnstageFiles(worktreePath, filePaths, gitOptions)
+    }
+  )
+
+  ipcMain.handle(
+    'git:moveChanges',
+    async (
+      _event,
+      args: { worktreePath: string; targetWorktreePath: string; connectionId?: string }
+    ): Promise<GitMoveChangesResult> => {
+      if (args.connectionId) {
+        const provider = getSshGitProvider(args.connectionId)
+        if (!provider) {
+          throw new Error(SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE)
+        }
+        return provider.moveChangesToWorktree(args.worktreePath, args.targetWorktreePath)
+      }
+      const sourcePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const targetPath = await resolveRegisteredWorktreePath(args.targetWorktreePath, store)
+      // Why: both worktrees live on one host, so the source's git options cover the pair.
+      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
+        store,
+        args.worktreePath,
+        sourcePath
+      )
+      return moveChangesToWorktree(sourcePath, targetPath, gitOptions)
     }
   )
 

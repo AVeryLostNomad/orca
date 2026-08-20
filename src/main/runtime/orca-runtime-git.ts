@@ -47,6 +47,8 @@ import {
   stageFile,
   unstageFile
 } from '../git/status'
+import { moveChangesToWorktree } from '../git/move-changes'
+import type { GitMoveChangesResult } from '../../shared/git-move-changes'
 import { checkoutBranch, listLocalBranches } from '../git/checkout'
 import type { RuntimeGitCheckoutResult, RuntimeGitLocalBranches } from '../../shared/runtime-types'
 import { getHistory as getGitHistory } from '../git/history'
@@ -988,6 +990,31 @@ export class RuntimeGitCommands {
     }
     await discardChanges(target.worktree.path, relativePath, localGitOptionsForTarget(target))
     return { ok: true }
+  }
+
+  async moveRuntimeGitChanges(
+    worktreeSelector: string,
+    targetWorktreeSelector: string
+  ): Promise<GitMoveChangesResult> {
+    const source = await this.host.resolveRuntimeGitTarget(worktreeSelector)
+    const target = await this.host.resolveRuntimeGitTarget(targetWorktreeSelector)
+    // Why: the stash transfer relies on a shared object database, so both
+    // worktrees must be executed by the same host.
+    if (source.connectionId !== target.connectionId) {
+      throw new Error('Both worktrees must live on the same host to move changes.')
+    }
+    if (source.connectionId) {
+      const provider = getSshGitProvider(source.connectionId)
+      if (!provider) {
+        throw new Error(SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE)
+      }
+      return provider.moveChangesToWorktree(source.worktree.path, target.worktree.path)
+    }
+    return moveChangesToWorktree(
+      source.worktree.path,
+      target.worktree.path,
+      localGitOptionsForTarget(source)
+    )
   }
 
   async getRuntimeGitRemoteFileUrl(

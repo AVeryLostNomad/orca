@@ -47,6 +47,7 @@ import { annotatePrunableWorktreesByExistence } from './git-handler-worktree-lis
 import { forceDeletePreservedRelayBranch } from './git-handler-branch-cleanup'
 import { refreshLocalBaseRefForWorktreeCreateOp } from './git-handler-local-base-ref-refresh'
 import { gitExecMutatesRepository } from '../shared/git-exec-mutation'
+import { moveChangesBetweenWorktrees } from '../shared/git-move-changes'
 import { detectConflictOperation, getStatusOp } from './git-handler-status-ops'
 import { capGitStatusEntries, resolveGitStatusLimit } from '../shared/git-status-limit'
 import { checkIgnoredPathsOp } from './git-handler-check-ignore'
@@ -224,6 +225,7 @@ export class GitHandler {
     this.dispatcher.onRequest('git.localBranches', (p) => this.localBranches(p))
     this.dispatcher.onRequest('git.discard', (p) => this.discard(p))
     this.dispatcher.onRequest('git.bulkDiscard', (p) => this.bulkDiscard(p))
+    this.dispatcher.onRequest('git.moveChanges', (p) => this.moveChanges(p))
     this.dispatcher.onRequest('git.conflictOperation', (p) => this.conflictOperation(p))
     this.dispatcher.onRequest('git.branchCompare', (p) => this.branchCompare(p))
     this.dispatcher.onRequest('git.commitCompare', (p) => this.commitCompare(p))
@@ -749,6 +751,21 @@ export class GitHandler {
             )
           }
         }
+      )
+    } finally {
+      this.clearGitMutationReadCaches()
+    }
+  }
+
+  private async moveChanges(params: Record<string, unknown>) {
+    this.clearGitMutationReadCaches()
+    const worktreePath = params.worktreePath as string
+    const targetWorktreePath = params.targetWorktreePath as string
+    try {
+      return await moveChangesBetweenWorktrees(
+        (args, cwd) => this.git(args, cwd, { nonInteractive: true }),
+        worktreePath,
+        targetWorktreePath
       )
     } finally {
       this.clearGitMutationReadCaches()

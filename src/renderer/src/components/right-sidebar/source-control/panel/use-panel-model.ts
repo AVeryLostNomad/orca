@@ -2,6 +2,7 @@ import { useGitHistoryCommitActions } from '../sync/use-git-history-commit-actio
 import { useSourceControlCommitFlows } from '../commit/use-commit-flows'
 import { useSourceControlDiscardConfirmation } from '../commit/use-discard-confirmation'
 import { useSourceControlEntryMutations } from '../commit/use-entry-mutations'
+import { useSourceControlMoveChanges } from '../commit/use-move-changes'
 import { useSourceControlNoteOpening } from '../notes/use-note-opening'
 import { useSourceControlActionDispatch } from '../review/use-action-dispatch'
 import { useSourceControlActionModel } from '../review/use-action-model'
@@ -155,6 +156,18 @@ export function useSourceControlPanelModel() {
     worktreePath,
     refreshActiveGitStatusAfterMutation
   })
+  const moveChanges = useSourceControlMoveChanges({
+    activeRepoSettings,
+    activeWorktreeId,
+    worktreePath,
+    entries,
+    unresolvedConflicts,
+    isFolder,
+    isExecutingBulk,
+    setIsExecutingBulk,
+    clearSelection,
+    refreshActiveGitStatusAfterMutation
+  })
   const discardConfirmation = useSourceControlDiscardConfirmation({
     activeRepoSettings,
     activeWorktreeId,
@@ -178,6 +191,7 @@ export function useSourceControlPanelModel() {
     ...gitHistoryCommitActions,
     ...noteOpening,
     ...entryMutations,
+    ...moveChanges,
     ...discardConfirmation
   }
 }

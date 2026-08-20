@@ -10,6 +10,7 @@ import {
   GitCommitCompare,
   GitFilePath,
   GitForkSync,
+  GitMoveChanges,
   GitHistory,
   GitPush,
   GitRebaseFromBase,
@@ -208,6 +209,12 @@ export const GIT_METHODS: RpcMethod[] = [
     params: GitBulkPaths,
     handler: async (params, { runtime }) =>
       runtime.bulkDiscardRuntimeGitPaths(params.worktree, params.filePaths)
+  }),
+  defineMethod({
+    name: 'git.moveChanges',
+    params: GitMoveChanges,
+    handler: async (params, { runtime }) =>
+      runtime.moveRuntimeGitChanges(params.worktree, params.targetWorktree)
   }),
   defineMethod({
     name: 'git.remoteFileUrl',

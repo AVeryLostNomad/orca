@@ -4,6 +4,7 @@ import type {
   GitDiffResult
 } from '../../shared/git-diff-compare-types'
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
+import type { GitMoveChangesResult } from '../../shared/git-move-changes'
 import type {
   GitConflictOperation,
   GitStagingArea,
@@ -41,6 +42,10 @@ export type IGitProvider = {
   bulkUnstageFiles(worktreePath: string, filePaths: string[]): Promise<void>
   discardChanges(worktreePath: string, filePath: string): Promise<void>
   bulkDiscardChanges(worktreePath: string, filePaths: string[]): Promise<void>
+  moveChangesToWorktree(
+    worktreePath: string,
+    targetWorktreePath: string
+  ): Promise<GitMoveChangesResult>
   detectConflictOperation(worktreePath: string): Promise<GitConflictOperation>
   abortMerge(worktreePath: string): Promise<void>
   abortRebase(worktreePath: string): Promise<void>

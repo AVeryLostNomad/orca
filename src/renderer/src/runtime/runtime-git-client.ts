@@ -7,6 +7,7 @@ import type {
   GitDiffResult
 } from '../../../shared/git-diff-compare-types'
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../../shared/git-fork-sync'
+import type { GitMoveChangesResult } from '../../../shared/git-move-changes'
 import type {
   GitConflictOperation,
   GitStagingArea,
@@ -914,6 +915,30 @@ export async function discardRuntimeGitPath(
     'git.discard',
     { worktree: toRuntimeWorktreeSelector(context.worktreeId), filePath },
     { timeoutMs: 15_000 }
+  )
+}
+
+export async function moveRuntimeGitChangesToWorktree(
+  context: RuntimeGitContext,
+  target: { worktreeId: string; worktreePath: string }
+): Promise<GitMoveChangesResult> {
+  const runtimeTarget = getActiveRuntimeTarget(context.settings)
+  if (runtimeTarget.kind === 'local' || !context.worktreeId) {
+    return window.api.git.moveChanges({
+      worktreePath: resolveLocalWorktreePath(context),
+      targetWorktreePath:
+        splitWorktreeIdForFilesystem(target.worktreeId)?.worktreePath ?? target.worktreePath,
+      connectionId: context.connectionId
+    })
+  }
+  return callRuntimeRpc<GitMoveChangesResult>(
+    runtimeTarget,
+    'git.moveChanges',
+    {
+      worktree: toRuntimeWorktreeSelector(context.worktreeId),
+      targetWorktree: toRuntimeWorktreeSelector(target.worktreeId)
+    },
+    { timeoutMs: 60_000 }
   )
 }
 
