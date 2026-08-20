@@ -16,6 +16,7 @@ export type TabCreateMenuOptionDispatchDeps = {
   onNewDataStudioTab?: () => void
   onNewSimulatorTab?: () => void
   onNewFileTab?: () => void
+  onNewScratchFileTab?: () => void
   onOpenFileTab?: () => void
 }
 
@@ -52,6 +53,9 @@ export function dispatchTabCreateMenuOption(
       break
     case 'new-markdown':
       deps.onNewFileTab?.()
+      break
+    case 'new-scratch-file':
+      deps.onNewScratchFileTab?.()
       break
     case 'open-markdown':
       deps.onOpenFileTab?.()

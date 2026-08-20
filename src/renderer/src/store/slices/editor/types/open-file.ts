@@ -120,6 +120,8 @@ export type OpenFile = {
   isUntitled?: boolean // true for files created via "New Markdown" that haven't been renamed yet
   // Why: templated New Markdown files have real content at creation, unlike blank placeholders that can be discarded.
   deleteUntouchedOnClose?: boolean
+  /** Scratch tab: lives in the local app-owned scratch dir, deleted from disk unconditionally on close, and content-based language detection renames its extension. */
+  isScratch?: boolean
   // Why: external delete/rename of an open file keeps the tab (strikethrough label); 'changed' = rewritten on disk under unsaved edits → changed-on-disk banner (#7265).
   externalMutation?: 'deleted' | 'renamed' | 'changed'
   /** Signature of the disk content this tab's edits are based on; persisted so a restore detects a changed-on-disk conflict before autosave clobbers an agent write. */

@@ -22,6 +22,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     onNewDataStudioTab,
     onNewSimulatorTab,
     onNewFileTab,
+    onNewScratchFileTab,
     onOpenFileTab,
     onPinFile
   } = props
@@ -39,6 +40,8 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     hasCreateCallback: Boolean(onNewDataStudioTab),
     settingEnabled: runtime.dataStudioTabOptionEnabled
   })
+  // Scratch files live in the local app-owned scratch dir; mirror the VS Code local-only gate.
+  const hasNewScratchFile = !terminalOnly && runtime.isLocalWorktree && Boolean(onNewScratchFileTab)
   const createMenu = useTabBarCreateMenuController({
     worktreeId,
     resolvedGroupId: runtime.resolvedGroupId,
@@ -55,6 +58,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     agentLaunchOptions: runtime.agentLaunchOptions,
     hasNewVSCode: vscodeCreateGate.hasNewVSCode,
     hasNewDataStudio: dataStudioCreateGate.hasNewDataStudio,
+    hasNewScratchFile,
     onNewTerminalTab,
     onNewTerminalWithShell,
     onNewBrowserTab,
@@ -62,6 +66,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     onNewDataStudioTab,
     onNewSimulatorTab,
     onNewFileTab,
+    onNewScratchFileTab,
     onOpenFileTab
   })
   const itemProjection = useTabBarItemProjection({
@@ -101,6 +106,7 @@ function TabBarInner(props: TabBarProps): React.JSX.Element {
     createMenu,
     vscodeCreateGate,
     dataStudioCreateGate,
+    hasNewScratchFile,
     itemProjection,
     tabStripNavigation,
     tabStripDragScroll,

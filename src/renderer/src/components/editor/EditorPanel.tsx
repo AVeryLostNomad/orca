@@ -17,6 +17,7 @@ import { useEditorCmdSaveRequest } from './useEditorCmdSaveRequest'
 import { useEditorPanelContentState } from './useEditorPanelContentState'
 import { useMarkdownPreviewShortcut } from './useMarkdownPreviewShortcut'
 import { useUntitledFileRename } from './useUntitledFileRename'
+import { useScratchLanguageAutodetect } from './useScratchLanguageAutodetect'
 import { extractFrontMatter } from './markdown-frontmatter'
 import {
   selectEditorPanelGitBranchEntries,
@@ -126,6 +127,7 @@ function EditorPanelInner({
   } = useUntitledFileRename({ openFiles, clearUntitled })
 
   useClosedEditorTabCleanup(openFiles)
+  useScratchLanguageAutodetect(activeFile)
   useMarkdownPreviewShortcut({ activeFile, panelRef, openMarkdownPreview })
 
   const handleContentChangeForFile = useCallback(

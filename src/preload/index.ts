@@ -600,6 +600,8 @@ const api = {
       ipcRenderer.invoke('app:getFloatingTerminalCwd', args),
     getFloatingMarkdownDirectory: (): Promise<string> =>
       ipcRenderer.invoke('app:getFloatingMarkdownDirectory'),
+    getScratchFileDirectory: (): Promise<string> =>
+      ipcRenderer.invoke('app:getScratchFileDirectory'),
     pickFloatingMarkdownDocument: (): Promise<MarkdownDocument | null> =>
       ipcRenderer.invoke('app:pickFloatingMarkdownDocument'),
     pickFloatingWorkspaceDirectory: (): Promise<string | null> =>

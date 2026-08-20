@@ -31,3 +31,8 @@ export function shouldDeleteUntouchedUntitledFile(
     file?.isUntitled === true && !file.isDirty && !hasDraft && file.deleteUntouchedOnClose !== false
   )
 }
+
+/** Scratch tabs are throwaway by contract: delete on close even when edited. */
+export function shouldDeleteScratchFileOnClose(file: OpenFile | undefined): boolean {
+  return file?.isScratch === true && file.mode === 'edit'
+}

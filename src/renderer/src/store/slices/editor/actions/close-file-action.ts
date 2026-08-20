@@ -6,6 +6,7 @@ import { type ClosedEditorTabSnapshot, MAX_RECENT_CLOSED_EDITOR_TABS } from '../
 import { removeMarkdownVisibilityKeys } from '../tabs/workspace-editor-item'
 import {
   deleteUntouchedUntitledFile,
+  shouldDeleteScratchFileOnClose,
   shouldDeleteUntouchedUntitledFile
 } from '../tabs/untitled-file-cleanup'
 
@@ -19,7 +20,9 @@ export function createCloseFileAction(
       const preClose = get().openFiles.find((f) => f.id === fileId)
       // Why: also check editorDrafts — isDirty is set by a debounced callback, so a draft can exist before isDirty flushes; a draft means the user typed something.
       const hasDraft = !!get().editorDrafts[fileId]
-      const shouldDeleteFromDisk = shouldDeleteUntouchedUntitledFile(preClose, hasDraft)
+      const shouldDeleteFromDisk =
+        shouldDeleteUntouchedUntitledFile(preClose, hasDraft) ||
+        shouldDeleteScratchFileOnClose(preClose)
 
       // Why: mirrored tabs are host-owned, so the host must close its copy or its next snapshot re-mirrors the file and the tab reopens.
       notifyHostOfMirroredEditorClose(get(), preClose?.worktreeId, fileId)

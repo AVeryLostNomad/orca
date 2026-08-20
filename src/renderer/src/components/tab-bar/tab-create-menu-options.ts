@@ -8,6 +8,7 @@ export type TabCreateMenuOptionKind =
   | 'new-browser'
   | 'new-datastudio'
   | 'new-markdown'
+  | 'new-scratch-file'
   | 'new-simulator'
   | 'new-terminal'
   | 'new-terminal-shell'
@@ -25,6 +26,9 @@ export type TabCreateMenuOption = {
 export type TabCreateMenuOptionsContext = {
   hasNewBrowser: boolean
   hasNewMarkdown: boolean
+  // Scratch files live in the local app-owned scratch dir, so only locally-owned
+  // workspaces offer the entry (mirrors the VS Code local-only gate).
+  hasNewScratchFile?: boolean
   hasOpenMarkdown: boolean
   hasSimulator: boolean
   // Only the fully-enabled (local + mac/linux) case is searchable; the remote
@@ -167,6 +171,26 @@ export function buildTabCreateMenuOptions(
         translate('auto.components.tab.bar.tab.create.menu.options.fb50e3d874', 'new markdown'),
         translate('auto.components.tab.bar.tab.create.menu.options.6d8b6b4117', 'new file'),
         translate('auto.components.tab.bar.tab.create.menu.options.b330f72434', 'mark')
+      ]
+    })
+  }
+
+  if (context.hasNewScratchFile) {
+    const label = translate(
+      'auto.components.tab.bar.tab.create.menu.options.newScratchFile',
+      'New Scratch File'
+    )
+    options.push({
+      id: 'new-scratch-file',
+      kind: 'new-scratch-file',
+      label,
+      keywords: [
+        translate('auto.components.tab.bar.tab.create.menu.options.scratch', 'scratch'),
+        translate('auto.components.tab.bar.tab.create.menu.options.scratchFile', 'scratch file'),
+        translate('auto.components.tab.bar.tab.create.menu.options.snippet', 'snippet'),
+        translate('auto.components.tab.bar.tab.create.menu.options.paste', 'paste'),
+        translate('auto.components.tab.bar.tab.create.menu.options.tempFile', 'temp file'),
+        translate('auto.components.tab.bar.tab.create.menu.options.6d8b6b4117', 'new file')
       ]
     })
   }

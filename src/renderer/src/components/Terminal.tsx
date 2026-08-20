@@ -386,6 +386,9 @@ function Terminal(): React.JSX.Element | null {
     (s) => s.openNewBrowserTabInActiveWorkspace
   )
   const openNewMarkdownInActiveWorkspace = useAppStore((s) => s.openNewMarkdownInActiveWorkspace)
+  const openNewScratchFileInActiveWorkspace = useAppStore(
+    (s) => s.openNewScratchFileInActiveWorkspace
+  )
   const openNewTerminalTabInActiveWorkspace = useAppStore(
     (s) => s.openNewTerminalTabInActiveWorkspace
   )
@@ -1787,6 +1790,19 @@ function Terminal(): React.JSX.Element | null {
     await openNewMarkdownInActiveWorkspace(targetGroupId)
   }, [activeWorktreeId, openNewMarkdownInActiveWorkspace])
 
+  const handleNewScratchFile = useCallback(async () => {
+    if (!activeWorktreeId) {
+      return
+    }
+    const targetGroupId =
+      useAppStore.getState().activeGroupIdByWorktree[activeWorktreeId] ??
+      useAppStore.getState().groupsByWorktree[activeWorktreeId]?.[0]?.id
+    if (!targetGroupId) {
+      return
+    }
+    await openNewScratchFileInActiveWorkspace(targetGroupId)
+  }, [activeWorktreeId, openNewScratchFileInActiveWorkspace])
+
   const handleCloseTab = useCallback((tabId: string) => {
     closeTerminalTab(tabId)
   }, [])
@@ -2528,6 +2544,7 @@ function Terminal(): React.JSX.Element | null {
             onNewSimulatorTab={mobileEmulatorEnabled ? handleNewSimulatorTab : undefined}
             onOpenEntry={handleOpenEntry}
             onNewFileTab={handleNewFile}
+            onNewScratchFileTab={handleNewScratchFile}
             onSetCustomTitle={setTabCustomTitle}
             onSetTabColor={setTabColor}
             expandedPaneByTabId={expandedPaneByTabId}

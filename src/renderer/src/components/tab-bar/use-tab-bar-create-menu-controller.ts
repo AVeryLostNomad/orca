@@ -53,6 +53,7 @@ export function useTabBarCreateMenuController({
   agentLaunchOptions,
   hasNewVSCode,
   hasNewDataStudio,
+  hasNewScratchFile,
   onNewTerminalTab,
   onNewTerminalWithShell,
   onNewBrowserTab,
@@ -60,6 +61,7 @@ export function useTabBarCreateMenuController({
   onNewDataStudioTab,
   onNewSimulatorTab,
   onNewFileTab,
+  onNewScratchFileTab,
   onOpenFileTab
 }: {
   worktreeId: string
@@ -79,6 +81,7 @@ export function useTabBarCreateMenuController({
   agentLaunchOptions: TabAgentLaunchOption[]
   hasNewVSCode: boolean
   hasNewDataStudio: boolean
+  hasNewScratchFile: boolean
   onNewTerminalTab: () => void
   onNewTerminalWithShell?: (shell: string) => void
   onNewBrowserTab: () => void
@@ -86,6 +89,7 @@ export function useTabBarCreateMenuController({
   onNewDataStudioTab?: () => void
   onNewSimulatorTab?: () => void
   onNewFileTab?: () => void
+  onNewScratchFileTab?: () => void
   onOpenFileTab?: () => void
 }): TabBarCreateMenuController {
   // Why: <webview> clicks are out-of-process, so Radix's document-pointerdown outside-click check misses them; use window blur.
@@ -171,6 +175,7 @@ export function useTabBarCreateMenuController({
         hasNewVSCode,
         hasNewDataStudio,
         hasNewMarkdown: !terminalOnly && Boolean(onNewFileTab),
+        hasNewScratchFile: hasNewScratchFile && Boolean(onNewScratchFileTab),
         hasOpenMarkdown: !terminalOnly && Boolean(onOpenFileTab),
         hasSimulator:
           !terminalOnly &&
@@ -182,6 +187,8 @@ export function useTabBarCreateMenuController({
     [
       hasNewVSCode,
       hasNewDataStudio,
+      hasNewScratchFile,
+      onNewScratchFileTab,
       mobileEmulatorEnabled,
       managedBrowserCreationEnabled,
       mobileEmulatorCreationEnabled,
@@ -205,6 +212,7 @@ export function useTabBarCreateMenuController({
       onNewDataStudioTab,
       onNewSimulatorTab,
       onNewFileTab,
+      onNewScratchFileTab,
       onOpenFileTab
     })
   }

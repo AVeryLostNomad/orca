@@ -3279,7 +3279,13 @@
                   "database": "database",
                   "sql": "sql",
                   "db": "db",
-                  "query": "query"
+                  "query": "query",
+                  "newScratchFile": "New Scratch File",
+                  "scratch": "scratch",
+                  "scratchFile": "scratch file",
+                  "snippet": "snippet",
+                  "paste": "paste",
+                  "tempFile": "temp file"
                 }
               }
             }

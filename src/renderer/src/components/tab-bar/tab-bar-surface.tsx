@@ -33,6 +33,7 @@ export function renderTabBarSurface({
   createMenu,
   vscodeCreateGate,
   dataStudioCreateGate,
+  hasNewScratchFile,
   itemProjection,
   tabStripNavigation,
   tabStripDragScroll,
@@ -43,6 +44,7 @@ export function renderTabBarSurface({
   createMenu: TabBarCreateMenuController
   vscodeCreateGate: VSCodeTabCreateGate
   dataStudioCreateGate: DataStudioTabCreateGate
+  hasNewScratchFile: boolean
   itemProjection: TabBarItemProjection
   tabStripNavigation: ReturnType<typeof useTabStripOverflowNavigation>
   tabStripDragScroll: ReturnType<typeof useTabStripDragScrollHandlers>
@@ -105,6 +107,7 @@ export function renderTabBarSurface({
     vscodeRemoteDisabled: vscodeCreateGate.vscodeRemoteDisabled,
     hasNewDataStudio: dataStudioCreateGate.hasNewDataStudio,
     dataStudioRemoteDisabled: dataStudioCreateGate.dataStudioRemoteDisabled,
+    hasNewScratchFile,
     mobileEmulatorEnabled,
     managedBrowserCreationEnabled,
     mobileEmulatorCreationEnabled,

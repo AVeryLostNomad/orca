@@ -21,6 +21,7 @@ import {
   grantFloatingWorkspaceDirectory,
   resolveFloatingTerminalCwd
 } from './floating-workspace-directory'
+import { ensureScratchFileDirectory } from './scratch-file-directory'
 import { isMarkdownDocumentName, markdownDocumentFromFilePath } from './markdown-documents'
 import { registerWorkspaceNotesHandlers } from './workspace-notes'
 import { registerMacSymbolicHotkeysProbeHandler } from './macos-symbolic-hotkeys-probe'
@@ -315,6 +316,8 @@ export function registerAppHandlers(store: Store, options: RegisterAppHandlersOp
   )
 
   ipcMain.handle('app:getFloatingMarkdownDirectory', () => ensureDefaultFloatingWorkspacePath())
+
+  ipcMain.handle('app:getScratchFileDirectory', () => ensureScratchFileDirectory())
 
   ipcMain.handle('app:pickFloatingMarkdownDocument', (event) => pickFloatingMarkdownDocument(event))
 

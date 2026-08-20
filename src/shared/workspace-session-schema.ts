@@ -128,7 +128,8 @@ const persistedOpenFileSchema = z.object({
   readOnly: z.boolean().optional(),
   liveTail: z.boolean().optional(),
   alwaysAutoSave: z.boolean().optional(),
-  workspaceNotesOwnerId: z.string().optional()
+  workspaceNotesOwnerId: z.string().optional(),
+  isScratch: z.boolean().optional()
 })
 
 // ─── Workspace session ──────────────────────────────────────────────

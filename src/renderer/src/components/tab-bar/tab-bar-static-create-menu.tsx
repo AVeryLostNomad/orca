@@ -1,6 +1,7 @@
 import React from 'react'
 import {
   Database,
+  FileCode2,
   FilePlus,
   FileText,
   Globe,
@@ -32,6 +33,7 @@ export function renderTabBarStaticCreateMenu({
   vscodeRemoteDisabled,
   hasNewDataStudio,
   dataStudioRemoteDisabled,
+  hasNewScratchFile,
   props,
   windowsShellEntries,
   defaultWindowsPowerShellImplementation,
@@ -54,6 +56,7 @@ export function renderTabBarStaticCreateMenu({
   vscodeRemoteDisabled: boolean
   hasNewDataStudio: boolean
   dataStudioRemoteDisabled: boolean
+  hasNewScratchFile: boolean
   windowsShellEntries: WindowsShellMenuEntry[] | undefined
   defaultWindowsPowerShellImplementation: ReturnType<
     typeof resolveWindowsPowerShellImplementationSetting
@@ -75,6 +78,7 @@ export function renderTabBarStaticCreateMenu({
     onNewDataStudioTab,
     onNewSimulatorTab,
     onNewFileTab,
+    onNewScratchFileTab,
     onOpenFileTab
   } = props
   const defaultTerminalMenuItems =
@@ -244,6 +248,19 @@ export function renderTabBarStaticCreateMenu({
         <DropdownMenuShortcut>{newFileShortcut}</DropdownMenuShortcut>
       </DropdownMenuItem>
     ) : null
+  const newScratchFileMenuItem =
+    hasNewScratchFile && onNewScratchFileTab ? (
+      <DropdownMenuItem
+        onSelect={onNewScratchFileTab}
+        className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+      >
+        <FileCode2 className="size-4 text-muted-foreground" />
+        {translate(
+          'auto.components.tab.bar.tab.create.menu.options.newScratchFile',
+          'New Scratch File'
+        )}
+      </DropdownMenuItem>
+    ) : null
   const openMarkdownMenuItem =
     !terminalOnly && onOpenFileTab ? (
       <DropdownMenuItem
@@ -270,6 +287,7 @@ export function renderTabBarStaticCreateMenu({
   return newTabMenuOrder === 'markdown-first' ? (
     <>
       {newMarkdownMenuItem}
+      {newScratchFileMenuItem}
       {openMarkdownMenuItem}
       {defaultTerminalMenuItems}
       {newBrowserMenuItem}
@@ -285,6 +303,7 @@ export function renderTabBarStaticCreateMenu({
       {newVSCodeMenuItem}
       {newDataStudioMenuItem}
       {newMarkdownMenuItem}
+      {newScratchFileMenuItem}
       {openMarkdownMenuItem}
       {newSimulatorMenuItem}
       {mobileEmulatorIntroMenuBlock}

@@ -57,6 +57,9 @@ export type AppApi = {
   /** Resolves Orca's app-owned directory for auto-created Floating Workspace
    *  markdown notes. */
   getFloatingMarkdownDirectory: () => Promise<string>
+  /** Resolves Orca's app-owned directory for throwaway scratch editor files.
+   *  Empty string where unsupported (web client). */
+  getScratchFileDirectory: () => Promise<string>
   /** Opens a native picker for markdown documents, rooted in the floating
    *  workspace, and authorizes the selected file for editor reads/writes. */
   pickFloatingMarkdownDocument: () => Promise<MarkdownDocument | null>

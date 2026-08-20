@@ -1,6 +1,7 @@
 import React from 'react'
 import {
   Database,
+  FileCode2,
   FilePlus,
   FileText,
   GitCompare,
@@ -152,6 +153,8 @@ function getActionPresentation(option: ActiveOption): {
         <Globe className="size-3.5 shrink-0" aria-hidden="true" />
       ) : option.option.kind === 'new-markdown' ? (
         <FilePlus className="size-3.5 shrink-0" aria-hidden="true" />
+      ) : option.option.kind === 'new-scratch-file' ? (
+        <FileCode2 className="size-3.5 shrink-0" aria-hidden="true" />
       ) : option.option.kind === 'open-markdown' ? (
         <FileText className="size-3.5 shrink-0" aria-hidden="true" />
       ) : option.option.kind === 'new-simulator' || option.option.kind === 'go-to-simulator' ? (

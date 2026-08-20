@@ -53,6 +53,26 @@ describe('tab create menu options', () => {
     ).toEqual(['new-browser'])
   })
 
+  it('offers the scratch file action only when the local gate allows it', () => {
+    const withScratch = buildTabCreateMenuOptions({
+      terminalOnly: false,
+      hasNewBrowser: false,
+      hasNewMarkdown: true,
+      hasNewScratchFile: true,
+      hasOpenMarkdown: false,
+      hasSimulator: false,
+      simulatorIsGoTo: false
+    })
+    expect(
+      findMatchingTabCreateMenuOptions('scratch', withScratch).map((option) => option.kind)
+    ).toEqual(['new-scratch-file'])
+    expect(
+      findMatchingTabCreateMenuOptions('paste', withScratch).map((option) => option.kind)
+    ).toEqual(['new-scratch-file'])
+
+    expect(findMatchingTabCreateMenuOptions('scratch', defaultOptions)).toEqual([])
+  })
+
   it('keeps terminal and markdown results when client-impossible actions are omitted', () => {
     const options = buildTabCreateMenuOptions({
       terminalOnly: false,

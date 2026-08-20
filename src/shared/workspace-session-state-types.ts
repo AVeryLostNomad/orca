@@ -33,6 +33,8 @@ export type PersistedOpenFile = {
   alwaysAutoSave?: boolean
   /** Workspace key this floating notes file belongs to; drives restart reconciliation. */
   workspaceNotesOwnerId?: string
+  /** Scratch tab must survive restart still throwaway so close still deletes it. */
+  isScratch?: boolean
 }
 
 export type WorkspaceSessionState = {

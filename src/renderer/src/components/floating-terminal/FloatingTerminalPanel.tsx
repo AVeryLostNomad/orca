@@ -31,6 +31,7 @@ import { useTerminalSaveDialog } from '@/components/terminal/useTerminalSaveDial
 import { appendUniqueOpenFileIds } from '@/components/terminal/unsaved-close-queue'
 import { getConnectionId } from '@/lib/connection-context'
 import { createUntitledMarkdownFileWithTemplateSelection } from '@/lib/create-untitled-markdown'
+import { createScratchFile } from '@/lib/create-scratch-file'
 import { detectLanguage } from '@/lib/language-detect'
 import { buildDuplicatedBrowserTabOptions } from '@/lib/duplicate-browser-tab-options'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
@@ -872,6 +873,24 @@ export function FloatingTerminalPanel({
       }
     })()
   }, [activeGroup, markdownCwd, openFile])
+
+  const createFloatingScratchFileTab = useCallback(() => {
+    void (async () => {
+      try {
+        const fileInfo = await createScratchFile(FLOATING_TERMINAL_WORKTREE_ID)
+        if (!fileInfo) {
+          return
+        }
+        openFile(fileInfo, {
+          preview: false,
+          targetGroupId: activeGroup?.id,
+          suppressActiveRuntimeFallback: true
+        })
+      } catch (err) {
+        toast.error(extractIpcErrorMessage(err, 'Failed to create scratch file.'))
+      }
+    })()
+  }, [activeGroup, openFile])
 
   const openFloatingMarkdownTab = useCallback(() => {
     void (async () => {
@@ -1873,6 +1892,7 @@ export function FloatingTerminalPanel({
               onNewTerminalWithShell={createFloatingTerminalTab}
               onNewBrowserTab={createFloatingBrowserTab}
               onNewFileTab={createFloatingMarkdownTab}
+              onNewScratchFileTab={createFloatingScratchFileTab}
               onOpenFileTab={openFloatingMarkdownTab}
               newTabMenuOrder="markdown-first"
               onSetCustomTitle={setTabCustomTitle}

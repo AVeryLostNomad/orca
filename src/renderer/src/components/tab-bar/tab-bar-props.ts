@@ -29,6 +29,8 @@ export type TabBarProps = {
   terminalOnly?: boolean
   showAgentLaunchItems?: boolean
   onNewFileTab?: () => void
+  /** Creates a throwaway scratch file tab (local scratch dir, deleted on close). */
+  onNewScratchFileTab?: () => void
   onOpenFileTab?: () => void
   newTabMenuOrder?: 'default' | 'markdown-first'
   onSetCustomTitle: (tabId: string, title: string | null) => void
