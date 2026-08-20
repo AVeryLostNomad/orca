@@ -3,10 +3,13 @@ import {
   formatSubmodulePushFailureDetail,
   isDivergentPullReconciliationError,
   isNoUpstreamError,
+  isStaleInfoPushRejection,
   MERGE_RECONCILIATION_PULL_ARGS,
   normalizeGitErrorMessage,
   pullArgsSpecifyReconciliation,
-  runPullWithDivergenceFallback
+  pushTargetRemoteBranchExists,
+  runPullWithDivergenceFallback,
+  runPushWithDeletedRemoteBranchFallback
 } from './git-remote-error'
 
 afterEach(() => {
@@ -231,5 +234,120 @@ describe('runPullWithDivergenceFallback', () => {
 
     await expect(runPullWithDivergenceFallback([], runPull)).rejects.toBe(otherError)
     expect(runPull).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('stale-info push rejection', () => {
+  const staleInfoError = new Error(
+    'Command failed: git push --force-with-lease --set-upstream origin HEAD:feature\n' +
+      'To github.com:me/repo.git\n' +
+      ' ! [rejected]        HEAD -> feature (stale info)\n' +
+      "error: failed to push some refs to 'github.com:me/repo.git'"
+  )
+
+  it('detects the lease rejection line', () => {
+    expect(isStaleInfoPushRejection(staleInfoError)).toBe(true)
+    expect(isStaleInfoPushRejection(new Error('fatal: unrelated'))).toBe(false)
+    expect(isStaleInfoPushRejection('stale info')).toBe(false)
+  })
+
+  it('normalizes to actionable fetch guidance', () => {
+    expect(normalizeGitErrorMessage(staleInfoError, 'push')).toBe(
+      'Push rejected: the remote branch changed since your last fetch (stale info). Fetch and try again.'
+    )
+  })
+
+  it('retries a lease push as a plain push when the remote branch is gone', async () => {
+    const leases: boolean[] = []
+    const runPush = vi.fn(async (forceWithLease: boolean) => {
+      leases.push(forceWithLease)
+      if (forceWithLease) {
+        throw staleInfoError
+      }
+    })
+
+    await runPushWithDeletedRemoteBranchFallback(runPush, {
+      forceWithLease: true,
+      remoteBranchExists: async () => false
+    })
+
+    expect(leases).toEqual([true, false])
+  })
+
+  it('surfaces the lease rejection when the remote branch still exists', async () => {
+    const runPush = vi.fn(async () => {
+      throw staleInfoError
+    })
+
+    await expect(
+      runPushWithDeletedRemoteBranchFallback(runPush, {
+        forceWithLease: true,
+        remoteBranchExists: async () => true
+      })
+    ).rejects.toBe(staleInfoError)
+    expect(runPush).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces the lease rejection when existence cannot be verified', async () => {
+    const runPush = vi.fn(async () => {
+      throw staleInfoError
+    })
+
+    await expect(
+      runPushWithDeletedRemoteBranchFallback(runPush, {
+        forceWithLease: true,
+        remoteBranchExists: async () => null
+      })
+    ).rejects.toBe(staleInfoError)
+    expect(runPush).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry non-lease pushes', async () => {
+    const runPush = vi.fn(async () => {
+      throw staleInfoError
+    })
+
+    await expect(
+      runPushWithDeletedRemoteBranchFallback(runPush, {
+        forceWithLease: false,
+        remoteBranchExists: async () => false
+      })
+    ).rejects.toBe(staleInfoError)
+    expect(runPush).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('pushTargetRemoteBranchExists', () => {
+  it('checks the refspec branch on the target remote', async () => {
+    const exec = vi.fn(async (args: string[]) => {
+      expect(args).toEqual(['ls-remote', '--heads', 'fork', 'refs/heads/feature'])
+      return { stdout: 'abc123\trefs/heads/feature\n' }
+    })
+
+    expect(
+      await pushTargetRemoteBranchExists(exec, { remote: 'fork', refspec: 'HEAD:feature' })
+    ).toBe(true)
+  })
+
+  it('resolves HEAD to the current branch for the origin fallback', async () => {
+    const exec = vi.fn(async (args: string[]) => {
+      if (args[0] === 'symbolic-ref') {
+        return { stdout: 'feature\n' }
+      }
+      expect(args).toEqual(['ls-remote', '--heads', 'origin', 'refs/heads/feature'])
+      return { stdout: '' }
+    })
+
+    expect(await pushTargetRemoteBranchExists(exec, null)).toBe(false)
+  })
+
+  it('returns null when the existence check itself fails', async () => {
+    const exec = vi.fn(async () => {
+      throw new Error('network down')
+    })
+
+    expect(await pushTargetRemoteBranchExists(exec, { remote: 'origin', refspec: 'HEAD:x' })).toBe(
+      null
+    )
   })
 })

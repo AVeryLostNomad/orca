@@ -104,6 +104,71 @@ export async function runPullWithDivergenceFallback(
   }
 }
 
+// Why: --force-with-lease compares the remote ref against the local remote-tracking
+// ref, so a branch deleted from the remote since the last fetch fails the lease
+// ("stale info") even though recreating it cannot discard any remote work.
+const STALE_INFO_PUSH_REJECTION_PATTERN = /\[rejected\][^\n]*\(stale info\)/i
+
+export function isStaleInfoPushRejection(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false
+  }
+  return STALE_INFO_PUSH_REJECTION_PATTERN.test(stripCredentialsFromMessage(error.message))
+}
+
+type GitPushExec = (args: string[]) => Promise<{ stdout: string }>
+
+/** Whether the branch a push target lands on exists on the remote; null = could not verify. */
+export async function pushTargetRemoteBranchExists(
+  exec: GitPushExec,
+  target: { remote: string; refspec: string } | null
+): Promise<boolean | null> {
+  try {
+    let branch = target ? target.refspec.replace(/^HEAD:/, '') : 'HEAD'
+    if (branch === 'HEAD') {
+      const { stdout } = await exec(['symbolic-ref', '--quiet', '--short', 'HEAD'])
+      branch = stdout.trim()
+    }
+    if (!branch) {
+      return null
+    }
+    const { stdout } = await exec([
+      'ls-remote',
+      '--heads',
+      target?.remote ?? 'origin',
+      `refs/heads/${branch}`
+    ])
+    return stdout.trim().length > 0
+  } catch {
+    return null
+  }
+}
+
+// Why: a lease failure against a remote branch that no longer exists (deleted after
+// merge) would otherwise dead-end the push button; recreating the branch loses
+// nothing, and the plain retry still refuses genuine non-fast-forward races.
+export async function runPushWithDeletedRemoteBranchFallback(
+  runPush: (forceWithLease: boolean) => Promise<void>,
+  options: {
+    forceWithLease: boolean
+    remoteBranchExists: () => Promise<boolean | null>
+  }
+): Promise<void> {
+  try {
+    await runPush(options.forceWithLease)
+  } catch (error) {
+    if (
+      options.forceWithLease &&
+      isStaleInfoPushRejection(error) &&
+      (await options.remoteBranchExists()) === false
+    ) {
+      await runPush(false)
+      return
+    }
+    throw error
+  }
+}
+
 // Why: an exec-level timeout kills the child (SIGTERM) with no git stderr line,
 // so message inspection can't distinguish it from a real git failure.
 export function isExecKilledError(error: unknown): boolean {
@@ -135,6 +200,10 @@ export function normalizeGitErrorMessage(error: unknown, operation?: GitRemoteOp
     (raw.includes('non-fast-forward') || raw.includes('fetch first'))
   ) {
     return 'Push rejected: remote has newer commits (non-fast-forward). Please pull or sync first.'
+  }
+
+  if ((operation === 'push' || operation === undefined) && raw.includes('(stale info)')) {
+    return 'Push rejected: the remote branch changed since your last fetch (stale info). Fetch and try again.'
   }
 
   if (operation === 'push' && isPushHookFailure(raw)) {

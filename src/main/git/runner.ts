@@ -1043,6 +1043,144 @@ async function buildNetworkSshPolicyEnv(options: GitExecOptions): Promise<{
   return { env, mode: 'configured-openssh' }
 }
 
+// ─── Per-project GitHub account credential for git network commands ──
+// Registered by ipc/github at startup (setter avoids an import cycle). Mirrors
+// the gh GH_TOKEN injection: a repo's pinned account also answers git's HTTPS
+// credential lookups for push/pull/fetch so those authenticate as the pin.
+
+export type GitAccountCredential = { ref: string; token: string; host: string }
+type GitAccountCredentialResolver = (
+  cwd: string | undefined
+) => Promise<GitAccountCredential | null>
+
+let gitAccountCredentialResolver: GitAccountCredentialResolver | null = null
+let gitAccountTokenInvalidator: ((ref: string) => void) | null = null
+
+export function setGitAccountCredentialResolver(
+  resolver: GitAccountCredentialResolver | null,
+  invalidator?: (ref: string) => void
+): void {
+  gitAccountCredentialResolver = resolver
+  gitAccountTokenInvalidator = invalidator ?? null
+}
+
+export type GitAccountCommitIdentity = { name: string; email: string }
+type GitAccountIdentityResolver = (
+  cwd: string | undefined
+) => Promise<GitAccountCommitIdentity | null>
+
+let gitAccountIdentityResolver: GitAccountIdentityResolver | null = null
+
+export function setGitAccountIdentityResolver(resolver: GitAccountIdentityResolver | null): void {
+  gitAccountIdentityResolver = resolver
+}
+
+export const GIT_IDENTITY_ENV_KEYS = [
+  'GIT_AUTHOR_NAME',
+  'GIT_AUTHOR_EMAIL',
+  'GIT_COMMITTER_NAME',
+  'GIT_COMMITTER_EMAIL'
+] as const
+
+function callerProvidesGitIdentityEnv(env: NodeJS.ProcessEnv | undefined): boolean {
+  return GIT_IDENTITY_ENV_KEYS.some((key) => env?.[key] !== undefined)
+}
+
+function pinnedGitCommitIdentityEnv(
+  env: NodeJS.ProcessEnv,
+  identity: GitAccountCommitIdentity
+): NodeJS.ProcessEnv {
+  const next: NodeJS.ProcessEnv = {
+    ...env,
+    GIT_AUTHOR_NAME: identity.name,
+    GIT_AUTHOR_EMAIL: identity.email,
+    GIT_COMMITTER_NAME: identity.name,
+    GIT_COMMITTER_EMAIL: identity.email
+  }
+  if (process.platform === 'win32') {
+    addWslEnvKeys(next, GIT_IDENTITY_ENV_KEYS)
+  }
+  return next
+}
+
+// Only these subcommands contact a remote; local git keeps an uninstrumented env.
+const NETWORK_GIT_SUBCOMMANDS = new Set(['push', 'pull', 'fetch', 'clone', 'ls-remote'])
+
+// Subcommands that create commit/tag objects and therefore read author/committer identity.
+const COMMIT_IDENTITY_GIT_SUBCOMMANDS = new Set([
+  'commit',
+  'merge',
+  'rebase',
+  'cherry-pick',
+  'revert',
+  'am',
+  'pull',
+  'tag',
+  'stash'
+])
+
+function leadingGitSubcommand(args: readonly string[]): string | null {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === '-c' || arg === '-C') {
+      index++
+      continue
+    }
+    if (arg.startsWith('-')) {
+      continue
+    }
+    return arg
+  }
+  return null
+}
+
+export function gitNetworkSubcommand(args: readonly string[]): string | null {
+  const subcommand = leadingGitSubcommand(args)
+  return subcommand !== null && NETWORK_GIT_SUBCOMMANDS.has(subcommand) ? subcommand : null
+}
+
+export function gitCommitIdentitySubcommand(args: readonly string[]): string | null {
+  const subcommand = leadingGitSubcommand(args)
+  return subcommand !== null && COMMIT_IDENTITY_GIT_SUBCOMMANDS.has(subcommand) ? subcommand : null
+}
+
+// Why: always exit 0 — git also invokes the helper for store/erase, and a non-zero
+// exit there prints warnings into stderr that error-message parsers would surface.
+const PINNED_GH_CREDENTIAL_HELPER =
+  '!f() { if [ "$1" = get ]; then printf \'username=x-access-token\\npassword=%s\\n\' "$ORCA_PINNED_GH_TOKEN"; fi; }; f'
+
+const GIT_CONFIG_WSLENV_KEY_RE = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/
+
+function pinnedGitAccountCredentialEnv(
+  env: NodeJS.ProcessEnv,
+  credential: GitAccountCredential
+): NodeJS.ProcessEnv {
+  const urlKey = `credential.https://${credential.host}`
+  // Why: the token rides an env var the helper reads, so it never appears in argv
+  // or config values; the empty helper entry clears stored helpers for the pinned
+  // host so a keychain credential for another account cannot answer first.
+  const next = appendGitConfigEnv({ ...env, ORCA_PINNED_GH_TOKEN: credential.token }, [
+    [`${urlKey}.helper`, ''],
+    [`${urlKey}.helper`, PINNED_GH_CREDENTIAL_HELPER]
+  ])
+  if (process.platform === 'win32') {
+    addWslEnvKeys(next, [
+      'ORCA_PINNED_GH_TOKEN',
+      ...Object.keys(next).filter((key) => GIT_CONFIG_WSLENV_KEY_RE.test(key))
+    ])
+  }
+  return next
+}
+
+function isGitAuthFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+  const { message, stderr } = error as { message?: unknown; stderr?: unknown }
+  const text = `${typeof message === 'string' ? message : ''}\n${typeof stderr === 'string' ? stderr : ''}`
+  return /Authentication failed|could not read Username|invalid credentials|HTTP 401/i.test(text)
+}
+
 /**
  * Async git command execution. Drop-in replacement for
  * `execFileAsync('git', args, { cwd, encoding, ... })`.
@@ -1072,6 +1210,29 @@ export async function gitExecFileAsync(
       const policy = effectiveOptions.useConfiguredSshCommandForNetwork
         ? await buildNetworkSshPolicyEnv(effectiveOptions)
         : { env: nonInteractiveGitEnv(effectiveOptions.env), mode: 'default' as const }
+      // Per-project account pin: repos pinned to a GitHub account authenticate
+      // their network git commands as that account, matching gh/terminal spawns.
+      let injectedCredential: GitAccountCredential | null = null
+      if (gitAccountCredentialResolver && gitNetworkSubcommand(args)) {
+        injectedCredential = await gitAccountCredentialResolver(effectiveOptions.cwd)
+      }
+      // Pinned account also supplies commit identity, so sidebar commits (and the
+      // commits merges/rebases create) attribute to the pin. Caller identity env wins.
+      let injectedIdentity: GitAccountCommitIdentity | null = null
+      if (
+        gitAccountIdentityResolver &&
+        gitCommitIdentitySubcommand(args) &&
+        !callerProvidesGitIdentityEnv(options.env)
+      ) {
+        injectedIdentity = await gitAccountIdentityResolver(effectiveOptions.cwd)
+      }
+      let spawnEnv = policy.env
+      if (injectedCredential) {
+        spawnEnv = pinnedGitAccountCredentialEnv(spawnEnv, injectedCredential)
+      }
+      if (injectedIdentity) {
+        spawnEnv = pinnedGitCommitIdentityEnv(spawnEnv, injectedIdentity)
+      }
       const capture = (
         command: ResolvedCommand
       ): Promise<{ stdout: string | Buffer; stderr: string | Buffer }> =>
@@ -1081,7 +1242,7 @@ export async function gitExecFileAsync(
           maxBuffer: options.maxBuffer,
           timeout: options.timeout,
           stdin: options.stdin,
-          env: policy.env,
+          env: spawnEnv,
           signal: options.signal
         })
       let result: { stdout: string | Buffer; stderr: string | Buffer }
@@ -1098,6 +1259,11 @@ export async function gitExecFileAsync(
         }
         if (options.useConfiguredSshCommandForNetwork && error && typeof error === 'object') {
           Object.assign(error, { gitSshPolicyMode: policy.mode })
+        }
+        // Why: an injected token can go stale (revoked PAT, gh re-login); drop it
+        // from the cache so the user's retry resolves a fresh one.
+        if (injectedCredential && isGitAuthFailure(error)) {
+          gitAccountTokenInvalidator?.(injectedCredential.ref)
         }
         throw error
       }

@@ -56,7 +56,9 @@ import {
   isExecKilledError,
   isNoUpstreamError,
   normalizeGitErrorMessage,
-  runPullWithDivergenceFallback
+  pushTargetRemoteBranchExists,
+  runPullWithDivergenceFallback,
+  runPushWithDeletedRemoteBranchFallback
 } from '../shared/git-remote-error'
 import { upstreamOnlyCommitsArePatchEquivalent } from '../shared/git-upstream-status'
 import { assertGitPushTargetShape } from '../shared/git-push-target-validation'
@@ -1081,13 +1083,20 @@ export class GitHandler {
           worktreePath,
           params.pushTarget
         )
-        const args = [
-          'push',
-          ...(params.forceWithLease === true ? ['--force-with-lease'] : []),
-          '--set-upstream',
-          ...(target ? [target.remote, target.refspec] : ['origin', 'HEAD'])
-        ]
-        await this.git(args, worktreePath)
+        const runPush = async (forceWithLease: boolean): Promise<void> => {
+          const args = [
+            'push',
+            ...(forceWithLease ? ['--force-with-lease'] : []),
+            '--set-upstream',
+            ...(target ? [target.remote, target.refspec] : ['origin', 'HEAD'])
+          ]
+          await this.git(args, worktreePath)
+        }
+        await runPushWithDeletedRemoteBranchFallback(runPush, {
+          forceWithLease: params.forceWithLease === true,
+          remoteBranchExists: () =>
+            pushTargetRemoteBranchExists((args) => this.git(args, worktreePath), target)
+        })
       } catch (error) {
         // Why: mirror local gitPush normalization so SSH users get "non-fast-forward / pull first" guidance instead of raw git stderr.
         throw new Error(normalizeGitErrorMessage(error, 'push'))

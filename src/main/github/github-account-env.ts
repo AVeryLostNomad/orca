@@ -3,7 +3,8 @@ import { resolve, sep } from 'node:path'
 import type { Repo } from '../../shared/repo-types'
 import {
   parseGithubAccountRef,
-  type GithubAccountRef
+  type GithubAccountRef,
+  type GithubPatAccountMeta
 } from '../../shared/github/github-account-ref'
 import { loadGithubPatToken } from './github-pat-store'
 
@@ -19,18 +20,21 @@ import { loadGithubPatToken } from './github-pat-store'
 
 type GhTokenExec = (
   args: string[],
-  options: { wslDistro?: string; skipAccountEnv?: boolean }
+  options: { wslDistro?: string; skipAccountEnv?: boolean; env?: NodeJS.ProcessEnv }
 ) => Promise<{ stdout: string; stderr: string }>
 
 let getReposSource: (() => Repo[]) | null = null
 let ghTokenExec: GhTokenExec | null = null
+let getPatAccountsSource: (() => GithubPatAccountMeta[]) | null = null
 
 export function configureGithubAccountEnv(options: {
   getRepos: () => Repo[]
   ghExec: GhTokenExec
+  getPatAccounts?: () => GithubPatAccountMeta[]
 }): void {
   getReposSource = options.getRepos
   ghTokenExec = options.ghExec
+  getPatAccountsSource = options.getPatAccounts ?? null
 }
 
 // ── cwd → account ref ────────────────────────────────────────────────
@@ -105,14 +109,21 @@ const tokenInFlight = new Map<string, Promise<string | null>>()
 export function invalidateGithubAccountToken(ref: string): void {
   tokenCache.delete(ref)
   tokenInFlight.delete(ref)
+  // Why: identity derives from the token's account; a stale/replaced token means
+  // the cached name/email may belong to someone else now.
+  identityCache.delete(ref)
+  identityInFlight.delete(ref)
 }
 
 /** @internal - exposed for tests only */
 export function _resetGithubAccountEnv(): void {
   tokenCache.clear()
   tokenInFlight.clear()
+  identityCache.clear()
+  identityInFlight.clear()
   getReposSource = null
   ghTokenExec = null
+  getPatAccountsSource = null
 }
 
 async function fetchGhCliToken(
@@ -184,6 +195,137 @@ export async function githubAccountTokenForCwd(cwd: string | undefined): Promise
   return token ? { ref, token } : null
 }
 
+export type GithubAccountGitCredential = { ref: string; token: string; host: string }
+
+/** Async path for git network spawns: the pinned account's HTTPS credential plus
+ *  the host it belongs to (helper config is URL-scoped), or null for ambient auth. */
+export async function githubAccountGitCredentialForCwd(
+  cwd: string | undefined
+): Promise<GithubAccountGitCredential | null> {
+  const refString = githubAccountRefForCwd(cwd)
+  if (!refString) {
+    return null
+  }
+  const parsed = parseGithubAccountRef(refString)
+  if (!parsed) {
+    return null
+  }
+  const token = await resolveGithubAccountToken(refString)
+  if (!token) {
+    return null
+  }
+  return { ref: refString, token, host: accountHostForRef(parsed) }
+}
+
+function accountHostForRef(parsed: GithubAccountRef): string {
+  return parsed.kind === 'gh-cli'
+    ? parsed.host
+    : (getPatAccountsSource?.().find((account) => account.id === parsed.id)?.host ?? 'github.com')
+}
+
+// ── commit identity resolution + cache ───────────────────────────────
+
+export type GithubAccountCommitIdentity = { name: string; email: string }
+
+const identityCache = new Map<string, GithubAccountCommitIdentity>()
+const identityInFlight = new Map<string, Promise<GithubAccountCommitIdentity | null>>()
+
+async function fetchAccountCommitIdentity(
+  refString: string
+): Promise<GithubAccountCommitIdentity | null> {
+  const parsed = parseGithubAccountRef(refString)
+  if (!parsed || !ghTokenExec) {
+    return null
+  }
+  const token = await resolveGithubAccountToken(refString)
+  if (!token) {
+    return null
+  }
+  try {
+    const { stdout } = await ghTokenExec(['api', '--hostname', accountHostForRef(parsed), 'user'], {
+      skipAccountEnv: true,
+      env: { ...process.env, GH_TOKEN: token }
+    })
+    const user = JSON.parse(stdout) as {
+      login?: unknown
+      id?: unknown
+      name?: unknown
+      email?: unknown
+    }
+    const login = typeof user.login === 'string' && user.login ? user.login : null
+    if (!login) {
+      return null
+    }
+    const name = typeof user.name === 'string' && user.name.trim() ? user.name.trim() : login
+    // Why: the id+login noreply form is the one GitHub maps to accounts created
+    // after 2017; a public profile email wins when the user exposes one.
+    const email =
+      typeof user.email === 'string' && user.email
+        ? user.email
+        : typeof user.id === 'number'
+          ? `${user.id}+${login}@users.noreply.github.com`
+          : `${login}@users.noreply.github.com`
+    return { name, email }
+  } catch {
+    // gh missing or API unreachable — commits fall back to the repo's git config.
+    return null
+  }
+}
+
+export async function resolveGithubAccountCommitIdentity(
+  refString: string
+): Promise<GithubAccountCommitIdentity | null> {
+  const cached = identityCache.get(refString)
+  if (cached) {
+    return cached
+  }
+  const inFlight = identityInFlight.get(refString)
+  if (inFlight) {
+    return inFlight
+  }
+  const promise = (async () => {
+    const identity = await fetchAccountCommitIdentity(refString)
+    if (identity) {
+      identityCache.set(refString, identity)
+    }
+    return identity
+  })()
+  identityInFlight.set(refString, promise)
+  try {
+    return await promise
+  } finally {
+    identityInFlight.delete(refString)
+  }
+}
+
+/** Async path for git commit-creating spawns: the pinned account's author/committer
+ *  identity, or null so git falls back to the repo's configured identity. */
+export async function githubAccountCommitIdentityForCwd(
+  cwd: string | undefined
+): Promise<GithubAccountCommitIdentity | null> {
+  const ref = githubAccountRefForCwd(cwd)
+  if (!ref) {
+    return null
+  }
+  return resolveGithubAccountCommitIdentity(ref)
+}
+
+/** Sync path for PTY spawns: only pre-warmed identities inject (spawn cannot await). */
+export function cachedGithubAccountCommitIdentityForCwd(
+  cwd: string | undefined
+): GithubAccountCommitIdentity | null {
+  const ref = githubAccountRefForCwd(cwd)
+  if (!ref) {
+    return null
+  }
+  const cached = identityCache.get(ref)
+  if (!cached) {
+    // Kick off resolution so the next spawn in this project hits the cache.
+    void resolveGithubAccountCommitIdentity(ref)
+  }
+  return cached ?? null
+}
+
 /** Sync path for PTY spawns: only pre-warmed tokens inject (spawn cannot await). */
 export function cachedGithubAccountTokenForCwd(cwd: string | undefined): string | null {
   const ref = githubAccountRefForCwd(cwd)
@@ -210,6 +352,11 @@ export function prewarmGithubAccountTokens(): void {
     }
   }
   for (const ref of refs) {
-    void resolveGithubAccountToken(ref)
+    void resolveGithubAccountToken(ref).then((token) => {
+      if (token) {
+        // Why: terminal spawns read identity synchronously; warm it with the token.
+        void resolveGithubAccountCommitIdentity(ref)
+      }
+    })
   }
 }

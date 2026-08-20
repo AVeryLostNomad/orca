@@ -224,7 +224,10 @@ import type { CodexSessionResumePreparation } from '../codex/codex-session-resum
 import { dropUnverifiedCodexResumeArgv } from '../codex/codex-unverified-resume-launch'
 import { isHostCodexHomeForWsl, isWslCodexHomeForHost } from '../pty/codex-home-wsl-env'
 import { addWslEnvKeys } from '../wsl-env'
-import { cachedGithubAccountTokenForCwd } from '../github/github-account-env'
+import {
+  cachedGithubAccountCommitIdentityForCwd,
+  cachedGithubAccountTokenForCwd
+} from '../github/github-account-env'
 import { buildConfiguredProxyEnv, type NetworkProxySettings } from '../../shared/network-proxy'
 import {
   resolveSetupAgentSequenceLaunchCommand,
@@ -1714,6 +1717,32 @@ export function buildPtyHostEnv(
       if (opts.isWsl === true) {
         // Why: env does not cross the wsl.exe boundary unless WSLENV names it.
         addWslEnvKeys(baseEnv, ['GH_TOKEN'])
+      }
+    }
+  }
+
+  // Pinned-account commit identity: commits made in this terminal attribute to
+  // the pinned account without touching the repo's git config. Explicit
+  // pane-provided identity env wins.
+  if (
+    baseEnv.GIT_AUTHOR_NAME === undefined &&
+    baseEnv.GIT_AUTHOR_EMAIL === undefined &&
+    baseEnv.GIT_COMMITTER_NAME === undefined &&
+    baseEnv.GIT_COMMITTER_EMAIL === undefined
+  ) {
+    const pinnedIdentity = cachedGithubAccountCommitIdentityForCwd(opts.cwd)
+    if (pinnedIdentity) {
+      baseEnv.GIT_AUTHOR_NAME = pinnedIdentity.name
+      baseEnv.GIT_AUTHOR_EMAIL = pinnedIdentity.email
+      baseEnv.GIT_COMMITTER_NAME = pinnedIdentity.name
+      baseEnv.GIT_COMMITTER_EMAIL = pinnedIdentity.email
+      if (opts.isWsl === true) {
+        addWslEnvKeys(baseEnv, [
+          'GIT_AUTHOR_NAME',
+          'GIT_AUTHOR_EMAIL',
+          'GIT_COMMITTER_NAME',
+          'GIT_COMMITTER_EMAIL'
+        ])
       }
     }
   }

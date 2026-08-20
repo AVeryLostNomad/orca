@@ -1,6 +1,8 @@
 import {
   normalizeGitErrorMessage,
-  runPullWithDivergenceFallback
+  pushTargetRemoteBranchExists,
+  runPullWithDivergenceFallback,
+  runPushWithDeletedRemoteBranchFallback
 } from '../../shared/git-remote-error'
 import { resolveEffectiveGitUpstream } from '../../shared/git-effective-upstream'
 import { gitRefTargetsBranchOnRemote } from '../../shared/git-remote-branch-name'
@@ -199,13 +201,23 @@ export async function gitPush(
     const target = pushTarget
       ? explicitPushTarget(pushTarget)
       : await getConfiguredPushTarget(worktreePath, options)
-    const args = [
-      'push',
-      ...(options.forceWithLease ? ['--force-with-lease'] : []),
-      '--set-upstream',
-      ...(target ? [target.remote, target.refspec] : ['origin', 'HEAD'])
-    ]
-    await gitExecFileAsync(args, gitOptionsForWorktree(worktreePath, options))
+    const runPush = async (forceWithLease: boolean): Promise<void> => {
+      const args = [
+        'push',
+        ...(forceWithLease ? ['--force-with-lease'] : []),
+        '--set-upstream',
+        ...(target ? [target.remote, target.refspec] : ['origin', 'HEAD'])
+      ]
+      await gitExecFileAsync(args, gitOptionsForWorktree(worktreePath, options))
+    }
+    await runPushWithDeletedRemoteBranchFallback(runPush, {
+      forceWithLease: options.forceWithLease === true,
+      remoteBranchExists: () =>
+        pushTargetRemoteBranchExists(
+          (args) => gitExecFileAsync(args, gitOptionsForWorktree(worktreePath, options)),
+          target
+        )
+    })
   } catch (error) {
     throw new Error(normalizeGitErrorMessage(error, 'push'))
   }

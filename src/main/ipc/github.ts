@@ -5,7 +5,12 @@ validation/gate conventions across handler files. */
 import { ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { ghExecFileAsync, setGhAccountEnvResolver } from '../git/runner'
+import {
+  ghExecFileAsync,
+  setGhAccountEnvResolver,
+  setGitAccountCredentialResolver,
+  setGitAccountIdentityResolver
+} from '../git/runner'
 import type { GitHubReactionContent } from '../../shared/github/comment-types'
 import type {
   GitHubPRRefreshCandidate,
@@ -71,6 +76,8 @@ import { getRateLimit } from '../github/rate-limit'
 import { diagnoseGhAuth } from '../github/auth-diagnose'
 import {
   configureGithubAccountEnv,
+  githubAccountCommitIdentityForCwd,
+  githubAccountGitCredentialForCwd,
   githubAccountTokenForCwd,
   invalidateGithubAccountToken,
   prewarmGithubAccountTokens
@@ -254,8 +261,18 @@ export function registerGitHubHandlers(store: Store, stats: StatsCollector): voi
   // Per-project GitHub account pinning: wire the cwd→account resolver into the
   // gh runner (setter registration avoids an import cycle) and pre-resolve
   // pinned tokens so terminal spawns can inject synchronously.
-  configureGithubAccountEnv({ getRepos: () => store.getRepos(), ghExec: ghExecFileAsync })
+  configureGithubAccountEnv({
+    getRepos: () => store.getRepos(),
+    ghExec: ghExecFileAsync,
+    getPatAccounts: () => store.getSettings().githubPatAccounts ?? []
+  })
   setGhAccountEnvResolver(githubAccountTokenForCwd, invalidateGithubAccountToken)
+  // Why: source-control push/pull/fetch must authenticate as the pin too, not
+  // just gh spawns — the sidebar's git buttons otherwise use ambient credentials.
+  setGitAccountCredentialResolver(githubAccountGitCredentialForCwd, invalidateGithubAccountToken)
+  // Why: commit/merge/rebase in pinned repos attribute to the pin's name/email
+  // (via author/committer env), so local commits match the account too.
+  setGitAccountIdentityResolver(githubAccountCommitIdentityForCwd)
   prewarmGithubAccountTokens()
 
   ipcMain.handle(

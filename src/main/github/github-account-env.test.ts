@@ -13,8 +13,11 @@ vi.mock('./github-pat-store', () => ({
 
 import {
   _resetGithubAccountEnv,
+  cachedGithubAccountCommitIdentityForCwd,
   cachedGithubAccountTokenForCwd,
   configureGithubAccountEnv,
+  githubAccountCommitIdentityForCwd,
+  githubAccountGitCredentialForCwd,
   githubAccountRefForCwd,
   githubAccountTokenForCwd,
   invalidateGithubAccountToken,
@@ -113,5 +116,160 @@ describe('github-account-env', () => {
     expect(cachedGithubAccountTokenForCwd(repoPath)).toBeNull()
     resolveExec({ stdout: 'tok', stderr: '' })
     await vi.waitFor(() => expect(cachedGithubAccountTokenForCwd(repoPath)).toBe('tok'))
+  })
+})
+
+describe('githubAccountGitCredentialForCwd', () => {
+  let dir: string
+  const ghExec = vi.fn()
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'gh-acct-git-'))
+    ghExec.mockReset()
+    loadGithubPatTokenMock.mockReset()
+  })
+
+  afterEach(() => {
+    _resetGithubAccountEnv()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('returns the gh account token with its ref host', async () => {
+    const repoPath = join(dir, 'work')
+    configureGithubAccountEnv({
+      getRepos: () => [repoWith(repoPath, 'gh:ghe.example.com:me')],
+      ghExec
+    })
+    ghExec.mockResolvedValue({ stdout: 'tok-gh\n', stderr: '' })
+
+    expect(await githubAccountGitCredentialForCwd(repoPath)).toEqual({
+      ref: 'gh:ghe.example.com:me',
+      token: 'tok-gh',
+      host: 'ghe.example.com'
+    })
+  })
+
+  it('resolves a PAT host from account metadata, defaulting to github.com', async () => {
+    const repoPath = join(dir, 'work')
+    const otherPath = join(dir, 'other')
+    configureGithubAccountEnv({
+      getRepos: () => [repoWith(repoPath, 'pat:id-1'), repoWith(otherPath, 'pat:id-2')],
+      ghExec,
+      getPatAccounts: () => [{ id: 'id-1', label: 'work', host: 'ghe.example.com' }]
+    })
+    loadGithubPatTokenMock.mockReturnValue('tok-pat')
+
+    expect(await githubAccountGitCredentialForCwd(repoPath)).toEqual({
+      ref: 'pat:id-1',
+      token: 'tok-pat',
+      host: 'ghe.example.com'
+    })
+    expect(await githubAccountGitCredentialForCwd(otherPath)).toEqual({
+      ref: 'pat:id-2',
+      token: 'tok-pat',
+      host: 'github.com'
+    })
+  })
+
+  it('returns null for unpinned paths', async () => {
+    configureGithubAccountEnv({ getRepos: () => [], ghExec })
+    expect(await githubAccountGitCredentialForCwd(join(dir, 'x'))).toBeNull()
+  })
+})
+
+describe('githubAccountCommitIdentityForCwd', () => {
+  let dir: string
+  const ghExec = vi.fn()
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'gh-acct-id-'))
+    ghExec.mockReset()
+    loadGithubPatTokenMock.mockReset()
+  })
+
+  afterEach(() => {
+    _resetGithubAccountEnv()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  function configureGhAccount(repoPath: string, user: Record<string, unknown>): void {
+    configureGithubAccountEnv({
+      getRepos: () => [repoWith(repoPath, 'gh:github.com:me')],
+      ghExec
+    })
+    ghExec.mockImplementation(async (args: string[], options: { env?: NodeJS.ProcessEnv }) => {
+      if (args[0] === 'auth') {
+        return { stdout: 'tok-1\n', stderr: '' }
+      }
+      expect(args).toEqual(['api', '--hostname', 'github.com', 'user'])
+      expect(options.env?.GH_TOKEN).toBe('tok-1')
+      return { stdout: JSON.stringify(user), stderr: '' }
+    })
+  }
+
+  it('uses the profile name and public email when present', async () => {
+    const repoPath = join(dir, 'work')
+    configureGhAccount(repoPath, {
+      login: 'me',
+      id: 42,
+      name: 'Me Myself',
+      email: 'me@example.com'
+    })
+
+    expect(await githubAccountCommitIdentityForCwd(repoPath)).toEqual({
+      name: 'Me Myself',
+      email: 'me@example.com'
+    })
+  })
+
+  it('falls back to login and the id+login noreply email', async () => {
+    const repoPath = join(dir, 'work')
+    configureGhAccount(repoPath, { login: 'me', id: 42, name: null, email: null })
+
+    expect(await githubAccountCommitIdentityForCwd(repoPath)).toEqual({
+      name: 'me',
+      email: '42+me@users.noreply.github.com'
+    })
+  })
+
+  it('caches the identity per account ref', async () => {
+    const repoPath = join(dir, 'work')
+    configureGhAccount(repoPath, { login: 'me', id: 42 })
+
+    await githubAccountCommitIdentityForCwd(repoPath)
+    await githubAccountCommitIdentityForCwd(repoPath)
+
+    expect(ghExec.mock.calls.filter(([args]) => args[0] === 'api')).toHaveLength(1)
+  })
+
+  it('serves the sync PTY path only after resolution and clears on invalidation', async () => {
+    const repoPath = join(dir, 'work')
+    configureGhAccount(repoPath, { login: 'me', id: 42 })
+
+    expect(cachedGithubAccountCommitIdentityForCwd(repoPath)).toBeNull()
+    await githubAccountCommitIdentityForCwd(repoPath)
+    expect(cachedGithubAccountCommitIdentityForCwd(repoPath)).toEqual({
+      name: 'me',
+      email: '42+me@users.noreply.github.com'
+    })
+
+    invalidateGithubAccountToken('gh:github.com:me')
+    expect(cachedGithubAccountCommitIdentityForCwd(repoPath)).toBeNull()
+  })
+
+  it('returns null when the identity lookup fails', async () => {
+    const repoPath = join(dir, 'work')
+    configureGithubAccountEnv({
+      getRepos: () => [repoWith(repoPath, 'gh:github.com:me')],
+      ghExec
+    })
+    ghExec.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'auth') {
+        return { stdout: 'tok-1\n', stderr: '' }
+      }
+      throw new Error('gh missing')
+    })
+
+    expect(await githubAccountCommitIdentityForCwd(repoPath)).toBeNull()
   })
 })
