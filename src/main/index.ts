@@ -260,7 +260,6 @@ import {
   onLiveClaudePtysDrained,
   seedLiveClaudePtysFromPersistence
 } from './claude-accounts/live-pty-gate'
-import { StarNagService } from './star-nag/service'
 import { agentHookServer, type AgentHookProviderSessionIdentity } from './agent-hooks/server'
 import { createHookProviderSessionInvalidator } from './agent-hooks/hook-provider-session-invalidation'
 import { createHookStatusSessionTabsInvalidator } from './agent-hooks/hook-status-session-tabs-invalidation'
@@ -377,7 +376,6 @@ let pendingUnpairedDeviceAuthFailure = false
 // Why: gates whether headless serve installs the offscreen browser backend (and advertises browser pane support).
 let headlessBrowserDisplayAvailable = false
 
-let starNag: StarNagService | null = null
 let agentAwakeService: AgentAwakeService | null = null
 let crashReports: CrashReportStore | null = null
 let unsubscribeAgentAwakeStatusChanges: (() => void) | null = null
@@ -2845,9 +2843,6 @@ void app.whenReady().then(async () => {
   runtimeService.onWorktreeLifecycle((event) => {
     emitPluginWorktreeLifecycle(event)
   })
-  starNag = new StarNagService(store, stats)
-  starNag.start()
-  starNag.registerIpcHandlers()
   runtimeService.setAgentBrowserBridge(
     new AgentBrowserBridge(browserManager, {
       onTabsChanged: (worktreeId) => runtimeService.notifyMobileSessionTabsChanged(worktreeId)
@@ -3269,7 +3264,6 @@ app.on('will-quit', (e) => {
   // Why: before-quit can still be aborted by renderer beforeunload; only remove the Windows tray icon on the committed quit path.
   destroySystemTray()
   // Why: stats.flushAsync() must precede killAllPty() so still-running agents emit synthetic agent_stop events (killAllPty skips runtime.onPtyExit()). It closes them out synchronously and only defers the write.
-  starNag?.stop()
   automations?.stop()
   // Why: plugin hosts are forked children; dispose sends shutdown and
   // escalates to SIGKILL so they cannot outlive the app. The promise joins

@@ -1710,22 +1710,6 @@
       "SelectedTextCopyMenu": {
         "9b40d7b018": "Copy"
       },
-      "StarNagCard": {
-        "92b0f9d921": "is authenticated and try again.",
-        "cd8c34aac1": "gh",
-        "cf82170065": "Could not star the repo. Make sure",
-        "30c36231c1": "Orca is open source. If it helped today, a GitHub star helps other developers find it.",
-        "b5e685e4d9": "Dismiss",
-        "5f6df21046": "Enjoying Orca?",
-        "2d67b6c849": "Star on GitHub",
-        "af3c9bbb37": "Starring…",
-        "68a41bc3aa": "Could not star with",
-        "996bf76e46": "Open GitHub to finish in your browser.",
-        "d32015fec7": "Opening...",
-        "157bb5ecbb": "Open GitHub",
-        "8c967b4d15": "Later",
-        "73dfd4eb8d": "Don't ask again"
-      },
       "TaskPage": {
         "513cddfa7a": "Verifying…",
         "ff69a30681": "Cancel",
@@ -15814,22 +15798,6 @@
       },
       "ShortcutKeyCombo": {
         "07eb4985a1": "Double-tap {{value0}}"
-      },
-      "star": {
-        "nag": {
-          "StarNagToastHost": {
-            "starredThanks": "Starred — thank you!",
-            "githubOpened": "GitHub opened",
-            "opening": "Opening…",
-            "starring": "Starring…",
-            "openGithub": "Open GitHub",
-            "starOnGithub": "Star on GitHub",
-            "onboardingCompleted": "Onboarding completed!",
-            "body": "If you’re enjoying Orca so far, a GitHub star helps other developers discover it.",
-            "dismiss": "Dismiss",
-            "later": "Later"
-          }
-        }
       },
       "nativeChat": {
         "contextMenu": {
