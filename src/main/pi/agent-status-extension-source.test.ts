@@ -826,6 +826,35 @@ describe('getPiAgentStatusExtensionSource', () => {
     }
   })
 
+  it('reports a current OMP terminal settle without waiting for its busy context', async () => {
+    const harness = createHarness({ kind: 'omp' })
+    const context = { isIdle: vi.fn(() => false) }
+
+    await harness.callHook('agent_end', { willContinue: undefined }, context)
+
+    await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(1))
+    const body = JSON.parse(String(harness.fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body.payload).toEqual({ hook_event_name: 'agent_end' })
+    expect(context.isIdle).not.toHaveBeenCalled()
+  })
+
+  it('keeps current OMP working across a todo continuation before its terminal settle', async () => {
+    const harness = createHarness({ kind: 'omp' })
+    const context = { isIdle: vi.fn(() => false) }
+
+    await harness.callHook('agent_end', { willContinue: true }, context)
+    await harness.callHook('agent_start')
+    await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(1))
+    await harness.callHook('agent_end', { willContinue: undefined }, context)
+
+    await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(2))
+    const events = harness.fetchMock.mock.calls.map(
+      (call) => JSON.parse(String(call[1]?.body)).payload.hook_event_name
+    )
+    expect(events).toEqual(['agent_start', 'agent_end'])
+    expect(context.isIdle).not.toHaveBeenCalled()
+  })
+
   it('keeps reporting Pi-compatible agents once their agent_end handlers settle', async () => {
     vi.useFakeTimers()
     try {
