@@ -192,6 +192,7 @@ import type {
 import type { WorkspaceSpaceScanProgress } from '../shared/workspace-space-types'
 import type { WorkspaceCleanupScanProgress } from '../shared/workspace-cleanup'
 import type { WorkspacePortAdvertisedUrlChangedEvent } from '../shared/workspace-ports'
+import type { GitAuthorIdentity } from '../shared/git-author-identity'
 import type { GhAuthDiagnostic } from '../shared/github/auth-types'
 import type { GithubPatAccountMeta } from '../shared/github/github-account-ref'
 import type { TaskSourceContext } from '../shared/task-source-context'
@@ -1739,6 +1740,8 @@ const api = {
 
     diagnoseAuth: (args?: { host?: string }): Promise<GhAuthDiagnostic> =>
       ipcRenderer.invoke('gh:diagnoseAuth', args),
+    resolveAuthorIdentity: (args?: { accountRef?: string }): Promise<GitAuthorIdentity | null> =>
+      ipcRenderer.invoke('gh:resolveAuthorIdentity', args),
     addPatAccount: (args: {
       label: string
       host?: string

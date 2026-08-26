@@ -4668,7 +4668,11 @@
           "875dda0995": "Enter a host parent path.",
           "ssh_parent_manual": "Enter an SSH parent path.",
           "45b7c26034": "Create project",
-          "85085d74d2": "Creating…"
+          "85085d74d2": "Creating…",
+          "github_accounts_checking": "Checking GitHub accounts…",
+          "github_account": "GitHub account",
+          "github_account_placeholder": "Choose an account",
+          "github_account_unavailable": "Could not use the selected GitHub account. Check `gh auth status`, then try again."
         },
         "AddRepoHostSelector": {
           "host": "Host",

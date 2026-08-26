@@ -405,6 +405,35 @@ describe('repos:addRemote', () => {
     expect(result).toHaveProperty('repo.connectionId', 'conn-1')
   })
 
+  it('configures the selected GitHub identity on an SSH project', async () => {
+    const result = await handlers.get('repos:createRemote')!(null, {
+      connectionId: 'conn-1',
+      parentPath: '/home/user',
+      name: 'created',
+      kind: 'git',
+      authorIdentity: {
+        name: 'Work User',
+        email: '123+work@users.noreply.github.com'
+      },
+      githubAccountRef: 'gh:github.com:work'
+    })
+
+    expect(mockGitProvider.exec).toHaveBeenNthCalledWith(
+      2,
+      ['config', 'user.name', 'Work User'],
+      '/home/user/created'
+    )
+    expect(mockGitProvider.exec).toHaveBeenNthCalledWith(
+      3,
+      ['config', 'user.email', '123+work@users.noreply.github.com'],
+      '/home/user/created'
+    )
+    expect(mockStore.addRepo).toHaveBeenCalledWith(
+      expect.objectContaining({ githubAccountRef: 'gh:github.com:work' })
+    )
+    expect(result).toHaveProperty('repo.githubAccountRef', 'gh:github.com:work')
+  })
+
   it('resolves SSH create parents under home before validating the path', async () => {
     mockMultiplexer.request.mockResolvedValueOnce({ resolvedPath: '/home/ubuntu/projects' })
 
@@ -509,7 +538,7 @@ describe('repos:addRemote', () => {
 
     expect(result).toEqual({
       error:
-        'Git author identity is not configured on the SSH host. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"` on that host, then try again.'
+        'Git author identity is not configured. Connect a GitHub account in Orca or configure Git author identity on the SSH host, then try again.'
     })
     expect(mockFilesystemProvider.deletePath).toHaveBeenCalledWith('/home/user/created/.git', true)
     expect(mockFilesystemProvider.deletePath).not.toHaveBeenCalledWith('/home/user/created', true)

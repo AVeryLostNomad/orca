@@ -118,11 +118,15 @@ describe('repo RPC methods', () => {
       makeRequest('repo.create', {
         parentPath: '/srv/projects',
         name: 'new-app',
-        kind: 'git'
+        kind: 'git',
+        authorIdentity: { name: 'Work User', email: '123+work@users.noreply.github.com' }
       })
     )
 
-    expect(runtime.createRepo).toHaveBeenCalledWith('/srv/projects', 'new-app', 'git')
+    expect(runtime.createRepo).toHaveBeenCalledWith('/srv/projects', 'new-app', 'git', {
+      name: 'Work User',
+      email: '123+work@users.noreply.github.com'
+    })
     expect(response).toMatchObject({
       ok: true,
       result: { repo: { id: 'repo-1', path: '/srv/projects/new-app' } }

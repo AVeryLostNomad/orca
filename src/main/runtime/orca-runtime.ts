@@ -312,6 +312,10 @@ import type {
   ProjectHostSetupUpdateResult,
   ProjectUpdateArgs
 } from '../../shared/project-types'
+import {
+  normalizeGitAuthorIdentity,
+  type GitAuthorIdentity
+} from '../../shared/git-author-identity'
 import type { BaseRefSearchResult, Repo } from '../../shared/repo-types'
 import type { Tab, TabGroupLayoutNode } from '../../shared/tab-types'
 import type { TerminalQuickCommand } from '../../shared/terminal-quick-command-types'
@@ -20085,7 +20089,8 @@ export class OrcaRuntimeService {
   async createRepo(
     parentPath: string,
     name: string,
-    kind: 'git' | 'folder' = 'git'
+    kind: 'git' | 'folder' = 'git',
+    requestedAuthorIdentity?: GitAuthorIdentity
   ): Promise<{ repo: Repo } | { error: string }> {
     if (!this.store) {
       throw new Error('runtime_unavailable')
@@ -20093,6 +20098,7 @@ export class OrcaRuntimeService {
     const trimmedName = name.trim()
     const trimmedParentPath = parentPath.trim()
     const repoKind: 'git' | 'folder' = kind === 'folder' ? 'folder' : 'git'
+    const authorIdentity = normalizeGitAuthorIdentity(requestedAuthorIdentity)
     if (!trimmedName) {
       return { error: 'Name cannot be empty' }
     }
@@ -20145,8 +20151,27 @@ export class OrcaRuntimeService {
       try {
         await gitExecFileAsync(['init'], { cwd: targetPath })
         step = 'commit'
+        if (authorIdentity) {
+          await gitExecFileAsync(['config', 'user.name', authorIdentity.name], {
+            cwd: targetPath
+          })
+          await gitExecFileAsync(['config', 'user.email', authorIdentity.email], {
+            cwd: targetPath
+          })
+        }
         await gitExecFileAsync(['commit', '--allow-empty', '-m', 'Initial commit'], {
-          cwd: targetPath
+          cwd: targetPath,
+          ...(authorIdentity
+            ? {
+                env: {
+                  ...process.env,
+                  GIT_AUTHOR_NAME: authorIdentity.name,
+                  GIT_AUTHOR_EMAIL: authorIdentity.email,
+                  GIT_COMMITTER_NAME: authorIdentity.name,
+                  GIT_COMMITTER_EMAIL: authorIdentity.email
+                }
+              }
+            : {})
         })
       } catch (error) {
         if (createdDir) {
@@ -20161,7 +20186,7 @@ export class OrcaRuntimeService {
         ) {
           return {
             error:
-              'Git author identity is not configured. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then try again.'
+              'Git author identity is not configured. Connect a GitHub account in Orca or configure Git author identity on this host, then try again.'
           }
         }
         const stepLabel =

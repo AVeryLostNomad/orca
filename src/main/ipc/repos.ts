@@ -6,6 +6,10 @@ import { homedir } from 'node:os'
 import { z } from 'zod'
 import type { Store } from '../persistence'
 import { isValidGithubAccountRefString } from '../../shared/github/github-account-ref'
+import {
+  normalizeGitAuthorIdentity,
+  type GitAuthorIdentity
+} from '../../shared/git-author-identity'
 import { prewarmGithubAccountTokens } from '../github/github-account-env'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import type { FolderWorkspace } from '../../shared/folder-workspace-types'
@@ -382,6 +386,7 @@ async function addRemoteRepoFromPath(
     displayName?: string
     kind?: 'git' | 'folder'
     setupMethod?: Repo['projectHostSetupMethod']
+    githubAccountRef?: string
   }
 ): Promise<{ repo: Repo; alreadyExisted: boolean } | { error: string }> {
   const gitProvider = getSshGitProvider(args.connectionId)
@@ -458,6 +463,9 @@ async function addRemoteRepoFromPath(
     addedAt: Date.now(),
     kind: repoKind,
     connectionId: args.connectionId,
+    ...(repoKind === 'git' && args.githubAccountRef
+      ? { githubAccountRef: args.githubAccountRef }
+      : {}),
     ...(repoKind === 'git'
       ? {
           externalWorktreeVisibilityLegacy: false,
@@ -467,6 +475,9 @@ async function addRemoteRepoFromPath(
   }
 
   store.addRepo(repo)
+  if (repo.githubAccountRef) {
+    prewarmGithubAccountTokens()
+  }
   const mux = getActiveMultiplexer(args.connectionId)
   if (mux) {
     mux.notify('session.registerRoot', { rootPath: resolvedPath })
@@ -602,11 +613,17 @@ async function createRemoteRepo(
     parentPath: string
     name: string
     kind: 'git' | 'folder'
+    authorIdentity?: GitAuthorIdentity
+    githubAccountRef?: string
   }
 ): Promise<{ repo: Repo } | { error: string }> {
   const name = args.name?.trim() ?? ''
   const parentPath = await resolveRemoteHomePath(args.connectionId, args.parentPath?.trim() ?? '')
   const repoKind: 'git' | 'folder' = args.kind === 'folder' ? 'folder' : 'git'
+  const authorIdentity = normalizeGitAuthorIdentity(args.authorIdentity)
+  const githubAccountRef = isValidGithubAccountRefString(args.githubAccountRef)
+    ? args.githubAccountRef
+    : undefined
   if (!name) {
     return { error: 'Name cannot be empty' }
   }
@@ -688,6 +705,10 @@ async function createRemoteRepo(
     try {
       await gitProvider.exec(['init'], targetPath)
       step = 'commit'
+      if (authorIdentity) {
+        await gitProvider.exec(['config', 'user.name', authorIdentity.name], targetPath)
+        await gitProvider.exec(['config', 'user.email', authorIdentity.email], targetPath)
+      }
       await gitProvider.exec(['commit', '--allow-empty', '-m', 'Initial commit'], targetPath)
     } catch (err) {
       if (createdDir) {
@@ -701,7 +722,7 @@ async function createRemoteRepo(
       if (step === 'commit' && /Please tell me who you are|user\.name|user\.email/i.test(message)) {
         return {
           error:
-            'Git author identity is not configured on the SSH host. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"` on that host, then try again.'
+            'Git author identity is not configured. Connect a GitHub account in Orca or configure Git author identity on the SSH host, then try again.'
         }
       }
       const stepLabel =
@@ -725,7 +746,8 @@ async function createRemoteRepo(
     connectionId: args.connectionId,
     remotePath: targetPath,
     kind: repoKind,
-    displayName: name
+    displayName: name,
+    githubAccountRef
   })
   if ('error' in result) {
     return result
@@ -1880,6 +1902,8 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         parentPath: string
         name: string
         kind: 'git' | 'folder'
+        authorIdentity?: GitAuthorIdentity
+        githubAccountRef?: string
       }
     ): Promise<{ repo: Repo } | { error: string }> => {
       const result = await createRemoteRepo(store, args)
@@ -1896,12 +1920,22 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
     'repos:create',
     async (
       _event,
-      args: { parentPath: string; name: string; kind: 'git' | 'folder' }
+      args: {
+        parentPath: string
+        name: string
+        kind: 'git' | 'folder'
+        authorIdentity?: GitAuthorIdentity
+        githubAccountRef?: string
+      }
     ): Promise<{ repo: Repo } | { error: string }> => {
       const name = args.name?.trim() ?? ''
       const parentPath = args.parentPath?.trim() ?? ''
       // Why: IPC input is untrusted — coerce to the narrow union so a bogus kind can't skip git init yet persist in the store.
       const repoKind: 'git' | 'folder' = args.kind === 'folder' ? 'folder' : 'git'
+      const authorIdentity = normalizeGitAuthorIdentity(args.authorIdentity)
+      const githubAccountRef = isValidGithubAccountRefString(args.githubAccountRef)
+        ? args.githubAccountRef
+        : undefined
 
       if (!name) {
         return { error: 'Name cannot be empty' }
@@ -1992,8 +2026,27 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         try {
           await gitExecFileAsync(['init'], { cwd: targetPath })
           step = 'commit'
+          if (authorIdentity) {
+            await gitExecFileAsync(['config', 'user.name', authorIdentity.name], {
+              cwd: targetPath
+            })
+            await gitExecFileAsync(['config', 'user.email', authorIdentity.email], {
+              cwd: targetPath
+            })
+          }
           await gitExecFileAsync(['commit', '--allow-empty', '-m', 'Initial commit'], {
-            cwd: targetPath
+            cwd: targetPath,
+            ...(authorIdentity
+              ? {
+                  env: {
+                    ...process.env,
+                    GIT_AUTHOR_NAME: authorIdentity.name,
+                    GIT_AUTHOR_EMAIL: authorIdentity.email,
+                    GIT_COMMITTER_NAME: authorIdentity.name,
+                    GIT_COMMITTER_EMAIL: authorIdentity.email
+                  }
+                }
+              : {})
           })
         } catch (err) {
           // Only rm the dir if we made it (pre-existing folders must survive retry); otherwise strip just the .git/ that git init created.
@@ -2009,7 +2062,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
           ) {
             return {
               error:
-                'Git author identity is not configured. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then try again.'
+                'Git author identity is not configured. Connect a GitHub account with `gh auth login`, then try again.'
             }
           }
           const stepLabel =
@@ -2037,6 +2090,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         ...detected,
         addedAt: Date.now(),
         kind: repoKind,
+        ...(repoKind === 'git' && githubAccountRef ? { githubAccountRef } : {}),
         ...(repoKind === 'git'
           ? {
               externalWorktreeVisibilityLegacy: false,
@@ -2046,6 +2100,9 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
       }
 
       store.addRepo(repo)
+      if (repo.githubAccountRef) {
+        prewarmGithubAccountTokens()
+      }
       await prepareLocalWorktreeRootForRepo(store, repo)
       invalidateAuthorizedRootsCache()
       notifyReposChanged(mainWindow)

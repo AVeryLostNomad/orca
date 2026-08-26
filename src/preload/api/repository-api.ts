@@ -1,4 +1,5 @@
 import type { ExecutionHostId } from '../../shared/execution-host'
+import type { GitAuthorIdentity } from '../../shared/git-author-identity'
 import type {
   HostRepoCatalogSnapshot,
   ListReposForExecutionHostArgs
@@ -83,6 +84,8 @@ export type RepositoryApi = {
     parentPath: string
     name: string
     kind: 'git' | 'folder'
+    authorIdentity?: GitAuthorIdentity
+    githubAccountRef?: string
   }) => Promise<{ repo: Repo } | { error: string }>
   cloneAbort: () => Promise<void>
   // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
@@ -97,6 +100,8 @@ export type RepositoryApi = {
     parentPath: string
     name: string
     kind: 'git' | 'folder'
+    authorIdentity?: GitAuthorIdentity
+    githubAccountRef?: string
   }) => Promise<{ repo: Repo } | { error: string }>
   isGitAvailable: () => Promise<boolean>
   getDefaultCreateProjectParent: () => Promise<string>

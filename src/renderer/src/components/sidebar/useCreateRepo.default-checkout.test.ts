@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   },
   createRepo: vi.fn(),
   createRemoteRepo: vi.fn(),
+  diagnoseAuth: vi.fn(),
+  resolveAuthorIdentity: vi.fn(),
   callRuntimeRpc: vi.fn(),
   fetchWorktrees: vi.fn(),
   onGitRepoReady: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactModule>()
   return {
     ...actual,
+    useEffect: vi.fn(),
     useCallback: <T extends (...args: never[]) => unknown>(fn: T) => fn,
     useRef: <T>(value: T) => ({ current: value }),
     useState: <T>(initial: T | (() => T)) => {
@@ -86,6 +89,9 @@ const STATE_PARENT_PATH = 1
 const STATE_ERROR_MESSAGE = 2
 const STATE_IS_CREATING = 3
 
+const STATE_GITHUB_ACCOUNTS = 4
+const STATE_GITHUB_ACCOUNTS_LOADING = 5
+const STATE_GITHUB_ACCOUNT_REF = 6
 function makeRepo(overrides: Partial<Repo> = {}): Repo {
   return {
     id: 'repo-created',
@@ -108,12 +114,17 @@ describe('useCreateRepo default-checkout handoff', () => {
     mocks.stateValues[STATE_PARENT_PATH] = '/projects'
     mocks.stateValues[STATE_ERROR_MESSAGE] = null
     mocks.stateValues[STATE_IS_CREATING] = false
+    mocks.stateValues[STATE_GITHUB_ACCOUNTS] = []
+    mocks.stateValues[STATE_GITHUB_ACCOUNTS_LOADING] = false
+    mocks.stateValues[STATE_GITHUB_ACCOUNT_REF] = null
     mocks.storeState.repos = []
     mocks.storeState.projects = []
     mocks.storeState.projectHostSetups = []
     mocks.storeState.worktreesByRepo = {}
     mocks.createRepo.mockReset()
     mocks.createRemoteRepo.mockReset()
+    mocks.diagnoseAuth.mockReset()
+    mocks.resolveAuthorIdentity.mockReset()
     mocks.storeState.settings.activeRuntimeEnvironmentId = null
     vi.stubGlobal('window', {
       api: {
@@ -121,6 +132,10 @@ describe('useCreateRepo default-checkout handoff', () => {
           create: mocks.createRepo,
           createRemote: mocks.createRemoteRepo,
           pickDirectory: vi.fn()
+        },
+        gh: {
+          diagnoseAuth: mocks.diagnoseAuth,
+          resolveAuthorIdentity: mocks.resolveAuthorIdentity
         }
       }
     })
@@ -150,6 +165,41 @@ describe('useCreateRepo default-checkout handoff', () => {
       expect.arrayContaining([expect.objectContaining({ repoId: repo.id, path: repo.path })])
     )
     expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
+  })
+
+  it('uses the selected GitHub account as repository-local author identity', async () => {
+    const repo = makeRepo()
+    const account = {
+      host: 'github.com',
+      user: 'work',
+      active: true,
+      envToken: null,
+      source: 'keyring' as const,
+      scopes: []
+    }
+    mocks.stateValues[STATE_GITHUB_ACCOUNTS] = [account]
+    mocks.stateValues[STATE_GITHUB_ACCOUNT_REF] = 'gh:github.com:work'
+    mocks.resolveAuthorIdentity.mockResolvedValue({
+      name: 'Work User',
+      email: '123+work@users.noreply.github.com'
+    })
+    mocks.createRepo.mockResolvedValue({ repo })
+    mocks.fetchWorktrees.mockResolvedValue(true)
+    const { useCreateRepo } = await import('./useCreateRepo')
+
+    const result = useCreateRepo(mocks.fetchWorktrees, vi.fn(), mocks.onGitRepoReady)
+    await result.handleCreate()
+
+    expect(mocks.createRepo).toHaveBeenCalledWith({
+      parentPath: '/projects',
+      name: 'created',
+      kind: 'git',
+      authorIdentity: {
+        name: 'Work User',
+        email: '123+work@users.noreply.github.com'
+      },
+      githubAccountRef: 'gh:github.com:work'
+    })
   })
 
   it('returns the selected parent directory after the local picker applies it', async () => {

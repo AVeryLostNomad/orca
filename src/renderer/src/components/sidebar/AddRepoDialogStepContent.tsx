@@ -9,6 +9,7 @@ import type { AddRepoDialogStep } from './add-repo-dialog-types'
 import type { NestedRepoScanResult } from '../../../../shared/project-group-types'
 import type { SshConnectionState, SshTarget } from '../../../../shared/ssh-types'
 import type { GitAvailability } from './create-project-defaults'
+import type { GhAuthAccount } from '../../../../shared/github/auth-types'
 
 type AddRepoDialogStepContentProps = {
   step: AddRepoDialogStep
@@ -43,6 +44,9 @@ type AddRepoDialogStepContentProps = {
   createParent: string
   createError: string | null
   isCreating: boolean
+  githubAccounts: GhAuthAccount[]
+  githubAccountsLoading: boolean
+  githubAccountRef: string | null
   hostSelector?: ReactNode
   showRemoteAction?: boolean
   canCreateProject?: boolean
@@ -77,6 +81,7 @@ type AddRepoDialogStepContentProps = {
   onCreateNameChange: (name: string) => void
   onCreateParentChange: (parent: string) => void
   onPickCreateParent: () => void
+  onGithubAccountChange: (value: string) => void
   onCreate: () => void
 }
 
@@ -115,6 +120,9 @@ export function AddRepoDialogStepContent({
   isCreating,
   hostSelector,
   showRemoteAction = true,
+  githubAccounts,
+  githubAccountsLoading,
+  githubAccountRef,
   canCreateProject = true,
   actionsDisabled = false,
   manualCreateParentEntry = isRuntimeEnvironmentActive,
@@ -146,6 +154,7 @@ export function AddRepoDialogStepContent({
   onOpenNestedRootFolder,
   onCreateNameChange,
   onCreateParentChange,
+  onGithubAccountChange,
   onPickCreateParent,
   onCreate
 }: AddRepoDialogStepContentProps): React.JSX.Element | null {
@@ -255,6 +264,9 @@ export function AddRepoDialogStepContent({
         createParent={createParent}
         createError={createError}
         isCreating={isCreating}
+        githubAccounts={githubAccounts}
+        githubAccountsLoading={githubAccountsLoading}
+        githubAccountRef={githubAccountRef}
         defaultParent={createDefaultParent}
         gitAvailability={createGitAvailability}
         runtimeParentStatus={createRuntimeParentStatus}
@@ -265,6 +277,7 @@ export function AddRepoDialogStepContent({
         onNameChange={onCreateNameChange}
         onParentChange={onCreateParentChange}
         onPickParent={onPickCreateParent}
+        onGithubAccountChange={onGithubAccountChange}
         onCreate={onCreate}
       />
     )

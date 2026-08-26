@@ -13,6 +13,7 @@ import { translate } from '@/i18n/i18n'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
 import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
 import { worktreeRefreshOptions } from './add-repo-runtime-owner'
+import { useCreateProjectGithubAccount } from './useCreateProjectGithubAccount'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 export function useCreateRepo(
@@ -32,6 +33,8 @@ export function useCreateRepo(
   const [createParent, setCreateParent] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const { githubAccounts, githubAccountsLoading, githubAccountRef, setGithubAccountRef } =
+    useCreateProjectGithubAccount()
   const mountedRef = useMountedRef()
   const hostToken = options.hostId ?? options.sshTargetId ?? ''
   const hostTokenRef = useRef(hostToken)
@@ -89,11 +92,26 @@ export function useCreateRepo(
     if (!name || !parentPath) {
       return
     }
+    if (githubAccountsLoading || (githubAccounts.length > 1 && !githubAccountRef)) {
+      return
+    }
     const requestHostToken = hostTokenRef.current
     const gen = ++createGenRef.current
     setIsCreating(true)
     setCreateError(null)
     try {
+      const authorIdentity = githubAccountRef
+        ? await window.api.gh.resolveAuthorIdentity({ accountRef: githubAccountRef })
+        : null
+      if (githubAccountRef && !authorIdentity) {
+        setCreateError(
+          translate(
+            'auto.components.sidebar.AddRepoCreateStep.github_account_unavailable',
+            'Could not use the selected GitHub account. Check `gh auth status`, then try again.'
+          )
+        )
+        return
+      }
       const target = options.runtimeEnvironmentId?.trim()
         ? { kind: 'environment' as const, environmentId: options.runtimeEnvironmentId.trim() }
         : getActiveRuntimeTarget({
@@ -108,7 +126,9 @@ export function useCreateRepo(
             connectionId: options.sshTargetId,
             parentPath,
             name,
-            kind: createKind
+            kind: createKind,
+            ...(authorIdentity ? { authorIdentity } : {}),
+            ...(githubAccountRef ? { githubAccountRef } : {})
           })
         : target.kind === 'environment'
           ? await callRuntimeRpc<{ repo: Repo } | { error: string }>(
@@ -117,14 +137,17 @@ export function useCreateRepo(
               {
                 parentPath,
                 name,
-                kind: createKind
+                kind: createKind,
+                ...(authorIdentity ? { authorIdentity } : {})
               },
               { timeoutMs: 60_000 }
             )
           : await window.api.repos.create({
               parentPath,
               name,
-              kind: createKind
+              kind: createKind,
+              ...(authorIdentity ? { authorIdentity } : {}),
+              ...(githubAccountRef ? { githubAccountRef } : {})
             })
       // Why: if the user closed the dialog or clicked Back mid-create,
       // createGenRef was bumped by resetCreateState. Ignore stale results.
@@ -245,6 +268,9 @@ export function useCreateRepo(
   }, [
     createName,
     createParent,
+    githubAccountRef,
+    githubAccounts.length,
+    githubAccountsLoading,
     fetchWorktrees,
     mountedRef,
     closeModal,
@@ -257,10 +283,14 @@ export function useCreateRepo(
     createName,
     createParent,
     createError,
+    githubAccounts,
+    githubAccountsLoading,
+    githubAccountRef,
     isCreating,
     setCreateName,
     setCreateParent,
     setCreateError,
+    setGithubAccountRef,
     resetCreateState,
     handlePickParent,
     handleCreate

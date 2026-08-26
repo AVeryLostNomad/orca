@@ -115,9 +115,13 @@ export default React.memo(function AddRepoDialog({
     createParent,
     createError,
     isCreating,
+    githubAccounts,
+    githubAccountsLoading,
+    githubAccountRef,
     setCreateName,
     setCreateParent,
     setCreateError,
+    setGithubAccountRef,
     resetCreateState,
     handlePickParent,
     handleCreate
@@ -323,6 +327,9 @@ export default React.memo(function AddRepoDialog({
         createParent={createParent}
         createError={createError}
         isCreating={isCreating}
+        githubAccounts={githubAccounts}
+        githubAccountsLoading={githubAccountsLoading}
+        githubAccountRef={githubAccountRef}
         hostSelector={<AddRepoHostSelectorSlot hostSelection={hostSelection} />}
         showRemoteAction={false}
         actionsDisabled={!hostSelection.selectedHostId}
@@ -390,6 +397,10 @@ export default React.memo(function AddRepoDialog({
         onCreateParentChange={(value) => {
           markCreateParentTouched(value)
           setCreateParent(value)
+          setCreateError(null)
+        }}
+        onGithubAccountChange={(value) => {
+          setGithubAccountRef(value)
           setCreateError(null)
         }}
         onPickCreateParent={() => {

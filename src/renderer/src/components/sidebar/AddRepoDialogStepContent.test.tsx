@@ -55,6 +55,9 @@ function renderStepContent(overrides: Partial<StepContentProps>): string {
     createParent: '',
     createError: null,
     isCreating: false,
+    githubAccounts: [],
+    githubAccountsLoading: false,
+    githubAccountRef: null,
     createDefaultParent: '',
     createGitAvailability: 'unknown',
     createRuntimeParentStatus: 'idle',
@@ -82,6 +85,7 @@ function renderStepContent(overrides: Partial<StepContentProps>): string {
     onOpenNestedRootFolder: vi.fn(),
     onCreateNameChange: vi.fn(),
     onCreateParentChange: vi.fn(),
+    onGithubAccountChange: vi.fn(),
     onPickCreateParent: vi.fn(),
     onCreate: vi.fn(),
     ...overrides

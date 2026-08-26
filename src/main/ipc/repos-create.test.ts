@@ -94,7 +94,13 @@ vi.mock('./ssh', () => ({
 
 import { registerRepoHandlers } from './repos'
 
-type CreateArgs = { parentPath: string; name: string; kind: 'git' | 'folder' }
+type CreateArgs = {
+  parentPath: string
+  name: string
+  kind: 'git' | 'folder'
+  authorIdentity?: { name: string; email: string }
+  githubAccountRef?: string
+}
 type CreateResult =
   | { repo: { id: string; path: string; kind: 'git' | 'folder' } }
   | { error: string }
@@ -297,6 +303,48 @@ describe('repos:create', () => {
       })
     )
     expect(result).toHaveProperty('repo.kind', 'git')
+  })
+
+  it('stores the selected GitHub identity in repository-local config', async () => {
+    const result = await callCreate({
+      parentPath: '/tmp',
+      name: 'account-project',
+      kind: 'git',
+      authorIdentity: {
+        name: 'Work User',
+        email: '123+work@users.noreply.github.com'
+      },
+      githubAccountRef: 'gh:github.com:work'
+    })
+
+    expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(1, ['init'], {
+      cwd: tmpPath('account-project')
+    })
+    expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(2, ['config', 'user.name', 'Work User'], {
+      cwd: tmpPath('account-project')
+    })
+    expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(
+      3,
+      ['config', 'user.email', '123+work@users.noreply.github.com'],
+      { cwd: tmpPath('account-project') }
+    )
+    expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(
+      4,
+      ['commit', '--allow-empty', '-m', 'Initial commit'],
+      expect.objectContaining({
+        cwd: tmpPath('account-project'),
+        env: expect.objectContaining({
+          GIT_AUTHOR_NAME: 'Work User',
+          GIT_AUTHOR_EMAIL: '123+work@users.noreply.github.com',
+          GIT_COMMITTER_NAME: 'Work User',
+          GIT_COMMITTER_EMAIL: '123+work@users.noreply.github.com'
+        })
+      })
+    )
+    expect(mockStore.addRepo).toHaveBeenCalledWith(
+      expect.objectContaining({ githubAccountRef: 'gh:github.com:work' })
+    )
+    expect(result).toHaveProperty('repo.githubAccountRef', 'gh:github.com:work')
   })
 
   // ── rollback semantics ────────────────────────────────────────────

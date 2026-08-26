@@ -4,17 +4,24 @@ import { Dialog } from '@/components/ui/dialog'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CreateStep } from './AddRepoCreateStep'
 import type { GitAvailability } from './create-project-defaults'
+import type { GhAuthAccount } from '../../../../shared/github/auth-types'
 
 function renderCreateStep({
   createName = '',
   gitAvailability = 'available',
   createParent = '/Users/alice/orca/projects',
-  parentDefaultPending = false
+  parentDefaultPending = false,
+  githubAccounts = [],
+  githubAccountsLoading = false,
+  githubAccountRef = null
 }: {
   createName?: string
   gitAvailability?: GitAvailability
   createParent?: string
   parentDefaultPending?: boolean
+  githubAccounts?: GhAuthAccount[]
+  githubAccountsLoading?: boolean
+  githubAccountRef?: string | null
 } = {}): string {
   return renderToStaticMarkup(
     <TooltipProvider>
@@ -24,6 +31,9 @@ function renderCreateStep({
           createParent={createParent}
           createError={null}
           isCreating={false}
+          githubAccounts={githubAccounts}
+          githubAccountsLoading={githubAccountsLoading}
+          githubAccountRef={githubAccountRef}
           defaultParent="/Users/alice/orca/projects"
           gitAvailability={gitAvailability}
           runtimeParentStatus="idle"
@@ -31,6 +41,7 @@ function renderCreateStep({
           onNameChange={vi.fn()}
           onParentChange={vi.fn()}
           onPickParent={vi.fn()}
+          onGithubAccountChange={vi.fn()}
           onCreate={vi.fn()}
         />
       </Dialog>
@@ -70,5 +81,34 @@ describe('CreateStep', () => {
     })
 
     expect(html).toContain('disabled=""')
+  })
+
+  it('asks for a GitHub account when multiple keyring accounts are available', () => {
+    const accounts: GhAuthAccount[] = [
+      {
+        host: 'github.com',
+        user: 'personal',
+        active: true,
+        envToken: null,
+        source: 'keyring',
+        scopes: []
+      },
+      {
+        host: 'github.com',
+        user: 'work',
+        active: false,
+        envToken: null,
+        source: 'keyring',
+        scopes: []
+      }
+    ]
+    const html = renderCreateStep({
+      createName: 'demo-project',
+      githubAccounts: accounts,
+      githubAccountRef: 'gh:github.com:personal'
+    })
+
+    expect(html).toContain('GitHub account')
+    expect(html).toContain('role="combobox"')
   })
 })

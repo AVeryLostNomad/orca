@@ -2535,6 +2535,7 @@ function createGitHubApi(): WebGitHubApi {
         ok: false,
         message: translate('auto.web.web.preload.api.31bfe8ae1a', 'Unavailable in the web client.')
       } as never),
+    resolveAuthorIdentity: () => Promise.resolve(null),
     listAccessibleProjects: (args) =>
       route<WebGitHubResult<'listAccessibleProjects'>>(
         GITHUB_WEB_RPC_METHODS.listAccessibleProjects,

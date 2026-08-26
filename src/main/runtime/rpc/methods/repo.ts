@@ -21,7 +21,13 @@ const RepoPath = z.object({
 const RepoCreate = z.object({
   parentPath: requiredString('Missing parent path'),
   name: requiredString('Missing repo name'),
-  kind: z.enum(['git', 'folder']).optional()
+  kind: z.enum(['git', 'folder']).optional(),
+  authorIdentity: z
+    .object({
+      name: requiredString('Missing Git author name'),
+      email: requiredString('Missing Git author email')
+    })
+    .optional()
 })
 
 const RepoClone = z.object({
@@ -200,7 +206,12 @@ export const REPO_METHODS: RpcMethod[] = [
     params: RepoCreate,
     handler: async (params, context) =>
       projectRepoResultVisibilityForClient(
-        await context.runtime.createRepo(params.parentPath, params.name, params.kind),
+        await context.runtime.createRepo(
+          params.parentPath,
+          params.name,
+          params.kind,
+          params.authorIdentity
+        ),
         context
       )
   }),

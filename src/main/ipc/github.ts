@@ -83,6 +83,7 @@ import {
   prewarmGithubAccountTokens
 } from '../github/github-account-env'
 import { deleteGithubPatToken, saveGithubPatToken } from '../github/github-pat-store'
+import { resolveGithubAuthorIdentity } from '../github/github-author-identity'
 import type { GithubPatAccountMeta } from '../../shared/github/github-account-ref'
 import {
   notePRRefreshValidationDenial,
@@ -1292,6 +1293,9 @@ export function registerGitHubHandlers(store: Store, stats: StatsCollector): voi
 
   ipcMain.handle('gh:diagnoseAuth', (_event, args?: { host?: string }) =>
     diagnoseGhAuth(args?.host)
+  )
+  ipcMain.handle('gh:resolveAuthorIdentity', (_event, args?: { accountRef?: string }) =>
+    resolveGithubAuthorIdentity(args?.accountRef)
   )
 
   // ── GitHub ProjectV2 view handlers ─────────────────────────────────

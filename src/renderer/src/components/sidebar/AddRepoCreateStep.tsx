@@ -4,6 +4,13 @@ import { ChevronDown, GitBranch, Loader2 } from 'lucide-react'
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import {
   CreateProjectLocationField,
@@ -15,6 +22,8 @@ import {
   joinCreateProjectPath,
   type GitAvailability
 } from './create-project-defaults'
+import type { GhAuthAccount } from '../../../../shared/github/auth-types'
+import { formatGithubAccountRef } from '../../../../shared/github/github-account-ref'
 
 // ── UI helpers ───────────────────────────────────────────────────────
 
@@ -25,6 +34,9 @@ type CreateStepProps = {
   createParent: string
   createError: string | null
   isCreating: boolean
+  githubAccounts: GhAuthAccount[]
+  githubAccountsLoading: boolean
+  githubAccountRef: string | null
   defaultParent?: string
   gitAvailability?: GitAvailability
   runtimeParentStatus?: 'idle' | 'checking' | 'failed'
@@ -35,6 +47,7 @@ type CreateStepProps = {
   onNameChange: (value: string) => void
   onParentChange: (value: string) => void
   onPickParent: () => void
+  onGithubAccountChange: (value: string) => void
   onCreate: () => void
 }
 
@@ -43,6 +56,9 @@ export function CreateStep({
   createParent,
   createError,
   isCreating,
+  githubAccounts,
+  githubAccountsLoading,
+  githubAccountRef,
   defaultParent = '',
   gitAvailability = 'unknown',
   runtimeParentStatus = 'idle',
@@ -53,6 +69,7 @@ export function CreateStep({
   onNameChange,
   onParentChange,
   onPickParent,
+  onGithubAccountChange,
   onCreate
 }: CreateStepProps): React.JSX.Element {
   const [browsingParent, setBrowsingParent] = useState(false)
@@ -68,6 +85,8 @@ export function CreateStep({
     gitAvailability !== 'checking' &&
     gitAvailability !== 'unavailable' &&
     !parentDefaultPending &&
+    !githubAccountsLoading &&
+    (githubAccounts.length <= 1 || Boolean(githubAccountRef)) &&
     !isCreating
   const missingLocationLabel = translate(
     'auto.components.sidebar.AddRepoCreateStep.3a13f6e88b',
@@ -168,6 +187,55 @@ export function CreateStep({
             spellCheck={false}
           />
         </div>
+        {githubAccountsLoading ? (
+          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" />
+            {translate(
+              'auto.components.sidebar.AddRepoCreateStep.github_accounts_checking',
+              'Checking GitHub accounts…'
+            )}
+          </p>
+        ) : githubAccounts.length > 1 ? (
+          <div className="space-y-1">
+            <label
+              htmlFor="create-project-github-account"
+              className="text-[11px] font-medium text-muted-foreground block"
+            >
+              {translate(
+                'auto.components.sidebar.AddRepoCreateStep.github_account',
+                'GitHub account'
+              )}
+            </label>
+            <Select
+              value={githubAccountRef ?? undefined}
+              onValueChange={onGithubAccountChange}
+              disabled={isCreating}
+            >
+              <SelectTrigger id="create-project-github-account" className="h-11 w-full">
+                <SelectValue
+                  placeholder={translate(
+                    'auto.components.sidebar.AddRepoCreateStep.github_account_placeholder',
+                    'Choose an account'
+                  )}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {githubAccounts.map((account) => {
+                  const ref = formatGithubAccountRef({
+                    kind: 'gh-cli',
+                    host: account.host,
+                    user: account.user
+                  })
+                  return (
+                    <SelectItem key={ref} value={ref}>
+                      {account.user} ({account.host})
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
         {/* Summary card doubles as the disclosure for the uncommon settings, so the
           defaults and the controls to change them live in one place. */}
