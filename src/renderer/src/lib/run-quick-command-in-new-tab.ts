@@ -3,10 +3,15 @@ import { reconcileTabOrder } from '@/components/tab-bar/reconcile-order'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import {
   flattenTerminalQuickCommand,
+  getTerminalQuickCommandMode,
   isTerminalAgentQuickCommand,
   supportsTerminalAgentQuickCommand
 } from '../../../shared/terminal-quick-commands'
-import type { TerminalQuickCommand } from '../../../shared/terminal-quick-command-types'
+import type {
+  TerminalCommandQuickCommand,
+  TerminalQuickCommand
+} from '../../../shared/terminal-quick-command-types'
+import { createBrowserUuid } from '@/lib/browser-uuid'
 
 export type RunQuickCommandInNewTabArgs = {
   command: TerminalQuickCommand
@@ -82,6 +87,10 @@ export function runQuickCommandInNewTab({
   if (!command.command.trim()) {
     return null
   }
+  if (getTerminalQuickCommandMode(command) === 'modal') {
+    openQuickCommandModal(command, worktreeId, groupId, historyId)
+    return null
+  }
   const store = useAppStore.getState()
   const tab = store.createTab(worktreeId, targetGroupId, undefined, {
     quickCommandLabel: command.label
@@ -119,4 +128,22 @@ export function runQuickCommandInNewTab({
   }
 
   return { tabId: tab.id }
+}
+
+/** Run a 'modal' quick command: an ephemeral dialog terminal instead of a tab. */
+function openQuickCommandModal(
+  command: TerminalCommandQuickCommand,
+  worktreeId: string,
+  groupId: string | null | undefined,
+  historyId: string
+): void {
+  const state = useAppStore.getState()
+  // Why: resolve the workspace root up front — the modal's ephemeral worktree
+  // id is synthetic, so the terminal cannot fall back to a workspace lookup.
+  const cwd = state.getKnownWorktreeById(worktreeId)?.path ?? null
+  state.openQuickCommandModal({ requestId: createBrowserUuid(), command, worktreeId, cwd })
+  const recentGroupId = groupId ?? state.activeGroupIdByWorktree[worktreeId] ?? null
+  if (recentGroupId) {
+    state.setRecentQuickCommandForGroup(recentGroupId, historyId)
+  }
 }

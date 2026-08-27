@@ -5,6 +5,7 @@ import {
   flattenTerminalQuickCommand,
   getTerminalQuickCommandAction,
   getTerminalQuickCommandBody,
+  getTerminalQuickCommandMode,
   getDefaultTerminalQuickCommands,
   isTerminalQuickCommandComplete,
   normalizeTerminalQuickCommands,
@@ -225,6 +226,24 @@ describe('terminal quick commands', () => {
     expect(parseNormalizedTerminalQuickCommands([{ ...canonical[0], command: 42 }])).toBeNull()
     expect(
       parseNormalizedTerminalQuickCommands([...canonical, ...canonical.slice(0, 1)])
+    ).toBeNull()
+  })
+
+  it('keeps modal mode only when set, so pre-mode peers still accept tab commands', () => {
+    const normalized = normalizeTerminalQuickCommands([
+      { id: 'tab', label: 'Tab', command: 'echo tab', appendEnter: true },
+      { id: 'popup', label: 'Popup', command: 'echo popup', appendEnter: true, mode: 'modal' },
+      { id: 'bogus', label: 'Bogus', command: 'echo bogus', appendEnter: true, mode: 'sideways' }
+    ])
+
+    expect(normalized[0]).not.toHaveProperty('mode')
+    expect(normalized[1]).toHaveProperty('mode', 'modal')
+    expect(normalized[2]).not.toHaveProperty('mode')
+    expect(getTerminalQuickCommandMode(normalized[0]!)).toBe('tab')
+    expect(getTerminalQuickCommandMode(normalized[1]!)).toBe('modal')
+    expect(parseNormalizedTerminalQuickCommands(normalized)).toEqual(normalized)
+    expect(
+      parseNormalizedTerminalQuickCommands([{ ...normalized[0], mode: 'sideways' }])
     ).toBeNull()
   })
 

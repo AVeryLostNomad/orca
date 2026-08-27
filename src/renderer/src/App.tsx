@@ -6,6 +6,7 @@ import { LinkRoutingPreferenceDialogProvider } from './components/link-routing-p
 import { SkillFreshnessNudge } from './components/skills/SkillFreshnessNudge'
 import PinnedTabCloseDialog from './components/terminal-pane/PinnedTabCloseDialog'
 import RunningTerminalCloseDialog from './components/terminal-pane/RunningTerminalCloseDialog'
+import { QuickCommandModalTerminal } from './components/terminal-quick-commands/QuickCommandModalTerminal'
 import WorktreeBaseFallbackDialog from './components/WorktreeBaseFallbackDialog'
 import { useUnreadDockBadge } from './hooks/useUnreadDockBadge'
 import { AppBackgroundServices } from './app-shell/AppBackgroundServices'
@@ -75,6 +76,8 @@ function App(): React.JSX.Element {
               floatingWorkspace={floatingWorkspace}
               onboardingGate={onboardingGate}
             />
+            {/* Why: inside the providers — TerminalPane needs the link-routing dialog context. */}
+            <QuickCommandModalTerminal />
           </LinkRoutingPreferenceDialogProvider>
         </ConfirmationDialogProvider>
       </TooltipProvider>

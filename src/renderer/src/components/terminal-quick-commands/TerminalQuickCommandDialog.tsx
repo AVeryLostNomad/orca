@@ -7,6 +7,7 @@ import type {
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import {
   getTerminalQuickCommandAction,
+  getTerminalQuickCommandMode,
   getTerminalQuickCommandScope,
   isTerminalAgentQuickCommand,
   supportsTerminalAgentQuickCommand
@@ -114,6 +115,19 @@ export function TerminalQuickCommandDialog({
     })
   }
 
+  const toggleModalMode = (): void => {
+    setDraft((current) =>
+      isTerminalAgentQuickCommand(current)
+        ? current
+        : (() => {
+            const mode = getTerminalQuickCommandMode(current) === 'modal' ? 'tab' : 'modal'
+            draftMemoryRef.current = { ...draftMemoryRef.current, terminalMode: mode }
+            const { mode: _omitted, ...rest } = current
+            return mode === 'modal' ? { ...rest, mode } : rest
+          })()
+    )
+  }
+
   const toggleAppendEnter = (): void => {
     setDraft((current) =>
       isTerminalAgentQuickCommand(current)
@@ -145,6 +159,7 @@ export function TerminalQuickCommandDialog({
           action: 'terminal-command',
           command: draft.command.trimEnd(),
           appendEnter: draft.appendEnter,
+          ...(getTerminalQuickCommandMode(draft) === 'modal' ? { mode: 'modal' as const } : {}),
           scope: selectedScope
         }
     if (
@@ -238,6 +253,7 @@ export function TerminalQuickCommandDialog({
             setAdvancedOpen={setAdvancedOpen}
             setDraft={setDraft}
             toggleAppendEnter={toggleAppendEnter}
+            toggleModalMode={toggleModalMode}
           />
         </div>
 

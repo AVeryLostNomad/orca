@@ -3,12 +3,16 @@ import { ChevronDown } from 'lucide-react'
 import type { Repo } from '../../../../shared/repo-types'
 import type { TerminalQuickCommand } from '../../../../shared/terminal-quick-command-types'
 import type { getTerminalQuickCommandScope } from '../../../../shared/terminal-quick-commands'
-import { isTerminalAgentQuickCommand } from '../../../../shared/terminal-quick-commands'
+import {
+  getTerminalQuickCommandMode,
+  isTerminalAgentQuickCommand
+} from '../../../../shared/terminal-quick-commands'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { TerminalQuickCommandAppendEnterSwitch } from './TerminalQuickCommandAppendEnterSwitch'
 import { TerminalQuickCommandCollapsibleRow } from './TerminalQuickCommandCollapsibleRow'
+import { TerminalQuickCommandModalModeSwitch } from './TerminalQuickCommandModalModeSwitch'
 import { TerminalQuickCommandScopeField } from './TerminalQuickCommandScopeField'
 
 type TerminalQuickCommandAdvancedSectionProps = {
@@ -22,6 +26,7 @@ type TerminalQuickCommandAdvancedSectionProps = {
   setAdvancedOpen: Dispatch<SetStateAction<boolean>>
   setDraft: Dispatch<SetStateAction<TerminalQuickCommand>>
   toggleAppendEnter: () => void
+  toggleModalMode: () => void
 }
 
 export function TerminalQuickCommandAdvancedSection({
@@ -34,7 +39,8 @@ export function TerminalQuickCommandAdvancedSection({
   lastRepoScopeIdRef,
   setAdvancedOpen,
   setDraft,
-  toggleAppendEnter
+  toggleAppendEnter,
+  toggleModalMode
 }: TerminalQuickCommandAdvancedSectionProps): React.JSX.Element {
   return (
     <div>
@@ -65,11 +71,18 @@ export function TerminalQuickCommandAdvancedSection({
           setDraft={setDraft}
         />
         {!isTerminalAgentQuickCommand(draft) ? (
-          <TerminalQuickCommandAppendEnterSwitch
-            appendEnter={draft.appendEnter}
-            disabled={!advancedOpen}
-            onToggle={toggleAppendEnter}
-          />
+          <>
+            <TerminalQuickCommandAppendEnterSwitch
+              appendEnter={draft.appendEnter}
+              disabled={!advancedOpen}
+              onToggle={toggleAppendEnter}
+            />
+            <TerminalQuickCommandModalModeSwitch
+              modalMode={getTerminalQuickCommandMode(draft) === 'modal'}
+              disabled={!advancedOpen}
+              onToggle={toggleModalMode}
+            />
+          </>
         ) : null}
       </TerminalQuickCommandCollapsibleRow>
     </div>

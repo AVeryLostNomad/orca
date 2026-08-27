@@ -2775,6 +2775,10 @@
       "terminal": {
         "quick": {
           "commands": {
+            "QuickCommandModalTerminal": {
+              "e36e878bae": "Close",
+              "b60b83341f": "Starting terminal..."
+            },
             "TerminalQuickCommandActionToggle": {
               "b0d58e37ed": "Agent Prompt",
               "b5ea4d64f6": "Terminal Command"
@@ -2809,6 +2813,11 @@
             "TerminalQuickCommandLabelField": {
               "66ea254301": "Start dev server",
               "db17f1e41e": "Label"
+            },
+            "TerminalQuickCommandModalModeSwitch": {
+              "675e119ac6": "Run in Popup",
+              "b4d749f4cc": "Run in a temporary window that closes when the command exits, instead of a new tab.",
+              "c6381a6cbc": "Toggle run in popup"
             },
             "TerminalQuickCommandScopeField": {
               "2db6edede7": "Saving keeps the existing project scope unless you choose another.",

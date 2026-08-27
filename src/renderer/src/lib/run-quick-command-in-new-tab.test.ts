@@ -7,6 +7,8 @@ type MockStoreState = {
   setActiveTabType: ReturnType<typeof vi.fn>
   setTabBarOrder: ReturnType<typeof vi.fn>
   setRecentQuickCommandForGroup: ReturnType<typeof vi.fn>
+  openQuickCommandModal: ReturnType<typeof vi.fn>
+  getKnownWorktreeById: ReturnType<typeof vi.fn>
   tabsByWorktree: Record<string, { id: string }[]>
   unifiedTabsByWorktree: Record<
     string,
@@ -41,6 +43,8 @@ function createStoreState(): MockStoreState {
     setActiveTabType: vi.fn(),
     setTabBarOrder: vi.fn(),
     setRecentQuickCommandForGroup: vi.fn(),
+    openQuickCommandModal: vi.fn(),
+    getKnownWorktreeById: vi.fn(() => ({ path: '/repos/wt-1' })),
     tabsByWorktree: { 'wt-1': [{ id: 'tab-existing' }, { id: 'tab-new' }] },
     unifiedTabsByWorktree: {
       'wt-1': [{ entityId: 'tab-new', contentType: 'terminal', groupId: 'group-1' }]
@@ -117,6 +121,32 @@ describe('runQuickCommandInNewTab', () => {
     expect(mockState.queueTabStartupCommand).toHaveBeenCalledWith('tab-new', {
       command: 'git status'
     })
+  })
+
+  it('opens the modal host instead of a tab for modal-mode commands', () => {
+    const result = runQuickCommandInNewTab({
+      command: {
+        id: 'deploy',
+        label: 'Deploy',
+        action: 'terminal-command',
+        command: 'pnpm deploy',
+        appendEnter: true,
+        mode: 'modal'
+      },
+      worktreeId: 'wt-1',
+      groupId: 'group-1'
+    })
+
+    expect(result).toBeNull()
+    expect(mockState.createTab).not.toHaveBeenCalled()
+    expect(mockState.queueTabStartupCommand).not.toHaveBeenCalled()
+    expect(mockState.openQuickCommandModal).toHaveBeenCalledWith({
+      requestId: expect.any(String),
+      command: expect.objectContaining({ id: 'deploy', mode: 'modal' }),
+      worktreeId: 'wt-1',
+      cwd: '/repos/wt-1'
+    })
+    expect(mockState.setRecentQuickCommandForGroup).toHaveBeenCalledWith('group-1', 'deploy')
   })
 
   it('launches agent quick commands through the programmatic agent prompt path', () => {

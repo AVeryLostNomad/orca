@@ -4,6 +4,7 @@ import type {
   TerminalCommandQuickCommand,
   TerminalQuickCommand,
   TerminalQuickCommandAction,
+  TerminalQuickCommandMode,
   TerminalQuickCommandScope
 } from './terminal-quick-command-types'
 
@@ -60,6 +61,12 @@ export function getTerminalQuickCommandAction(
   command: TerminalQuickCommand
 ): TerminalQuickCommandAction {
   return command.action === 'agent-prompt' ? 'agent-prompt' : 'terminal-command'
+}
+
+export function getTerminalQuickCommandMode(
+  command: TerminalQuickCommand
+): TerminalQuickCommandMode {
+  return command.action !== 'agent-prompt' && command.mode === 'modal' ? 'modal' : 'tab'
 }
 
 export function isTerminalAgentQuickCommand(
@@ -150,7 +157,9 @@ export function normalizeTerminalQuickCommands(input: unknown): TerminalQuickCom
         ...base,
         action: 'terminal-command',
         command: command.slice(0, MAX_QUICK_COMMAND_TERMINAL_TEXT_LENGTH),
-        appendEnter: record.appendEnter !== false
+        appendEnter: record.appendEnter !== false,
+        // Why: omit the default so pre-mode peers still accept the normalized list.
+        ...(record.mode === 'modal' ? { mode: 'modal' as const } : {})
       })
     }
 
@@ -205,11 +214,16 @@ function isNormalizedTerminalQuickCommand(value: unknown, expected: TerminalQuic
       command.prompt === expected.prompt
     )
   }
+  const expectedKeys =
+    expected.mode === 'modal'
+      ? ['id', 'label', 'action', 'command', 'appendEnter', 'scope', 'mode']
+      : ['id', 'label', 'action', 'command', 'appendEnter', 'scope']
   return (
-    hasExactKeys(command, ['id', 'label', 'action', 'command', 'appendEnter', 'scope']) &&
+    hasExactKeys(command, expectedKeys) &&
     command.action === 'terminal-command' &&
     command.command === expected.command &&
-    command.appendEnter === expected.appendEnter
+    command.appendEnter === expected.appendEnter &&
+    command.mode === expected.mode
   )
 }
 
