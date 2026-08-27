@@ -2825,6 +2825,8 @@ function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     consumePendingOpenSettings: () => Promise.resolve(false),
     onOpenSkillShare: () => noopUnsubscribe,
     consumePendingSkillShare: () => Promise.resolve(null),
+    onOpenWithFiles: () => noopUnsubscribe,
+    consumePendingOpenWithFiles: () => Promise.resolve([]),
     onOpenSetupGuide: () => noopUnsubscribe,
     onOpenFeatureTour: () => noopUnsubscribe,
     onOpenCrashReport: () => noopUnsubscribe,

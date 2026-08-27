@@ -185,6 +185,7 @@ import { startEventLoopStallProbe } from './startup/event-loop-stall-probe'
 import { startMainThreadChurnProbe } from './diagnostics/main-thread-churn-probe'
 import { parseSkillShareId } from '../shared/skill-share-link'
 import { SkillShareDeepLinkState } from './startup/skill-share-deep-link-state'
+import { OpenWithFileState } from './startup/open-with-file-state'
 import {
   isStartupDiagnosticsEnabled,
   logStartupDiagnostic,
@@ -403,6 +404,7 @@ const recoveryReloadInFlight = createWebContentsTimedFlag()
 // Why: a tray "Settings…" click can precede the renderer's ui:openSettings listener; it pulls this one-shot on mount.
 const pendingOpenSettings = createWebContentsTimedFlag()
 const skillShareDeepLinks = new SkillShareDeepLinkState()
+const openWithFiles = new OpenWithFileState()
 let firstWindowStartupServicesReady: Promise<void> = Promise.resolve()
 let managedWslCliReconciliationReady: Promise<void> = Promise.resolve()
 let managedWslCliStartupBarrierReady: Promise<void> = Promise.resolve()
@@ -702,10 +704,20 @@ function focusExistingWindow(): void {
   })
 }
 
+function publishOpenWithFiles(paths: string[]): boolean {
+  const contents = mainWindow?.webContents
+  if (!contents || contents.isDestroyed() || contents.isLoading()) {
+    return false
+  }
+  contents.send('ui:openWithFiles', { paths })
+  return true
+}
+
 function requestDesktopActivation(argv: readonly string[] = []): void {
   skillShareDeepLinks.capture(argv, (shareId) => {
     mainWindow?.webContents.send('ui:openSkillShare', shareId)
   })
+  openWithFiles.captureFromArgv(argv, publishOpenWithFiles)
   // Why: a duplicate `orca serve` must not drag a headless server into opening a desktop window (#11935).
   if (!shouldActivateDesktopForSecondInstance(argv)) {
     return
@@ -721,7 +733,19 @@ app.on('open-url', (event, url) => {
   requestDesktopActivation([url])
 })
 
+// Why: macOS delivers Finder/dock file opens via open-file (pre-ready at cold launch,
+// live while running); the OS already vetted the target so no extension filter here.
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  if (openWithFiles.capture([filePath], publishOpenWithFiles)) {
+    app.addRecentDocument(filePath)
+    desktopActivationGate.requestActivation()
+  }
+})
+
 skillShareDeepLinks.capture(process.argv)
+// Why: Win/Linux file associations deliver the double-clicked path as a plain argv entry.
+openWithFiles.captureFromArgv(process.argv)
 
 const handleMacAppActivation = createMacAppActivationHandler({
   getWindow: () => mainWindow,
@@ -910,6 +934,10 @@ ipcMain.handle('ui:consumePendingOpenSettings', (event) =>
 
 ipcMain.handle('ui:consumePendingSkillShare', () => {
   return skillShareDeepLinks.consume()
+})
+
+ipcMain.handle('ui:consumePendingOpenWithFiles', () => {
+  return openWithFiles.consume()
 })
 
 ipcMain.handle(
@@ -2919,6 +2947,22 @@ void app.whenReady().then(async () => {
       recordCrashBreadcrumb('manual_reload_requested', { ignoreCache })
     },
     onOpenSettings: openSettingsFromSystemMenu,
+    onOpenFilePicker: () => {
+      void (async () => {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+          properties: ['openFile', 'multiSelections']
+        })
+        if (canceled || filePaths.length === 0) {
+          return
+        }
+        if (openWithFiles.capture(filePaths, publishOpenWithFiles)) {
+          for (const filePath of filePaths) {
+            app.addRecentDocument(filePath)
+          }
+          desktopActivationGate.requestActivation()
+        }
+      })()
+    },
     onOpenSetupGuide: (targetWindow) => {
       recordCrashBreadcrumb('setup_guide_opened')
       const targetBrowserWindow = targetWindow instanceof BrowserWindow ? targetWindow : null

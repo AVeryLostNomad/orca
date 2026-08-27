@@ -14,6 +14,7 @@ import { DiffNotesSendMenu } from './DiffNotesSendMenu'
 import { EditorPanelMarkdownActionsMenu } from './EditorPanelMarkdownActionsMenu'
 import { translate } from '@/i18n/i18n'
 import { EditorPanelHeaderPath } from './EditorPanelHeaderPath'
+import { EditorPanelCopyIntoWorkspaceButton } from './EditorPanelCopyIntoWorkspaceButton'
 import { EditorPanelDiffCopyContentsButton } from './EditorPanelDiffCopyContentsButton'
 import { useDiffNavigation } from './diff-navigation-context'
 import { useShortcutKeyDetails } from '@/hooks/useShortcutLabel'
@@ -120,6 +121,7 @@ export function EditorPanelHeader({
         onOpenMarkdownPreview={onOpenMarkdownPreview}
         onOpenContainingFolder={onOpenContainingFolder}
       />
+      {!isDiffSurface && <EditorPanelCopyIntoWorkspaceButton activeFile={activeFile} />}
       {canOpenPreviewToSide && (
         <TooltipProvider delayDuration={300}>
           <Tooltip>

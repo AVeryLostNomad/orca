@@ -15,6 +15,7 @@ const { verifyLinuxGlibcFloor } = require('./scripts/verify-linux-glibc-floor.cj
 const { writeMacBuildCompatibility } = require('./scripts/mac-build-compatibility.cjs')
 const { verifyPackagedPluginResources } = require('./scripts/verify-packaged-plugin-resources.cjs')
 const { verifySkillsCliRuntime } = require('./scripts/verify-skills-cli-runtime.cjs')
+const { openWithFileExtensions } = require('./file-associations.cjs')
 
 // Why: dev-channel builds must carry the *release* identity — same bundle id,
 // Developer ID signature, and notarization ticket — or Squirrel.Mac refuses to
@@ -101,6 +102,14 @@ module.exports = {
   appId,
   productName: 'Orca',
   protocols: [{ name: 'Orca', schemes: ['orca'] }],
+  // Why: rank Alternate registers Orca as an "Open With" editor without stealing
+  // any OS default handler; users opt in per file type themselves.
+  fileAssociations: openWithFileExtensions.map((ext) => ({
+    ext,
+    name: `${ext.toUpperCase()} File`,
+    role: 'Editor',
+    rank: 'Alternate'
+  })),
   ...(devChannelBuildVersion
     ? { extraMetadata: { version: devChannelBuildVersion } }
     : localBuildVersion
@@ -436,7 +445,10 @@ module.exports = {
       entry: {
         // Why: Electron reports WM_CLASS=orca for the visible Linux window;
         // GNOME docks need an exact match to group it with orca-ide.desktop.
-        StartupWMClass: 'orca'
+        StartupWMClass: 'orca',
+        // Why: fileAssociations carry no per-extension MIME data; text/plain puts
+        // Orca in Linux "Open With" lists for code/text files without claiming defaults.
+        MimeType: 'text/plain;'
       }
     },
     extraResources: [

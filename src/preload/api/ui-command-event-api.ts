@@ -38,6 +38,9 @@ export type UiCommandEventApi = {
   consumePendingOpenSettings: () => Promise<boolean>
   onOpenSkillShare: (callback: (shareId: string) => void) => () => void
   consumePendingSkillShare: () => Promise<string | null>
+  onOpenWithFiles: (callback: (payload: { paths: string[] }) => void) => () => void
+  /** Consumes OS "open with" file paths queued before the renderer mounted. */
+  consumePendingOpenWithFiles: () => Promise<string[]>
   onOpenSetupGuide: (callback: () => void) => () => void
   onOpenFeatureTour: (callback: () => void) => () => void
   onOpenCrashReport: (callback: () => void) => () => void

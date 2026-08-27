@@ -6,6 +6,7 @@ import { getTabIdsAwaitingHostHydrationRemount } from '@/lib/parked-terminal-hos
 import { applyWorktreeHeadIdentities } from './worktree-head-identity-apply'
 import { getWorktreeMapFromState, getRepoMapFromState } from '@/store/selectors'
 import { applyUIZoom } from '@/lib/ui-zoom'
+import { openExternalPathsInActiveWorkspace } from '@/lib/external-file-open'
 import { activateAndRevealWorktree, activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { buildLinearIssueLinkedWorkItem } from '@/lib/linear-linked-work-item'
 import { runWorktreeDelete } from '@/components/sidebar/delete-worktree-flow'
@@ -1218,6 +1219,25 @@ export function useIpcEvents(): void {
         }
       })
       .catch(() => {})
+
+    const unsubscribeOpenWithFiles = window.api.ui.onOpenWithFiles?.((payload) => {
+      openExternalPathsInActiveWorkspace(payload.paths, { notifyWhenNoWorkspace: true })
+    })
+    if (unsubscribeOpenWithFiles) {
+      unsubs.push(unsubscribeOpenWithFiles)
+    }
+
+    // Why: an OS "open with" launch can precede this listener (cold start); pull the queued paths.
+    const pendingOpenWithFiles = window.api.ui.consumePendingOpenWithFiles?.()
+    if (pendingOpenWithFiles && typeof pendingOpenWithFiles.then === 'function') {
+      void pendingOpenWithFiles
+        .then((paths) => {
+          if (paths.length > 0) {
+            openExternalPathsInActiveWorkspace(paths, { notifyWhenNoWorkspace: true })
+          }
+        })
+        .catch(() => {})
+    }
 
     const pendingSkillShare = window.api.ui.consumePendingSkillShare?.()
     if (pendingSkillShare && typeof pendingSkillShare.then === 'function') {

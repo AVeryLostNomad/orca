@@ -3678,6 +3678,14 @@ const api = {
     },
     consumePendingSkillShare: (): Promise<string | null> =>
       ipcRenderer.invoke('ui:consumePendingSkillShare'),
+    onOpenWithFiles: (callback: (payload: { paths: string[] }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: { paths: string[] }): void =>
+        callback(payload)
+      ipcRenderer.on('ui:openWithFiles', listener)
+      return () => ipcRenderer.removeListener('ui:openWithFiles', listener)
+    },
+    consumePendingOpenWithFiles: (): Promise<string[]> =>
+      ipcRenderer.invoke('ui:consumePendingOpenWithFiles'),
     onOpenSetupGuide: (callback: () => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent) => callback()
       ipcRenderer.on('ui:openSetupGuide', listener)

@@ -96,7 +96,8 @@
     "help": "Help",
     "paste": "Paste",
     "copy": "Copy",
-    "selectAll": "Select All"
+    "selectAll": "Select All",
+    "openFile": "Open File..."
   },
   "tray": {
     "openOrca": "Open Orca",
@@ -810,6 +811,9 @@
       },
       "floatingWorkspaceNotesTab": {
         "label": "Notes"
+      },
+      "externalFileOpen": {
+        "noActiveWorkspace": "Open a workspace in Orca first, then open the file again."
       }
     },
     "hooks": {
@@ -14710,6 +14714,11 @@
           "installing": "Installing {{value0}} support… {{value1}}%",
           "starting": "Starting {{value0}} language server…",
           "error": "{{value0}} language server unavailable"
+        },
+        "EditorPanelCopyIntoWorkspaceButton": {
+          "copy": "Copy into workspace",
+          "failed": "Could not copy the file into the workspace.",
+          "saveFirst": "Save the file before copying it into the workspace"
         }
       },
       "diff": {

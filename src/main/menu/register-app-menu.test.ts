@@ -39,6 +39,7 @@ function buildMenuOptions() {
   return {
     onCheckForUpdates: vi.fn(),
     onOpenSettings: vi.fn(),
+    onOpenFilePicker: vi.fn(),
     onOpenSetupGuide: vi.fn(),
     onOpenFeatureTour: vi.fn(),
     onOpenCrashReport: vi.fn(),
@@ -406,9 +407,10 @@ describe('registerAppMenu', () => {
     expect(appLabels).toEqual(
       expect.arrayContaining(['Check for Updates...', `Settings\t${isMac ? '⌘,' : 'Ctrl+,'}`])
     )
-    // Why: on macOS File should NOT duplicate Settings/Exit — those live in
-    // the system app menu. Without global Export, there is no File item left.
-    expect(template.find((item) => item.label === 'File')).toBeUndefined()
+    // Why: on macOS File must NOT duplicate Settings/Exit — those live in
+    // the system app menu; it carries only the open-file actions.
+    const macFileLabels = getSubmenu(template, 'File').map((item) => item.label ?? item.role)
+    expect(macFileLabels).toEqual(['Open File...', 'recentDocuments'])
     const helpLabels = getSubmenu(template, 'Help').map((item) => item.label)
     expect(helpLabels).toEqual([
       'Report Crash...',

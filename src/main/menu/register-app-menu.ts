@@ -8,6 +8,7 @@ import {
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
 import { translateMain } from '../i18n/main-i18n'
 import { createAppMenuSelectionItem } from './app-menu-selection-item'
+import { buildFileMenu } from './app-file-menu'
 
 export type AppearanceMenuState = {
   showTasksButton: boolean
@@ -25,6 +26,7 @@ export function getNextDefaultOnAppearanceSettingValue(current: boolean | undefi
 
 type RegisterAppMenuOptions = {
   onOpenSettings: () => void
+  onOpenFilePicker: () => void
   onOpenSetupGuide: (window?: Electron.BaseWindow | null) => void
   onOpenFeatureTour: (window?: Electron.BaseWindow | null) => void
   onOpenCrashReport: (window?: Electron.BaseWindow | null) => void
@@ -46,6 +48,7 @@ type RegisterAppMenuOptions = {
 function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   const {
     onOpenSettings,
+    onOpenFilePicker,
     onOpenSetupGuide,
     onOpenFeatureTour,
     onOpenCrashReport,
@@ -157,17 +160,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     ]
   }
 
-  const fileMenu: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.file', 'File'),
-    // Why: on Windows/Linux there is no app-named menu, so Settings and
-    // Quit live under File — matching the common platform convention and
-    // keeping all user-facing actions reachable from the in-window menu bar.
-    submenu: [
-      settingsItem,
-      { type: 'separator' },
-      { role: 'quit', label: translateMain('menu.exit', 'Exit') }
-    ]
-  }
+  const fileMenu = buildFileMenu({ isMac, onOpenFilePicker, settingsItem })
 
   // Why: keep native menu hints while letting non-macOS Ctrl+Z/Ctrl+Y reach the focused terminal or DOM control.
   const undoRedoOptions: Electron.MenuItemConstructorOptions = isMac
@@ -336,7 +329,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [macAppMenu] : []),
-    ...(isMac ? [] : [fileMenu]),
+    fileMenu,
     editMenu,
     viewMenu,
     windowMenu,
