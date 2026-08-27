@@ -5,7 +5,10 @@ vi.mock('electron', () => ({
   net: { request: vi.fn() }
 }))
 
-import { LSP_SERVER_LANGUAGE_IDS } from '../../shared/lsp-language-support'
+import {
+  LSP_PROJECT_SERVER_OVERRIDES,
+  LSP_SERVER_LANGUAGE_IDS
+} from '../../shared/lsp-language-support'
 import { getLspServerRegistry, lspNodeBundlePin, lspServerLanguageIds } from './lsp-server-registry'
 import nodeBundleConfig from '../../../config/lsp-node-server-bundles.json'
 import binaryAssetConfig from '../../../config/lsp-binary-assets.json'
@@ -24,12 +27,25 @@ describe('lsp server registry integrity', () => {
     }
   })
 
-  it('maps each language to at most one server', () => {
+  it('maps each language to at most one base server', () => {
+    const overrideServers = new Set(Object.values(LSP_PROJECT_SERVER_OVERRIDES))
     const seen = new Map<string, string>()
     for (const [serverId, languages] of Object.entries(LSP_SERVER_LANGUAGE_IDS)) {
+      if (overrideServers.has(serverId as never)) {
+        continue
+      }
       for (const language of languages) {
         expect(seen.get(language), `${language} claimed twice`).toBeUndefined()
         seen.set(language, serverId)
+      }
+    }
+  })
+
+  it('overrides only claim languages their base server already covers', () => {
+    for (const [baseId, overrideId] of Object.entries(LSP_PROJECT_SERVER_OVERRIDES)) {
+      const baseLanguages = new Set(LSP_SERVER_LANGUAGE_IDS[baseId as never] as string[])
+      for (const language of LSP_SERVER_LANGUAGE_IDS[overrideId as never] as string[]) {
+        expect(baseLanguages.has(language), `${overrideId} claims ${language}`).toBe(true)
       }
     }
   })

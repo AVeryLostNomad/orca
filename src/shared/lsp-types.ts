@@ -1,5 +1,6 @@
 export type LspServerId =
   | 'typescript'
+  | 'angular'
   | 'json'
   | 'css'
   | 'html'

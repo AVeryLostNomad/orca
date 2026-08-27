@@ -102,7 +102,12 @@ export async function ensureLspServerAvailable(serverId: LspServerId): Promise<L
       return {
         // Electron re-execs as plain Node, so bundles run without a user toolchain.
         command: process.execPath,
-        args: [entryAbsolute, ...(serverPin.extraArgs ?? []), ...(entry.args ?? [])],
+        args: [
+          entryAbsolute,
+          ...(serverPin.extraArgs ?? []),
+          ...(entry.args ?? []),
+          ...(entry.installArgs?.({ installRoot }) ?? [])
+        ],
         env: { ...process.env, ...NODE_BUNDLE_ENV },
         installRoot
       }

@@ -30,6 +30,12 @@ const BUNDLES = [
     servers: { typescript: { bin: { package: 'typescript-language-server' } } }
   },
   {
+    bundleId: 'angular-language-server',
+    // Brings its own pinned typescript + @angular/language-service.
+    dependencies: { '@angular/language-server': '*' },
+    servers: { angular: { bin: { package: '@angular/language-server', name: 'ngserver' } } }
+  },
+  {
     bundleId: 'vscode-langservers',
     dependencies: { 'vscode-langservers-extracted': '*' },
     servers: {

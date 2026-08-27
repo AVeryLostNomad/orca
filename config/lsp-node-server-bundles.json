@@ -95,6 +95,17 @@
           "entryRelativePath": "node_modules/@vue/language-server/bin/vue-language-server.js"
         }
       }
+    },
+    "angular-language-server": {
+      "bundleId": "angular-language-server",
+      "version": "22.1.4",
+      "asset": "angular-language-server-22.1.4.tar.gz",
+      "sha256": "182236701ed7959f608e6dc2697687ec8c2b4de714b29b457956c4b1371c32ca",
+      "servers": {
+        "angular": {
+          "entryRelativePath": "node_modules/@angular/language-server/bin/ngserver"
+        }
+      }
     }
   }
 }

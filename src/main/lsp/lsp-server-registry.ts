@@ -22,6 +22,8 @@ export type LspServerRegistryEntry = {
   acquisition: LspAcquisitionSpec
   /** Extra args after the entry; node bundles may add pinned extraArgs first. */
   args?: string[]
+  /** Args that need the resolved install location (appended after `args`). */
+  installArgs?: (context: { installRoot: string }) => string[]
   initializationOptions?: (context: { installRoot: string }) => unknown
   /** Static answer for workspace/configuration requests (section-keyed). */
   workspaceConfiguration?: Record<string, unknown>
@@ -47,6 +49,18 @@ const REGISTRY: LspServerRegistryEntry[] = [
         fallbackPath: join(installRoot, 'node_modules', 'typescript', 'lib')
       }
     })
+  },
+  {
+    id: 'angular',
+    displayName: 'Angular',
+    acquisition: { kind: 'node-bundle', bundleId: 'angular-language-server' },
+    args: ['--stdio'],
+    // Probe locations are fallbacks; ngserver prefers the workspace's own
+    // typescript/@angular/language-service when present.
+    installArgs: ({ installRoot }) => {
+      const probe = join(installRoot, 'node_modules')
+      return ['--tsProbeLocations', probe, '--ngProbeLocations', probe]
+    }
   },
   {
     id: 'json',

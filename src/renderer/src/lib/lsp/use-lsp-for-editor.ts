@@ -15,6 +15,7 @@ import {
   lspServerForLanguageIfEnabled
 } from './lsp-language-support'
 import { installLspEditorOpener } from './lsp-editor-opener'
+import { resolveLspProjectServerOverride } from './lsp-angular-project-detect'
 
 function resolveLocalWorkspaceRoot(worktreeId: string): string | null {
   const state = useAppStore.getState()
@@ -65,22 +66,36 @@ export function useLspForEditor(args: {
     }
     let cancelled = false
     let ensuredSessionId: string | null = null
+    // May be swapped for a project-conditional server (e.g. Angular for .html).
+    let activeServerId = serverId
     const unsubscribeInstallState = window.api?.lsp?.onServerStateChanged?.(
       ({ serverId: changedServerId, state }) => {
-        if (cancelled || changedServerId !== serverId) {
+        if (cancelled || changedServerId !== activeServerId) {
           return
         }
         if (state.phase === 'installing') {
-          setStatus({ phase: 'installing', serverId, progress: state.progress })
+          setStatus({ phase: 'installing', serverId: activeServerId, progress: state.progress })
         }
       }
     )
     setStatus({ phase: 'starting', serverId })
     void (async () => {
-      const session = await ensureLspSession(serverId, rootPath)
+      activeServerId = await resolveLspProjectServerOverride(
+        useAppStore.getState().settings,
+        serverId,
+        rootPath
+      )
+      if (cancelled) {
+        return
+      }
+      const session = await ensureLspSession(activeServerId, rootPath)
       if (!session) {
         if (!cancelled) {
-          setStatus({ phase: 'error', serverId, message: 'Language server unavailable' })
+          setStatus({
+            phase: 'error',
+            serverId: activeServerId,
+            message: 'Language server unavailable'
+          })
         }
         return
       }
@@ -96,7 +111,7 @@ export function useLspForEditor(args: {
       installLspEditorOpener(monaco)
       ensureLspDiagnosticsSubscription(monaco, session)
       ensureLspProvidersForLanguage(monaco, language, session)
-      disableBuiltInFeaturesForLspServer(serverId)
+      disableBuiltInFeaturesForLspServer(activeServerId)
       ensureLspDocumentBinding(model, session, filePath, language, worktreeId)
       setStatus({ phase: 'idle' })
     })()

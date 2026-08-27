@@ -89,7 +89,7 @@ export function disableBuiltInFeaturesForLspServer(serverId: LspServerId): void 
     monacoCss.lessDefaults.setModeConfiguration(modeConfiguration)
     return
   }
-  if (serverId === 'html') {
+  if (serverId === 'html' || serverId === 'angular') {
     monacoHtml.htmlDefaults.setModeConfiguration({
       completionItems: false,
       hovers: false,
