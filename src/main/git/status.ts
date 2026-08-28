@@ -71,6 +71,7 @@ import {
   reuseOrRecomputeGitStatusLineStats
 } from '../../shared/git-status-line-stats-cache'
 
+import { checkIgnoredPaths } from './check-ignored-paths'
 const MAX_GIT_SHOW_BYTES = 10 * 1024 * 1024
 const MAX_STAGED_COMMIT_CONTEXT_BYTES = MAX_GIT_SHOW_BYTES
 const BULK_CHUNK_SIZE = 100
@@ -2177,10 +2178,12 @@ function normalizeGitPathForCompare(filePath: string): string {
   return filePath.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
+function runtimeGitPath(filePath: string, options: GitRuntimeOptions): string {
+  return options.wslDistro ? filePath.replace(/\\/g, '/') : filePath
+}
+
 function literalPathspec(filePath: string, options: GitRuntimeOptions): string {
-  // Why: Git inside WSL needs POSIX paths, but host paths must stay literal, so convert backslashes only for WSL.
-  const runtimePath = options.wslDistro ? filePath.replace(/\\/g, '/') : filePath
-  return `:(literal)${runtimePath}`
+  return `:(literal)${runtimeGitPath(filePath, options)}`
 }
 
 function isTrackedPathSpec(filePath: string, trackedPaths: readonly string[]): boolean {
@@ -2320,10 +2323,37 @@ export async function bulkStageFiles(
   try {
     for (let i = 0; i < filePaths.length; i += BULK_CHUNK_SIZE) {
       const chunk = filePaths.slice(i, i + BULK_CHUNK_SIZE)
-      await gitExecFileAsync(
-        ['add', '--', ...chunk.map((filePath) => literalPathspec(filePath, options))],
-        gitOptionsForWorktree(worktreePath, options)
-      )
+      try {
+        await gitExecFileAsync(
+          ['add', '--', ...chunk.map((filePath) => literalPathspec(filePath, options))],
+          gitOptionsForWorktree(worktreePath, options)
+        )
+      } catch (error) {
+        let ignoredPaths: string[]
+        try {
+          ignoredPaths = await checkIgnoredPaths(
+            worktreePath,
+            chunk.map((filePath) => runtimeGitPath(filePath, options)),
+            options
+          )
+        } catch {
+          throw error
+        }
+        if (ignoredPaths.length === 0) {
+          throw error
+        }
+        const ignoredSet = new Set(ignoredPaths.map(normalizeGitPathForCompare))
+        const stageablePaths = chunk.filter(
+          (filePath) =>
+            !ignoredSet.has(normalizeGitPathForCompare(runtimeGitPath(filePath, options)))
+        )
+        if (stageablePaths.length > 0) {
+          await gitExecFileAsync(
+            ['add', '--', ...stageablePaths.map((filePath) => literalPathspec(filePath, options))],
+            gitOptionsForWorktree(worktreePath, options)
+          )
+        }
+      }
     }
   } finally {
     invalidateGitReadCaches()

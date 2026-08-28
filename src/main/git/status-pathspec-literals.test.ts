@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -74,5 +74,24 @@ describe('git status pathspec literals', () => {
 
     expect(gitNames(repo, ['diff', '--cached', '--name-only'])).toEqual([globMatchedFile])
     expect(gitNames(repo, ['diff', '--name-only'])).toEqual([globNamedFile])
+  })
+
+  it('bulk stages valid paths when the selection also contains ignored paths', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'orca-status-ignored-stage-'))
+    tempRoots.push(repo)
+    execFileSync('git', ['init', '-q'], { cwd: repo })
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo })
+    execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: repo })
+    await writeFile(path.join(repo, '.gitignore'), 'ignored/\n')
+    await writeFile(path.join(repo, 'tracked.txt'), 'initial')
+    execFileSync('git', ['add', '.gitignore', 'tracked.txt'], { cwd: repo })
+    execFileSync('git', ['commit', '-q', '-m', 'initial'], { cwd: repo })
+    await writeFile(path.join(repo, 'tracked.txt'), 'modified')
+    await mkdir(path.join(repo, 'ignored'))
+    await writeFile(path.join(repo, 'ignored', 'generated.txt'), 'ignored')
+
+    await bulkStageFiles(repo, ['tracked.txt', 'ignored/generated.txt'])
+
+    expect(gitNames(repo, ['diff', '--cached', '--name-only'])).toEqual(['tracked.txt'])
   })
 })
