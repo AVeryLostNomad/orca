@@ -2781,7 +2781,8 @@
           "commands": {
             "QuickCommandModalTerminal": {
               "e36e878bae": "Close",
-              "b60b83341f": "Starting terminal..."
+              "b60b83341f": "Starting terminal...",
+              "popupTitle": "Popup Terminal"
             },
             "TerminalQuickCommandActionToggle": {
               "b0d58e37ed": "Agent Prompt",
@@ -3180,7 +3181,8 @@
             "2148f65e04": "PowerShell",
             "ab589350e5": "Could not build launch command for {{value0}}.",
             "7a9b4af2af": "Scroll tabs left",
-            "232e075b07": "Scroll tabs right"
+            "232e075b07": "Scroll tabs right",
+            "newPopupTerminal": "New Popup Terminal"
           },
           "TabBarCreateEntry": {
             "d62d63b807": "Create file",

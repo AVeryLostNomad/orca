@@ -243,6 +243,8 @@ export function forwardGuestShortcutInput(
     renderer.send('ui:openQuickOpen')
   } else if (action?.type === 'toggleQuickCommandsMenu') {
     renderer.send('ui:toggleQuickCommandsMenu')
+  } else if (action?.type === 'togglePopupTerminal') {
+    renderer.send('ui:togglePopupTerminal')
   } else if (action?.type === 'openNewWorkspace') {
     renderer.send('ui:openNewWorkspace')
   } else if (action?.type === 'openWorkspaceBoard') {

@@ -58,6 +58,7 @@ export type KeybindingActionId =
   | 'worktree.history.back'
   | 'worktree.history.forward'
   | 'tab.newTerminal'
+  | 'terminal.togglePopup'
   | 'tab.newAgent'
   | AgentTabActionId
   | 'tab.newBrowser'
@@ -576,6 +577,16 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
     scope: 'tabs',
     searchKeywords: ['shortcut', 'tab', 'terminal', 'new'],
     defaultBindings: platformBindings(['Mod+T'])
+  },
+  {
+    id: 'terminal.togglePopup',
+    allowInVsCode: true,
+    title: 'Toggle popup terminal',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'terminal', 'popup', 'temporary', 'workspace'],
+    defaultBindings: platformBindings(['Mod+Shift+Space']),
+    allowInTerminal: true
   },
   {
     id: 'tab.newAgent',

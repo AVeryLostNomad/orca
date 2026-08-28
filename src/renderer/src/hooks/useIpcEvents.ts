@@ -80,6 +80,7 @@ import { isGitRepoKind } from '../../../shared/repo-kind'
 import { TOGGLE_FLOATING_TERMINAL_EVENT } from '@/lib/floating-terminal'
 import { TOGGLE_QUICK_COMMANDS_MENU_EVENT } from '@/lib/quick-commands-menu-events'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
+import { togglePopupTerminal } from '@/lib/open-popup-terminal'
 import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
 import { getRuntimeEnvironmentConnectionGeneration } from '@/store/slices/runtime-status'
 import { getEnvironmentSshStateGeneration } from '@/store/slices/runtime-environment-ssh'
@@ -2582,6 +2583,18 @@ export function useIpcEvents(): void {
         }
       })
     )
+
+    if (window.api.ui.onTogglePopupTerminal) {
+      unsubs.push(
+        window.api.ui.onTogglePopupTerminal(() => {
+          const store = useAppStore.getState()
+          if (store.activeView !== 'terminal' || store.settingsOpen) {
+            return
+          }
+          togglePopupTerminal()
+        })
+      )
+    }
 
     unsubs.push(
       window.api.ui.onNewTerminalTab(() => {

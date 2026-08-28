@@ -3872,6 +3872,11 @@ const api = {
       ipcRenderer.on('ui:newTerminalTab', listener)
       return () => ipcRenderer.removeListener('ui:newTerminalTab', listener)
     },
+    onTogglePopupTerminal: (callback: () => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent) => callback()
+      ipcRenderer.on('ui:togglePopupTerminal', listener)
+      return () => ipcRenderer.removeListener('ui:togglePopupTerminal', listener)
+    },
     onFocusBrowserAddressBar: (callback: () => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent) => callback()
       ipcRenderer.on('ui:focusBrowserAddressBar', listener)

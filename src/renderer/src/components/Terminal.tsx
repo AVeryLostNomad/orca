@@ -157,6 +157,7 @@ import {
   isWebRuntimeSessionActive
 } from '@/runtime/web-runtime-session'
 import { openMobileEmulatorTab } from '@/lib/open-mobile-emulator-tab'
+import { openPopupTerminal } from '@/lib/open-popup-terminal'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { resumeSleepingAgentSessionsForWorktree } from '@/lib/resume-sleeping-agent-session'
 import { listBoundAgentTabActions, resolveDefaultAgentForNewTab } from '@/lib/agent-tab-shortcuts'
@@ -2537,6 +2538,7 @@ function Terminal(): React.JSX.Element | null {
             onCloseToRight={handleCloseTabsToRight}
             onCloseToLeft={handleCloseTabsToLeft}
             onNewTerminalTab={() => handleNewTab()}
+            onNewPopupTerminal={() => openPopupTerminal(renderedActiveWorktreeId)}
             onNewTerminalWithShell={handleNewTab}
             onNewBrowserTab={handleNewBrowserTab}
             onNewVSCodeTab={handleNewVSCodeTab}

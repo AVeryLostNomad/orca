@@ -5,6 +5,7 @@ import {
   FilePlus,
   FileText,
   Globe,
+  PanelTopOpen,
   Smartphone,
   SquareCode,
   TerminalSquare
@@ -43,6 +44,7 @@ export function renderTabBarStaticCreateMenu({
   newSimulatorShortcut,
   newFileShortcut,
   openMarkdownShortcut,
+  newPopupTerminalShortcut,
   queueNewActiveTerminalFocusAfterNewTabMenuClose
 }: {
   props: TabBarProps
@@ -67,11 +69,13 @@ export function renderTabBarStaticCreateMenu({
   newSimulatorShortcut: string
   newFileShortcut: string
   openMarkdownShortcut: string | null
+  newPopupTerminalShortcut: string
   queueNewActiveTerminalFocusAfterNewTabMenuClose: () => void
 }): React.ReactNode {
   const {
     newTabMenuOrder = 'default',
     onNewTerminalTab,
+    onNewPopupTerminal,
     onNewTerminalWithShell,
     onNewBrowserTab,
     onNewVSCodeTab,
@@ -123,6 +127,16 @@ export function renderTabBarStaticCreateMenu({
         <DropdownMenuShortcut>{newTerminalShortcut}</DropdownMenuShortcut>
       </DropdownMenuItem>
     )
+  const newPopupTerminalMenuItem = onNewPopupTerminal ? (
+    <DropdownMenuItem
+      onSelect={onNewPopupTerminal}
+      className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+    >
+      <PanelTopOpen className="size-4 text-muted-foreground" />
+      {translate('auto.components.tab.bar.TabBar.newPopupTerminal', 'New Popup Terminal')}
+      <DropdownMenuShortcut>{newPopupTerminalShortcut}</DropdownMenuShortcut>
+    </DropdownMenuItem>
+  ) : null
   const newBrowserMenuItem =
     !terminalOnly && managedBrowserCreationEnabled ? (
       <DropdownMenuItem
@@ -290,6 +304,7 @@ export function renderTabBarStaticCreateMenu({
       {newScratchFileMenuItem}
       {openMarkdownMenuItem}
       {defaultTerminalMenuItems}
+      {newPopupTerminalMenuItem}
       {newBrowserMenuItem}
       {newVSCodeMenuItem}
       {newDataStudioMenuItem}
@@ -299,6 +314,7 @@ export function renderTabBarStaticCreateMenu({
   ) : (
     <>
       {defaultTerminalMenuItems}
+      {newPopupTerminalMenuItem}
       {newBrowserMenuItem}
       {newVSCodeMenuItem}
       {newDataStudioMenuItem}

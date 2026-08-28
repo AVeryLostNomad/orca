@@ -33,6 +33,7 @@ export type WindowShortcutAction =
   | { type: 'forceReload' }
   | { type: 'toggleWorktreePalette' }
   | { type: 'toggleFloatingTerminal' }
+  | { type: 'togglePopupTerminal' }
   | { type: 'toggleLeftSidebar' }
   | { type: 'toggleRightSidebar' }
   | { type: 'openQuickOpen' }
@@ -188,6 +189,9 @@ export function resolveWindowShortcutAction(
   if (actionMatches('floatingTerminal.toggle', input, platform, keybindings, options)) {
     return { type: 'toggleFloatingTerminal' }
   }
+  if (actionMatches('terminal.togglePopup', input, platform, keybindings, options)) {
+    return { type: 'togglePopupTerminal' }
+  }
 
   if (actionMatches('zoom.in', input, platform, keybindings, options)) {
     return { type: 'zoom', direction: 'in' }
@@ -308,6 +312,8 @@ export function getWindowShortcutActionId(action: WindowShortcutAction): Keybind
       return 'worktree.palette'
     case 'toggleFloatingTerminal':
       return 'floatingTerminal.toggle'
+    case 'togglePopupTerminal':
+      return 'terminal.togglePopup'
     case 'toggleLeftSidebar':
       return 'sidebar.left.toggle'
     case 'toggleRightSidebar':

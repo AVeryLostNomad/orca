@@ -93,6 +93,7 @@ export type UiCommandEventApi = {
     code?: 'browser_tab_not_found'
   }) => void
   onNewTerminalTab: (callback: () => void) => () => void
+  onTogglePopupTerminal?: (callback: () => void) => () => void
   onFocusBrowserAddressBar: (callback: () => void) => () => void
   onFindInBrowserPage: (source: BrowserFindSource, callback: () => void) => () => void
   onReloadBrowserPage: (callback: () => void) => () => void

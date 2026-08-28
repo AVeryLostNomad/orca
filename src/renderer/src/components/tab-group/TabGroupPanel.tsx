@@ -123,6 +123,7 @@ export default function TabGroupPanel({
         }
       }}
       onNewTerminalTab={commands.newTerminalTab}
+      onNewPopupTerminal={commands.newPopupTerminal}
       onNewTerminalWithShell={commands.newTerminalWithShell}
       onNewBrowserTab={commands.newBrowserTab}
       onNewVSCodeTab={commands.newVSCodeTab}

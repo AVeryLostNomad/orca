@@ -3,6 +3,7 @@ import { canShowRightSidebarForView } from '@/lib/right-sidebar-visibility'
 import { isFloatingWorkspacePanelFocused } from '@/lib/floating-workspace-terminal-actions'
 import { requestScrollToCurrentWorkspaceRevealAndRename } from '@/lib/scroll-to-current-workspace-status'
 import { showTerminalShortcutCaptureNotification } from '@/lib/terminal-shortcut-capture-notification'
+import { togglePopupTerminal } from '@/lib/open-popup-terminal'
 import { shouldShowWorktreeHistoryControls } from '../lib/titlebar-worktree-history-controls'
 import { TOGGLE_WORKSPACE_BOARD_EVENT } from '../components/sidebar/useWorkspaceBoardPanel'
 import { useAppStore } from '../store'
@@ -163,6 +164,15 @@ export function createAppCommandHandlers(
         }
         return claim('floatingWorkspace.maximize', openFloatingWorkspaceMaximized)
       }
+    ],
+    [
+      'terminal.togglePopup',
+      () =>
+        activeWorktreeId && workspaceChromeActive
+          ? claim('terminal.togglePopup', () => {
+              togglePopupTerminal(activeWorktreeId)
+            })
+          : false
     ],
     [
       'tab.rename',

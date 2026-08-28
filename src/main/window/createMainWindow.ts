@@ -705,6 +705,9 @@ export function createMainWindow(
       case 'toggleFloatingTerminal':
         mainWindow.webContents.send('ui:toggleFloatingTerminal')
         return
+      case 'togglePopupTerminal':
+        mainWindow.webContents.send('ui:togglePopupTerminal')
+        return
       case 'openQuickOpen':
         mainWindow.webContents.send('ui:openQuickOpen')
         return

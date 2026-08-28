@@ -18,6 +18,16 @@ describe('keybindings', () => {
     expect(getEffectiveKeybindingsForAction('tab.openMarkdown', 'darwin')).toEqual(['Mod+Shift+O'])
     expect(formatKeybindingList(['Mod+Shift+O'], 'darwin')).toBe('⌘⇧O')
   })
+  it.each([
+    ['darwin', '⌘⇧Space'],
+    ['linux', 'Ctrl+Shift+Space'],
+    ['win32', 'Ctrl+Shift+Space']
+  ] as const)('binds popup terminal on %s', (platform, label) => {
+    expect(getEffectiveKeybindingsForAction('terminal.togglePopup', platform)).toEqual([
+      'Mod+Shift+Space'
+    ])
+    expect(formatKeybindingList(['Mod+Shift+Space'], platform)).toBe(label)
+  })
 
   it.each(['darwin', 'linux', 'win32'] as const)(
     'binds editor word wrap to Alt+Z on %s',

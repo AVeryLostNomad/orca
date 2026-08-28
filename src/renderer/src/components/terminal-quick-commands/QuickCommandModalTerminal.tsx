@@ -55,6 +55,12 @@ function QuickCommandModalTerminalContent({
   onClose: () => void
 }): React.JSX.Element {
   const { command, worktreeId, cwd, requestId } = request
+  const title =
+    command?.label ??
+    translate(
+      'auto.components.terminal.quick.commands.QuickCommandModalTerminal.popupTitle',
+      'Popup Terminal'
+    )
   const modalWorktreeId = `${worktreeId}${FOLDER_WORKSPACE_INSTANCE_SEPARATOR}${requestId}`
   const createTab = useAppStore((s) => s.createTab)
   const closeTab = useAppStore((s) => s.closeTab)
@@ -63,11 +69,11 @@ function QuickCommandModalTerminalContent({
   const queueTabStartupCommand = useAppStore((s) => s.queueTabStartupCommand)
   const [tabId, setTabId] = useState<string | null>(null)
 
-  // Why: the sole-pane newborn guard swallows onPtyExit for a fresh PTY the
-  // user never typed into, and most quick commands leave the shell alive at a
-  // prompt anyway. OSC 133;D is the reliable "command is done" signal, scoped
-  // here by the per-launch worktree id.
+  // Why: interactive popups stay open; quick-command popups end at OSC 133;D.
   useEffect(() => {
+    if (!command) {
+      return
+    }
     const handleCommandFinished = (event: Event): void => {
       const detail = (event as CustomEvent<TerminalCommandFinishedEventDetail>).detail
       if (detail?.worktreeId === modalWorktreeId) {
@@ -78,17 +84,19 @@ function QuickCommandModalTerminalContent({
     return () => {
       window.removeEventListener(ORCA_TERMINAL_COMMAND_FINISHED_EVENT, handleCommandFinished)
     }
-  }, [modalWorktreeId, onClose])
+  }, [command, modalWorktreeId, onClose])
 
   useEffect(() => {
     const tab = createTab(modalWorktreeId, undefined, undefined, {
       activate: false,
       recordInteraction: false,
-      quickCommandLabel: command.label
+      ...(command ? { quickCommandLabel: command.label } : {})
     })
     setActiveTabForWorktree(modalWorktreeId, tab.id)
-    setTabCustomTitle(tab.id, command.label, { recordInteraction: false })
-    queueTabStartupCommand(tab.id, { command: flattenTerminalQuickCommand(command).command })
+    if (command) {
+      setTabCustomTitle(tab.id, command.label, { recordInteraction: false })
+      queueTabStartupCommand(tab.id, { command: flattenTerminalQuickCommand(command).command })
+    }
     setTabId(tab.id)
     return () => {
       // Why: dismissing the modal must not leave its shell running invisibly.
@@ -109,10 +117,9 @@ function QuickCommandModalTerminalContent({
       aria-describedby={undefined}
       className="flex h-[min(70vh,36rem)] w-[min(92vw,56rem)] max-w-none flex-col gap-0 p-0 sm:max-w-none"
       showCloseButton={false}
-      // Why: Esc must reach a TUI running in the terminal, not dismiss the
-      // dialog; xterm has already consumed the keystroke when Radix sees it.
+      // Why: standalone popups dismiss on Escape while quick-command TUIs keep it.
       onEscapeKeyDown={(e) => {
-        if (e.target instanceof HTMLElement && e.target.closest('.xterm')) {
+        if (command && e.target instanceof HTMLElement && e.target.closest('.xterm')) {
           e.preventDefault()
         }
       }}
@@ -121,9 +128,7 @@ function QuickCommandModalTerminalContent({
       onOpenAutoFocus={(e) => e.preventDefault()}
     >
       <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-2.5 py-2">
-        <DialogTitle className="text-[12px] leading-normal font-semibold">
-          {command.label}
-        </DialogTitle>
+        <DialogTitle className="text-[12px] leading-normal font-semibold">{title}</DialogTitle>
         <Button
           type="button"
           variant="ghost"
