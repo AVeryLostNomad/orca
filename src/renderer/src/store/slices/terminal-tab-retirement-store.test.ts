@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SleepingAgentSessionRecord } from '../../../../shared/agent-session-resume'
 
 const mockKill = vi.fn().mockResolvedValue(undefined)
+const mockRetireTab = vi.fn().mockResolvedValue(undefined)
 const mockRuntimeCall = vi.fn().mockResolvedValue({
   id: 'rpc-1',
   ok: true,
@@ -11,7 +12,7 @@ const mockRuntimeCall = vi.fn().mockResolvedValue({
 
 vi.stubGlobal('window', {
   api: {
-    pty: { kill: mockKill },
+    pty: { kill: mockKill, retireTab: mockRetireTab },
     runtime: { call: mockRuntimeCall },
     runtimeEnvironments: { call: vi.fn() }
   }
@@ -58,6 +59,7 @@ describe('terminal tab retirement store boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockKill.mockResolvedValue(undefined)
+    mockRetireTab.mockResolvedValue(undefined)
     mockRuntimeCall.mockResolvedValue({
       id: 'rpc-1',
       ok: true,
@@ -103,6 +105,7 @@ describe('terminal tab retirement store boundary', () => {
     capturedPanesByTabId.set('tab-1', { worktreeId: 'wt-1', panes: [] })
 
     store.getState().closeTab('tab-1')
+    await vi.waitFor(() => expect(mockRetireTab).toHaveBeenCalledWith('wt-1', 'tab-1'))
     await vi.waitFor(() => expect(mockKill).toHaveBeenCalledTimes(5))
 
     expect(new Set(mockKill.mock.calls.map(([ptyId]) => ptyId))).toEqual(
@@ -263,6 +266,7 @@ describe('terminal tab retirement store boundary', () => {
         runtimeFailures: 0
       })
     )
+    expect(mockRetireTab).toHaveBeenCalledWith('wt-1', 'tab-1')
 
     expect(store.getState().tabsByWorktree['wt-1']).toEqual([])
     warn.mockRestore()

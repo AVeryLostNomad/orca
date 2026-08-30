@@ -186,6 +186,30 @@ describe('OrcaRuntimeService terminal surface retirement', () => {
     expect(internals.pendingPtyRegistrationIncarnations.size).toBe(0)
   })
 
+  it('durably retires an unregistered desktop tab before daemon teardown settles', () => {
+    let session = makePersistedSplitSession()
+    session.tabsByWorktree[WORKTREE_ID]![0]!.isPinned = true
+    const setWorkspaceSession = vi.fn((next: WorkspaceSessionState) => {
+      session = next
+    })
+    const flushOrThrow = vi.fn()
+    const runtime = new OrcaRuntimeService(
+      runtimeStore({
+        getWorkspaceSession: () => session,
+        setWorkspaceSession,
+        flushOrThrow
+      })
+    )
+
+    runtime.retireDesktopTerminalTab(WORKTREE_ID, 'tab')
+
+    expect(session.tabsByWorktree[WORKTREE_ID]).toEqual([])
+    expect(session.terminalLayoutsByTabId.tab).toBeUndefined()
+    expect(session.terminalTopologyRevisionByRepoId).toEqual({ [REPO_ID]: 1 })
+    expect(setWorkspaceSession).toHaveBeenCalledOnce()
+    expect(flushOrThrow).toHaveBeenCalledOnce()
+  })
+
   it('fences an early-exited replacement even when its pane already exists', () => {
     const runtime = new OrcaRuntimeService()
     runtime.attachWindow(1)

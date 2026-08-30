@@ -1152,6 +1152,8 @@ const api = {
 
     kill: (id: string, opts?: { keepHistory?: boolean }): Promise<void> =>
       ipcRenderer.invoke('pty:kill', { id, keepHistory: opts?.keepHistory ?? false }),
+    retireTab: (worktreeId: string, tabId: string): Promise<void> =>
+      ipcRenderer.invoke('pty:retireTab', { worktreeId, tabId }),
 
     listSessions: (): Promise<PtyListedSession[]> => ipcRenderer.invoke('pty:listSessions'),
     getAuthoritativeBufferSnapshotCapabilities: (

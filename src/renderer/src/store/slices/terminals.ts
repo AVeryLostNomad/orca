@@ -136,7 +136,10 @@ import { hasWorktreeSleepIntent } from '@/lib/worktree-sleep-intent'
 import { sanitizeTerminalLayoutPaneTitles } from '@/lib/terminal-pane-title-sanitization'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
-import { resolveTerminalWorktreeRoute } from '@/lib/terminal-worktree-route'
+import {
+  resolveTerminalHostOwnership,
+  resolveTerminalWorktreeRoute
+} from '@/lib/terminal-worktree-route'
 import { resolveWorktreeOperationRouteResult } from '@/lib/worktree-operation-route'
 import { isWebClientLocation } from '@/lib/web-client-location'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
@@ -1570,6 +1573,17 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       const fallbackWorktreeRoute = retirementPlan.worktreeId
         ? resolveTerminalWorktreeRoute(get(), retirementPlan.worktreeId)
         : { runtimeEnvironmentId: null }
+      const hostOwnership = resolveTerminalHostOwnership(
+        get(),
+        retirementPlan.worktreeId,
+        'teardown'
+      )
+      const topologyRetirementTask =
+        hostOwnership.kind === 'local-or-ssh' &&
+        retirementPlan.worktreeId &&
+        window.api.pty.retireTab
+          ? window.api.pty.retireTab(retirementPlan.worktreeId, tabId)
+          : null
       const retirementTasks: Promise<unknown>[] = opts?.localPtyTeardownOwnedExternally
         ? []
         : retirementPlan.localOrSshPtyIds.map(async (ptyId) => window.api.pty.kill(ptyId))
@@ -1600,16 +1614,22 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
         })
       }
       // Why: keep close synchronous and idempotent — provider failures must not reject into the UI or block ownership revocation.
-      void Promise.allSettled(retirementTasks).then((results) => {
+      const tasks = topologyRetirementTask
+        ? [topologyRetirementTask, ...retirementTasks]
+        : retirementTasks
+      void Promise.allSettled(tasks).then((results) => {
+        const topologyOffset = topologyRetirementTask ? 1 : 0
+        const topologyFailures = topologyRetirementTask && results[0]?.status === 'rejected' ? 1 : 0
         const localOrSshFailures = results
-          .slice(0, localOrSshTaskCount)
+          .slice(topologyOffset, topologyOffset + localOrSshTaskCount)
           .filter((result) => result.status === 'rejected').length
         const runtimeFailures = results
-          .slice(localOrSshTaskCount)
+          .slice(topologyOffset + localOrSshTaskCount)
           .filter((result) => result.status === 'rejected').length
-        if (localOrSshFailures > 0 || runtimeFailures > 0) {
+        if (topologyFailures > 0 || localOrSshFailures > 0 || runtimeFailures > 0) {
           console.warn('[terminal-retirement] provider teardown failed', {
             tabId,
+            ...(topologyFailures > 0 ? { topologyFailures } : {}),
             localOrSshFailures,
             runtimeFailures
           })

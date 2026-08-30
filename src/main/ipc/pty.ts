@@ -2454,6 +2454,7 @@ export function registerPtyHandlers(
   // Remove prior handlers so re-registration (e.g. macOS re-activate creating a new window) doesn't double-register.
   ipcMain.removeHandler('pty:spawn')
   ipcMain.removeHandler('pty:kill')
+  ipcMain.removeHandler('pty:retireTab')
   ipcMain.removeHandler('pty:listSessions')
   ipcMain.removeHandler('pty:hasPty')
   ipcMain.removeHandler('pty:hasChildProcesses')
@@ -7614,6 +7615,24 @@ export function registerPtyHandlers(
       .catch(() => {})
     runtime?.clearHeadlessTerminalBuffer(args.id).catch(() => {})
   })
+
+  ipcMain.handle(
+    'pty:retireTab',
+    async (_event, args: { worktreeId?: string; tabId?: string }): Promise<void> => {
+      if (
+        typeof args?.worktreeId !== 'string' ||
+        !args.worktreeId ||
+        typeof args?.tabId !== 'string' ||
+        !args.tabId
+      ) {
+        throw new Error('Invalid terminal tab retirement')
+      }
+      if (!runtime) {
+        throw new Error('runtime_unavailable')
+      }
+      runtime.retireDesktopTerminalTab(args.worktreeId, args.tabId)
+    }
+  )
 
   ipcMain.handle('pty:kill', async (_event, args: { id: string; keepHistory?: boolean }) => {
     if (typeof args?.id !== 'string' || !args.id || args.id.startsWith('remote:')) {

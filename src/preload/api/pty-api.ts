@@ -75,6 +75,8 @@ export type PtyApi = {
   signal: (id: string, signal: string) => void
   clearBuffer: (id: string) => void
   kill: (id: string, opts?: { keepHistory?: boolean }) => Promise<void>
+  /** Persists an explicit desktop tab close independently of provider teardown. */
+  retireTab?: (worktreeId: string, tabId: string) => Promise<void>
   ackColdRestore: (id: string) => void
   ackData: (id: string, charCount: number, processedChars?: number) => void
   onDeliveryResyncRequest: (callback: (payload: { requestId: number }) => void) => () => void

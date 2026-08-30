@@ -8406,13 +8406,15 @@ export class OrcaRuntimeService {
   private removePersistedHeadlessTerminalTab(
     worktreeId: string,
     parentTabId: string,
-    options: { allowMissing?: boolean } = {}
+    options: { allowMissing?: boolean; force?: boolean } = {}
   ): string[] {
     const session = this.getWorkspaceSessionForWorktree(worktreeId)
     if (!session || !this.store?.setWorkspaceSession) {
       throw new Error('workspace_session_unavailable')
     }
-    const result = closeTerminalTabInWorkspaceSession(session, worktreeId, parentTabId)
+    const result = closeTerminalTabInWorkspaceSession(session, worktreeId, parentTabId, {
+      force: options.force
+    })
     if (result.pinned) {
       throw new Error('terminal_tab_pinned')
     }
@@ -8869,6 +8871,27 @@ export class OrcaRuntimeService {
       snapshotRepublished: true
     }
   }
+  /** Durably records a desktop-authorized close even when its daemon owner cannot be reached. */
+  retireDesktopTerminalTab(worktreeId: string, parentTabId: string): void {
+    this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId)
+    const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
+    const tab = snapshot?.tabs.find(
+      (candidate): candidate is RuntimeMobileSessionTerminalTab =>
+        candidate.type === 'terminal' && candidate.parentTabId === parentTabId
+    )
+    this.removePersistedHeadlessTerminalTab(worktreeId, parentTabId, {
+      allowMissing: true,
+      force: true
+    })
+    this.store?.flushOrThrow?.()
+    if (snapshot && tab) {
+      this.closeHeadlessMobileTerminalTab(worktreeId, snapshot, tab, {
+        allowMissingPersistedTab: true,
+        killPtys: false,
+        force: true
+      })
+    }
+  }
 
   async closeMobileSessionTab(
     worktreeSelector: string,
@@ -9227,12 +9250,13 @@ export class OrcaRuntimeService {
     worktreeId: string,
     snapshot: RuntimeMobileSessionTabsSnapshot,
     tab: RuntimeMobileSessionTerminalTab,
-    options: { allowMissingPersistedTab?: boolean; killPtys?: boolean } = {}
+    options: { allowMissingPersistedTab?: boolean; killPtys?: boolean; force?: boolean } = {}
   ): void {
     const closedParentTabId = tab.parentTabId
     this.clearRuntimeSessionOwnershipForMobileTab(worktreeId, snapshot, closedParentTabId)
     const projectedPtyIds = this.removePersistedHeadlessTerminalTab(worktreeId, closedParentTabId, {
-      allowMissing: options.allowMissingPersistedTab
+      allowMissing: options.allowMissingPersistedTab,
+      force: options.force
     })
     // Why: local provider ids can be reused after restart, so a dormant
     // persisted id is not kill authority. SSH relay ids remain durable exact
