@@ -17,6 +17,7 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
     selectedWorktrees,
     onAssignWorkspaceStatus,
     affiliateListMode,
+    workspaceRecordMutable,
     isActiveSurface,
     activeSurfaceVariant,
     isMultiSelected,
@@ -63,6 +64,7 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
   } = card
   const { titleOnlyCard, hasHoverDetails, hoverBranchName, hoverWorkspaceTitle, cardStyle } =
     presentation
+  const canEditWorkspaceRecord = workspaceRecordMutable && !affiliateListMode
 
   const parentCardContent = <WorktreeCardParentContent card={card} presentation={presentation} />
 
@@ -85,15 +87,15 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
         automationHostId={worktree.hostId}
         branchName={hoverBranchName}
         workspaceTitle={hoverWorkspaceTitle}
-        workspaceTitleRenameDisabled={isDeleting || affiliateListMode}
+        workspaceTitleRenameDisabled={isDeleting || !canEditWorkspaceRecord}
         detailsAfter={
           workspacePorts.length > 0 ? <WorktreeCardPortsDetails ports={workspacePorts} /> : null
         }
         openDelay={100}
         hoverControl={detailsHoverControl}
-        onRenameWorkspaceTitle={affiliateListMode ? undefined : handleRenameTitle}
-        onEditIssue={affiliateListMode ? undefined : handleEditIssue}
-        onEditComment={affiliateListMode ? undefined : handleEditComment}
+        onRenameWorkspaceTitle={canEditWorkspaceRecord ? handleRenameTitle : undefined}
+        onEditIssue={canEditWorkspaceRecord ? handleEditIssue : undefined}
+        onEditComment={canEditWorkspaceRecord ? handleEditComment : undefined}
         onOpenGitHubIssueInOrca={
           hoverIssue && 'url' in hoverIssue && hoverIssue.url
             ? handleOpenGitHubIssueInOrca
@@ -103,11 +105,11 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
         onOpenReviewInOrca={
           hoverReview?.url && hoverReview.provider === 'github' ? handleOpenReviewInOrca : undefined
         }
-        onOpenAutomation={affiliateListMode ? undefined : handleOpenAutomation}
-        onOpenAutomationRun={affiliateListMode ? undefined : handleOpenAutomationRun}
+        onOpenAutomation={canEditWorkspaceRecord ? handleOpenAutomation : undefined}
+        onOpenAutomationRun={canEditWorkspaceRecord ? handleOpenAutomationRun : undefined}
         // Why: branch lookup can surface a review without persisted metadata; only unlink when explicitly linked.
         onUnlinkReview={
-          !affiliateListMode && hasExplicitLinkedReview ? handleUnlinkReview : undefined
+          canEditWorkspaceRecord && hasExplicitLinkedReview ? handleUnlinkReview : undefined
         }
       >
         {parentHoverTriggerBody}
@@ -147,7 +149,7 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
       data-worktree-card-surface="true"
       data-worktree-card-active={isActiveSurface ? activeSurfaceVariant : undefined}
       onClick={handleClick}
-      onDoubleClick={affiliateListMode ? undefined : handleDoubleClick}
+      onDoubleClick={canEditWorkspaceRecord ? handleDoubleClick : undefined}
       draggable={!affiliateListMode && nativeDragEnabled && !isDeleting && !titleRenaming}
       onDragStart={!affiliateListMode && nativeDragEnabled ? handleDragStart : undefined}
       onDragEnd={!affiliateListMode && nativeDragEnabled ? handleDragEnd : undefined}
@@ -188,6 +190,7 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
           selectedWorktrees={selectedWorktrees}
           onContextMenuSelect={handleContextMenuSelect}
           onAssignWorkspaceStatus={onAssignWorkspaceStatus}
+          workspaceRecordMutable={workspaceRecordMutable}
         >
           {cardBody}
         </WorktreeContextMenu>

@@ -131,9 +131,14 @@ describe('project groups', () => {
       },
       {
         type: 'folder-workspace',
-        folderWorkspace: { id: 'folder-workspace-1' },
+        folderWorkspace: {
+          id: 'project-group:group-root',
+          name: 'Group Wide',
+          folderPath: '/monorepo'
+        },
         projectGroup: { id: 'group-root' },
-        groupDepth: 1
+        groupDepth: 1,
+        isGroupWide: true
       }
     ])
   })
@@ -208,14 +213,21 @@ describe('project groups', () => {
         projectGroupDepth: 0
       },
       {
+        type: 'folder-workspace',
+        folderWorkspace: { id: 'project-group:group-root' },
+        groupDepth: 1,
+        isGroupWide: true
+      },
+      {
         type: 'header',
         key: 'project-group:group-shared',
         projectGroupDepth: 1
       },
       {
         type: 'folder-workspace',
-        folderWorkspace: { id: 'folder-workspace-nested' },
-        groupDepth: 2
+        folderWorkspace: { id: 'project-group:group-shared' },
+        groupDepth: 2,
+        isGroupWide: true
       }
     ])
   })

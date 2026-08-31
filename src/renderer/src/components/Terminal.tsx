@@ -11,6 +11,10 @@ import {
 } from '@/constants/terminal'
 import { useAppStore } from '../store'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
+import {
+  projectGroupToFolderWorkspace,
+  projectGroupWorkspaceKey
+} from '../../../shared/project-group-workspace'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { useAllWorktrees } from '../store/selectors'
 import { getConnectionId } from '../lib/connection-context'
@@ -315,16 +319,24 @@ function Terminal(): React.JSX.Element | null {
   const terminalWorktreeParkingTimersRef = useRef(new Map<string, number>())
   const allWorktrees = useAllWorktrees()
   const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
-  const workspaceSurfaces = useMemo(
-    () => [
+  const projectGroups = useAppStore((s) => s.projectGroups)
+  const repos = useAppStore((s) => s.repos)
+  const workspaceSurfaces = useMemo(() => {
+    const groupWideSurfaces = projectGroups.flatMap((group) => {
+      const workspace = projectGroupToFolderWorkspace({ group, projectGroups, repos })
+      return workspace
+        ? [{ id: projectGroupWorkspaceKey(group.id), path: workspace.folderPath }]
+        : []
+    })
+    return [
       ...allWorktrees.map((worktree) => ({ id: worktree.id, path: worktree.path })),
       ...folderWorkspaces.map((workspace) => ({
         id: folderWorkspaceKey(workspace.id),
         path: workspace.folderPath
-      }))
-    ],
-    [allWorktrees, folderWorkspaces]
-  )
+      })),
+      ...groupWideSurfaces
+    ]
+  }, [allWorktrees, folderWorkspaces, projectGroups, repos])
   const activeWorktreeId = useAppStore((s) => s.activeWorktreeId)
   const renderedActiveWorktreeId = activeWorktreeId
   const activeWorktreeDeferralHostId = useAppStore((s) =>

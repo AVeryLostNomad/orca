@@ -1,7 +1,7 @@
-import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { ProjectOrderBy } from '../../../../../../shared/ui-chrome-types'
 import { getEffectiveProjectGroupManualRank } from '../../../../../../shared/project-groups'
+import { projectGroupToFolderWorkspace } from '../../../../../../shared/project-group-workspace'
 import { PROJECT_GROUP_META, getProjectGroupHeaderKey } from './group-keys'
 import { appendOrderedGroups } from './group-sections'
 import type { SectionAppendContext } from './group-sections'
@@ -17,12 +17,11 @@ export function appendProjectGroupSections(
   args: {
     orderedGroups: OrderedGroupEntry[]
     projectGroups: readonly ProjectGroup[]
-    folderWorkspaces: readonly FolderWorkspace[]
     projectOrderBy: ProjectOrderBy
     repoOrder: Map<string, number> | undefined
   }
 ): void {
-  const { orderedGroups, projectGroups, folderWorkspaces, projectOrderBy, repoOrder } = args
+  const { orderedGroups, projectGroups, projectOrderBy, repoOrder } = args
   const { result, collapsedGroups } = ctx
 
   const groupByProjectGroupId = new Map<string | null, OrderedGroupEntry[]>()
@@ -51,23 +50,13 @@ export function appendProjectGroupSections(
   }
 
   const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
-  const folderWorkspacesByProjectGroupId = new Map<string, FolderWorkspace[]>()
-  for (const workspace of folderWorkspaces) {
-    const group = projectGroupsById.get(workspace.projectGroupId)
-    if (!group?.parentPath) {
-      continue
-    }
-    const list = folderWorkspacesByProjectGroupId.get(workspace.projectGroupId) ?? []
-    list.push(workspace)
-    folderWorkspacesByProjectGroupId.set(workspace.projectGroupId, list)
-  }
-  for (const list of folderWorkspacesByProjectGroupId.values()) {
-    list.sort((left, right) => {
-      const leftOrder = left.manualOrder ?? left.sortOrder
-      const rightOrder = right.manualOrder ?? right.sortOrder
-      return rightOrder - leftOrder || left.name.localeCompare(right.name)
+  const repos = [...ctx.repoMap.values()]
+  const groupWideWorkspaceByGroupId = new Map(
+    projectGroups.flatMap((group) => {
+      const workspace = projectGroupToFolderWorkspace({ group, projectGroups, repos })
+      return workspace ? [[group.id, workspace] as const] : []
     })
-  }
+  )
   const childGroupsByParentId = new Map<string | null, ProjectGroup[]>()
   for (const group of projectGroups) {
     const parentId =
@@ -84,11 +73,11 @@ export function appendProjectGroupSections(
 
   const getProjectGroupSubtreeCount = (groupId: string): number => {
     const directCount = groupByProjectGroupId.get(groupId)?.length ?? 0
-    const folderWorkspaceCount = folderWorkspacesByProjectGroupId.get(groupId)?.length ?? 0
+    const groupWideCount = groupWideWorkspaceByGroupId.has(groupId) ? 1 : 0
     const children = childGroupsByParentId.get(groupId) ?? []
     return children.reduce(
       (count, child) => count + getProjectGroupSubtreeCount(child.id),
-      directCount + folderWorkspaceCount
+      directCount + groupWideCount
     )
   }
 
@@ -107,14 +96,16 @@ export function appendProjectGroupSections(
       projectGroupDepth: depth
     })
     if (!collapsedGroups.has(key)) {
-      for (const folderWorkspace of folderWorkspacesByProjectGroupId.get(projectGroup.id) ?? []) {
+      const groupWideWorkspace = groupWideWorkspaceByGroupId.get(projectGroup.id)
+      if (groupWideWorkspace) {
         result.push({
           type: 'folder-workspace',
-          key: `folder-workspace:${folderWorkspace.id}`,
-          folderWorkspace,
+          key: `folder-workspace:${groupWideWorkspace.id}`,
+          folderWorkspace: groupWideWorkspace,
           projectGroup,
           depth: 0,
-          groupDepth: depth + 1
+          groupDepth: depth + 1,
+          isGroupWide: true
         })
       }
       appendOrderedGroups(ctx, withRepoSectionDisplayLabels(repoEntries), depth + 1)

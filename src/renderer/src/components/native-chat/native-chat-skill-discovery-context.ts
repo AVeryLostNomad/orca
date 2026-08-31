@@ -8,6 +8,7 @@ import {
 } from '@/lib/worktree-runtime-owner'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { resolveFolderWorkspaceForState } from '@/lib/folder-workspace-connection'
 
 export type NativeChatSkillStateInputs = Pick<
   AppState,
@@ -88,9 +89,7 @@ export function resolveNativeChatSkillDiscoveryContext(
   const cwd =
     resolveNativeChatSkillDiscoveryCwd(state, terminalTabId) ??
     (workspaceScope?.type === 'folder'
-      ? state.folderWorkspaces.find(
-          (workspace) => workspace.id === workspaceScope.folderWorkspaceId
-        )?.folderPath
+      ? resolveFolderWorkspaceForState(state, workspaceScope.folderWorkspaceId)?.folderPath
       : null)
   if (!cwd) {
     return null

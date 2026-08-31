@@ -35,6 +35,10 @@ import {
 import { isValidHostTerminalTabId } from '../../../../shared/terminal-tab-id'
 import { buildByIdIndex, buildWorktreeByIdIndex } from './worktree-by-id-index'
 import { resolveActiveTabOwnerWorktreeId } from './active-tab-owner-worktree'
+import {
+  getFolderWorkspaceConnectionId,
+  resolveFolderWorkspaceForState
+} from '@/lib/folder-workspace-connection'
 import { isSameCodexRestartNoticeAccount } from './codex-restart-notice-account-identity'
 import {
   getRepoIdFromWorktreeId,
@@ -112,7 +116,6 @@ import { parseRemoteRuntimePtyId, toRemoteRuntimePtyId } from '@/runtime/runtime
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
 import { requestRemoteWorktreeSleep } from '@/runtime/remote-worktree-sleep'
 import { createBrowserUuid } from '@/lib/browser-uuid'
-import { getFolderWorkspaceConnectionId } from '@/lib/folder-workspace-connection'
 import {
   clearDirectSshTerminalBindings,
   invalidateStaleDirectSshTerminalBindings,
@@ -381,14 +384,12 @@ function resolveCreatedTabShellOverride(
 }
 
 function worktreeUsesWslPath(
-  state: Pick<AppState, 'folderWorkspaces' | 'worktreesByRepo'>,
+  state: Pick<AppState, 'folderWorkspaces' | 'projectGroups' | 'repos' | 'worktreesByRepo'>,
   worktreeId: string
 ): boolean {
   const parsed = parseWorkspaceKey(worktreeId)
   if (parsed?.type === 'folder') {
-    const folderWorkspace = state.folderWorkspaces.find(
-      (workspace) => workspace.id === parsed.folderWorkspaceId
-    )
+    const folderWorkspace = resolveFolderWorkspaceForState(state, parsed.folderWorkspaceId)
     return folderWorkspace ? isWslUncPath(folderWorkspace.folderPath) : false
   }
   const worktree = Object.values(state.worktreesByRepo)

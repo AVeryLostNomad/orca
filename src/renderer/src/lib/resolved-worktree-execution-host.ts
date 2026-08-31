@@ -6,6 +6,7 @@ import {
 } from '../../../shared/execution-host'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { folderWorkspaceKey, parseWorkspaceKey } from '../../../shared/workspace-scope'
+import { getProjectGroupIdFromWorkspaceFolderId } from '../../../shared/project-group-workspace'
 import {
   findIndexedFolderWorkspaceOwner,
   findIndexedProjectGroupOwner,
@@ -29,9 +30,12 @@ function getResolvedFolderHost(
     folderWorkspaceId,
     preferredHostId
   )
+  const syntheticProjectGroupId = getProjectGroupIdFromWorkspaceFolderId(folderWorkspaceId)
   const group = folder
     ? findIndexedProjectGroupOwner(state.projectGroups, folder.projectGroupId, preferredHostId)
-    : null
+    : syntheticProjectGroupId
+      ? findIndexedProjectGroupOwner(state.projectGroups, syntheticProjectGroupId, preferredHostId)
+      : null
   const explicitHost = parseExecutionHostId(folder?.executionHostId ?? group?.executionHostId)
   if (explicitHost) {
     return explicitHost.id
@@ -46,7 +50,7 @@ function getResolvedFolderHost(
   if (restoredHost?.kind === 'runtime') {
     return restoredHost.id
   }
-  return folder && (group || preferredHostId) ? (preferredHostId ?? LOCAL_EXECUTION_HOST_ID) : null
+  return folder || group ? (preferredHostId ?? LOCAL_EXECUTION_HOST_ID) : null
 }
 
 /**

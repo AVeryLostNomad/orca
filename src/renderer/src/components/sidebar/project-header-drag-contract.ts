@@ -7,11 +7,13 @@ export type RepoDragState = {
   draggingRepoId: string | null
   dropIndex: number | null
   dropIndicatorY: number | null
+  targetProjectGroupId: string | null
 }
 
 export const INITIAL_REPO_DRAG_STATE: RepoDragState = {
   draggingRepoId: null,
   dropIndex: null,
+  targetProjectGroupId: null,
   dropIndicatorY: null
 }
 
@@ -21,7 +23,7 @@ export type UseRepoHeaderDragArgs = {
   repoById: ReadonlyMap<string, Repo>
   usesProjectGroupOrdering: boolean
   onCommitRepoOrder: (orderedIds: string[]) => void
-  onCommitProjectGroupOrder: (repoId: string, projectGroupId: string | null, order: number) => void
+  onCommitProjectGroupOrder: (repoId: string, projectGroupId: string | null, order?: number) => void
   getScrollContainer: () => HTMLElement | null
 }
 
@@ -39,6 +41,7 @@ export type ProjectHeaderDragSession = {
   handleEl: HTMLElement
   startX: number
   startY: number
+  latestPointerX: number
   latestPointerY: number
   promoted: boolean
 }

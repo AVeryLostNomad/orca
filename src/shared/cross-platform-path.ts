@@ -113,6 +113,92 @@ export function getRuntimePathBasename(value: string): string {
   return trimmed.split(/[\\/]/).findLast(Boolean) ?? ''
 }
 
+type AbsoluteRuntimePathParts = {
+  root: string
+  segments: string[]
+  caseInsensitive: boolean
+}
+
+function splitAbsoluteRuntimePath(value: string): AbsoluteRuntimePathParts | null {
+  const windowsPath = isWindowsAbsolutePathLike(value)
+  const normalized = trimRuntimePathTrailingSlash(
+    windowsPath ? normalizeRuntimePathSeparators(value) : value.replace(/\/+/g, '/')
+  )
+  const drive = normalized.match(/^([A-Za-z]:)(?:\/|$)/)
+  if (drive) {
+    return {
+      root: `${drive[1]}/`,
+      segments: normalized.slice(drive[0].length).split('/').filter(Boolean),
+      caseInsensitive: true
+    }
+  }
+  if (normalized.startsWith('//')) {
+    const parts = normalized.slice(2).split('/')
+    if (parts.length < 2 || !parts[0] || !parts[1]) {
+      return null
+    }
+    return {
+      root: `//${parts[0]}/${parts[1]}/`,
+      segments: parts.slice(2).filter(Boolean),
+      caseInsensitive: isCaseInsensitiveRuntimeRoot(normalized)
+    }
+  }
+  if (!normalized.startsWith('/')) {
+    return null
+  }
+  return {
+    root: '/',
+    segments: normalized.slice(1).split('/').filter(Boolean),
+    caseInsensitive: false
+  }
+}
+
+export function getRuntimePathParent(value: string): string | null {
+  const parts = splitAbsoluteRuntimePath(value)
+  if (!parts) {
+    return null
+  }
+  if (parts.segments.length > 0) {
+    parts.segments.pop()
+  }
+  return parts.segments.length > 0
+    ? `${parts.root}${parts.segments.join('/')}`
+    : trimRuntimePathTrailingSlash(parts.root)
+}
+
+export function getDeepestCommonRuntimePath(paths: readonly string[]): string | null {
+  if (paths.length === 0) {
+    return null
+  }
+  const first = splitAbsoluteRuntimePath(paths[0])
+  if (!first) {
+    return null
+  }
+  let commonLength = first.segments.length
+  const rootKey = normalizeRuntimePathForComparison(first.root)
+  for (let pathIndex = 1; pathIndex < paths.length; pathIndex++) {
+    const candidate = splitAbsoluteRuntimePath(paths[pathIndex])
+    if (!candidate || normalizeRuntimePathForComparison(candidate.root) !== rootKey) {
+      return null
+    }
+    commonLength = Math.min(commonLength, candidate.segments.length)
+    for (let segmentIndex = 0; segmentIndex < commonLength; segmentIndex++) {
+      const left = first.segments[segmentIndex].normalize('NFC')
+      const right = candidate.segments[segmentIndex].normalize('NFC')
+      const matches = first.caseInsensitive
+        ? left.toLowerCase() === right.toLowerCase()
+        : left === right
+      if (!matches) {
+        commonLength = segmentIndex
+        break
+      }
+    }
+  }
+  return commonLength > 0
+    ? `${first.root}${first.segments.slice(0, commonLength).join('/')}`
+    : trimRuntimePathTrailingSlash(first.root)
+}
+
 /**
  * Pre-normalizes the root so a fan-out normalizes it once, not once per candidate.
  *

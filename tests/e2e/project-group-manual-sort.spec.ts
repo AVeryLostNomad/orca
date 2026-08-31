@@ -5,6 +5,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { test, expect } from './helpers/orca-app'
 import { waitForSessionReady } from './helpers/store'
+import {
+  getTerminalContent,
+  sendToTerminal,
+  waitForActivePanePtyId,
+  waitForTerminalOutput
+} from './helpers/terminal'
 import type { Page } from '@stablyai/playwright-test'
 
 const GROUP_NAMES = [
@@ -244,6 +250,36 @@ async function dragProjectIntoProjectBody(args: {
   await args.page.mouse.up()
 }
 
+async function dragProjectIntoGroup(args: {
+  page: Page
+  draggedProjectId: string
+  targetGroupId: string
+}): Promise<void> {
+  const source = args.page.locator(`[data-repo-header-id="${args.draggedProjectId}"]`)
+  const target = args.page.locator(`[data-project-group-header-id="${args.targetGroupId}"]`)
+  await source.scrollIntoViewIfNeeded()
+  await target.scrollIntoViewIfNeeded()
+  const sourceBox = await source.boundingBox()
+  const targetBox = await target.boundingBox()
+  await expect(source).toHaveAttribute('data-repo-header-drag-handle', '')
+  if (!sourceBox || !targetBox) {
+    throw new Error('Project-to-group drag bounding box was not available')
+  }
+
+  await args.page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await args.page.mouse.down()
+  await args.page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  )
+  await args.page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 8 }
+  )
+  await expect(target).toHaveClass(/ring-worktree-sidebar-ring/)
+  await args.page.mouse.up()
+}
+
 async function dragProjectGroupBefore(args: {
   page: Page
   draggedGroupId: string
@@ -357,5 +393,115 @@ test.describe('Project Group manual sorting', () => {
         message: 'Dragged Project Group header did not persist the requested visible order'
       })
       .toEqual([groups.alphaId, groups.bravoId, groups.deltaId, groups.charlieId])
+  })
+  test('selects Group Wide and accepts projects dropped on the group header', async ({
+    orcaPage
+  }) => {
+    await waitForSessionReady(orcaPage)
+    const repoPaths = await createProjectHeaderSortFixture()
+    const projects = await seedProjectHeaderSortScenario(orcaPage, repoPaths)
+    const groupId = await orcaPage.evaluate(async (projectId) => {
+      const store = window.__store
+      if (!store) {
+        throw new Error('window.__store is not available')
+      }
+      const group = await store.getState().createProjectGroup('E2E Group Wide')
+      if (!group) {
+        throw new Error('Failed to create Group Wide E2E group')
+      }
+      if (!(await store.getState().updateRepo(projectId, { projectGroupId: group.id }))) {
+        throw new Error('Failed to seed grouped project')
+      }
+      return group.id
+    }, projects.alphaId)
+
+    const sidebar = orcaPage.locator('[data-worktree-sidebar]')
+    const groupWideRow = sidebar.getByText('Group Wide', { exact: true })
+    await expect(groupWideRow).toBeVisible()
+    await groupWideRow.click()
+
+    const workspaceId = `folder:project-group:${groupId}`
+    await expect
+      .poll(
+        () =>
+          orcaPage.evaluate((id) => {
+            const state = window.__store?.getState()
+            const workspace = state?.getKnownWorktreeById(id)
+            return {
+              activeWorktreeId: state?.activeWorktreeId ?? null,
+              path: workspace?.path ?? null
+            }
+          }, workspaceId),
+        {
+          timeout: 12_000,
+          message: 'Group Wide did not become the active derived workspace'
+        }
+      )
+      .toEqual({ activeWorktreeId: workspaceId, path: path.dirname(repoPaths[0]!) })
+    const groupWideSurface = sidebar.locator(
+      `[data-worktree-id="${workspaceId}"] [data-worktree-card-surface="true"]`
+    )
+    await expect(groupWideSurface).toHaveAttribute('data-worktree-card-active', 'secondary')
+    await groupWideSurface.click({ button: 'right' })
+    await expect(orcaPage.getByRole('menuitem', { name: 'Open in', exact: true })).toBeVisible()
+    await expect(orcaPage.getByRole('menuitem', { name: 'Copy Path', exact: true })).toBeVisible()
+    await expect(orcaPage.getByRole('menuitem', { name: 'Update', exact: true })).toHaveCount(0)
+    await expect(
+      orcaPage.getByRole('menuitem', { name: 'Remove Workspace', exact: true })
+    ).toHaveCount(0)
+    await orcaPage.keyboard.press('Escape')
+    const expectedGroupPath = path.dirname(repoPaths[0]!)
+    const cwdMarker = '__GROUP_WIDE_CWD__'
+    const ptyId = await waitForActivePanePtyId(orcaPage)
+    await sendToTerminal(
+      orcaPage,
+      ptyId,
+      `node -e "console.log(['__GROUP','_WIDE_CWD__',process.cwd()].join(''))"\r`
+    )
+    await waitForTerminalOutput(orcaPage, cwdMarker, 15_000)
+    expect(await getTerminalContent(orcaPage)).toContain(`${cwdMarker}${expectedGroupPath}`)
+
+    await groupWideSurface.click({ button: 'right' })
+    await orcaPage.getByRole('menuitem', { name: 'Sleep', exact: true }).click()
+    await expect
+      .poll(() => orcaPage.evaluate(() => window.__store?.getState().activeWorktreeId ?? null))
+      .toBeNull()
+
+    await groupWideRow.click()
+    const wokePtyId = await waitForActivePanePtyId(orcaPage)
+    const wakeMarker = '__GROUP_WIDE_WAKE_INTERACTIVE__'
+    await sendToTerminal(orcaPage, wokePtyId, `node -e "console.log('${wakeMarker}')"\r`)
+    await waitForTerminalOutput(orcaPage, wakeMarker, 15_000)
+    expect(await getTerminalContent(orcaPage)).toContain(wakeMarker)
+
+    await orcaPage.locator(`[data-project-group-header-id="${groupId}"]`).hover()
+    await orcaPage
+      .getByRole('button', { name: 'Group actions for E2E Group Wide', exact: true })
+      .click()
+    await orcaPage.getByRole('menuitem', { name: 'Change icon' }).click()
+    await expect(orcaPage.getByRole('dialog')).toContainText('Change Group Icon')
+    await orcaPage.keyboard.press('Escape')
+    await expect(orcaPage.getByRole('dialog')).toBeHidden()
+
+    await dragProjectIntoGroup({
+      page: orcaPage,
+      draggedProjectId: projects.bravoId,
+      targetGroupId: groupId
+    })
+    await expect
+      .poll(
+        () =>
+          orcaPage.evaluate(
+            ({ projectId, expectedGroupId }) =>
+              window.__store?.getState().repos.find((repo) => repo.id === projectId)
+                ?.projectGroupId === expectedGroupId,
+            { projectId: projects.bravoId, expectedGroupId: groupId }
+          ),
+        {
+          timeout: 12_000,
+          message: 'Dropped project did not move into the project group'
+        }
+      )
+      .toBe(true)
   })
 })

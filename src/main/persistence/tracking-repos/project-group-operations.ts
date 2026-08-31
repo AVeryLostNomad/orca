@@ -5,7 +5,9 @@ import {
   getProjectGroupSubtreeIds,
   normalizeProjectGroupName
 } from '../../../shared/project-groups'
+import { sanitizeRepoIcon } from '../../../shared/repo-icon'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
+import { projectGroupWorkspaceKey } from '../../../shared/project-group-workspace'
 import type { StoreOwnedPersistedState } from '../loading-store/store-owned-state'
 import { removeWorkspaceSessionOwner } from '../restoring-sessions/session-owner-removal'
 
@@ -64,7 +66,7 @@ export class ProjectGroupPersistenceOperations {
 
   updateProjectGroup(
     groupId: string,
-    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color'>>
+    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>>
   ): ProjectGroup | null {
     const group = (this.state.projectGroups ?? []).find((entry) => entry.id === groupId)
     if (!group) {
@@ -81,6 +83,9 @@ export class ProjectGroupPersistenceOperations {
     }
     if (updates.color !== undefined) {
       group.color = typeof updates.color === 'string' ? updates.color : null
+    }
+    if (updates.icon !== undefined) {
+      group.icon = sanitizeRepoIcon(updates.icon) ?? null
     }
     group.updatedAt = Date.now()
     this.scheduleSave()
@@ -102,7 +107,13 @@ export class ProjectGroupPersistenceOperations {
         ? { ...repo, projectGroupId: null }
         : repo
     )
-    const removedFolderWorkspaceKeys = new Set<string>()
+    const removedFolderWorkspaceKeys = new Set([...deletedGroupIds].map(projectGroupWorkspaceKey))
+    for (const workspaceKey of removedFolderWorkspaceKeys) {
+      this.state.workspaceSession = removeWorkspaceSessionOwner(
+        this.state.workspaceSession,
+        workspaceKey
+      )!
+    }
     for (const workspace of this.state.folderWorkspaces ?? []) {
       if (deletedGroupIds.has(workspace.projectGroupId)) {
         removedFolderWorkspaceKeys.add(folderWorkspaceKey(workspace.id))

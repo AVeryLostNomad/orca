@@ -8,6 +8,7 @@ import {
   projectRepoResultVisibilityForClient,
   projectRepoVisibilityForClient
 } from '../repo-visibility-projection'
+import { sanitizeRepoIcon } from '../../../../shared/repo-icon'
 
 const RepoSelector = z.object({
   repo: requiredString('Missing repo selector')
@@ -69,7 +70,11 @@ const ProjectGroupUpdate = z.object({
     name: OptionalString,
     isCollapsed: z.boolean().optional(),
     tabOrder: OptionalFiniteNumber,
-    color: OptionalString.nullable().optional()
+    color: OptionalString.nullable().optional(),
+    icon: z
+      .unknown()
+      .transform((value) => sanitizeRepoIcon(value))
+      .optional()
   })
 })
 

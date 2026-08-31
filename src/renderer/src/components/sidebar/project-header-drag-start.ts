@@ -17,6 +17,7 @@ export function createProjectHeaderDragSession(args: {
   repoId: string
   repoById: ReadonlyMap<string, Repo>
   sidebarRepoHeaderIdsByBucket: ReadonlyMap<ProjectHeaderDragBucketKey, readonly string[]>
+  allowSingleHeader?: boolean
   getScrollContainer: () => HTMLElement | null
 }): ProjectHeaderDragSession | null {
   if (args.event.button !== 0) {
@@ -34,9 +35,7 @@ export function createProjectHeaderDragSession(args: {
   }
   const bucketKey = getProjectHeaderDragBucketKey(repo)
   const sidebarRepoHeaderIds = args.sidebarRepoHeaderIdsByBucket.get(bucketKey) ?? []
-  // Why: a single project in its bucket has nowhere to land, so skip arming
-  // drag and let the header click toggle collapse instead.
-  if (sidebarRepoHeaderIds.length <= 1) {
+  if (sidebarRepoHeaderIds.length <= 1 && !args.allowSingleHeader) {
     return null
   }
   const container = args.getScrollContainer()
@@ -56,6 +55,7 @@ export function createProjectHeaderDragSession(args: {
     startX: args.event.clientX,
     startY: args.event.clientY,
     latestPointerY: args.event.clientY,
+    latestPointerX: args.event.clientX,
     promoted: false
   }
 }

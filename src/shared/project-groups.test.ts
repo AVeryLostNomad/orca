@@ -40,6 +40,7 @@ describe('project-groups', () => {
       tabOrder: 3,
       isCollapsed: false,
       color: null,
+      icon: null,
       createdAt: 100,
       updatedAt: 100
     })
@@ -70,6 +71,19 @@ describe('project-groups', () => {
       isCollapsed: true,
       parentGroupId: null
     })
+  })
+
+  it('normalizes persisted group icons', () => {
+    const [group] = normalizeProjectGroups([
+      {
+        id: 'group-with-icon',
+        name: 'Platform',
+        tabOrder: 0,
+        icon: { type: 'emoji', emoji: '🚀' }
+      }
+    ])
+
+    expect(group.icon).toEqual({ type: 'emoji', emoji: '🚀' })
   })
 
   it('preserves normalized execution ownership for persisted groups', () => {

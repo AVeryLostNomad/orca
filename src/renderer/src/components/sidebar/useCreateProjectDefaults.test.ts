@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   browseRuntimeServerDirectory: vi.fn(),
   callRuntimeRpc: vi.fn(),
   isGitAvailable: vi.fn(),
-  getDefaultCreateProjectParent: vi.fn()
+  getDefaultCreateProjectParent: vi.fn(),
+  localStorageValues: new Map<string, string>()
 }))
 
 vi.mock('react', async (importOriginal) => {
@@ -48,6 +49,7 @@ vi.mock('@/runtime/runtime-rpc-client', () => ({
   callRuntimeRpc: mocks.callRuntimeRpc
 }))
 
+import { rememberCreateProjectParent } from './create-project-defaults'
 import { useCreateProjectDefaults } from './useCreateProjectDefaults'
 
 // State order inside the hook: [defaultParent, gitAvailability, runtimeParentStatus].
@@ -79,8 +81,15 @@ describe('useCreateProjectDefaults', () => {
     mocks.stateValues = []
     mocks.stateIndex = 0
     mocks.refValues = []
+    mocks.localStorageValues.clear()
     mocks.refIndex = 0
     vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => mocks.localStorageValues.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          mocks.localStorageValues.set(key, value)
+        }
+      },
       api: {
         repos: {
           isGitAvailable: mocks.isGitAvailable,
@@ -102,6 +111,17 @@ describe('useCreateProjectDefaults', () => {
     expect(mocks.stateValues[GIT_AVAILABILITY_STATE]).toBe('available')
     expect(mocks.getDefaultCreateProjectParent).toHaveBeenCalled()
     expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
+  })
+
+  it('restores the last successful local parent before the home default', async () => {
+    mocks.isGitAvailable.mockResolvedValue(true)
+    rememberCreateProjectParent('local', '/Users/alice/code')
+
+    const { setCreateParent } = useHarness()
+    await flushAsync()
+
+    expect(setCreateParent).toHaveBeenCalledWith('/Users/alice/code')
+    expect(mocks.getDefaultCreateProjectParent).not.toHaveBeenCalled()
   })
 
   it('auto-fills the local home default regardless of workspace directory settings', async () => {
@@ -171,6 +191,17 @@ describe('useCreateProjectDefaults', () => {
       { timeoutMs: 3000 }
     )
     expect(mocks.isGitAvailable).not.toHaveBeenCalled()
+  })
+
+  it('restores the last successful runtime parent without browsing the host home', async () => {
+    rememberCreateProjectParent('runtime:env-1', '/srv/code')
+    mocks.callRuntimeRpc.mockResolvedValue({ available: true })
+
+    const { setCreateParent } = useHarness({ activeRuntimeEnvironmentId: 'env-1' })
+    await flushAsync()
+
+    expect(setCreateParent).toHaveBeenCalledWith('/srv/code')
+    expect(mocks.browseRuntimeServerDirectory).not.toHaveBeenCalled()
   })
 
   it('replaces an untouched local default when switching to a runtime target', async () => {
@@ -253,6 +284,17 @@ describe('useCreateProjectDefaults', () => {
     expect(mocks.isGitAvailable).not.toHaveBeenCalled()
     expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
     expect(mocks.stateValues[GIT_AVAILABILITY_STATE]).toBe('unknown')
+  })
+
+  it('restores the last successful parent for an SSH target', async () => {
+    rememberCreateProjectParent('ssh:ssh-1', '/srv/code')
+
+    const { setCreateParent } = useHarness({ sshTargetId: 'ssh-1' })
+    await flushAsync()
+
+    expect(setCreateParent).toHaveBeenCalledWith('/srv/code')
+    expect(mocks.getDefaultCreateProjectParent).not.toHaveBeenCalled()
+    expect(mocks.browseRuntimeServerDirectory).not.toHaveBeenCalled()
   })
 
   it('does nothing outside the create step', async () => {

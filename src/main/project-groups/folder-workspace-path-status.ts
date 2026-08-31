@@ -5,6 +5,10 @@ import type {
   FolderWorkspacePathStatusRequest
 } from '../../shared/folder-workspace-path-status'
 import { getProjectGroupSubtreeIds } from '../../shared/project-groups'
+import {
+  getProjectGroupIdFromWorkspaceFolderId,
+  projectGroupToFolderWorkspace
+} from '../../shared/project-group-workspace'
 import type { FolderWorkspace } from '../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../shared/project-group-types'
 import type { Repo } from '../../shared/repo-types'
@@ -178,15 +182,27 @@ export function resolveFolderWorkspaceStatusPath(args: {
     }
   }
 
-  const workspace = args.store
+  const persistedWorkspace = args.store
     .getFolderWorkspaces?.()
     .find((entry) => entry.id === request.folderWorkspaceId)
+  const groupWorkspaceId = getProjectGroupIdFromWorkspaceFolderId(request.folderWorkspaceId)
+  const projectGroups = args.store.getProjectGroups?.() ?? []
+  const groupWorkspaceOwner = groupWorkspaceId
+    ? projectGroups.find((entry) => entry.id === groupWorkspaceId)
+    : undefined
+  const workspace =
+    persistedWorkspace ??
+    (groupWorkspaceOwner
+      ? projectGroupToFolderWorkspace({
+          group: groupWorkspaceOwner,
+          projectGroups,
+          repos: args.store.getRepos()
+        })
+      : null)
   if (!workspace) {
     throw new Error('folder_workspace_path_scope_not_found')
   }
-  const group = args.store
-    .getProjectGroups?.()
-    .find((entry) => entry.id === workspace.projectGroupId)
+  const group = projectGroups.find((entry) => entry.id === workspace.projectGroupId)
   return {
     folderPath: workspace.folderPath,
     projectGroupId: workspace.projectGroupId,

@@ -238,7 +238,8 @@ import { parseWorkspaceKey } from '../../shared/workspace-scope'
 import { getStartupTerminalColorQueryReplyColors } from './terminal-startup-color-query-replies'
 import {
   assertFolderWorkspacePathUsable,
-  getFolderWorkspacePathStatus
+  getFolderWorkspacePathStatus,
+  resolveFolderWorkspaceStatusPath
 } from '../project-groups/folder-workspace-path-status'
 import { getSshFilesystemProvider } from '../providers/ssh-filesystem-dispatch'
 import { resolveLocalProjectRuntimeForWorktreeId } from '../local-project-runtime-resolution'
@@ -4250,6 +4251,20 @@ export function registerPtyHandlers(
     mainWindow.webContents.on('did-finish-load', didFinishLoadHandler)
   }
 
+  const resolveFolderWorkspacePtyPath = (folderWorkspaceId: string): string | undefined => {
+    if (!store) {
+      return undefined
+    }
+    try {
+      return resolveFolderWorkspaceStatusPath({
+        store,
+        request: { scope: 'folder-workspace', folderWorkspaceId }
+      }).folderPath
+    } catch {
+      return undefined
+    }
+  }
+
   const assertFolderWorkspacePtyPathUsable = async (
     worktreeId: string | undefined
   ): Promise<void> => {
@@ -4274,8 +4289,7 @@ export function registerPtyHandlers(
       workspaceId: worktreeId,
       requestedCwd: cwd,
       missingDirFallback,
-      resolveFolderWorkspacePath: (folderWorkspaceId) =>
-        store?.getFolderWorkspace(folderWorkspaceId)?.folderPath
+      resolveFolderWorkspacePath: resolveFolderWorkspacePtyPath
     })
 
   const localStartupCwdDirectoryExists = (path: string): boolean => {

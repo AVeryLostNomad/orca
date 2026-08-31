@@ -7,7 +7,6 @@ import {
   useRepoMap,
   useWorktreeMap
 } from '@/store/selectors'
-import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import {
   getRepoExecutionHostId,
@@ -205,18 +204,6 @@ const WorktreeList = React.memo(function WorktreeList({
     },
     [openModal]
   )
-  const handleCreateFolderWorkspace = useCallback(
-    (projectGroup: ProjectGroup) => {
-      if (!projectGroup.parentPath) {
-        return
-      }
-      openModal('new-workspace-composer', {
-        initialProjectGroupId: projectGroup.id,
-        telemetrySource: 'sidebar'
-      })
-    },
-    [openModal]
-  )
 
   useSidebarRevealRequests({
     groupBy,
@@ -289,9 +276,9 @@ const WorktreeList = React.memo(function WorktreeList({
         handleCreateGroupFromRepo={projectGroupDialogs.handleCreateGroupFromRepo}
         handleMoveProjectToGroup={projectGroupDialogs.handleMoveProjectToGroup}
         handleRemoveProjectFromGroup={projectGroupDialogs.handleRemoveProjectFromGroup}
+        handleChangeProjectGroupIcon={projectGroupDialogs.handleChangeProjectGroupIcon}
         handleRenameProjectGroup={projectGroupDialogs.handleRenameProjectGroup}
         handleDeleteProjectGroup={projectGroupDialogs.handleDeleteProjectGroup}
-        handleCreateFolderWorkspace={handleCreateFolderWorkspace}
         activeModal={activeModal}
         pendingRevealWorktree={pendingRevealWorktree}
         pendingRevealSidebarRow={pendingRevealSidebarRow}

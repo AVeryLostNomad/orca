@@ -55,6 +55,7 @@ export function WorktreeCardHeader({
     worktree,
     repo,
     affiliateListMode,
+    workspaceRecordMutable,
     renameRowKey,
     compactCards,
     newCardStyle,
@@ -88,6 +89,7 @@ export function WorktreeCardHeader({
     titleRowIndicators,
     titleWrapper
   } = presentation
+  const canEditWorkspaceRecord = workspaceRecordMutable && !affiliateListMode
 
   return (
     <div className="flex min-w-0 items-center justify-between gap-2">
@@ -169,19 +171,21 @@ export function WorktreeCardHeader({
         {/* Why: unread alert lives in the left status lane; title-row contrast comes from weight and dimmed read titles. */}
         <WorktreeTitleInlineRename
           displayName={visibleCardTitle}
-          disabled={isDeleting || affiliateListMode}
+          disabled={isDeleting || !canEditWorkspaceRecord}
           showUnreadEmphasis={showUnreadEmphasis}
           dimReadTitle={newCardStyle}
           className="text-[13px] leading-5"
           editingClassName="flex-1"
           titleWrapper={titleWrapper}
-          onEditingChange={affiliateListMode ? undefined : setTitleRenaming}
+          onEditingChange={canEditWorkspaceRecord ? setTitleRenaming : undefined}
           onRename={handleRenameTitle}
           beginEditing={
-            !affiliateListMode &&
+            canEditWorkspaceRecord &&
             shouldBeginWorktreeRename(renamingWorktreeId, worktree.id, renameRowKey)
           }
-          onBeginEditingConsumed={affiliateListMode ? undefined : () => setRenamingWorktreeId(null)}
+          onBeginEditingConsumed={
+            canEditWorkspaceRecord ? () => setRenamingWorktreeId(null) : undefined
+          }
         />
 
         {typeof worktree.firstAgentMessageRenameError === 'string' &&

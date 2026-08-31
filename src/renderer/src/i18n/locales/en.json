@@ -5346,7 +5346,9 @@
           "groupDeleteFailedDesc": "Something went wrong while deleting the group. No projects were removed.",
           "failedNestWorkspace": "Failed to nest workspace",
           "sidebarRowMissing": "Target no longer exists",
-          "failedUnnestWorkspace": "Failed to unnest workspace"
+          "failedUnnestWorkspace": "Failed to unnest workspace",
+          "changeGroupIcon": "Change icon",
+          "groupIconUpdateFailed": "Failed to update group icon"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -5957,6 +5959,14 @@
           "projectOnly": "Added in this project only.",
           "useGlobalFor": "Use global for {{value0}}",
           "useGlobal": "Use global"
+        },
+        "ProjectGroupIconDialog": {
+          "title": "Change Group Icon",
+          "description": "Choose the icon shown beside this group in the sidebar.",
+          "reset": "Reset",
+          "cancel": "Cancel",
+          "saving": "Saving…",
+          "save": "Save"
         }
       },
       "shared": {

@@ -112,6 +112,56 @@ describe('Cmd/Ctrl+1-9 folder-workspace path gate (#10716)', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
+  it('remounts a preserved folder terminal after sleep', async () => {
+    await seedFolderWorkspace({ exists: true })
+    const workspaceKey = folderWorkspaceKey(folderWorkspace.id)
+    store.setState({
+      tabsByWorktree: {
+        [workspaceKey]: [
+          {
+            id: 'folder-tab-1',
+            title: 'Terminal',
+            ptyId: null,
+            generation: 4
+          } as never
+        ]
+      },
+      unifiedTabsByWorktree: {
+        [workspaceKey]: [
+          {
+            id: 'unified-folder-tab-1',
+            contentType: 'terminal',
+            entityId: 'folder-tab-1',
+            groupId: 'group-1'
+          } as never
+        ]
+      },
+      groupsByWorktree: {
+        [workspaceKey]: [
+          {
+            id: 'group-1',
+            activeTabId: 'unified-folder-tab-1',
+            tabOrder: ['unified-folder-tab-1'],
+            recentTabIds: []
+          } as never
+        ]
+      },
+      activeGroupIdByWorktree: { [workspaceKey]: 'group-1' },
+      terminalLayoutsByTabId: {
+        'folder-tab-1': {
+          root: { type: 'leaf', leafId: 'folder-leaf-1' },
+          activeLeafId: 'folder-leaf-1'
+        } as never
+      },
+      ptyIdsByTabId: { 'folder-tab-1': [] },
+      everActivatedWorktreeIds: new Set([workspaceKey])
+    })
+
+    activateAndRevealWorkspace(workspaceKey)
+
+    expect(store.getState().tabsByWorktree[workspaceKey]?.[0]?.generation).toBe(5)
+  })
+
   // Why per AGENTS.md: the gate must hold on Windows/Linux Ctrl too, not just Cmd.
   // The digit chord resolves to the same jumpToWorktreeIndex action on every platform,
   // so all three land on the guarded activator this suite pins above.

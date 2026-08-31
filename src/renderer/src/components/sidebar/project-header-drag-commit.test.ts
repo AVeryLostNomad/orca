@@ -29,6 +29,7 @@ function makeSession(
     handleEl: document.createElement('div'),
     startX: 0,
     startY: 0,
+    latestPointerX: 0,
     latestPointerY: 0,
     promoted: true
   }

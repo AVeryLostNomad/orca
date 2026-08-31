@@ -1,5 +1,6 @@
 import type { AppState } from '../../../types'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
+import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { WorktreeMeta } from '../../../../../../shared/worktree/meta-types'
 import type { DetectedWorktreeListResult, Worktree } from '../../../../../../shared/worktree/types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
@@ -10,11 +11,23 @@ import {
 } from '../../../../../../shared/execution-host'
 import { parseWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import { folderWorkspaceToWorktree } from '../../../../../../shared/folder-workspace-worktree'
+import {
+  getProjectGroupIdFromWorkspaceFolderId,
+  projectGroupToFolderWorkspace
+} from '../../../../../../shared/project-group-workspace'
 import { findIndexedWorktreeOwnerForHost } from '@/lib/worktree-runtime-owner-index'
 import { findWorktreeById, withoutErasedRequiredWorktreeFields } from '../../worktree-helpers'
 import { worktreeMatchesHost } from './worktree-host-ownership'
 
 const folderWorkspaceWorktreeCache = new WeakMap<FolderWorkspace, Worktree>()
+const projectGroupWorkspaceWorktreeCache = new WeakMap<
+  ProjectGroup,
+  {
+    projectGroups: AppState['projectGroups']
+    repos: AppState['repos']
+    worktree: Worktree
+  }
+>()
 
 export function applyDetectedWorktreeUpdates(
   detectedWorktreesByRepo: AppState['detectedWorktreesByRepo'],
@@ -55,7 +68,10 @@ export function folderWorkspaceMatchesHost(
 }
 
 export function findKnownWorktreeById(
-  state: Pick<AppState, 'worktreesByRepo' | 'detectedWorktreesByRepo' | 'folderWorkspaces'>,
+  state: Pick<
+    AppState,
+    'worktreesByRepo' | 'detectedWorktreesByRepo' | 'folderWorkspaces' | 'projectGroups' | 'repos'
+  >,
   worktreeId: string,
   executionHostId?: ExecutionHostId
 ): Worktree | DetectedWorktreeListResult['worktrees'][number] | undefined {
@@ -67,7 +83,47 @@ export function findKnownWorktreeById(
         (!executionHostId || folderWorkspaceMatchesHost(workspace, executionHostId))
     )
     if (!folderWorkspace) {
-      return undefined
+      const projectGroupId = getProjectGroupIdFromWorkspaceFolderId(
+        workspaceScope.folderWorkspaceId
+      )
+      const group = projectGroupId
+        ? state.projectGroups.find((candidate) => {
+            const candidateHostId =
+              parseExecutionHostId(candidate.executionHostId)?.id ??
+              (candidate.connectionId
+                ? toSshExecutionHostId(candidate.connectionId)
+                : LOCAL_EXECUTION_HOST_ID)
+            return (
+              candidate.id === projectGroupId &&
+              (!executionHostId || candidateHostId === executionHostId)
+            )
+          })
+        : undefined
+      if (!group) {
+        return undefined
+      }
+      const cachedGroupWorkspace = projectGroupWorkspaceWorktreeCache.get(group)
+      if (
+        cachedGroupWorkspace?.projectGroups === state.projectGroups &&
+        cachedGroupWorkspace.repos === state.repos
+      ) {
+        return cachedGroupWorkspace.worktree
+      }
+      const groupWorkspace = projectGroupToFolderWorkspace({
+        group,
+        projectGroups: state.projectGroups,
+        repos: state.repos
+      })
+      if (!groupWorkspace) {
+        return undefined
+      }
+      const worktree = folderWorkspaceToWorktree(groupWorkspace)
+      projectGroupWorkspaceWorktreeCache.set(group, {
+        projectGroups: state.projectGroups,
+        repos: state.repos,
+        worktree
+      })
+      return worktree
     }
     const cached = folderWorkspaceWorktreeCache.get(folderWorkspace)
     if (cached) {

@@ -13,6 +13,7 @@ import { scheduleRuntimeGraphSync } from '@/runtime/sync-runtime-graph'
 import { useAppStore } from '@/store'
 import { getWorktreeMapFromState } from '@/store/selectors'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { resolveFolderWorkspaceForState } from '@/lib/folder-workspace-connection'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import { isEphemeralSetupTerminalWorktreeId } from '../../../../shared/ephemeral-setup-terminal-worktree-id'
 import { TERMINAL_PAIRED_PARKING_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
@@ -3394,9 +3395,7 @@ export function connectPanePty(
   const parsedWorkspaceKey = parseWorkspaceKey(deps.worktreeId)
   const folderWorkspace =
     parsedWorkspaceKey?.type === 'folder'
-      ? state.folderWorkspaces.find(
-          (workspace) => workspace.id === parsedWorkspaceKey.folderWorkspaceId
-        )
+      ? resolveFolderWorkspaceForState(state, parsedWorkspaceKey.folderWorkspaceId)
       : null
   const workspaceEnv: Record<string, string> = { ORCA_WORKSPACE_ID: deps.worktreeId }
   if (folderWorkspace) {

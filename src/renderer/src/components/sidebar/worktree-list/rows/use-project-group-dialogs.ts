@@ -5,6 +5,7 @@ import { translate } from '@/i18n/i18n'
 import { selectProjectGroupRemovalTargets } from '@/store/slices/project-group-removal-targets'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
+import type { RepoIcon } from '../../../../../../shared/repo-icon'
 
 export type ProjectGroupNameDialogState =
   | { type: 'create-from-repo'; repo: Repo }
@@ -73,6 +74,7 @@ export function useProjectGroupDialogs(args: {
   )
   const [nameDialog, setNameDialog] = useState<ProjectGroupNameDialogState | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<ProjectGroupDeleteDialogState | null>(null)
+  const [iconDialogGroupId, setIconDialogGroupId] = useState<string | null>(null)
 
   const handleCreateGroupFromRepo = useCallback((repo: Repo) => {
     setNameDialog({ type: 'create-from-repo', repo })
@@ -98,6 +100,26 @@ export function useProjectGroupDialogs(args: {
   const handleRenameProjectGroup = useCallback((groupId: string, currentName: string) => {
     setNameDialog({ type: 'rename', groupId, currentName })
   }, [])
+
+  const handleChangeProjectGroupIcon = useCallback((groupId: string) => {
+    setIconDialogGroupId(groupId)
+  }, [])
+
+  const handleSaveProjectGroupIcon = useCallback(
+    async (groupId: string, icon: RepoIcon | null) => {
+      const saved = await updateProjectGroup(groupId, { icon })
+      if (!saved) {
+        toast.error(
+          translate(
+            'auto.components.sidebar.WorktreeList.groupIconUpdateFailed',
+            'Failed to update group icon'
+          )
+        )
+      }
+      return saved
+    },
+    [updateProjectGroup]
+  )
 
   const handleSubmitProjectGroupName = useCallback(
     async (name: string) => {
@@ -157,6 +179,8 @@ export function useProjectGroupDialogs(args: {
     nameDialog,
     setNameDialog,
     deleteDialog,
+    iconDialogGroup: projectGroups.find((group) => group.id === iconDialogGroupId) ?? null,
+    setIconDialogGroupId,
     setDeleteDialog,
     deleteProjectCount,
     deleteProjectNames,
@@ -165,6 +189,8 @@ export function useProjectGroupDialogs(args: {
     handleMoveProjectToGroup,
     handleRemoveProjectFromGroup,
     handleRenameProjectGroup,
+    handleChangeProjectGroupIcon,
+    handleSaveProjectGroupIcon,
     handleSubmitProjectGroupName,
     handleDeleteProjectGroup,
     handleConfirmDeleteProjectGroup

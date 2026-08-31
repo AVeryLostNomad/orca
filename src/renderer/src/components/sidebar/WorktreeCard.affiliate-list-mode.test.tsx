@@ -210,6 +210,36 @@ describe('WorktreeCard affiliate list mode', () => {
     )
   })
 
+  it('keeps immutable workspace cards standard and context-menu accessible', () => {
+    act(() => {
+      root.render(
+        <WorktreeCard
+          worktree={makeWorktree({ displayName: 'Group Wide' })}
+          repo={undefined}
+          isActive
+          nativeDragEnabled={false}
+          flushSurface
+          workspaceRecordMutable={false}
+        />
+      )
+    })
+
+    const surface = container.querySelector<HTMLElement>('[data-worktree-card-surface="true"]')
+    const statusSlot = container.querySelector<HTMLElement>('[data-worktree-card-status-slot]')
+    expect(surface?.getAttribute('data-worktree-card-active')).toBe('primary')
+    expect(statusSlot?.className).not.toContain('px-1')
+    expect(container.querySelector('[data-testid="context-menu-wrapper"]')).not.toBeNull()
+    expect(
+      container.querySelector('[data-testid="inline-rename"]')?.getAttribute('data-disabled')
+    ).toBe('true')
+
+    act(() => {
+      surface?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+
+    expect(openModal).not.toHaveBeenCalled()
+  })
+
   it('still shows inline agent details in affiliate list mode', () => {
     worktreeCardProperties = ['status', 'inline-agents']
 

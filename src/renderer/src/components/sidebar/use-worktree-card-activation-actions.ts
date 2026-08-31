@@ -15,6 +15,7 @@ export function useWorktreeCardActivationActions({
   worktree,
   repo,
   affiliateListMode,
+  workspaceRecordMutable,
   onSelectionGesture,
   isActive,
   activationRowKey,
@@ -29,6 +30,7 @@ export function useWorktreeCardActivationActions({
   | 'worktree'
   | 'repo'
   | 'affiliateListMode'
+  | 'workspaceRecordMutable'
   | 'onSelectionGesture'
   | 'isActive'
   | 'activationRowKey'
@@ -110,7 +112,7 @@ export function useWorktreeCardActivationActions({
 
   const handleDoubleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (affiliateListMode) {
+      if (affiliateListMode || !workspaceRecordMutable) {
         return
       }
       if (!isEventTargetInsideCurrentTarget(event.currentTarget, event.target)) {
@@ -128,6 +130,7 @@ export function useWorktreeCardActivationActions({
     [
       openModal,
       affiliateListMode,
+      workspaceRecordMutable,
       worktree.comment,
       worktree.displayName,
       worktree.id,

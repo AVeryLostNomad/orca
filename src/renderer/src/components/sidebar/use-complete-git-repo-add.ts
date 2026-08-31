@@ -12,10 +12,9 @@ import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 type CompleteGitRepoAddOptions = {
   closeModal: () => void
-  setHideDefaultBranchWorkspace: (hide: boolean) => void
-  /** Why: the nested Add Project flow (hosted inside the workspace composer)
-   *  keeps the composer open and selects the new project instead of running
-   *  the default-checkout navigation handoff. Telemetry above still applies. */
+  closeModalForNavigation?: () => void
+  /** Existing-project adds nested in the workspace composer select the project
+   *  there. Scratch creation instead runs the default-checkout handoff. */
   finishProjectAdd?: (
     repoId: string,
     source: AddRepoExistingWorkspaceSource,
@@ -25,7 +24,7 @@ type CompleteGitRepoAddOptions = {
 
 export function useCompleteGitRepoAdd({
   closeModal,
-  setHideDefaultBranchWorkspace,
+  closeModalForNavigation,
   finishProjectAdd
 }: CompleteGitRepoAddOptions): (
   repoId: string,
@@ -40,7 +39,8 @@ export function useCompleteGitRepoAdd({
       source: AddRepoExistingWorkspaceSource,
       executionHostId?: ExecutionHostId
     ): Promise<void> => {
-      const worktrees = (useAppStore.getState().worktreesByRepo[repoId] ?? []).filter(
+      const state = useAppStore.getState()
+      const worktrees = (state.worktreesByRepo[repoId] ?? []).filter(
         (worktree) =>
           executionHostId === undefined ||
           worktree.hostId === executionHostId ||
@@ -64,7 +64,7 @@ export function useCompleteGitRepoAdd({
         detectedTelemetryTrackedRef.current.add(repoId)
         track('add_repo_existing_workspaces_detected', existingWorkspaceTelemetry)
       }
-      if (finishProjectAdd) {
+      if (finishProjectAdd && source !== 'create_project') {
         await finishProjectAdd(repoId, source, executionHostId)
         return
       }
@@ -72,10 +72,10 @@ export function useCompleteGitRepoAdd({
         repoId,
         source,
         executionHostId,
-        closeModal,
-        setHideDefaultBranchWorkspace
+        closeModal: closeModalForNavigation ?? closeModal,
+        setHideDefaultBranchWorkspace: state.setHideDefaultBranchWorkspace
       })
     },
-    [closeModal, finishProjectAdd, setHideDefaultBranchWorkspace]
+    [closeModal, closeModalForNavigation, finishProjectAdd]
   )
 }

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 
-import { isRepoHeaderActionTarget } from './project-header-drag'
+import { getProjectGroupDropTargetId, isRepoHeaderActionTarget } from './project-header-drag'
 
 function createHeader(markup: string): HTMLElement {
   const header = document.createElement('div')
@@ -56,5 +56,18 @@ describe('repo header action targets', () => {
       isRepoHeaderActionTarget(header.querySelector('[data-repo-header-actions]'), header)
     ).toBe(true)
     expect(isRepoHeaderActionTarget(header.querySelector('#icon'), header)).toBe(true)
+  })
+})
+
+describe('project group drop targets', () => {
+  it('accepts a different group header and ignores the source group', () => {
+    const target = document.createElement('div')
+    target.setAttribute('data-project-group-header-id', 'group-target')
+    const label = document.createElement('span')
+    target.appendChild(label)
+
+    expect(getProjectGroupDropTargetId(label, 'group-source')).toBe('group-target')
+    expect(getProjectGroupDropTargetId(label, 'group-target')).toBeNull()
+    expect(getProjectGroupDropTargetId(document.createElement('div'), 'group-source')).toBeNull()
   })
 })

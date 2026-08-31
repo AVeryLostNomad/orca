@@ -58,10 +58,13 @@ export function renderFolderWorkspaceVirtualRow(args: {
 }): React.JSX.Element {
   const { ctx, row, vItem } = args
   const folderWorktree = folderWorkspaceToWorktree(row.folderWorkspace)
-  const pathStatus = ctx.getCachedFolderWorkspacePathStatus({
-    scope: 'folder-workspace',
-    folderWorkspaceId: row.folderWorkspace.id
-  })
+  const pathStatus =
+    row.isGroupWide === true
+      ? null
+      : ctx.getCachedFolderWorkspacePathStatus({
+          scope: 'folder-workspace',
+          folderWorkspaceId: row.folderWorkspace.id
+        })
   const activationDisabled =
     pathStatus?.exists === false &&
     (isConfirmedStaleFolderPathStatus(pathStatus) || pathStatus.reason === 'ambiguous-connection')
@@ -110,9 +113,12 @@ export function renderFolderWorkspaceVirtualRow(args: {
           worktree={folderWorktree}
           repo={undefined}
           isActive={ctx.activeWorktreeId === folderWorktree.id}
+          activeSurfaceVariant={row.isGroupWide === true ? 'secondary' : 'primary'}
           isCurrentWorktree={ctx.currentWorktreeId === folderWorktree.id}
           contentIndent={cardContentIndent}
           flushSurface
+          workspaceRecordMutable={row.isGroupWide !== true}
+          hideRepoBadge={row.isGroupWide === true}
           nativeDragEnabled={false}
           onImmediateActivate={activationDisabled ? undefined : ctx.onImmediateActivate}
           activationRowKey={folderWorktree.id}

@@ -5,6 +5,7 @@ import {
   unregisterPersistentWebview
 } from '../../components/browser-pane/webview-registry'
 import { folderWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
+import { projectGroupWorkspaceKey } from '../../../../shared/project-group-workspace'
 import { makeDetectedResult } from './worktrees-detected-listing-fixtures'
 import { createWebview, makeFolderWorkspace, makeWorktree } from './worktrees-slice-test-fixtures'
 import {
@@ -46,6 +47,50 @@ describe('folder workspace lookups', () => {
       id: folderWorkspaceKey(folderWorkspace.id),
       displayName: folderWorkspace.name,
       path: folderWorkspace.folderPath
+    })
+  })
+
+  it('resolves and selects the derived Group Wide workspace', () => {
+    const store = createTestStore()
+    store.setState({
+      folderWorkspaces: [],
+      projectGroups: [
+        {
+          id: 'group-1',
+          name: 'Platform',
+          parentPath: null,
+          parentGroupId: null,
+          createdFrom: 'manual',
+          tabOrder: 0,
+          isCollapsed: false,
+          color: null,
+          executionHostId: 'local',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      repos: [
+        {
+          id: 'repo-1',
+          path: '/workspace/platform/api',
+          displayName: 'api',
+          badgeColor: '#999',
+          addedAt: 1,
+          projectGroupId: 'group-1',
+          executionHostId: 'local'
+        }
+      ]
+    } as Partial<AppState>)
+    const workspaceId = projectGroupWorkspaceKey('group-1')
+
+    const first = store.getState().getKnownWorktreeById(workspaceId)
+    const second = store.getState().getKnownWorktreeById(workspaceId)
+
+    expect(second).toBe(first)
+    expect(first).toMatchObject({
+      id: workspaceId,
+      displayName: 'Group Wide',
+      path: '/workspace/platform'
     })
   })
 })

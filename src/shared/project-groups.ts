@@ -1,6 +1,7 @@
 import { normalizeExecutionHostId } from './execution-host'
 import type { ProjectGroup, ProjectGroupCreatedFrom } from './project-group-types'
 import type { Repo } from './repo-types'
+import { sanitizeRepoIcon } from './repo-icon'
 
 export const UNGROUPED_PROJECT_GROUP_KEY = 'project-group:ungrouped'
 
@@ -37,6 +38,7 @@ export function createProjectGroup(input: {
     tabOrder: input.tabOrder,
     isCollapsed: false,
     color: null,
+    icon: null,
     createdAt: now,
     updatedAt: now
   }
@@ -80,6 +82,7 @@ export function normalizeProjectGroups(value: unknown): ProjectGroup[] {
         typeof raw.tabOrder === 'number' && Number.isFinite(raw.tabOrder) ? raw.tabOrder : 0,
       isCollapsed: raw.isCollapsed === true,
       color: typeof raw.color === 'string' ? raw.color : null,
+      icon: sanitizeRepoIcon(raw.icon) ?? null,
       createdAt:
         typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : now,
       updatedAt:

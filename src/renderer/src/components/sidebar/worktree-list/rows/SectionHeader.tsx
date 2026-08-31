@@ -6,7 +6,6 @@ import type { AppState } from '@/store/types'
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
 import { RepoForkIndicator } from '@/components/repo/repo-fork-indicator'
 import type { FolderWorkspacePathStatus } from '../../../../../../shared/folder-workspace-path-status'
-import { isConfirmedStaleFolderPathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type {
   WorkspaceStatus,
@@ -24,10 +23,7 @@ import {
   WORKTREE_SECTION_HEADER_PADDING_LEFT
 } from './indentation'
 import { FolderPathStatusIndicator } from './FolderPathStatusIndicator'
-import {
-  ProjectGroupCreateWorkspaceButton,
-  ProjectGroupHeaderMenu
-} from './project-group-header-actions'
+import { ProjectGroupHeaderMenu } from './project-group-header-actions'
 import {
   RepoHeaderCreateWorkspaceButton,
   RepoHeaderProjectActionsMenu,
@@ -56,22 +52,14 @@ export type SectionHeaderRowContext = {
   }) => FolderWorkspacePathStatus | null
   toggleGroupWithScrollAnchor: (groupKey: string) => void
   projectActions: RepoHeaderProjectActions
+  onChangeProjectGroupIcon: (groupId: string) => void
   onRenameProjectGroup: (groupId: string, currentName: string) => void
   onDeleteProjectGroup: (groupId: string, groupName: string) => void
-  onCreateFolderWorkspace: (projectGroup: ProjectGroup) => void
   onWorkspaceStatusDragOver: (event: React.DragEvent, status: WorkspaceStatus) => void
   onWorkspaceStatusDragLeave: (event: React.DragEvent) => void
   onWorkspacePinDragOver: (event: React.DragEvent) => void
   onWorkspacePinDragLeave: (event: React.DragEvent) => void
   onWorkspaceStatusDrop: (event: React.DragEvent, status: WorkspaceStatus) => void
-}
-
-// The folder-scan project group whose parent path is gone can't create new workspaces.
-function isFolderWorkspaceCreateDisabled(status: FolderWorkspacePathStatus | null): boolean {
-  return (
-    status?.exists === false &&
-    (isConfirmedStaleFolderPathStatus(status) || status.reason === 'ambiguous-connection')
-  )
 }
 
 export function renderWorktreeSectionHeaderRow(args: {
@@ -113,7 +101,8 @@ export function renderWorktreeSectionHeaderRow(args: {
     isRepoHeader &&
     projectIdForHeader &&
     repoHeaderBucketKey &&
-    (headerDrag.sidebarRepoHeaderIdsByBucket.get(repoHeaderBucketKey)?.length ?? 0) > 1
+    ((headerDrag.sidebarRepoHeaderIdsByBucket.get(repoHeaderBucketKey)?.length ?? 0) > 1 ||
+      ctx.projectGroups.some((group) => group.id !== row.repo?.projectGroupId))
   )
   const isDraggableProjectGroupHeader = Boolean(
     headerDrag.canReorderProjectGroupHeaders &&
@@ -130,6 +119,9 @@ export function renderWorktreeSectionHeaderRow(args: {
     headerDrag.canReorderProjectGroupHeaders &&
     headerDrag.projectGroupDrag.state.draggingGroupId !== null &&
     headerDrag.projectGroupDrag.state.draggingGroupId === projectGroupIdForHeader
+  const isProjectGroupDropTarget =
+    projectGroupIdForHeader !== undefined &&
+    headerDrag.repoDrag.state.targetProjectGroupId === projectGroupIdForHeader
   const headerWorkspaceStatus =
     ctx.groupBy === 'workspace-status'
       ? getWorkspaceStatusFromGroupKey(row.key, ctx.workspaceStatuses)
@@ -140,6 +132,10 @@ export function renderWorktreeSectionHeaderRow(args: {
     headerKey: row.key,
     badgeColor: row.repo?.badgeColor
   })
+  const projectGroupIcon =
+    isProjectGroupHeader && row.projectGroup && 'icon' in row.projectGroup
+      ? row.projectGroup.icon
+      : null
   const createState = row.repo
     ? getRepoHeaderCreateState({
         repo: row.repo,
@@ -230,6 +226,8 @@ export function renderWorktreeSectionHeaderRow(args: {
             'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/50',
           (isDraggingThis || isDraggingThisProjectGroup) &&
             'bg-accent/80 ring-1 ring-ring/40 shadow-md rounded-md scale-[1.01]',
+          isProjectGroupDropTarget &&
+            'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/60',
           headerWorkspaceStatus &&
             ctx.dragOverStatus === headerWorkspaceStatus &&
             'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',
@@ -314,6 +312,17 @@ export function renderWorktreeSectionHeaderRow(args: {
                   className="size-4"
                   iconClassName="size-3.5"
                 />
+              ) : projectGroupIcon ? (
+                <RepoIconGlyph
+                  repoIcon={projectGroupIcon}
+                  color={
+                    row.projectGroup && 'color' in row.projectGroup
+                      ? (row.projectGroup.color ?? undefined)
+                      : undefined
+                  }
+                  className="size-4"
+                  iconClassName="size-3.5"
+                />
               ) : (
                 <row.icon className="size-3" />
               )}
@@ -354,18 +363,9 @@ export function renderWorktreeSectionHeaderRow(args: {
             <ProjectGroupHeaderMenu
               groupId={projectGroupIdForHeader}
               label={row.label}
+              onChangeIcon={ctx.onChangeProjectGroupIcon}
               onRename={ctx.onRenameProjectGroup}
               onDelete={ctx.onDeleteProjectGroup}
-            />
-          ) : null}
-
-          {folderBackedProjectGroup ? (
-            <ProjectGroupCreateWorkspaceButton
-              projectGroup={folderBackedProjectGroup}
-              label={row.label}
-              pathStatus={projectGroupPathStatus}
-              disabled={isFolderWorkspaceCreateDisabled(projectGroupPathStatus)}
-              onCreate={ctx.onCreateFolderWorkspace}
             />
           ) : null}
 

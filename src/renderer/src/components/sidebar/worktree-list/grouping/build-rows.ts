@@ -55,7 +55,7 @@ export function buildRows(
   > = new Map(),
   pendingCreations: readonly PendingCreationRef[] = [],
   projectGrouping?: ProjectGroupingModel,
-  folderWorkspaces: readonly FolderWorkspace[] = [],
+  _folderWorkspaces: readonly FolderWorkspace[] = [],
   hostLabelById?: ReadonlyMap<string, string>,
   defaultHostId: ExecutionHostId = LOCAL_EXECUTION_HOST_ID,
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy = getPinnedWorktreeDisplayPolicy(settings)
@@ -185,7 +185,6 @@ export function buildRows(
   appendProjectGroupSections(sectionContext, {
     orderedGroups,
     projectGroups,
-    folderWorkspaces,
     projectOrderBy,
     repoOrder
   })

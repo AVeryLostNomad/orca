@@ -21,7 +21,8 @@ const mocks = vi.hoisted(() => ({
   fetchWorktrees: vi.fn(),
   onGitRepoReady: vi.fn(),
   activateAndRevealWorktree: vi.fn(),
-  markOnboardingProjectAdded: vi.fn()
+  markOnboardingProjectAdded: vi.fn(),
+  localStorageValues: new Map<string, string>()
 }))
 
 vi.mock('react', async (importOriginal) => {
@@ -121,12 +122,19 @@ describe('useCreateRepo default-checkout handoff', () => {
     mocks.storeState.projects = []
     mocks.storeState.projectHostSetups = []
     mocks.storeState.worktreesByRepo = {}
+    mocks.localStorageValues.clear()
     mocks.createRepo.mockReset()
     mocks.createRemoteRepo.mockReset()
     mocks.diagnoseAuth.mockReset()
     mocks.resolveAuthorIdentity.mockReset()
     mocks.storeState.settings.activeRuntimeEnvironmentId = null
     vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => mocks.localStorageValues.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          mocks.localStorageValues.set(key, value)
+        }
+      },
       api: {
         repos: {
           create: mocks.createRepo,
@@ -165,6 +173,7 @@ describe('useCreateRepo default-checkout handoff', () => {
       expect.arrayContaining([expect.objectContaining({ repoId: repo.id, path: repo.path })])
     )
     expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
+    expect(mocks.localStorageValues.get('orca.createProject.lastParent.local')).toBe('/projects')
   })
 
   it('uses the selected GitHub account as repository-local author identity', async () => {
@@ -298,6 +307,9 @@ describe('useCreateRepo default-checkout handoff', () => {
       executionHostId: 'ssh:ssh-1'
     })
     expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'ssh:ssh-1')
+    expect(mocks.localStorageValues.get('orca.createProject.lastParent.ssh:ssh-1')).toBe(
+      '/projects'
+    )
   })
 
   it('creates projects through the selected runtime environment', async () => {
@@ -321,6 +333,9 @@ describe('useCreateRepo default-checkout handoff', () => {
         kind: 'git'
       },
       { timeoutMs: 60_000 }
+    )
+    expect(mocks.localStorageValues.get('orca.createProject.lastParent.runtime:env-1')).toBe(
+      '/projects'
     )
     expect(mocks.createRepo).not.toHaveBeenCalled()
     expect(mocks.createRemoteRepo).not.toHaveBeenCalled()

@@ -51,6 +51,7 @@ export type WorktreeCardProps = {
   onCardDragEnd?: (event: React.DragEvent<HTMLDivElement>) => void
   nativeDragEnabled?: boolean
   affiliateListMode?: boolean
+  workspaceRecordMutable?: boolean
   statusPrDisplay?: WorktreeCardPrDisplay | null
 }
 
@@ -68,6 +69,7 @@ type DefaultedWorktreeCardProp =
   | 'lineageCollapsed'
   | 'isLineageDropTarget'
   | 'affiliateListMode'
+  | 'workspaceRecordMutable'
   | 'statusPrDisplay'
 
 export type ResolvedWorktreeCardProps = Omit<WorktreeCardProps, DefaultedWorktreeCardProp> & {
@@ -84,6 +86,7 @@ export type ResolvedWorktreeCardProps = Omit<WorktreeCardProps, DefaultedWorktre
   lineageCollapsed: boolean
   isLineageDropTarget: boolean
   affiliateListMode: boolean
+  workspaceRecordMutable: boolean
   statusPrDisplay: WorktreeCardPrDisplay | null
 }
 

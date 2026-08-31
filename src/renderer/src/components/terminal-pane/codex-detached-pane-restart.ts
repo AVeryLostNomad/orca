@@ -13,6 +13,7 @@ import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import type { TerminalPaneLayoutNode, TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { AppState } from '@/store'
 import { useAppStore } from '@/store'
+import { resolveFolderWorkspaceForState } from '@/lib/folder-workspace-connection'
 import { getWorktreeMapFromState } from '@/store/selectors'
 import { singlePaneLayoutSnapshot } from '@/store/slices/terminal-helpers'
 import { hasRegisteredRuntimeTerminalTab } from '@/runtime/sync-runtime-graph'
@@ -128,10 +129,7 @@ function locateCodexPane(state: AppState, ptyId: string): LocatedCodexPane | nul
 function getWorkspacePath(state: AppState, worktreeId: string): string | null {
   const parsed = parseWorkspaceKey(worktreeId)
   if (parsed?.type === 'folder') {
-    return (
-      (state.folderWorkspaces ?? []).find((workspace) => workspace.id === parsed.folderWorkspaceId)
-        ?.folderPath ?? null
-    )
+    return resolveFolderWorkspaceForState(state, parsed.folderWorkspaceId)?.folderPath ?? null
   }
   return getWorktreeMapFromState(state).get(worktreeId)?.path ?? null
 }
@@ -145,7 +143,7 @@ function buildPaneIdentityEnv(
   const parsed = parseWorkspaceKey(worktreeId)
   const folderWorkspace =
     parsed?.type === 'folder'
-      ? state.folderWorkspaces.find((workspace) => workspace.id === parsed.folderWorkspaceId)
+      ? resolveFolderWorkspaceForState(state, parsed.folderWorkspaceId)
       : null
   return {
     ORCA_WORKSPACE_ID: worktreeId,

@@ -6,11 +6,13 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   getFolderWorkspacePathStatus,
   getFolderWorkspacePathStatusForPath,
-  inferFolderWorkspacePathConnection
+  inferFolderWorkspacePathConnection,
+  resolveFolderWorkspaceStatusPath
 } from './folder-workspace-path-status'
 import type { IFilesystemProvider } from '../providers/types'
 import type { ProjectGroup } from '../../shared/project-group-types'
 import type { Repo } from '../../shared/repo-types'
+import { projectGroupWorkspaceFolderId } from '../../shared/project-group-workspace'
 
 function makeGroup(overrides: Partial<ProjectGroup> = {}): ProjectGroup {
   return {
@@ -204,6 +206,26 @@ describe('folder workspace path status', () => {
       )
     ).resolves.toEqual({ path: '/workspace/platform', exists: true })
     expect(provider.stat).toHaveBeenCalledWith('/workspace/platform')
+  })
+
+  it('resolves a derived Group Wide folder scope', () => {
+    expect(
+      resolveFolderWorkspaceStatusPath({
+        store: {
+          getRepos: () => [makeRepo()],
+          getProjectGroups: () => [makeGroup({ parentPath: null, createdFrom: 'manual' })],
+          getFolderWorkspaces: () => []
+        },
+        request: {
+          scope: 'folder-workspace',
+          folderWorkspaceId: projectGroupWorkspaceFolderId('group-1')
+        }
+      })
+    ).toEqual({
+      folderPath: '/workspace/platform',
+      projectGroupId: 'group-1',
+      connectionId: null
+    })
   })
 
   it('keeps explicit SSH scopes isolated from unrelated same-path SSH repos', async () => {

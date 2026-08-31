@@ -25,12 +25,13 @@ import {
 import { toast } from 'sonner'
 import { isDetachedHeadWorkspace } from '@/components/sidebar/visible-worktrees'
 import type { ExecutionHostId } from '../../../shared/execution-host'
-import { findFolderWorkspaceOwner } from './folder-workspace-runtime-owner'
+import { resolveFolderWorkspaceForState } from './folder-workspace-connection'
 import type { WorktreeStartupPayload } from '@/lib/worktree-startup-payload'
 import type { IssueCommandLaunch } from '@/lib/worktree-setup-issue-command-queue'
 import { ensureWorktreeHasInitialTerminal } from '@/lib/worktree-initial-terminal-seeding'
 import { ensureWebRuntimeWorktreeTerminalAfterWake } from '@/lib/web-runtime-worktree-terminal-after-wake'
 import { applyWorktreeNavViewEntry } from '@/lib/worktree-nav-view-history-replay'
+import { getProjectGroupIdFromWorkspaceFolderId } from '../../../shared/project-group-workspace'
 
 /**
  * Shared activation sequence used by the worktree palette and add-repo/worktree dialogs.
@@ -70,28 +71,28 @@ export function activateAndRevealFolderWorkspace(
   }
 ): ActivateAndRevealResult | false {
   const state = useAppStore.getState()
-  const folderWorkspaceOwner = findFolderWorkspaceOwner(
+  const folderWorkspace = resolveFolderWorkspaceForState(
     state,
     folderWorkspaceId,
     opts?.executionHostId
   )
-  const folderWorkspace = state.folderWorkspaces.find(
-    (workspace) => workspace === folderWorkspaceOwner
-  )
   if (!folderWorkspace) {
     return false
   }
+  const isGroupWideWorkspace = getProjectGroupIdFromWorkspaceFolderId(folderWorkspaceId) !== null
   const runtimeEnvironmentId =
     opts && 'runtimeEnvironmentId' in opts
       ? (opts.runtimeEnvironmentId ?? null)
       : getRuntimeEnvironmentIdForWorktree(state, folderWorkspaceKey(folderWorkspaceId))
-  const pathStatus = state.getFreshFolderWorkspacePathStatus(
-    {
-      scope: 'folder-workspace',
-      folderWorkspaceId
-    },
-    { runtimeEnvironmentId }
-  )
+  const pathStatus = isGroupWideWorkspace
+    ? null
+    : state.getFreshFolderWorkspacePathStatus(
+        {
+          scope: 'folder-workspace',
+          folderWorkspaceId
+        },
+        { runtimeEnvironmentId }
+      )
   if (folderWorkspaceActivationBlocked(pathStatus)) {
     const title =
       getFolderWorkspacePathStatusTitle(pathStatus) ??
@@ -114,9 +115,8 @@ export function activateAndRevealFolderWorkspace(
     state.closeSettingsPage()
   }
 
-  state.setActiveFolderWorkspace(folderWorkspaceId, opts?.executionHostId)
-
   const workspaceKey = folderWorkspaceKey(folderWorkspaceId)
+  state.setActiveWorktree(workspaceKey, opts?.executionHostId)
   state.markWorktreeVisited(workspaceKey)
   if (!state.isNavigatingHistory) {
     state.recordWorktreeVisit(workspaceKey)

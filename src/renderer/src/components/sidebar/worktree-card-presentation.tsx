@@ -20,6 +20,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     hideRepoBadge,
     hostContextLabel,
     affiliateListMode,
+    workspaceRecordMutable,
     flushSurface,
     contentIndent,
     newCardStyle,
@@ -66,6 +67,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     detailsHoverControl,
     showDeleteQuickAction
   } = card
+  const canEditWorkspaceRecord = workspaceRecordMutable && !affiliateListMode
 
   // Why: pinned trees mix repos, so the repo icon shows regardless of groupBy's hideRepoBadge.
   const showPinnedRepoIcon = inPinnedSection && !!repo
@@ -86,7 +88,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   const showConflictOperationBadge =
     !!conflictOperation && conflictOperation !== 'unknown' && conflictOperation !== 'rebase'
   const hasMetadataBadge = showConflictOperationBadge
-  const showUnreadQuickAction = !affiliateListMode && showStatus && !newCardStyle
+  const showUnreadQuickAction = canEditWorkspaceRecord && showStatus && !newCardStyle
   // Why: the slot owns the unread/status lane; legacy keeps the bell toggle, the new card keeps the glyph passive.
   const showCombinedStatusSlot = showStatus
   const showTitleRowPrimary = compactCards && worktree.isMainWorktree && !isFolder
@@ -161,8 +163,8 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
             openDelay={100}
             // Why: compact mode also renders the plug/badge hover root; sharing one open-state made hovering the
             // plug force-open the wider title card and race it closed (#9304), so let this title hover own its state.
-            onEditIssue={affiliateListMode ? undefined : handleEditIssue}
-            onEditComment={affiliateListMode ? undefined : handleEditComment}
+            onEditIssue={canEditWorkspaceRecord ? handleEditIssue : undefined}
+            onEditComment={canEditWorkspaceRecord ? handleEditComment : undefined}
             onOpenGitHubIssueInOrca={
               metaIssue && 'url' in metaIssue && metaIssue.url
                 ? handleOpenGitHubIssueInOrca
@@ -174,11 +176,11 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
                 ? handleOpenReviewInOrca
                 : undefined
             }
-            onOpenAutomation={affiliateListMode ? undefined : handleOpenAutomation}
-            onOpenAutomationRun={affiliateListMode ? undefined : handleOpenAutomationRun}
+            onOpenAutomation={canEditWorkspaceRecord ? handleOpenAutomation : undefined}
+            onOpenAutomationRun={canEditWorkspaceRecord ? handleOpenAutomationRun : undefined}
             // Why: compact mode hides the metadata badge row, so title hover carries the explicit-link affordance.
             onUnlinkReview={
-              !affiliateListMode && hasExplicitLinkedReview ? handleUnlinkReview : undefined
+              canEditWorkspaceRecord && hasExplicitLinkedReview ? handleUnlinkReview : undefined
             }
           >
             {title}
@@ -228,8 +230,8 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
         automationHostId={worktree.hostId}
         detailsAfter={hasPorts ? <WorktreeCardPortsDetails ports={workspacePorts} /> : null}
         hoverControl={detailsHoverControl}
-        onEditIssue={affiliateListMode ? undefined : handleEditIssue}
-        onEditComment={affiliateListMode ? undefined : handleEditComment}
+        onEditIssue={canEditWorkspaceRecord ? handleEditIssue : undefined}
+        onEditComment={canEditWorkspaceRecord ? handleEditComment : undefined}
         onOpenGitHubIssueInOrca={
           metaIssue && 'url' in metaIssue && metaIssue.url ? handleOpenGitHubIssueInOrca : undefined
         }
@@ -237,11 +239,11 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
         onOpenReviewInOrca={
           metaReview?.url && metaReview.provider === 'github' ? handleOpenReviewInOrca : undefined
         }
-        onOpenAutomation={affiliateListMode ? undefined : handleOpenAutomation}
-        onOpenAutomationRun={affiliateListMode ? undefined : handleOpenAutomationRun}
+        onOpenAutomation={canEditWorkspaceRecord ? handleOpenAutomation : undefined}
+        onOpenAutomationRun={canEditWorkspaceRecord ? handleOpenAutomationRun : undefined}
         // Why: branch lookup can surface a review without persisted metadata; only unlink when explicitly linked.
         onUnlinkReview={
-          !affiliateListMode && hasExplicitLinkedReview ? handleUnlinkReview : undefined
+          canEditWorkspaceRecord && hasExplicitLinkedReview ? handleUnlinkReview : undefined
         }
       >
         {detailsAndPortsContent}

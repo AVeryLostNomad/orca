@@ -38,11 +38,11 @@ describe('useAddRepoHostedController', () => {
   })
 
   it('falls back to the store closeModal without a hosted controller', () => {
-    const { closeModal, closeForFolderHandoff, finishProjectAdd } =
+    const { closeModal, closeForNavigationHandoff, finishProjectAdd } =
       useAddRepoHostedController(undefined)
     closeModal()
     expect(mocks.state.closeModal).toHaveBeenCalledTimes(1)
-    closeForFolderHandoff()
+    closeForNavigationHandoff()
     expect(mocks.state.closeModal).toHaveBeenCalledTimes(2)
     expect(finishProjectAdd).toBeUndefined()
   })
@@ -59,17 +59,15 @@ describe('useAddRepoHostedController', () => {
     expect(mocks.state.closeModal).not.toHaveBeenCalled()
   })
 
-  it('folder handoffs close both the hosted dialog and the composer modal', () => {
+  it('navigation handoffs close both the hosted dialog and the composer modal', () => {
     const onOpenChange = vi.fn()
-    const { closeForFolderHandoff } = useAddRepoHostedController({
+    const { closeForNavigationHandoff } = useAddRepoHostedController({
       open: true,
       onOpenChange,
       onProjectAdded: vi.fn()
     })
-    // Why: folder/non-git outcomes navigate (folder-workspace activation or
-    // the confirm-non-git-folder store modal); leaving the composer open
-    // would hide that navigation behind a stale project selection.
-    closeForFolderHandoff()
+    // Why: navigation outcomes must not be hidden behind the composer.
+    closeForNavigationHandoff()
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(mocks.state.closeModal).toHaveBeenCalledTimes(1)
   })

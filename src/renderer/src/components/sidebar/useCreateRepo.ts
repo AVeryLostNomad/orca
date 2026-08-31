@@ -15,6 +15,10 @@ import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
 import { worktreeRefreshOptions } from './add-repo-runtime-owner'
 import { useCreateProjectGithubAccount } from './useCreateProjectGithubAccount'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
+import {
+  getCreateProjectParentTargetKey,
+  rememberCreateProjectParent
+} from './create-project-defaults'
 
 export function useCreateRepo(
   fetchWorktrees: (
@@ -37,6 +41,10 @@ export function useCreateRepo(
     useCreateProjectGithubAccount()
   const mountedRef = useMountedRef()
   const hostToken = options.hostId ?? options.sshTargetId ?? ''
+  const createParentTargetKey = getCreateProjectParentTargetKey({
+    runtimeEnvironmentId: options.runtimeEnvironmentId,
+    sshTargetId: options.sshTargetId
+  })
   const hostTokenRef = useRef(hostToken)
   hostTokenRef.current = hostToken
 
@@ -162,6 +170,7 @@ export function useCreateRepo(
         setCreateError(result.error)
         return
       }
+      rememberCreateProjectParent(createParentTargetKey, parentPath)
       const { alreadyPresent: wasDeduped, repo } = upsertAddedRepoWithProjectHostSetup(
         result.repo,
         {
@@ -267,6 +276,7 @@ export function useCreateRepo(
     }
   }, [
     createName,
+    createParentTargetKey,
     createParent,
     githubAccountRef,
     githubAccounts.length,

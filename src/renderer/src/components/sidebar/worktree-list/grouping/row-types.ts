@@ -85,6 +85,7 @@ export type FolderWorkspaceRow = {
   projectGroup: ProjectGroup
   depth: number
   groupDepth: number
+  isGroupWide?: boolean
 }
 
 /** Minimal shape buildRows needs for an in-flight create. Deliberately not the

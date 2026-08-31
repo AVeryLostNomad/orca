@@ -25,16 +25,18 @@ type RepositoryIconTabsProps = {
   initialTab: 'avatar' | 'icon' | 'emoji'
   selectedLucideName: string | null
   selectedEmoji: string
-  loadingGitHub: boolean
+  loadingGitHub?: boolean
+  showGitHubAvatar?: boolean
   onSetIcon: (repoIcon: RepoIcon | null) => void
-  onUseGitHubAvatar: () => void
+  onUseGitHubAvatar?: () => void
 }
 
 export function RepositoryIconTabs({
   initialTab,
   selectedLucideName,
   selectedEmoji,
-  loadingGitHub,
+  loadingGitHub = false,
+  showGitHubAvatar = true,
   onSetIcon,
   onUseGitHubAvatar
 }: RepositoryIconTabsProps): React.JSX.Element {
@@ -102,25 +104,29 @@ export function RepositoryIconTabs({
       </TabsList>
 
       <TabsContent value="avatar" className="space-y-3">
-        <Button
-          type="button"
-          variant="default"
-          className="w-full gap-2"
-          disabled={loadingGitHub}
-          onClick={() => void onUseGitHubAvatar()}
-        >
-          <Github className="size-3.5" />
-          {translate(
-            'auto.components.settings.RepositoryIconPicker.39da8a10bf',
-            'Use GitHub Avatar'
-          )}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          {translate(
-            'auto.components.settings.RepositoryIconPicker.7da623abcc',
-            "Used by default — GitHub always provides one, even when the owner hasn't set a custom image."
-          )}
-        </p>
+        {showGitHubAvatar ? (
+          <>
+            <Button
+              type="button"
+              variant="default"
+              className="w-full gap-2"
+              disabled={loadingGitHub}
+              onClick={() => onUseGitHubAvatar?.()}
+            >
+              <Github className="size-3.5" />
+              {translate(
+                'auto.components.settings.RepositoryIconPicker.39da8a10bf',
+                'Use GitHub Avatar'
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {translate(
+                'auto.components.settings.RepositoryIconPicker.7da623abcc',
+                "Used by default — GitHub always provides one, even when the owner hasn't set a custom image."
+              )}
+            </p>
+          </>
+        ) : null}
         <Button
           type="button"
           variant="outline"

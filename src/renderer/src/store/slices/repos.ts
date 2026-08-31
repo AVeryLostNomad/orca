@@ -100,6 +100,7 @@ import {
 } from '../../../../shared/worktree/visibility-sources'
 import { cleanupEphemeralVmRuntimesForDeleted } from '@/lib/ephemeral-vm-runtime-cleanup'
 import { folderWorkspaceKey, parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { projectGroupWorkspaceKey } from '../../../../shared/project-group-workspace'
 import { formatFolderWorkspaceCreateError } from '../../lib/folder-workspace-path-status'
 import { getEnvironmentSshStateGeneration } from './runtime-environment-ssh'
 import { getRuntimeEnvironmentConnectionGeneration } from './runtime-status'
@@ -1892,7 +1893,7 @@ export type RepoSlice = {
   deleteFolderWorkspace: (folderWorkspaceId: string) => Promise<boolean>
   updateProjectGroup: (
     groupId: string,
-    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color'>>
+    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>>
   ) => Promise<boolean>
   deleteProjectGroup: (groupId: string) => Promise<boolean>
   deleteProjectGroupWithContainedProjects: (
@@ -3015,6 +3016,12 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
       if (!updated) {
         return false
       }
+      if (
+        updates.icon !== undefined &&
+        JSON.stringify(updated.icon ?? null) !== JSON.stringify(updates.icon ?? null)
+      ) {
+        return false
+      }
       const ownedGroup = projectGroupWithFetchedOwner(updated, target)
       set((s) => ({
         projectGroups: s.projectGroups.map((group) => (group.id === groupId ? ownedGroup : group)),
@@ -3045,8 +3052,15 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
       if (!deleted) {
         return false
       }
+      const currentState = get()
+      const deletedGroupIds = getProjectGroupSubtreeIds(currentState.projectGroups, groupId)
+      const removedWorkspaceKeys = [
+        ...[...deletedGroupIds].map(projectGroupWorkspaceKey),
+        ...currentState.folderWorkspaces
+          .filter((workspace) => deletedGroupIds.has(workspace.projectGroupId))
+          .map((workspace) => folderWorkspaceKey(workspace.id))
+      ]
       set((s) => {
-        const deletedGroupIds = getProjectGroupSubtreeIds(s.projectGroups, groupId)
         return {
           projectGroups: s.projectGroups.filter((group) => !deletedGroupIds.has(group.id)),
           folderWorkspaces: s.folderWorkspaces.filter(
@@ -3060,6 +3074,7 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
           folderWorkspacePathStatuses: {}
         }
       })
+      get().purgeWorktreeTerminalState(removedWorkspaceKeys)
       return true
     } catch (err) {
       console.error('Failed to delete project group:', err)

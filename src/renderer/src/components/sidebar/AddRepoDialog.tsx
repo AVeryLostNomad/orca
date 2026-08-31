@@ -37,16 +37,15 @@ export default React.memo(function AddRepoDialog({
   const importNestedRepos = useAppStore((s) => s.importNestedRepos)
   const repos = useAppStore((s) => s.repos)
   const fetchWorktrees = useAppStore((s) => s.fetchWorktrees)
-  const setHideDefaultBranchWorkspace = useAppStore((s) => s.setHideDefaultBranchWorkspace)
   const settings = useAppStore((s) => s.settings)
-  const { closeModal, closeForFolderHandoff, finishProjectAdd, handleOpenSshSettings } =
+  const { closeModal, closeForNavigationHandoff, finishProjectAdd, handleOpenSshSettings } =
     useAddRepoHostedController(hosted)
   const [step, setStep] = useState<AddRepoDialogStep>('add')
   const [isAdding, setIsAdding] = useState(false)
   const [addProjectBusyLabel, setAddProjectBusyLabel] = useState<string | null>(null)
   const completeGitRepoAdd = useCompleteGitRepoAdd({
     closeModal,
-    setHideDefaultBranchWorkspace,
+    closeModalForNavigation: closeForNavigationHandoff,
     finishProjectAdd
   })
   const hostSelection = useAddRepoHostSelection({ isOpen, setStep })
@@ -77,7 +76,7 @@ export default React.memo(function AddRepoDialog({
   } = useAddRepoNestedReviewController({
     reviewRuntimeEnvironmentId: selectedRuntimeEnvironmentId,
     cancelNestedRepoScan,
-    closeModal: closeForFolderHandoff,
+    closeModal: closeForNavigationHandoff,
     fetchWorktrees,
     importNestedRepos,
     onGitRepoReady: completeGitRepoAdd,
@@ -103,8 +102,7 @@ export default React.memo(function AddRepoDialog({
   } = useRemoteRepo(
     fetchWorktrees,
     setStep,
-    // Why: useRemoteRepo closes only for the non-git → confirm-dialog handoff.
-    closeForFolderHandoff,
+    closeForNavigationHandoff,
     (repoId, executionHostId) => completeGitRepoAdd(repoId, 'ssh_remote_path', executionHostId),
     scanNestedRepos,
     showRemoteNestedRepoReview,
@@ -127,7 +125,7 @@ export default React.memo(function AddRepoDialog({
     handleCreate
   } = useCreateRepo(
     fetchWorktrees,
-    closeForFolderHandoff,
+    closeForNavigationHandoff,
     (repoId, executionHostId) => completeGitRepoAdd(repoId, 'create_project', executionHostId),
     {
       hostId: hostSelection.selectedHostId,
@@ -172,7 +170,6 @@ export default React.memo(function AddRepoDialog({
     onGitRepoReady: completeGitRepoAdd
   })
 
-  const isRuntimeEnvironmentActive = Boolean(selectedRuntimeEnvironmentId)
   const selectedHostKind = hostSelection.selectedParsedHost?.kind
   const { handleBrowse, resetLocalFolderFlow } = useAddRepoLocalFolderFlow({
     isOpen,
@@ -180,7 +177,7 @@ export default React.memo(function AddRepoDialog({
     activeRuntimeEnvironmentId: selectedRuntimeEnvironmentId,
     addRepoPath,
     // Why: this flow's closes are all folder/non-git outcomes that navigate.
-    closeModal: closeForFolderHandoff,
+    closeModal: closeForNavigationHandoff,
     fetchWorktrees,
     scanNestedRepos,
     setActiveNestedScanId,
@@ -200,7 +197,7 @@ export default React.memo(function AddRepoDialog({
     addRepoPath,
     activeRuntimeEnvironmentId: selectedRuntimeEnvironmentId,
     // Why: closes only after a folder add, which activates the folder workspace.
-    closeModal: closeForFolderHandoff,
+    closeModal: closeForNavigationHandoff,
     fetchWorktrees,
     getNestedRepoRuntimeKind,
     scanNestedRepos,
@@ -293,7 +290,7 @@ export default React.memo(function AddRepoDialog({
     >
       <AddRepoDialogStepContent
         step={step}
-        isRuntimeEnvironmentActive={isRuntimeEnvironmentActive}
+        isRuntimeEnvironmentActive={Boolean(selectedRuntimeEnvironmentId)}
         activeRuntimeEnvironmentId={selectedRuntimeEnvironmentId}
         isSshLikely={false}
         repoCount={repos.length}
@@ -338,7 +335,9 @@ export default React.memo(function AddRepoDialog({
         createGitAvailability={createGitAvailability}
         createRuntimeParentStatus={createRuntimeParentStatus}
         createParentDefaultPending={createParentDefaultPending}
-        manualCreateParentEntry={isRuntimeEnvironmentActive || selectedHostKind === 'ssh'}
+        manualCreateParentEntry={
+          Boolean(selectedRuntimeEnvironmentId) || selectedHostKind === 'ssh'
+        }
         onBrowse={() =>
           routeAddRepoBrowse(hostSelection.selectedParsedHost, {
             browseLocal: () => void handleBrowse(),
