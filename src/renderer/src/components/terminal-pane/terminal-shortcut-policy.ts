@@ -240,12 +240,14 @@ export function resolveTerminalShortcutAction(
     if (event.key === 'ArrowRight') {
       return { type: 'sendInput', data: '\x05' }
     }
-    // Why: macOS users expect Cmd+↑/↓ to scroll scrollback, not write escape bytes to the shell.
-    if (event.key === 'ArrowUp') {
-      return { type: 'scrollViewport', position: 'top' }
-    }
-    if (event.key === 'ArrowDown') {
-      return { type: 'scrollViewport', position: 'bottom' }
+    // Kitty-aware TUIs bind Super+↑/↓ themselves; let xterm encode the chord
+    // once the focused application has explicitly negotiated that protocol.
+    // Plain shells keep Orca's native scrollback navigation.
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      if (isKittyKeyboardActivePane?.()) {
+        return null
+      }
+      return { type: 'scrollViewport', position: event.key === 'ArrowUp' ? 'top' : 'bottom' }
     }
   }
 

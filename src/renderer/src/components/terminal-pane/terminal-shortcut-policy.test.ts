@@ -353,26 +353,6 @@ describe('resolveTerminalShortcutAction', () => {
     ).toBeNull()
   })
 
-  it('maps Cmd+↑/↓ on macOS to terminal scrollback top/bottom navigation', () => {
-    expect(
-      resolveTerminalShortcutAction(event({ key: 'ArrowUp', code: 'ArrowUp', metaKey: true }), true)
-    ).toEqual({ type: 'scrollViewport', position: 'top' })
-    expect(
-      resolveTerminalShortcutAction(
-        event({ key: 'ArrowDown', code: 'ArrowDown', metaKey: true }),
-        true
-      )
-    ).toEqual({ type: 'scrollViewport', position: 'bottom' })
-
-    // Cmd+Shift+Arrow is selection territory; leave it to focused apps/shells.
-    expect(
-      resolveTerminalShortcutAction(
-        event({ key: 'ArrowUp', code: 'ArrowUp', metaKey: true, shiftKey: true }),
-        true
-      )
-    ).toBeNull()
-  })
-
   it('preserves existing non-Mac terminal pane shortcuts', () => {
     expect(
       resolveTerminalShortcutAction(event({ key: 'f', code: 'KeyF', ctrlKey: true }), false)
@@ -763,6 +743,25 @@ describe('kitty keyboard protocol panes', () => {
       undefined,
       active
     )
+
+  it('reserves Cmd+↑/↓ for Kitty TUIs and otherwise scrolls terminal history', () => {
+    for (const [key, position] of [
+      ['ArrowUp', 'top'],
+      ['ArrowDown', 'bottom']
+    ] as const) {
+      const input = event({ key, code: key, metaKey: true })
+      expect(resolveKitty(input, 'false', 0, kittyInactive)).toEqual({
+        type: 'scrollViewport',
+        position
+      })
+      expect(resolveKitty(input)).toBeNull()
+    }
+
+    // Cmd+Shift+Arrow belongs to the focused application.
+    expect(
+      resolveKitty(event({ key: 'ArrowUp', code: 'ArrowUp', metaKey: true, shiftKey: true }))
+    ).toBeNull()
+  })
 
   it('encodes Option+letter as kitty CSI-u with the physical base key in compose mode', () => {
     // macOS composition reports key='π' for Option+P on ABC/compose layouts;
