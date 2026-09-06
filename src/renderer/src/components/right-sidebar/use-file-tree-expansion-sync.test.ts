@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { FileTreeVisibleRow } from '@pierre/trees'
+import { FileTree, type FileTreeDirectoryHandle, type FileTreeVisibleRow } from '@pierre/trees'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
-import { diffExpandedDirPaths, readFileTreeExpansionSnapshot } from './use-file-tree-expansion-sync'
+import {
+  diffExpandedDirPaths,
+  readFileTreeExpansionSnapshot,
+  resetFileTreePathsWithExpansion
+} from './use-file-tree-expansion-sync'
 
 function makeRow(
   path: string,
@@ -81,5 +85,50 @@ describe('diffExpandedDirPaths', () => {
       new Set()
     )
     expect([...next]).toEqual(['a'])
+  })
+})
+
+describe('resetFileTreePathsWithExpansion', () => {
+  it('keeps collapsed ancestors closed across rebuilds while remembering nested expansion', () => {
+    const paths = ['benchmarks/dandadan/vfx/image.png', 'docs/guide.md']
+    const model = new FileTree({
+      paths,
+      initialExpansion: 'closed',
+      initialExpandedPaths: [
+        'benchmarks',
+        'benchmarks/dandadan',
+        'benchmarks/dandadan/vfx',
+        'docs'
+      ],
+      flattenEmptyDirectories: false
+    })
+    const directory = (path: string): FileTreeDirectoryHandle =>
+      model.getItem(path) as FileTreeDirectoryHandle
+    try {
+      const remembered = readFileTreeExpansionSnapshot(model).visibleExpanded
+      directory('benchmarks/dandadan').collapse()
+      const afterChildCollapse = diffExpandedDirPaths(
+        readFileTreeExpansionSnapshot(model),
+        remembered
+      )
+      directory('benchmarks').collapse()
+      const collapsed = diffExpandedDirPaths(
+        readFileTreeExpansionSnapshot(model),
+        afterChildCollapse
+      )
+
+      for (let rebuild = 0; rebuild < 2; rebuild++) {
+        resetFileTreePathsWithExpansion(model, paths, collapsed)
+        expect(readFileTreeExpansionSnapshot(model).visibleExpanded).toEqual(new Set(['docs']))
+      }
+      directory('benchmarks').expand()
+      expect(readFileTreeExpansionSnapshot(model).visibleCollapsed).toContain('benchmarks/dandadan')
+      directory('benchmarks/dandadan').expand()
+      expect(model.getVisibleRows(0, model.getVisibleCount()).map((row) => row.path)).toContain(
+        'benchmarks/dandadan/vfx/image.png'
+      )
+    } finally {
+      model.cleanUp()
+    }
   })
 })

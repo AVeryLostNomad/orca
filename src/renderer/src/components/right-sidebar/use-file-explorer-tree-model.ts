@@ -22,6 +22,7 @@ import { FILE_EXPLORER_TREE_UNSAFE_CSS } from './file-explorer-tree-theme'
 import { toWorktreeRelativeDirSet } from './file-explorer-tree-relative-paths'
 import { buildIgnoredSet } from './status-display'
 import { useFileExplorerIgnoredPaths } from './use-file-explorer-ignored-paths'
+import { resetFileTreePathsWithExpansion } from './use-file-tree-expansion-sync'
 
 /** Matches the old drag-expand delay for hover-open during internal drags. */
 const FILE_TREE_OPEN_ON_DROP_DELAY_MS = 500
@@ -207,9 +208,11 @@ export function useFileExplorerTreeModel({
     }
     lastResetSignatureRef.current = signature
     const expanded = useAppStore.getState().expandedDirs[activeWorktreeId] ?? new Set<string>()
-    model.resetPaths(inputPaths, {
-      initialExpandedPaths: [...toWorktreeRelativeDirSet(expanded, worktreePath)]
-    })
+    resetFileTreePathsWithExpansion(
+      model,
+      inputPaths,
+      toWorktreeRelativeDirSet(expanded, worktreePath)
+    )
   }, [
     model,
     activeWorktreeId,

@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
+import type { FileTreeDirectoryHandle } from '@pierre/trees'
 import { useAppStore } from '@/store'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
 import {
+  getRelativeAncestorDirs,
   normalizeTreeRelativePath,
   toAbsoluteDirSet,
   toWorktreeRelativeDirSet
@@ -47,6 +49,29 @@ export function diffExpandedDirPaths(
     }
   }
   return next
+}
+
+export function resetFileTreePathsWithExpansion(
+  model: FileTreeModelLike,
+  paths: string[],
+  expandedDirs: ReadonlySet<string>
+): void {
+  model.resetPaths(paths, { initialExpandedPaths: [...expandedDirs] })
+  // Initial expansion opens ancestors too; restore explicit collapses without forgetting children.
+  const collapsedAncestors = new Set<string>()
+  for (const dir of expandedDirs) {
+    for (const ancestor of getRelativeAncestorDirs(dir)) {
+      if (!expandedDirs.has(ancestor)) {
+        collapsedAncestors.add(ancestor)
+      }
+    }
+  }
+  for (const dir of collapsedAncestors) {
+    const handle = model.getItem(dir)
+    if (handle?.isDirectory()) {
+      ;(handle as FileTreeDirectoryHandle).collapse()
+    }
+  }
 }
 
 function areSetsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
