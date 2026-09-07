@@ -16,6 +16,31 @@ function pngBase64(width: number, height: number): string {
 }
 
 describe('sanitizeRepoIcon', () => {
+  it('accepts Font Awesome icons and rejects unknown styles or malformed names', () => {
+    expect(
+      sanitizeRepoIcon({ type: 'fontawesome', name: ' arrow-up-right-dots ', style: 'solid' })
+    ).toEqual({
+      type: 'fontawesome',
+      name: 'arrow-up-right-dots',
+      style: 'solid'
+    })
+    expect(sanitizeRepoIcon({ type: 'fontawesome', name: '500px', style: 'brands' })).toEqual({
+      type: 'fontawesome',
+      name: '500px',
+      style: 'brands'
+    })
+    expect(
+      sanitizeRepoIcon({ type: 'fontawesome', name: 'rocket', style: 'duotone' })
+    ).toBeUndefined()
+    expect(
+      sanitizeRepoIcon({ type: 'fontawesome', name: 'Rocket', style: 'solid' })
+    ).toBeUndefined()
+    expect(
+      sanitizeRepoIcon({ type: 'fontawesome', name: '-rocket', style: 'solid' })
+    ).toBeUndefined()
+    expect(sanitizeRepoIcon({ type: 'fontawesome', name: '', style: 'solid' })).toBeUndefined()
+  })
+
   it('accepts lucide, emoji, and supported image icons', () => {
     expect(sanitizeRepoIcon({ type: 'lucide', name: 'Folder' })).toEqual({
       type: 'lucide',

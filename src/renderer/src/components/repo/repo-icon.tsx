@@ -26,6 +26,7 @@ import type { RepoIcon } from '../../../../shared/repo-icon'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
+import { FontAwesomeGlyph } from './font-awesome-glyph'
 
 export const getRepoLucideIconOptions = createLocalizedCatalog(() => [
   {
@@ -169,6 +170,19 @@ export function RepoIconGlyph({
         <span className={cn('inline-flex items-center justify-center text-[0.9em]', iconClassName)}>
           {repoIcon.emoji}
         </span>
+      </span>
+    )
+  }
+
+  if (repoIcon?.type === 'fontawesome') {
+    return (
+      <span className={cn('inline-flex items-center justify-center', className)}>
+        <FontAwesomeGlyph
+          name={repoIcon.name}
+          iconStyle={repoIcon.style}
+          className={iconClassName}
+          style={color ? { color } : undefined}
+        />
       </span>
     )
   }

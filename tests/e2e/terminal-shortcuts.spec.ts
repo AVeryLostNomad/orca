@@ -493,6 +493,27 @@ test.describe('Terminal Shortcuts', () => {
     await pressAndExpectWrite(orcaPage, electronApp, 'Shift+Enter', '\x1b\r')
   })
 
+  test('Cmd+Up/Down reaches Kitty-aware TUIs as Super+arrow on macOS', async ({
+    orcaPage,
+    electronApp
+  }) => {
+    test.skip(!isMac, 'Cmd+Up/Down Kitty encoding is macOS-only')
+
+    await installMainProcessPtyWriteSpy(electronApp)
+    const ptyId = await waitForActivePanePtyId(orcaPage)
+    await execInTerminal(orcaPage, ptyId, "printf '\\033[>1u'")
+    await expect.poll(() => getKittyKeyboardFlags(orcaPage)).toBe(1)
+
+    try {
+      await pressAndExpectWrite(orcaPage, electronApp, 'Meta+ArrowUp', '\x1b[1;9A')
+      await pressAndExpectWrite(orcaPage, electronApp, 'Meta+ArrowDown', '\x1b[1;9B')
+    } finally {
+      await sendToTerminal(orcaPage, ptyId, '\x15\x03')
+      await execInTerminal(orcaPage, ptyId, "printf '\\033[=0u'")
+      await expect.poll(() => getKittyKeyboardFlags(orcaPage)).toBe(0)
+    }
+  })
+
   test('Droid gets CSI-u Shift+Enter on Windows without changing Antigravity', async ({
     orcaPage,
     electronApp

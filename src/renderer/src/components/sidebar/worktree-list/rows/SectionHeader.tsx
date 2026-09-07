@@ -15,7 +15,10 @@ import type { GroupHeaderRow, WorktreeGroupBy } from '../grouping/row-types'
 import { PINNED_GROUP_KEY } from '../grouping/group-keys'
 import { getWorkspaceStatusFromGroupKey } from '../../workspace-status'
 import { getVirtualRowTransform } from '../viewport/virtual-rows'
-import { resolveProjectGroupHeaderColor } from '../../project-header-color'
+import {
+  resolveProjectGroupHeaderColor,
+  resolveProjectHeaderTextColor
+} from '../../project-header-color'
 import { getRepoHeaderCreateState } from '../../repo-header-create-state'
 import { ProjectHeaderActions } from '../../ProjectHeaderActions'
 import {
@@ -136,6 +139,14 @@ export function renderWorktreeSectionHeaderRow(args: {
     isProjectGroupHeader && row.projectGroup && 'icon' in row.projectGroup
       ? row.projectGroup.icon
       : null
+  const projectGroupColor =
+    isProjectGroupHeader && !row.repo && row.projectGroup && 'color' in row.projectGroup
+      ? (row.projectGroup.color ?? undefined)
+      : undefined
+  // Why: the title carries the project color alongside its icon; repo headers use the badge color.
+  const headerTextColor = resolveProjectHeaderTextColor(
+    row.repo ? repoHeaderColor : projectGroupColor
+  )
   const createState = row.repo
     ? getRepoHeaderCreateState({
         repo: row.repo,
@@ -315,11 +326,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               ) : projectGroupIcon ? (
                 <RepoIconGlyph
                   repoIcon={projectGroupIcon}
-                  color={
-                    row.projectGroup && 'color' in row.projectGroup
-                      ? (row.projectGroup.color ?? undefined)
-                      : undefined
-                  }
+                  color={projectGroupColor}
                   className="size-4"
                   iconClassName="size-3.5"
                 />
@@ -331,7 +338,10 @@ export function renderWorktreeSectionHeaderRow(args: {
 
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <div className="min-w-0 truncate text-[13px] font-semibold leading-none">
+              <div
+                className="min-w-0 truncate text-[13px] font-semibold leading-none"
+                style={headerTextColor ? { color: headerTextColor } : undefined}
+              >
                 {row.label}
               </div>
               <RepoForkIndicator upstream={row.repo?.upstream} />

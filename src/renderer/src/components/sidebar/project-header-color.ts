@@ -31,3 +31,18 @@ export function resolveProjectGroupHeaderColor(args: {
   }
   return resolveRepoHeaderColor(args.badgeColor)
 }
+
+/**
+ * Title tint for a colored project header: the icon color nudged 10% toward
+ * the theme foreground, so it lightens on dark themes and darkens on light
+ * ones instead of losing contrast against the sidebar.
+ */
+export function resolveProjectHeaderTextColor(
+  color: string | null | undefined
+): string | undefined {
+  const normalized = normalizeRepoBadgeColor(color)
+  if (!normalized || normalized === DEFAULT_REPO_BADGE_COLOR) {
+    return undefined
+  }
+  return `color-mix(in srgb, ${normalized} 90%, var(--foreground))`
+}

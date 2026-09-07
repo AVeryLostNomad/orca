@@ -182,6 +182,8 @@ Tooltips exist to _name_ a control whose meaning isn't obvious from its appearan
 
 Icons come from **`lucide-react`**. Don't import a second icon library.
 
+The one exception is user-chosen project/repo icons: the Icon tab of the repo icon picker searches Font Awesome Free (`@fortawesome/free-*-svg-icons`) via `src/renderer/src/components/repo/font-awesome-icon-catalog.ts`. Those packs are lazy-loaded and rendered as inline SVG only for a persisted `RepoIcon` of type `fontawesome` — never use them for app chrome.
+
 - **Default size:** `size-4` (16px). `Button` auto-applies this to any `<svg>` it contains via `[&_svg:not([class*='size-'])]:size-4`, so most call sites don't need to set a size on the icon.
 - **`size-3` / `size-3.5`:** for metadata, captions, and dense list rows where 16px is too loud.
 - **`size-7`+:** for featured/empty-state hero icons only.

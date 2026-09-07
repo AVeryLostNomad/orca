@@ -32,7 +32,11 @@ export function ProjectGroupIconDialog({
   }, [group])
 
   const initialTab =
-    draftIcon?.type === 'emoji' ? 'emoji' : draftIcon?.type === 'lucide' ? 'icon' : 'avatar'
+    draftIcon?.type === 'emoji'
+      ? 'emoji'
+      : draftIcon?.type === 'lucide' || draftIcon?.type === 'fontawesome'
+        ? 'icon'
+        : 'avatar'
 
   return (
     <Dialog open={group !== null} onOpenChange={onOpenChange}>
@@ -65,6 +69,11 @@ export function ProjectGroupIconDialog({
           key={`${group?.id ?? 'closed'}:${initialTab}`}
           initialTab={initialTab}
           selectedLucideName={draftIcon?.type === 'lucide' ? draftIcon.name : null}
+          selectedFontAwesome={
+            draftIcon?.type === 'fontawesome'
+              ? { name: draftIcon.name, style: draftIcon.style }
+              : null
+          }
           selectedEmoji={draftIcon?.type === 'emoji' ? draftIcon.emoji : ''}
           showGitHubAvatar={false}
           onSetIcon={setDraftIcon}

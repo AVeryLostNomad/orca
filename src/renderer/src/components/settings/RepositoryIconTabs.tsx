@@ -1,13 +1,12 @@
 import { Suspense, useState } from 'react'
 import { toast } from 'sonner'
 import { Github, Image, Link2 } from 'lucide-react'
-import type { RepoIcon } from '../../../../shared/repo-icon'
+import type { FontAwesomeIconStyle, RepoIcon } from '../../../../shared/repo-icon'
 import { faviconUrlFromWebsite } from '../../../../shared/repo-icon'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
-import { getRepoLucideIconOptions } from '../repo/repo-icon'
+import { RepositoryIconSearchGrid } from './RepositoryIconSearchGrid'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
 import { lazyWithRetry } from '@/lib/lazy-with-retry'
@@ -24,6 +23,7 @@ const RepositoryIconEmojiPicker = lazyWithRetry(
 type RepositoryIconTabsProps = {
   initialTab: 'avatar' | 'icon' | 'emoji'
   selectedLucideName: string | null
+  selectedFontAwesome?: { name: string; style: FontAwesomeIconStyle } | null
   selectedEmoji: string
   loadingGitHub?: boolean
   showGitHubAvatar?: boolean
@@ -34,6 +34,7 @@ type RepositoryIconTabsProps = {
 export function RepositoryIconTabs({
   initialTab,
   selectedLucideName,
+  selectedFontAwesome = null,
   selectedEmoji,
   loadingGitHub = false,
   showGitHubAvatar = true,
@@ -166,32 +167,12 @@ export function RepositoryIconTabs({
         </p>
       </TabsContent>
 
-      <TabsContent value="icon" className="space-y-3">
-        <div className="grid grid-cols-10 gap-1.5">
-          {getRepoLucideIconOptions().map((option) => (
-            <Tooltip key={option.name}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant={selectedLucideName === option.name ? 'secondary' : 'ghost'}
-                  size="icon-xs"
-                  className="size-8"
-                  onClick={() => onSetIcon({ type: 'lucide', name: option.name })}
-                  aria-label={translate(
-                    'auto.components.settings.RepositoryIconPicker.2b7d27b93c',
-                    'Use {{value0}} repo icon',
-                    { value0: option.label }
-                  )}
-                >
-                  <option.icon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={4}>
-                {option.label}
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
+      <TabsContent value="icon">
+        <RepositoryIconSearchGrid
+          selectedLucideName={selectedLucideName}
+          selectedFontAwesome={selectedFontAwesome}
+          onSetIcon={onSetIcon}
+        />
       </TabsContent>
 
       <TabsContent value="emoji">

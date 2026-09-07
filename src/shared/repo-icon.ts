@@ -2,8 +2,11 @@ import { validateRasterImageDataUri } from './image-data-uri'
 
 export type RepoIconImageSource = 'upload' | 'file' | 'favicon' | 'github'
 
+export type FontAwesomeIconStyle = 'solid' | 'regular' | 'brands'
+
 export type RepoIcon =
   | { type: 'lucide'; name: string }
+  | { type: 'fontawesome'; name: string; style: FontAwesomeIconStyle }
   | { type: 'emoji'; emoji: string }
   | { type: 'image'; src: string; source: RepoIconImageSource; label?: string }
 
@@ -11,6 +14,10 @@ export const MAX_REPO_ICON_UPLOAD_BYTES = 256 * 1024
 export const MAX_REPO_ICON_DATA_URL_LENGTH = 400 * 1024
 
 const LUCIDE_ICON_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9]*$/
+// Why: Font Awesome icon names are kebab-case (`arrow-up-right-dots`, `500px`).
+const FONT_AWESOME_ICON_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/
+const isFontAwesomeIconStyle = (value: unknown): value is FontAwesomeIconStyle =>
+  value === 'solid' || value === 'regular' || value === 'brands'
 const isRepoIconImageSource = (value: string): value is RepoIconImageSource =>
   value === 'upload' || value === 'file' || value === 'favicon' || value === 'github'
 
@@ -130,6 +137,18 @@ export function sanitizeRepoIcon(value: unknown): RepoIcon | null | undefined {
       return undefined
     }
     return { type: 'lucide', name }
+  }
+
+  if (candidate.type === 'fontawesome') {
+    const name = typeof candidate.name === 'string' ? candidate.name.trim() : ''
+    if (
+      !FONT_AWESOME_ICON_NAME_PATTERN.test(name) ||
+      name.length > 60 ||
+      !isFontAwesomeIconStyle(candidate.style)
+    ) {
+      return undefined
+    }
+    return { type: 'fontawesome', name, style: candidate.style }
   }
 
   if (candidate.type === 'emoji') {

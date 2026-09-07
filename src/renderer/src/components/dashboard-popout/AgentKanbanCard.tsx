@@ -175,6 +175,10 @@ function sameRepoIcon(a: RepoIcon | null | undefined, b: RepoIcon | null | undef
   if (a.type === 'lucide') {
     return a.name === (b as typeof a).name
   }
+  if (a.type === 'fontawesome') {
+    const other = b as typeof a
+    return a.name === other.name && a.style === other.style
+  }
   if (a.type === 'emoji') {
     return a.emoji === (b as typeof a).emoji
   }

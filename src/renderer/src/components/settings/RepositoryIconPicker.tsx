@@ -38,8 +38,16 @@ export function RepositoryIconPicker({
   const selectedLucideName = repo.repoIcon?.type === 'lucide' ? repo.repoIcon.name : null
   const selectedEmoji = repo.repoIcon?.type === 'emoji' ? repo.repoIcon.emoji : ''
   const selectedBadgeColor = normalizeRepoBadgeColor(repo.badgeColor) ?? DEFAULT_REPO_BADGE_COLOR
+  const selectedFontAwesome =
+    repo.repoIcon?.type === 'fontawesome'
+      ? { name: repo.repoIcon.name, style: repo.repoIcon.style }
+      : null
   const initialTab =
-    repo.repoIcon?.type === 'emoji' ? 'emoji' : repo.repoIcon?.type === 'lucide' ? 'icon' : 'avatar'
+    repo.repoIcon?.type === 'emoji'
+      ? 'emoji'
+      : repo.repoIcon?.type === 'lucide' || repo.repoIcon?.type === 'fontawesome'
+        ? 'icon'
+        : 'avatar'
   const runtimeTarget = useMemo(
     () => getActiveRuntimeTarget({ activeRuntimeEnvironmentId }),
     [activeRuntimeEnvironmentId]
@@ -60,6 +68,9 @@ export function RepositoryIconPicker({
         getRepoLucideIconOptions().find((option) => option.name === selectedLucideName)?.label ??
         'Folder'
       return `${label} icon with repo color`
+    }
+    if (repo.repoIcon?.type === 'fontawesome') {
+      return `${repo.repoIcon.name} (Font Awesome ${repo.repoIcon.style}) icon with repo color`
     }
     return 'Default'
   }, [repo.repoIcon, selectedLucideName])
@@ -202,6 +213,7 @@ export function RepositoryIconPicker({
       <RepositoryIconTabs
         initialTab={initialTab}
         selectedLucideName={selectedLucideName}
+        selectedFontAwesome={selectedFontAwesome}
         selectedEmoji={selectedEmoji}
         loadingGitHub={loadingGitHub}
         onSetIcon={setIcon}

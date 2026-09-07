@@ -11392,6 +11392,21 @@
             "fontSize": "Editor Font Size",
             "fontSizeDesc": "Font size for file editors and diffs. Leave empty to follow the terminal font size."
           }
+        },
+        "RepositoryIconSearchGrid": {
+          "searchPlaceholder": "Search Font Awesome icons…",
+          "searchLabel": "Search icons",
+          "searchHint": "Search to browse {{value0}} Font Awesome Free icons.",
+          "searchHintLoading": "Search to browse the full Font Awesome Free set.",
+          "loading": "Loading Font Awesome icons…",
+          "loadFailed": "Couldn't load Font Awesome icons.",
+          "retry": "Retry",
+          "noResults": "No icons match “{{value0}}”.",
+          "truncated": "Showing the first {{value0}} matches. Refine your search to see more.",
+          "styleSolid": "solid",
+          "styleRegular": "regular",
+          "styleBrands": "brands",
+          "useIcon": "Use {{value0}} icon"
         }
       },
       "right": {
