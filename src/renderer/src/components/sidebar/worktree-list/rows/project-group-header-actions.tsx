@@ -1,5 +1,5 @@
 import React from 'react'
-import { Ellipsis, ImageIcon, Plus } from 'lucide-react'
+import { Ellipsis, Palette, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -71,8 +71,11 @@ export function ProjectGroupHeaderMenu({
         onKeyDown={stopRepoHeaderMenuEvent}
       >
         <DropdownMenuItem onSelect={() => onChangeIcon(groupId, hostId)}>
-          <ImageIcon className="size-3.5" />
-          {translate('auto.components.sidebar.WorktreeList.changeGroupIcon', 'Change icon')}
+          <Palette className="size-3.5" />
+          {translate(
+            'auto.components.sidebar.WorktreeList.customizeGroupAppearance',
+            'Customize icon and color'
+          )}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onRename(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.4d7b73658c', 'Rename group')}

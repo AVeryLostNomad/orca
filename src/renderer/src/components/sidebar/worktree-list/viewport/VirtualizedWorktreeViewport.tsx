@@ -28,6 +28,7 @@ import { EMPTY_PROJECT_GROUPS, type VirtualizedWorktreeViewportProps } from './v
 import { useWorktreeDropCommitContext } from '../drag/use-drop-commit-context'
 import { buildWorktreeVirtualRowContext } from './virtual-row-context'
 import { renderWorktreeVirtualRow } from '../rows/virtual-row-dispatch'
+import { getVisibleProjectGroupFrames } from './project-group-frames'
 
 const WORKTREE_SIDEBAR_SCROLL_STYLE: React.CSSProperties = {
   // Why: TanStack Virtual owns scroll correction; native overflow anchoring fights it and causes jumps.
@@ -176,6 +177,15 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     hasDirectScrollInput: scrollSuppression.hasDirectScrollInput,
     shouldSkipScrollAnchorRestore: scrollSuppression.shouldSkipScrollAnchorRestore
   })
+  const projectGroupFrames = useMemo(
+    () =>
+      getVisibleProjectGroupFrames({
+        rows: renderRows,
+        virtualItems,
+        collapsedGroups
+      }),
+    [collapsedGroups, renderRows, virtualItems]
+  )
 
   const { toggleGroupWithScrollAnchor, getLineageToggleHandler } = useGroupToggleWithScrollAnchor({
     scrollRef,
@@ -357,13 +367,52 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
           className="relative w-full"
           style={{ height: `${virtualization.virtualizer.getTotalSize()}px` }}
         >
+          {projectGroupFrames.map((frame) => {
+            const boundaryColor = `color-mix(in srgb, ${frame.color} 24%, var(--sidebar-border))`
+            return (
+              <div
+                key={frame.key}
+                aria-hidden="true"
+                data-project-group-frame={frame.key}
+                className="pointer-events-none absolute box-border rounded-sm"
+                style={{
+                  left: `${frame.left}px`,
+                  right: `${frame.right}px`,
+                  top: `${frame.top}px`,
+                  height: `${frame.height}px`,
+                  backgroundColor: `color-mix(in srgb, ${frame.color} 6%, var(--worktree-sidebar))`,
+                  borderLeft: `1px solid ${boundaryColor}`,
+                  borderRight: `1px solid ${boundaryColor}`,
+                  borderTop: frame.showTopBoundary ? `1px solid ${boundaryColor}` : undefined,
+                  borderBottom: frame.showBottomBoundary ? `1px solid ${boundaryColor}` : undefined
+                }}
+              />
+            )
+          })}
           {renderWorktreeSidebarDropIndicators({
             headerDrag,
             worktreeDragState: runtime.worktreeDragState
           })}
           {virtualItems.map((vItem) => {
             const row = renderRows[vItem.index]
-            return row ? renderWorktreeVirtualRow(rowContext, row, vItem) : null
+            if (!row) {
+              return null
+            }
+            const element = renderWorktreeVirtualRow(rowContext, row, vItem)
+            const containingFrame = projectGroupFrames.findLast(
+              (frame) => vItem.index > frame.startIndex && vItem.index < frame.endIndex
+            )
+            return element && containingFrame
+              ? React.cloneElement(element as React.ReactElement<{ style?: React.CSSProperties }>, {
+                  style: {
+                    ...element.props.style,
+                    paddingRight: containingFrame.right + 4,
+                    paddingBottom:
+                      projectGroupFrames.filter((frame) => frame.endIndex === vItem.index + 1)
+                        .length * 4
+                  }
+                })
+              : element
           })}
         </div>
       </div>

@@ -64,17 +64,35 @@ test('merge smoke: colored FontAwesome group selects its group-wide workspace', 
   const initialColor = await title.evaluate((element) => getComputedStyle(element).color)
   await orcaPage.evaluate(async (id) => {
     await window.__store!.getState().updateProjectGroup(id, {
-      color: '#ff6600',
       icon: { type: 'fontawesome', name: 'rocket', style: 'solid' }
     })
   }, groupId)
   await expect(header.locator('svg.fill-current')).toBeVisible()
+  await header.hover()
+  await header.getByRole('button', { name: 'Group actions for Merge verification group' }).click()
+  await orcaPage.getByRole('menuitem', { name: 'Customize icon and color' }).click()
+  const appearance = orcaPage.getByRole('dialog', { name: 'Customize Group' })
+  await expect(appearance).toBeVisible()
+  await appearance
+    .getByRole('button', { name: /^Use .* repo color$/ })
+    .nth(1)
+    .click()
+  await appearance.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(appearance).toBeHidden()
   await expect
     .poll(() => title.evaluate((element) => getComputedStyle(element).color))
     .not.toBe(initialColor)
   const groupWorkspaceKey = projectGroupWorkspaceKey(groupId)
   const workspace = orcaPage.locator(`[data-worktree-id="${groupWorkspaceKey}"]`)
   await expect(workspace).toBeVisible()
+  const frame = orcaPage.locator(`[data-project-group-frame$="${groupId}"]`)
+  await expect(frame).toBeVisible()
+  await title.click()
+  await expect(workspace).toBeHidden()
+  await expect(frame).toBeHidden()
+  await title.click()
+  await expect(workspace).toBeVisible()
+  await expect(frame).toBeVisible()
   await workspace.click()
   await expect
     .poll(() => orcaPage.evaluate(() => window.__store!.getState().activeWorktreeId))

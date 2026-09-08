@@ -1,0 +1,56 @@
+/*
+ * Targets are named only for the synchronous group-toggle commit. The document
+ * attribute also keeps these pseudo-element rules out of unrelated transitions.
+ */
+html[data-worktree-sidebar-group-transition]::view-transition-old(root),
+html[data-worktree-sidebar-group-transition]::view-transition-new(root) {
+  animation: none;
+}
+
+/*
+ * Same-name rows and frames interpolate their actual bounds. This deliberately
+ * does not transition the virtualizer's live transform during ordinary scroll.
+ */
+html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-sidebar-row),
+html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-sidebar-frame) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* A virtual row only exists in one snapshot when a group opens or closes. */
+html[data-worktree-sidebar-group-transition]::view-transition-old(.worktree-sidebar-row):only-child,
+html[data-worktree-sidebar-group-transition]::view-transition-old(.worktree-sidebar-frame):only-child {
+  animation: worktree-sidebar-group-toggle-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+html[data-worktree-sidebar-group-transition]::view-transition-new(.worktree-sidebar-row):only-child,
+html[data-worktree-sidebar-group-transition]::view-transition-new(.worktree-sidebar-frame):only-child {
+  animation: worktree-sidebar-group-toggle-in 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes worktree-sidebar-group-toggle-out {
+  to {
+    clip-path: inset(0 0 8px);
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes worktree-sidebar-group-toggle-in {
+  from {
+    clip-path: inset(8px 0 0);
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-sidebar-row),
+  html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-sidebar-frame),
+  html[data-worktree-sidebar-group-transition]::view-transition-old(.worktree-sidebar-row),
+  html[data-worktree-sidebar-group-transition]::view-transition-old(.worktree-sidebar-frame),
+  html[data-worktree-sidebar-group-transition]::view-transition-new(.worktree-sidebar-row),
+  html[data-worktree-sidebar-group-transition]::view-transition-new(.worktree-sidebar-frame) {
+    animation: none;
+  }
+}

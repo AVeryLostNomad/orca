@@ -20,7 +20,8 @@ import { getWorkspaceStatusFromGroupKey } from '../../workspace-status'
 import { getVirtualRowTransform } from '../viewport/virtual-rows'
 import {
   resolveProjectGroupHeaderColor,
-  resolveProjectHeaderTextColor
+  resolveProjectHeaderTextColor,
+  resolveRepoHeaderColor
 } from '../../project-header-color'
 import { getRepoHeaderCreateState } from '../../repo-header-create-state'
 import { ProjectHeaderActions } from '../../ProjectHeaderActions'
@@ -162,7 +163,7 @@ export function renderWorktreeSectionHeaderRow(args: {
       : null
   const projectGroupColor =
     isProjectGroupHeader && !row.repo && row.projectGroup && 'color' in row.projectGroup
-      ? (row.projectGroup.color ?? undefined)
+      ? resolveRepoHeaderColor(row.projectGroup.color)
       : undefined
   // Why: the title carries the project color alongside its icon; repo headers use the badge color.
   const headerTextColor = resolveProjectHeaderTextColor(
@@ -334,8 +335,13 @@ export function renderWorktreeSectionHeaderRow(args: {
             <div
               className={cn(
                 'flex size-4 shrink-0 items-center justify-center rounded-[4px]',
-                repoHeaderColor ? 'text-muted-foreground' : row.tone
+                row.repo && repoHeaderColor
+                  ? 'text-muted-foreground'
+                  : projectGroupColor
+                    ? undefined
+                    : row.tone
               )}
+              style={projectGroupColor ? { color: projectGroupColor } : undefined}
             >
               {row.repo ? (
                 <RepoIconGlyph

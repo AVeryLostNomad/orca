@@ -5701,8 +5701,8 @@
           "failedNestWorkspace": "Failed to nest workspace",
           "sidebarRowMissing": "Target no longer exists",
           "failedUnnestWorkspace": "Failed to unnest workspace",
-          "changeGroupIcon": "Change icon",
-          "groupIconUpdateFailed": "Failed to update group icon"
+          "customizeGroupAppearance": "Customize icon and color",
+          "groupAppearanceUpdateFailed": "Failed to update group icon and color"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -6332,8 +6332,8 @@
           "retained": "Existing worktrees are kept until a scan succeeds. Click to retry."
         },
         "ProjectGroupIconDialog": {
-          "title": "Change Group Icon",
-          "description": "Choose the icon shown beside this group in the sidebar.",
+          "title": "Customize Group",
+          "description": "Choose the icon and color shown for this group in the sidebar.",
           "reset": "Reset",
           "cancel": "Cancel",
           "saving": "Saving…",

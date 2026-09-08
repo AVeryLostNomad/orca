@@ -72,8 +72,8 @@ export function SidebarWorktreeListDialogs({
             dialogs.setIconDialogGroupId(null)
           }
         }}
-        onSave={(groupId, icon) =>
-          dialogs.handleSaveProjectGroupIcon(groupId, icon, dialogs.iconDialogHostId)
+        onSave={(groupId, appearance) =>
+          dialogs.handleSaveProjectGroupIcon(groupId, appearance, dialogs.iconDialogHostId)
         }
       />
       <SuppressExternalWorktreeInboxDialog
