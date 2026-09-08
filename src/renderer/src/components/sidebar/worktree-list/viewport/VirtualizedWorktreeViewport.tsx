@@ -374,9 +374,10 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
                 key={frame.key}
                 aria-hidden="true"
                 data-project-group-frame={frame.key}
-                className="pointer-events-none absolute right-1 box-border rounded-sm"
+                className="pointer-events-none absolute box-border rounded-sm"
                 style={{
                   left: `${frame.left}px`,
+                  right: `${frame.right}px`,
                   top: `${frame.top}px`,
                   height: `${frame.height}px`,
                   backgroundColor: `color-mix(in srgb, ${frame.color} 6%, var(--worktree-sidebar))`,
@@ -394,7 +395,24 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
           })}
           {virtualItems.map((vItem) => {
             const row = renderRows[vItem.index]
-            return row ? renderWorktreeVirtualRow(rowContext, row, vItem) : null
+            if (!row) {
+              return null
+            }
+            const element = renderWorktreeVirtualRow(rowContext, row, vItem)
+            const containingFrame = projectGroupFrames.findLast(
+              (frame) => vItem.index > frame.startIndex && vItem.index < frame.endIndex
+            )
+            return element && containingFrame
+              ? React.cloneElement(element as React.ReactElement<{ style?: React.CSSProperties }>, {
+                  style: {
+                    ...element.props.style,
+                    paddingRight: containingFrame.right + 4,
+                    paddingBottom:
+                      projectGroupFrames.filter((frame) => frame.endIndex === vItem.index + 1)
+                        .length * 4
+                  }
+                })
+              : element
           })}
         </div>
       </div>

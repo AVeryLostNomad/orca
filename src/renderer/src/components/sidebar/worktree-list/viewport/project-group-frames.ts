@@ -6,6 +6,9 @@ type ProjectGroupFrame = {
   key: string
   color: string
   left: number
+  right: number
+  startIndex: number
+  endIndex: number
   top: number
   height: number
   showTopBoundary: boolean
@@ -47,19 +50,14 @@ function getColoredProjectGroupRanges(
       if (descendant?.type === 'host-header') {
         break
       }
-      if (
-        descendant?.type === 'header' &&
-        !descendant.repo &&
-        descendant.projectGroup &&
-        (descendant.projectGroupDepth ?? 0) <= depth
-      ) {
+      if (descendant?.type === 'header' && (descendant.projectGroupDepth ?? 0) <= depth) {
         break
       }
       endIndex++
     }
 
     ranges.push({
-      key: row.key,
+      key: `${row.hostId ?? ''}:${row.key}`,
       color: row.projectGroup.color.trim(),
       depth,
       startIndex,
@@ -96,14 +94,23 @@ export function getVisibleProjectGroupFrames(args: {
     if (!first || !last) {
       continue
     }
+    const bottomInset =
+      last.index === range.endIndex - 1
+        ? ranges.filter(
+            (parent) => parent.startIndex < range.startIndex && parent.endIndex === range.endIndex
+          ).length * 4
+        : 0
 
     frames.push({
-      key: `${range.key}:${range.startIndex}`,
+      key: range.key,
       color: range.color,
       // Start just before the compact project-group header anchor; nested frames keep the same tree rhythm.
       left: Math.max(1, getProjectGroupHeaderPaddingLeft(range.depth) - 8),
+      right: 4 + range.depth * 4,
+      startIndex: range.startIndex,
+      endIndex: range.endIndex,
       top: first.start,
-      height: last.end - first.start,
+      height: Math.max(0, last.end - first.start - bottomInset),
       showTopBoundary: first.index === range.startIndex,
       showBottomBoundary: last.index === range.endIndex - 1
     })
