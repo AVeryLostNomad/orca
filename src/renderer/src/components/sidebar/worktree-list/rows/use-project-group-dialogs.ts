@@ -106,13 +106,13 @@ export function useProjectGroupDialogs(args: {
   }, [])
 
   const handleSaveProjectGroupIcon = useCallback(
-    async (groupId: string, icon: RepoIcon | null) => {
-      const saved = await updateProjectGroup(groupId, { icon })
+    async (groupId: string, appearance: { icon: RepoIcon | null; color: string | null }) => {
+      const saved = await updateProjectGroup(groupId, appearance)
       if (!saved) {
         toast.error(
           translate(
-            'auto.components.sidebar.WorktreeList.groupIconUpdateFailed',
-            'Failed to update group icon'
+            'auto.components.sidebar.WorktreeList.groupAppearanceUpdateFailed',
+            'Failed to update group icon and color'
           )
         )
       }

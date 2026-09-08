@@ -4,7 +4,9 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { RepoIcon } from '../../../../shared/repo-icon'
 import { translate } from '@/i18n/i18n'
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
+import { RepositoryIconColorSection } from '@/components/settings/RepositoryIconColorSection'
 import { RepositoryIconTabs } from '@/components/settings/RepositoryIconTabs'
+import { resolveRepoHeaderColor } from '@/components/sidebar/project-header-color'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -22,13 +24,18 @@ export function ProjectGroupIconDialog({
 }: {
   group: ProjectGroup | null
   onOpenChange: (open: boolean) => void
-  onSave: (groupId: string, icon: RepoIcon | null) => Promise<boolean>
+  onSave: (
+    groupId: string,
+    appearance: { icon: RepoIcon | null; color: string | null }
+  ) => Promise<boolean>
 }): React.JSX.Element {
   const [draftIcon, setDraftIcon] = useState<RepoIcon | null>(group?.icon ?? null)
+  const [draftColor, setDraftColor] = useState<string | null>(group?.color ?? null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setDraftIcon(group?.icon ?? null)
+    setDraftColor(group?.color ?? null)
   }, [group])
 
   const initialTab =
@@ -43,28 +50,37 @@ export function ProjectGroupIconDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {translate('auto.components.sidebar.ProjectGroupIconDialog.title', 'Change Group Icon')}
+            {translate('auto.components.sidebar.ProjectGroupIconDialog.title', 'Customize Group')}
           </DialogTitle>
           <DialogDescription>
             {translate(
               'auto.components.sidebar.ProjectGroupIconDialog.description',
-              'Choose the icon shown beside this group in the sidebar.'
+              'Choose the icon and color shown for this group in the sidebar.'
             )}
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-3 rounded-lg border border-border p-3">
           <RepoIconGlyph
             repoIcon={draftIcon}
-            color={group?.color ?? 'var(--muted-foreground)'}
+            color={resolveRepoHeaderColor(draftColor)}
             className="size-10 shrink-0 rounded-md bg-muted/30"
             iconClassName="size-5"
           />
           <div className="min-w-0 flex-1 truncate text-sm font-medium">{group?.name}</div>
-          <Button type="button" variant="outline" size="sm" onClick={() => setDraftIcon(null)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDraftIcon(null)
+              setDraftColor(null)
+            }}
+          >
             <RotateCcw className="size-3.5" />
             {translate('auto.components.sidebar.ProjectGroupIconDialog.reset', 'Reset')}
           </Button>
         </div>
+        <RepositoryIconColorSection badgeColor={draftColor} onBadgeColorChange={setDraftColor} />
         <RepositoryIconTabs
           key={`${group?.id ?? 'closed'}:${initialTab}`}
           initialTab={initialTab}
@@ -90,7 +106,7 @@ export function ProjectGroupIconDialog({
                 return
               }
               setSaving(true)
-              void onSave(group.id, draftIcon).then((saved) => {
+              void onSave(group.id, { icon: draftIcon, color: draftColor }).then((saved) => {
                 setSaving(false)
                 if (saved) {
                   onOpenChange(false)
