@@ -15,12 +15,9 @@
  */
 
 import { exec } from 'node:child_process'
-import { promisify } from 'node:util'
 import os from 'node:os'
-import {
-  getProcessOutputFields,
-  iterateProcessOutputLines
-} from '../../shared/process-output-field-scanner'
+import { promisify } from 'node:util'
+import { enumerateWindowsProcessResources } from './windows-process-resource-collector'
 import { getAppEnvironment, type AppEnvironment } from '../../shared/app-environment'
 import type {
   AppMemory,
@@ -29,13 +26,13 @@ import type {
   UsageValues,
   WorktreeMemory
 } from '../../shared/process-stats-types'
-import type { Store } from '../persistence'
 import { ORPHAN_WORKTREE_ID } from '../../shared/constants'
-import { listRegisteredPtys } from './pty-registry'
+import type { Store } from '../persistence'
 import { getAllEmbeddedEditorPids } from '../code-server/code-server-process-registry'
-import { enumerateWindowsProcessResources } from './windows-process-resource-collector'
 import { collectHostMemory } from './host-memory'
+import { collectSubtree, parsePsOutput, type ProcIndex, type ProcRow } from './process-snapshot'
 import { getProcessMemoryMetric } from './process-memory-metric'
+import { listRegisteredPtys } from './pty-registry'
 import {
   createEmptyWorktreeMemoryBucket,
   pushAppMemoryHistory,
@@ -52,6 +49,10 @@ import {
   optionalCommitField,
   snapshotCommitFields
 } from './memory-snapshot-values'
+
+const execAsync = promisify(exec)
+const PS_EXEC_TIMEOUT_MS = 5_000
+const PS_MAX_BUFFER = 10 * 1024 * 1024
 
 export type MemorySnapshotStore = Pick<Store, 'getRepo' | 'getWorktreeMeta'>
 
@@ -81,137 +82,6 @@ export async function collectMemorySnapshot(store: MemorySnapshotStore): Promise
 }
 
 // ─── Internals ──────────────────────────────────────────────────────
-
-const execAsync = promisify(exec)
-const PS_EXEC_TIMEOUT_MS = 5_000
-const PS_MAX_BUFFER = 10 * 1024 * 1024
-
-/** One row from the host-wide process listing. */
-type ProcRow = {
-  pid: number
-  ppid: number
-  /** Percent of one core (may exceed 100 on multi-core). */
-  cpu: number
-  /** Resident memory in bytes. */
-  memory: number
-  /** Committed bytes, resident or paged out. Absent when the host cannot report it. */
-  privateMemory?: number
-}
-
-/** Indexed view of a single host process sweep. */
-type ProcIndex = {
-  byPid: Map<number, ProcRow>
-  childrenOf: Map<number, number[]>
-  /**
-   * Whether this sweep reported committed bytes at all. Data-driven rather than
-   * platform-driven: the Windows typeperf fallback can be missing the counter,
-   * and reporting a 0 sum then would read as "agents commit nothing".
-   */
-  hasPrivateMemory: boolean
-}
-
-// ─── Host process enumeration ───────────────────────────────────────
-
-async function enumerateProcesses(): Promise<ProcIndex> {
-  const rows = os.platform() === 'win32' ? await enumerateWindows() : await enumerateUnix()
-
-  const byPid = new Map<number, ProcRow>()
-  const childrenOf = new Map<number, number[]>()
-  let hasPrivateMemory = false
-
-  for (const row of rows) {
-    byPid.set(row.pid, row)
-    hasPrivateMemory ||= row.privateMemory !== undefined
-    const siblings = childrenOf.get(row.ppid)
-    if (siblings) {
-      siblings.push(row.pid)
-    } else {
-      childrenOf.set(row.ppid, [row.pid])
-    }
-  }
-
-  return { byPid, childrenOf, hasPrivateMemory }
-}
-
-async function enumerateUnix(): Promise<ProcRow[]> {
-  // Why: `-o pcpu` formats the percentage with the current locale's decimal
-  // separator (e.g. "12,5" on de_DE). parseFloat is locale-agnostic and
-  // silently drops the fractional part at a comma. Forcing C locale keeps
-  // decimals as dots.
-  try {
-    const { stdout } = await execAsync('ps -eo pid=,ppid=,pcpu=,rss=', {
-      maxBuffer: PS_MAX_BUFFER,
-      timeout: PS_EXEC_TIMEOUT_MS,
-      env: { ...process.env, LC_ALL: 'C', LANG: 'C' }
-    })
-    return parsePsOutput(stdout)
-  } catch (err) {
-    console.warn('[memory] ps enumeration failed', err)
-    return []
-  }
-}
-
-/** Exported for tests: parses `ps -eo pid=,ppid=,pcpu=,rss=` output. */
-export function parsePsOutput(stdout: string): ProcRow[] {
-  const rows: ProcRow[] = []
-  for (const line of iterateProcessOutputLines(stdout)) {
-    const fields = getProcessOutputFields(line, 4)
-    if (fields.length < 4) {
-      continue
-    }
-    const pid = Number.parseInt(fields[0], 10)
-    const ppid = Number.parseInt(fields[1], 10)
-    const cpu = Number.parseFloat(fields[2])
-    const rssKb = Number.parseInt(fields[3], 10)
-    if (Number.isNaN(pid) || Number.isNaN(ppid)) {
-      continue
-    }
-    rows.push({
-      pid,
-      ppid,
-      cpu: Number.isFinite(cpu) && cpu > 0 ? cpu : 0,
-      memory: Number.isFinite(rssKb) && rssKb > 0 ? rssKb * 1024 : 0
-    })
-  }
-  return rows
-}
-
-async function enumerateWindows(): Promise<ProcRow[]> {
-  return enumerateWindowsProcessResources()
-}
-/** Walk every descendant PID of `root`, inclusive. Exported for tests. */
-export function collectSubtree(
-  index: ProcIndex,
-  root: number,
-  excludedPids?: ReadonlySet<number>
-): number[] {
-  const result: number[] = []
-  const seen = new Set<number>()
-  const queue = [root]
-  while (queue.length > 0) {
-    const pid = queue.pop()
-    if (pid === undefined) {
-      break
-    }
-    // Once a PID was attributed to an earlier PTY, its complete subtree was
-    // already traversed. Do not walk those descendants again for overlapping
-    // PTY roots (common when several panes share a supervisor).
-    if (seen.has(pid) || excludedPids?.has(pid)) {
-      continue
-    }
-    seen.add(pid)
-    if (index.byPid.has(pid)) {
-      result.push(pid)
-    }
-    const kids = index.childrenOf.get(pid)
-    if (kids) {
-      for (const kid of kids) {
-        queue.push(kid)
-      }
-    }
-  }
-  return result
-}
 
 // ─── Electron app process bucketing ─────────────────────────────────
 
@@ -445,5 +315,43 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
     totalCpu: appTotals.cpu + sessionCpuTotal,
     totalMemory: appTotals.memory + sessionMemoryTotal,
     collectedAt: now
+  }
+}
+async function enumerateProcesses(): Promise<ProcIndex> {
+  const rows =
+    os.platform() === 'win32' ? await enumerateWindowsProcessResources() : await enumerateUnix()
+  const byPid = new Map<number, ProcRow>()
+  const childrenOf = new Map<number, number[]>()
+  let hasPrivateMemory = false
+
+  for (const row of rows) {
+    byPid.set(row.pid, row)
+    hasPrivateMemory ||= row.privateMemory !== undefined
+    const siblings = childrenOf.get(row.ppid)
+    if (siblings) {
+      siblings.push(row.pid)
+    } else {
+      childrenOf.set(row.ppid, [row.pid])
+    }
+  }
+
+  return { byPid, childrenOf, hasPrivateMemory }
+}
+
+async function enumerateUnix(): Promise<ProcRow[]> {
+  // Why: `-o pcpu` formats the percentage with the current locale's decimal
+  // separator (e.g. "12,5" on de_DE). parseFloat is locale-agnostic and
+  // silently drops the fractional part at a comma. Forcing C locale keeps
+  // decimals as dots.
+  try {
+    const { stdout } = await execAsync('ps -eo pid=,ppid=,pcpu=,rss=', {
+      maxBuffer: PS_MAX_BUFFER,
+      timeout: PS_EXEC_TIMEOUT_MS,
+      env: { ...process.env, LC_ALL: 'C', LANG: 'C' }
+    })
+    return parsePsOutput(stdout)
+  } catch (err) {
+    console.warn('[memory] ps enumeration failed', err)
+    return []
   }
 }

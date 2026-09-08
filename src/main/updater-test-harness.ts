@@ -203,9 +203,7 @@ export function createUpdaterMocks(): UpdaterMocks {
     emit: appEmit,
     quit: vi.fn()
   }
-  const browserWindowMock = {
-    getAllWindows: vi.fn(() => [])
-  }
+  const browserWindowMock = { getAllWindows: vi.fn(() => []) }
   const nativeUpdaterMock = {
     on: vi.fn()
   }
@@ -213,9 +211,9 @@ export function createUpdaterMocks(): UpdaterMocks {
   const killAllPtyMock = vi.fn()
   const powerMonitorOnMock = vi.fn()
   const getLinuxRootPackageTypeMock = vi.fn<() => 'deb' | 'rpm' | null>(() => null)
-  const getLinuxPackageTypeMock = vi.fn<() => LinuxPackageType>(() => {
-    return getLinuxRootPackageTypeMock() ?? 'non-root'
-  })
+  const getLinuxPackageTypeMock = vi.fn<() => LinuxPackageType>(
+    () => getLinuxRootPackageTypeMock() ?? 'non-root'
+  )
   const isExternallyManagedLinuxInstallMock = vi.fn<() => boolean>(() => false)
   const recordUpdaterLifecycleMock = vi.fn()
   const fetchChangelogMock = vi.fn()

@@ -35,7 +35,7 @@ import { DEFAULT_DISABLED_TUI_AGENTS } from '../../../../shared/tui-agent-select
 import { shouldShowWindowsShellMenu } from './windows-shell-menu-visibility'
 import { createUnifiedTabLookup } from './tab-bar-item-model'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
-import { getClientCreationActionPolicy } from '@/lib/client-creation-action-policy'
+import { getClientCreationActionEnabledStates } from '@/lib/client-creation-action-policy'
 
 const isWindows = navigator.userAgent.includes('Windows')
 export const isMacOs = navigator.userAgent.includes('Mac')
@@ -138,11 +138,9 @@ export function useTabBarRuntimeModel({
   const activeRepoId = useAppStore((s) => s.activeRepoId)
   const activeWorktreeId = useAppStore((s) => s.activeWorktreeId)
   const settings = useAppStore((s) => s.settings)
-  // Why: use the worktree's owning host so offered Windows shells match the host that actually runs the terminal.
   const activeRuntimeEnvironmentId = useAppStore(
     (s) => getRuntimeEnvironmentIdForWorktree(s, worktreeId)?.trim() || null
   )
-  // Why: retained tab strips rerun selectors on every store write; reuse canonical indexes, don't flatten both slices here.
   const worktreeConnectionId = useAppStore(
     (s) => getConnectionIdFromState(s, worktreeId)?.trim() || null
   )
@@ -199,8 +197,6 @@ export function useTabBarRuntimeModel({
     isWindowsClient: isWindows,
     worktreeHasRemoteConnection: Boolean(worktreeConnectionId)
   })
-  // Why: `projects`/`repos`/`worktreesByRepo` feed nothing but the local runtime context below, and
-  // `worktreesByRepo` churns on every worktree write; ungated, each write re-renders every tab strip.
   const needsLocalProjectRuntime =
     showWindowsShellMenu && !activeRuntimeEnvironmentId?.trim() && !worktreeConnectionId
   const projects = useAppStore((s) => (needsLocalProjectRuntime ? s.projects : EMPTY_PROJECTS))
@@ -250,13 +246,7 @@ export function useTabBarRuntimeModel({
     [unifiedTabs]
   )
   const [managedBrowserCreationEnabled, mobileEmulatorCreationEnabled] = useAppStore(
-    useShallow((state) => {
-      const policy = getClientCreationActionPolicy(state, worktreeId)
-      return [
-        policy['managed-browser'].state === 'enabled',
-        policy['mobile-emulator'].state === 'enabled'
-      ] as const
-    })
+    useShallow((state) => getClientCreationActionEnabledStates(state, worktreeId))
   )
   // Why: tab-wide launch/title hints are safe only before split; gate the view-mode toggle to the active leaf's agent.
   const toggleTabViewMode = useAppStore((s) => s.toggleTabViewMode)

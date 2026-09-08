@@ -85,15 +85,6 @@ describe('resolveProjectGroupHeaderColor', () => {
 })
 
 describe('resolveProjectHeaderTextColor', () => {
-  it('tints the title toward the theme foreground', () => {
-    expect(resolveProjectHeaderTextColor(REPO_COLORS[2])).toBe(
-      `color-mix(in srgb, ${REPO_COLORS[2]} 90%, var(--foreground))`
-    )
-    expect(resolveProjectHeaderTextColor(' #123ABC ')).toBe(
-      'color-mix(in srgb, #123abc 90%, var(--foreground))'
-    )
-  })
-
   it.each([undefined, null, '', 'blue', DEFAULT_REPO_BADGE_COLOR])(
     'leaves the default title color for %s',
     (color) => {

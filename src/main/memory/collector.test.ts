@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import type { MemorySnapshotStore } from './collector'
 import { setAppEnvironment } from '../../shared/app-environment'
+import { collectSubtree, parsePsOutput } from './process-snapshot'
 
 type AppMetricFixture = {
   pid: number
@@ -70,7 +71,6 @@ const emptyStore = {
 
 describe('parsePsOutput', () => {
   it('parses a well-formed listing into rows', async () => {
-    const { parsePsOutput } = await loadCollector()
     const stdout = ['  1 0 0.1 1024', '123 1 5.5 2048', '456 123 0.0 512'].join('\n')
 
     const rows = parsePsOutput(stdout)
@@ -83,7 +83,6 @@ describe('parsePsOutput', () => {
   })
 
   it('parses dot-decimal cpu values (LC_ALL=C contract)', async () => {
-    const { parsePsOutput } = await loadCollector()
     // Why: the enumerator forces LC_ALL=C so ps emits dots, not commas.
     // If that env override is removed, de_DE systems emit "12,5" and
     // parseFloat silently returns 12. This test pins the parser's
@@ -93,26 +92,22 @@ describe('parsePsOutput', () => {
   })
 
   it('skips blank lines and rows with too few fields', async () => {
-    const { parsePsOutput } = await loadCollector()
     const rows = parsePsOutput('\n  \n10 1 0.0\n20 1 0.0 512\n')
     expect(rows).toEqual([{ pid: 20, ppid: 1, cpu: 0, memory: 512 * 1024 }])
   })
 
   it('skips rows whose pid or ppid fail to parse', async () => {
-    const { parsePsOutput } = await loadCollector()
     const rows = parsePsOutput(['abc 1 0.0 100', '10 xyz 0.0 100', '20 1 0.0 100'].join('\n'))
     expect(rows.map((r) => r.pid)).toEqual([20])
   })
 
   it('clamps negative or NaN cpu/memory to 0', async () => {
-    const { parsePsOutput } = await loadCollector()
     const rows = parsePsOutput('10 1 -5 -100')
     expect(rows[0].cpu).toBe(0)
     expect(rows[0].memory).toBe(0)
   })
 
   it('parses process rows without line-array or whitespace-regex splitting', async () => {
-    const { parsePsOutput } = await loadCollector()
     const splitSpy = vi.spyOn(String.prototype, 'split')
 
     const rows = parsePsOutput('10 1 0.5 256\r\n11 10 0 128')
@@ -148,7 +143,6 @@ describe('collectSubtree', () => {
   }
 
   it('walks every descendant of the root inclusive', async () => {
-    const { collectSubtree } = await loadCollector()
     const index = makeIndex([
       { pid: 1, ppid: 0 },
       { pid: 2, ppid: 1 },
@@ -163,7 +157,6 @@ describe('collectSubtree', () => {
   })
 
   it('does not revisit pids when cycles are present', async () => {
-    const { collectSubtree } = await loadCollector()
     // Why: the ppid graph is untrusted — a buggy `ps` snapshot (or a
     // wrapped/reparented process) could present a cycle. collectSubtree
     // must terminate and not double-count the same pid.
@@ -178,7 +171,6 @@ describe('collectSubtree', () => {
   })
 
   it('returns only pids that exist in byPid', async () => {
-    const { collectSubtree } = await loadCollector()
     // Why: childrenOf may reference a pid that no longer has a row (it
     // exited between sampling its parent and sampling itself). We list
     // those as "walked" but do not fabricate a row for them.
@@ -192,7 +184,6 @@ describe('collectSubtree', () => {
   })
 
   it('does not descend into a subtree already attributed to another PTY', async () => {
-    const { collectSubtree } = await loadCollector()
     class CountingChildrenMap extends Map<number, number[]> {
       lookups = 0
 

@@ -70,7 +70,7 @@ class BrowserSessionRegistry {
   }
 
   private resetDefaultProfile(): void {
-    const persisted = this.loadPersistedSource()
+    const persisted = this.loadPersistedMeta().defaultSource
     this.profiles.set('default', {
       id: 'default',
       scope: 'default',
@@ -85,10 +85,6 @@ class BrowserSessionRegistry {
     return (
       this.metadataPathOverride ?? join(app.getPath('userData'), BROWSER_SESSION_META_FILE_NAME)
     )
-  }
-
-  private loadPersistedSource(): BrowserSessionProfile['source'] {
-    return this.loadPersistedMeta().defaultSource
   }
 
   private persistMeta(updates: Partial<BrowserSessionMeta>): void {
@@ -110,7 +106,7 @@ class BrowserSessionRegistry {
   }
 
   // Why: run before any webview loads, and set the UA before the first request or Electron's default UA invalidates imported cookies.
-  // Why re-read defaultSource: the constructor may run before app.isReady() (userData path unavailable), so loadPersistedSource() returned null.
+  // Re-read metadata after app readiness: the constructor may run before userData is available.
   initializeBrowserSessionsFromPersistedState(): void {
     const meta = this.loadPersistedMeta()
     if (meta.defaultSource) {
@@ -185,17 +181,13 @@ class BrowserSessionRegistry {
   }
 
   isAllowedPartition(partition: string): boolean {
-    if (partition === this.defaultPartition) {
-      return true
-    }
     // Embedded code-server runs in its own fixed partition (not a browser profile).
-    if (partition === ORCA_VSCODE_PARTITION) {
-      return true
-    }
-    if ([...this.profiles.values()].some((p) => p.partition === partition)) {
-      return true
-    }
-    return [...this.extraPartitionCheckers].some((checker) => checker(partition))
+    return (
+      partition === this.defaultPartition ||
+      partition === ORCA_VSCODE_PARTITION ||
+      [...this.profiles.values()].some((profile) => profile.partition === partition) ||
+      [...this.extraPartitionCheckers].some((checker) => checker(partition))
+    )
   }
 
   resolvePartition(profileId: string | null | undefined): string {

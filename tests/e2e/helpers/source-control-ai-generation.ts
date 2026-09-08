@@ -140,10 +140,6 @@ export async function seedCreatePrComposer(page: Page): Promise<{
         args.branch === branch ? eligibility : { ...eligibility, canCreate: false },
       fetchHostedReviewForBranch: async () => null,
       fetchPRForBranch: async () => null,
-      enqueueGitHubPRRefresh: () => undefined,
-      // Ignore provider work queued before this generation-only fixture was installed.
-      getEffectiveGitHubPRRefreshState: () => undefined,
-      prRefreshStates: {},
       fetchUpstreamStatus: async () => undefined,
       setUpstreamStatus: () => undefined
     }))

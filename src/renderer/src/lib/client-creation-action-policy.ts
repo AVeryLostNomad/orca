@@ -79,6 +79,17 @@ export function getClientCreationActionPolicy(
   })
 }
 
+export function getClientCreationActionEnabledStates(
+  state: AppState,
+  worktreeId: string
+): readonly [boolean, boolean] {
+  const policy = getClientCreationActionPolicy(state, worktreeId)
+  return [
+    policy['managed-browser'].state === 'enabled',
+    policy['mobile-emulator'].state === 'enabled'
+  ] as const
+}
+
 export function assertClientCreationActionAvailable(
   state: AppState,
   worktreeId: string | null,

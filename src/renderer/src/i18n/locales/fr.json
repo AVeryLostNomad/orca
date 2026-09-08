@@ -1737,22 +1737,6 @@
       "SelectedTextCopyMenu": {
         "9b40d7b018": "Copier"
       },
-      "StarNagCard": {
-        "92b0f9d921": "soit authentifiée et réessayez.",
-        "cd8c34aac1": "gh",
-        "cf82170065": "Impossible de mettre une étoile au dépôt. Vérifiez que",
-        "30c36231c1": "Orca est open source. Si ça vous a aidé aujourd'hui, une étoile GitHub aide d'autres développeurs à le découvrir.",
-        "b5e685e4d9": "Ignorer",
-        "5f6df21046": "Vous appréciez Orca ?",
-        "2d67b6c849": "Mettre une étoile sur GitHub",
-        "af3c9bbb37": "Ajout de l'étoile…",
-        "68a41bc3aa": "Impossible de mettre une étoile avec",
-        "996bf76e46": "Ouvrez GitHub pour terminer dans votre navigateur.",
-        "d32015fec7": "Ouverture...",
-        "157bb5ecbb": "Ouvrir GitHub",
-        "8c967b4d15": "Plus tard",
-        "73dfd4eb8d": "Ne plus demander"
-      },
       "TaskPage": {
         "513cddfa7a": "Vérification…",
         "ff69a30681": "Annuler",
@@ -15669,22 +15653,6 @@
       },
       "ShortcutKeyCombo": {
         "07eb4985a1": "Appuyez deux fois sur {{value0}}"
-      },
-      "star": {
-        "nag": {
-          "StarNagToastHost": {
-            "starredThanks": "Étoile ajoutée — merci !",
-            "githubOpened": "GitHub ouvert",
-            "opening": "Ouverture…",
-            "starring": "Ajout de l'étoile…",
-            "openGithub": "Ouvrir GitHub",
-            "starOnGithub": "Mettre une étoile sur GitHub",
-            "onboardingCompleted": "Prise en main terminée !",
-            "body": "Si Orca vous plaît jusqu'ici, une étoile GitHub aide d'autres développeurs à le découvrir.",
-            "dismiss": "Ignorer",
-            "later": "Plus tard"
-          }
-        }
       },
       "nativeChat": {
         "contextMenu": {

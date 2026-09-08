@@ -11,56 +11,22 @@ import { reconcileTabOrder } from './reconcile-order'
 import { resolveTabIndicatorEdges } from '../tab-group/tab-insertion'
 import type { HoveredTabInsertion } from '../tab-group/useTabDragSplit'
 
+type TabBarItemBase<Type extends string, Data> = {
+  type: Type
+  id: string
+  unifiedTabId: string
+  isPinned: boolean
+  data: Data
+}
+
 export type TabBarItem =
-  | {
-      type: 'terminal'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: TerminalTab & { unifiedTabId?: string }
-    }
-  | {
-      type: 'editor'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: OpenFile & { tabId?: string }
-    }
-  | {
-      type: 'browser'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: BrowserTabState & { tabId?: string }
-    }
-  | {
-      type: 'simulator'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: Tab
-    }
-  | {
-      type: 'vscode'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: { id: string; label: string }
-    }
-  | {
-      type: 'datastudio'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: { id: string; label: string }
-    }
-  | {
-      type: 'agent-session'
-      id: string
-      unifiedTabId: string
-      isPinned: boolean
-      data: Tab & { contentType: 'agent-session' }
-    }
+  | TabBarItemBase<'terminal', TerminalTab & { unifiedTabId?: string }>
+  | TabBarItemBase<'editor', OpenFile & { tabId?: string }>
+  | TabBarItemBase<'browser', BrowserTabState & { tabId?: string }>
+  | TabBarItemBase<'simulator', Tab>
+  | TabBarItemBase<'vscode', { id: string; label: string }>
+  | TabBarItemBase<'datastudio', { id: string; label: string }>
+  | TabBarItemBase<'agent-session', Tab & { contentType: 'agent-session' }>
 
 export function getTabDragLabel(item: TabBarItem, generatedTitlesEnabled: boolean): string {
   if (item.type === 'terminal') {
@@ -116,9 +82,6 @@ export function createUnifiedTabLookup(tabs: readonly Tab[], groupId: string): M
       continue
     }
     lookup.set(tab.id, tab)
-    // Why: terminal/browser/vscode/datastudio chips key on entityId (their
-    // visible id), so the unified tab must be resolvable by entityId as well
-    // as tab id.
     if (
       tab.contentType === 'terminal' ||
       tab.contentType === 'browser' ||
@@ -307,9 +270,6 @@ export function findActiveVisibleTabId(
       return active.activeTabType === 'simulator' && item.id === active.activeSimulatorTabId
     }
     if (item.type === 'agent-session') {
-      // Reachable only from TabGroupPanel, which passes the structured tab's own id; the store's
-      // `activeTabId` names a background terminal here (cf. TerminalTitlebarTabs, which resolves
-      // `getActiveTab(...)?.id` for 'simulator' and never renders agent-session items).
       return active.activeTabType === 'agent-session' && item.id === active.activeTabId
     }
     return (

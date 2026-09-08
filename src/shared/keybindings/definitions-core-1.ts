@@ -3,12 +3,16 @@
 import type { KeybindingDefinition } from './types'
 import { platformBindings } from './definitions-support'
 
+const GLOBAL_KEYBINDING = {
+  group: 'Global',
+  scope: 'global'
+} satisfies Pick<KeybindingDefinition, 'group' | 'scope'>
+
 export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
   {
     id: 'worktree.quickOpen',
     title: 'Go to File',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'global', 'file', 'quick open'],
     defaultBindings: platformBindings(['Mod+P'])
   },
@@ -16,8 +20,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     id: 'app.settings',
     allowInVsCode: true,
     title: 'Open Settings',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'settings', 'preferences'],
     defaultBindings: platformBindings(['Mod+Comma']),
     conflictGroup: 'menu'
@@ -26,8 +29,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     id: 'app.forceReload',
     allowInVsCode: true,
     title: 'Force Reload',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'reload', 'refresh', 'force'],
     defaultBindings: platformBindings(['Mod+Shift+R']),
     conflictGroup: 'menu'
@@ -36,8 +38,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     id: 'worktree.palette',
     allowInVsCode: true,
     title: 'Open Command Bar',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: [
       'shortcut',
       'global',
@@ -57,32 +58,28 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
   {
     id: 'worktree.navigateUp',
     title: 'Previous worktree',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'global', 'worktree', 'previous', 'up'],
     defaultBindings: platformBindings(['Mod+Shift+ArrowUp'])
   },
   {
     id: 'worktree.navigateDown',
     title: 'Next worktree',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'global', 'worktree', 'next', 'down'],
     defaultBindings: platformBindings(['Mod+Shift+ArrowDown'])
   },
   {
     id: 'workspace.create',
     title: 'Create worktree',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'global', 'worktree', 'create', 'new workspace'],
     defaultBindings: platformBindings(['Mod+N', 'Mod+Shift+N'])
   },
   {
     id: 'workspace.rename',
     title: 'Rename worktree',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     conflictGroup: 'workspace-shell',
     searchKeywords: ['shortcut', 'global', 'worktree', 'rename', 'workspace', 'title'],
     // Why: macOS only — Windows/Linux Ctrl+Alt+R has no safe default (Ctrl+R reverse-search, Ctrl+Shift+R reload are taken).
@@ -96,8 +93,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     id: 'workspace.delete',
     allowInVsCode: true,
     title: 'Delete Workspace',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: [
       'shortcut',
       'global',
@@ -116,8 +112,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     id: 'workspace.openBoard',
     allowInVsCode: true,
     title: 'Toggle Workspace Board',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: [
       'shortcut',
       'global',
@@ -136,8 +131,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
   {
     id: 'dashboard.toggle',
     title: 'Toggle Agent Dashboard',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: [
       'shortcut',
       'global',
@@ -159,8 +153,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     id: 'workspace.selectByIndex',
     allowInVsCode: true,
     title: 'Select Workspace 1–9',
-    group: 'Global',
-    scope: 'global',
+    ...GLOBAL_KEYBINDING,
     searchKeywords: [
       'shortcut',
       'global',

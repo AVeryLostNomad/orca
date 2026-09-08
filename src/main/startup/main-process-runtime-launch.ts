@@ -49,12 +49,11 @@ export type MainProcessRuntimeLaunchOptions = {
 
 function settleDesktopActivation(): void {
   const gate = state.desktopActivationGate
-  if (!gate) {
-    return
+  if (gate) {
+    settleServeDesktopActivation(gate, {
+      hasPersistentPtyProvider: !(getLocalPtyProvider() instanceof LocalPtyProvider)
+    })
   }
-  settleServeDesktopActivation(gate, {
-    hasPersistentPtyProvider: !(getLocalPtyProvider() instanceof LocalPtyProvider)
-  })
 }
 
 function installRuntimeRpc(

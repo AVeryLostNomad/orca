@@ -364,7 +364,8 @@
             "36761d9604": "Unknown keybinding action \"{{value0}}\" was ignored.",
             "d2e43e426a": "{{value0}} must be an object.",
             "fb290366b2": "Unavailable on web.",
-            "76122208ca": "Shortcut for \"{{value0}}\" was ignored: {{value1}}"
+            "76122208ca": "Shortcut for \"{{value0}}\" was ignored: {{value1}}",
+            "ghPatUnavailable": "PAT accounts are unavailable in the web client."
           }
         },
         "runtime": {
@@ -9190,7 +9191,11 @@
               "background": "background"
             },
             "appTheme": "App Theme",
-            "appThemeDesc": "Color the Orca window chrome from an editor theme’s palette."
+            "appThemeDesc": "Color the Orca window chrome from an editor theme’s palette.",
+            "appThemeKw": "app theme",
+            "chromeKw": "chrome",
+            "workbenchKw": "workbench",
+            "vsCodeThemeKw": "vs code theme"
           }
         },
         "auto": {
@@ -9727,7 +9732,24 @@
             "newTabVscode": "VS Code Tab",
             "newTabVscodeDesc": "Offer \"New VS Code Tab\" in the new tab menu.",
             "newTabDataStudio": "Data Studio Tab",
-            "newTabDataStudioDesc": "Offer \"New Data Studio Tab\" in the new tab menu."
+            "newTabDataStudioDesc": "Offer \"New Data Studio Tab\" in the new tab menu.",
+            "editorThemeKw": "theme",
+            "editorColorKw": "color",
+            "editorSyntaxKw": "syntax highlighting",
+            "editorVsCodeKw": "vs code",
+            "lspKw": "lsp",
+            "languageServerKw": "language server",
+            "intellisenseKw": "intellisense",
+            "completionsKw": "completions",
+            "diagnosticsKw": "diagnostics",
+            "vscodeKw": "vscode",
+            "vsCodeKw": "vs code",
+            "codeServerKw": "code server",
+            "newTabKw": "new tab",
+            "menuKw": "menu",
+            "dataStudioKw": "data studio",
+            "databaseKw": "database",
+            "sqlKw": "sql"
           }
         },
         "git": {
@@ -10246,7 +10268,13 @@
             "agentRuntime": "agent runtime",
             "skillRuntime": "skill runtime",
             "githubAccountTitle": "GitHub Account",
-            "githubAccountDescription": "Pin the GitHub account Orca uses for this project."
+            "githubAccountDescription": "Pin the GitHub account Orca uses for this project.",
+            "githubAccount": "github account",
+            "personalAccessToken": "personal access token",
+            "gh": "gh",
+            "token": "token",
+            "pat": "pat",
+            "auth": "auth"
           }
         },
         "runtime": {
@@ -10568,7 +10596,9 @@
             "prompt": "prompt",
             "stop": "stop",
             "follow_app_theme_title": "Follow App Theme",
-            "follow_app_theme_description": "Color the terminal from the app theme. Turn off to pick separate terminal themes below."
+            "follow_app_theme_description": "Color the terminal from the app theme. Turn off to pick separate terminal themes below.",
+            "follow_app_theme_keyword_app": "app theme",
+            "follow_app_theme_keyword_follow": "follow"
           },
           "windows": {
             "search": {
@@ -11972,7 +12002,9 @@
         "editor": {
           "search": {
             "fontSize": "Editor Font Size",
-            "fontSizeDesc": "Font size for file editors and diffs. Leave empty to follow the terminal font size."
+            "fontSizeDesc": "Font size for file editors and diffs. Leave empty to follow the terminal font size.",
+            "fontSizeKw": "size",
+            "textSizeKw": "text size"
           }
         },
         "RepositoryIconSearchGrid": {

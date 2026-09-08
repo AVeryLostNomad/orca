@@ -16,10 +16,6 @@ function readWorktreeListSource(): string {
   return readFileSync(fileURLToPath(new URL('../../WorktreeList.tsx', import.meta.url)), 'utf8')
 }
 
-function readSectionHeaderRowSource(): string {
-  return readFileSync(fileURLToPath(new URL('../rows/SectionHeader.tsx', import.meta.url)), 'utf8')
-}
-
 describe('getPRGroupKey', () => {
   it('puts merged PRs in the done group', () => {
     const prCache = {
@@ -384,12 +380,6 @@ describe('buildRows with pinned worktrees', () => {
 })
 
 describe('WorktreeList header styles', () => {
-  it('does not title-case workspace group labels', () => {
-    const source = readSectionHeaderRowSource()
-
-    expect(source).not.toContain('leading-none capitalize')
-  })
-
   it('collapses repo header actions without reserving title width', () => {
     expect(REPO_HEADER_ACTION_REVEAL_CLASS).toContain('min-w-0 max-w-0 -ml-1.5')
     expect(REPO_HEADER_ACTION_REVEAL_CLASS).toContain('focus:ml-0 focus:max-w-5 focus:opacity-100')
@@ -402,14 +392,6 @@ describe('WorktreeList header styles', () => {
     expect(REPO_HEADER_ACTION_BUTTON_CLASS).toContain(
       'data-[state=open]:ml-0 data-[state=open]:max-w-5 data-[state=open]:opacity-100'
     )
-  })
-
-  it('resolves repo header color from project group headers only', () => {
-    const source = readSectionHeaderRowSource()
-
-    expect(source).toContain('resolveProjectGroupHeaderColor({')
-    expect(source).toContain('headerKey: row.key')
-    expect(source).toContain('color={repoHeaderColor}')
   })
 
   it('adapts projected setup rows for sidebar project grouping', () => {

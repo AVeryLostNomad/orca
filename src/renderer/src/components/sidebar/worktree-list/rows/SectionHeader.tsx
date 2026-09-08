@@ -3,8 +3,6 @@ import { ChevronDown } from 'lucide-react'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
 import type { AppState } from '@/store/types'
-import { RepoIconGlyph } from '@/components/repo/repo-icon'
-import { RepoForkIndicator } from '@/components/repo/repo-fork-indicator'
 import type { FolderWorkspacePathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import { isConfirmedStaleFolderPathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
@@ -18,19 +16,14 @@ import type { GroupHeaderRow, WorktreeGroupBy } from '../grouping/row-types'
 import { PINNED_GROUP_KEY } from '../grouping/group-keys'
 import { getWorkspaceStatusFromGroupKey } from '../../workspace-status'
 import { getVirtualRowTransform } from '../viewport/virtual-rows'
-import {
-  resolveProjectGroupHeaderColor,
-  resolveProjectHeaderTextColor,
-  resolveRepoHeaderColor
-} from '../../project-header-color'
+import { resolveProjectGroupHeaderColor, resolveRepoHeaderColor } from '../../project-header-color'
 import { getRepoHeaderCreateState } from '../../repo-header-create-state'
 import { ProjectHeaderActions } from '../../ProjectHeaderActions'
 import {
   getProjectGroupHeaderPaddingLeft,
   WORKTREE_SECTION_HEADER_PADDING_LEFT
 } from './indentation'
-import { FolderPathStatusIndicator } from './FolderPathStatusIndicator'
-import { RepoScanUnavailableIndicator } from './RepoScanUnavailableIndicator'
+import { SectionHeaderTitle } from './SectionHeaderTitle'
 import {
   ProjectGroupCreateWorkspaceButton,
   ProjectGroupHeaderMenu
@@ -157,18 +150,10 @@ export function renderWorktreeSectionHeaderRow(args: {
     headerKey: row.key,
     badgeColor: row.repo?.badgeColor
   })
-  const projectGroupIcon =
-    isProjectGroupHeader && row.projectGroup && 'icon' in row.projectGroup
-      ? row.projectGroup.icon
-      : null
   const projectGroupColor =
     isProjectGroupHeader && !row.repo && row.projectGroup && 'color' in row.projectGroup
       ? resolveRepoHeaderColor(row.projectGroup.color)
       : undefined
-  // Why: the title carries the project color alongside its icon; repo headers use the badge color.
-  const headerTextColor = resolveProjectHeaderTextColor(
-    row.repo ? repoHeaderColor : projectGroupColor
-  )
   const createState = row.repo
     ? getRepoHeaderCreateState({
         repo: row.repo,
@@ -193,6 +178,17 @@ export function renderWorktreeSectionHeaderRow(args: {
       })
     : null
   const isHeaderCollapsed = ctx.collapsedGroups.has(row.key)
+  const showStickyGroupFrame =
+    isActiveStickyHeader &&
+    !isHeaderCollapsed &&
+    projectGroupColor !== undefined &&
+    row.projectGroup &&
+    'color' in row.projectGroup &&
+    typeof row.projectGroup.color === 'string' &&
+    row.projectGroup.color.trim() !== ''
+  const groupFrameBoundary = showStickyGroupFrame
+    ? `1px solid color-mix(in srgb, ${projectGroupColor} 24%, var(--sidebar-border))`
+    : undefined
   // Why: repo/project/status/pinned share compact section chrome; flat "All" stays a simple label.
   const showHeaderCollapseAffordance =
     row.count > 0 &&
@@ -216,12 +212,28 @@ export function renderWorktreeSectionHeaderRow(args: {
           ? cn(
               'sticky z-20 bg-worktree-sidebar',
               // Why: when a host card is pinned, the group tier pins flush beneath it, not at the viewport top.
-              args.hasStickyHost ? 'top-[35px]' : '-top-px'
+              args.hasStickyHost ? 'top-[35px]' : showStickyGroupFrame ? 'top-0' : '-top-px'
             )
           : 'absolute top-0'
       )}
       style={isActiveStickyHeader ? undefined : { transform: getVirtualRowTransform(vItem.start) }}
     >
+      {/* Keep the group frame above the sticky header's opaque scroll backing. */}
+      {showStickyGroupFrame && (
+        <div
+          aria-hidden="true"
+          data-project-group-sticky-frame=""
+          className="pointer-events-none absolute inset-y-0 box-border rounded-t-sm"
+          style={{
+            left: Math.max(1, getProjectGroupHeaderPaddingLeft(row.projectGroupDepth ?? 0) - 8),
+            right: 4 + (row.projectGroupDepth ?? 0) * 4,
+            backgroundColor: `color-mix(in srgb, ${projectGroupColor} 6%, var(--worktree-sidebar))`,
+            borderLeft: groupFrameBoundary,
+            borderRight: groupFrameBoundary,
+            borderTop: groupFrameBoundary
+          }}
+        />
+      )}
       <div
         id={getWorktreeOptionId(row.key)}
         role="button"
@@ -331,51 +343,14 @@ export function renderWorktreeSectionHeaderRow(args: {
               'cursor-grab active:cursor-grabbing'
           )}
         >
-          {row.icon ? (
-            <div
-              className={cn(
-                'flex size-4 shrink-0 items-center justify-center rounded-[4px]',
-                row.repo && repoHeaderColor
-                  ? 'text-muted-foreground'
-                  : projectGroupColor
-                    ? undefined
-                    : row.tone
-              )}
-              style={projectGroupColor ? { color: projectGroupColor } : undefined}
-            >
-              {row.repo ? (
-                <RepoIconGlyph
-                  repoIcon={row.repo.repoIcon}
-                  color={repoHeaderColor}
-                  className="size-4"
-                  iconClassName="size-3.5"
-                />
-              ) : projectGroupIcon ? (
-                <RepoIconGlyph
-                  repoIcon={projectGroupIcon}
-                  color={projectGroupColor}
-                  className="size-4"
-                  iconClassName="size-3.5"
-                />
-              ) : (
-                <row.icon className="size-3" />
-              )}
-            </div>
-          ) : null}
-
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <div
-                className="min-w-0 truncate text-[13px] font-semibold leading-none"
-                style={headerTextColor ? { color: headerTextColor } : undefined}
-              >
-                {row.label}
-              </div>
-              <RepoForkIndicator upstream={row.repo?.upstream} />
-              <FolderPathStatusIndicator status={projectGroupPathStatus} />
-              {isRepoHeader ? <RepoScanUnavailableIndicator repo={row.repo!} /> : null}
-            </div>
-          </div>
+          <SectionHeaderTitle
+            row={row}
+            repoHeaderColor={repoHeaderColor}
+            projectGroupColor={projectGroupColor}
+            projectGroupPathStatus={projectGroupPathStatus}
+            isRepoHeader={isRepoHeader}
+            isProjectGroupHeader={isProjectGroupHeader}
+          />
         </div>
 
         <ProjectHeaderActions>

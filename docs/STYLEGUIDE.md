@@ -69,6 +69,7 @@ A common point of drift. Use these conventions for any list-style row (worktrees
 - **Hover:** `bg-accent` (in the worktree sidebar, `bg-sidebar-accent`).
 - **Keyboard-selected (cmdk highlight):** do **not** rely on flat `bg-accent` alone on light popover/dialog surfaces — `--accent` (#f5f5f5) is nearly identical to `--background` (#fff), so the cursor vanishes. Use the jump-palette recipe in `main.css` (`.jump-palette-item[data-selected='true']`): `color-mix` foreground into background (~12%) plus an inset ring. Expose the mix as `--jump-palette-selection-surface` when nested cutouts (status pips) must match. The `data-selected` attribute is set by `cmdk` automatically.
 - **Persistent "current" / "active" row** (e.g. the worktree the user is viewing): also `bg-accent`, _plus_ a `data-current="true"` attribute so CSS or future styling can distinguish it from the cmdk highlight.
+- **Project-colored workspace cards:** tint primary and secondary selection fills with the owning project's color; retain the existing border and contrast hierarchy. Uncolored cards stay neutral.
 - **Don't:** hardcode `bg-[#ededed]` / `bg-[#333333]` or invent a "selected" color. Mix from existing tokens (`foreground`/`background`/`accent`) so light/dark stay aligned.
 
 ### Color mixing
@@ -80,6 +81,8 @@ background: color-mix(in srgb, var(--primary) 12%, var(--background));
 ```
 
 This keeps light/dark parity automatic.
+
+Project and group header names mix the icon color 15% toward `foreground`: lighter in dark themes, darker in light themes for contrast. Keep the icon at its chosen color.
 
 ## Typography
 

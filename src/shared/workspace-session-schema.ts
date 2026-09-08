@@ -15,7 +15,6 @@ import { z } from 'zod'
 import { closedTerminalTabTombstoneSchema } from './closed-terminal-tab-tombstones'
 import type { WorkspaceKey } from './folder-workspace-types'
 import type { TerminalPaneLayoutNode } from './terminal-tab-types'
-import type { TabGroupLayoutNode } from './tab-types'
 import type { TuiAgent } from './tui-agent'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
 import { terminalTabIdSchema } from './terminal-tab-id-schema'
@@ -38,6 +37,7 @@ import {
   tabContentTypeSchema,
   workspaceVisibleTabTypeSchema
 } from './workspace-session-tab-type-schema'
+import { tabGroupLayoutNodeSchema, tabGroupSchema } from './workspace-session-tab-groups-schema'
 import { salvagedField, salvagedOptional, salvagingArray, salvagingRecord } from './zod-salvage'
 
 // ─── Terminal pane layout (recursive) ───────────────────────────────
@@ -159,34 +159,13 @@ const tabSchema = z.object({
   viewMode: z.enum(['terminal', 'chat']).catch('terminal').optional()
 })
 
-const tabGroupSchema = z.object({
-  id: z.string(),
-  worktreeId: z.string(),
-  activeTabId: z.string().nullable(),
-  tabOrder: z.array(z.string()),
-  recentTabIds: z.array(z.string()).optional()
-})
-
-const tabGroupSplitDirectionSchema = z.enum(['horizontal', 'vertical'])
-
-const tabGroupLayoutNodeSchema: z.ZodType<TabGroupLayoutNode> = z.lazy(() =>
-  z.discriminatedUnion('type', [
-    z.object({
-      type: z.literal('leaf'),
-      groupId: z.string()
-    }),
-    z.object({
-      type: z.literal('split'),
-      direction: tabGroupSplitDirectionSchema,
-      first: tabGroupLayoutNodeSchema,
-      second: tabGroupLayoutNodeSchema,
-      ratio: z.number().optional()
-    })
-  ])
-)
 // ─── Workspace session ──────────────────────────────────────────────
 
 const worktreeIdSchema = z.string()
+
+function salvagedWorktreeRecord<T extends z.ZodTypeAny>(field: string, entrySchema: T) {
+  return salvagedOptional(field, salvagingRecord(worktreeIdSchema, entrySchema))
+}
 
 export const workspaceSessionStateSchema: z.ZodType<WorkspaceSessionState> = z.object({
   activeRepoId: salvagedField('activeRepoId', z.string().nullable(), () => null),
@@ -211,29 +190,26 @@ export const workspaceSessionStateSchema: z.ZodType<WorkspaceSessionState> = z.o
     'activeWorktreeIdsOnShutdown',
     salvagingArray(worktreeIdSchema)
   ),
-  openFilesByWorktree: salvagedOptional(
+  openFilesByWorktree: salvagedWorktreeRecord(
     'openFilesByWorktree',
-    salvagingRecord(worktreeIdSchema, salvagingArray(persistedOpenFileSchema))
+    salvagingArray(persistedOpenFileSchema)
   ),
-  activeFileIdByWorktree: salvagedOptional(
-    'activeFileIdByWorktree',
-    salvagingRecord(worktreeIdSchema, z.string().nullable())
-  ),
+  activeFileIdByWorktree: salvagedWorktreeRecord('activeFileIdByWorktree', z.string().nullable()),
   markdownFrontmatterVisible: salvagedOptional(
     'markdownFrontmatterVisible',
     salvagingRecord(z.string(), z.boolean())
   ),
-  browserTabsByWorktree: salvagedOptional(
+  browserTabsByWorktree: salvagedWorktreeRecord(
     'browserTabsByWorktree',
-    salvagingRecord(worktreeIdSchema, salvagingArray(browserWorkspaceSchema))
+    salvagingArray(browserWorkspaceSchema)
   ),
   browserPagesByWorkspace: salvagedOptional(
     'browserPagesByWorkspace',
     salvagingRecord(z.string(), salvagingArray(browserPageSchema))
   ),
-  activeBrowserTabIdByWorktree: salvagedOptional(
+  activeBrowserTabIdByWorktree: salvagedWorktreeRecord(
     'activeBrowserTabIdByWorktree',
-    salvagingRecord(worktreeIdSchema, z.string().nullable())
+    z.string().nullable()
   ),
   codeServerTabsByWorktree: salvagedOptional(
     'codeServerTabsByWorktree',

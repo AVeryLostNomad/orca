@@ -36,6 +36,7 @@ import {
 import { mapWithConcurrency } from '../../../shared/map-with-concurrency'
 import type { OnboardingState } from '../../../shared/onboarding-state-types'
 import { restoreLocalStructuredSessionTabsOnce } from '../runtime/local-structured-session-tabs-sync'
+import { seedDevActivityFixtureIfRequested } from './startup-dev-activity-fixture'
 
 async function listRuntimeSessionHostIdsForStartup(): Promise<ExecutionHostId[]> {
   try {
@@ -293,16 +294,7 @@ export function useAppStartupHydration(onOnboardingLoaded: (state: OnboardingSta
           // Why (issue #1158): unlock the session writer only after hydration and all dependent steps succeeded, so a mid-startup throw can't serialize partially-mutated state to disk.
           actions.setHydrationSucceeded(true)
           actions.setTerminalStartupRestorationReady(true)
-          // Why the explicit opt-in: unconditional seeding hijacks every empty dev
-          // profile's active workspace, making onboarding/empty-state flows untestable.
-          if (
-            import.meta.env.DEV &&
-            String(import.meta.env.VITE_ACTIVITY_DEV_FIXTURE).toLowerCase() === 'true'
-          ) {
-            const { seedDevActivityFixture } =
-              await import('../components/activity/dev-activity-fixture')
-            seedDevActivityFixture()
-          }
+          await seedDevActivityFixtureIfRequested()
           logRendererStartupDiagnostic('startup-hydration-done', {
             durationMs: Math.round(performance.now() - startupStartedAt)
           })

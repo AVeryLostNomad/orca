@@ -33,7 +33,7 @@ export function resolveProjectGroupHeaderColor(args: {
 }
 
 /**
- * Title tint for a colored project header: the icon color nudged 10% toward
+ * Title tint for a colored project header: the icon color nudged 15% toward
  * the theme foreground, so it lightens on dark themes and darkens on light
  * ones instead of losing contrast against the sidebar.
  */
@@ -44,5 +44,5 @@ export function resolveProjectHeaderTextColor(
   if (!normalized || normalized === DEFAULT_REPO_BADGE_COLOR) {
     return undefined
   }
-  return `color-mix(in srgb, ${normalized} 90%, var(--foreground))`
+  return `color-mix(in srgb, ${normalized} 85%, var(--foreground))`
 }

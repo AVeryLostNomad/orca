@@ -19,14 +19,9 @@ import { resolveGroupTabFromVisibleId } from './tab-group-visible-id'
 import { getTabPaneBodyDroppableId, type HoveredTabInsertion } from './useTabDragSplit'
 import { tabGroupBodyAnchorName } from './tab-group-body-anchor'
 import { translate } from '@/i18n/i18n'
-import type { TabGroup } from '../../../../shared/tab-types'
-import type { ClientHostedBrowserRow } from '../../../../shared/client-hosted-browser-rows'
-import { useClientHostedBrowserRows } from '@/lib/pane-manager/client-hosted-browser-row-state'
-import { resolveClientHostedBrowserRowStripGroupId } from '../tab-bar/client-hosted-browser-row-strip-placement'
+import { useClientHostedBrowserRowsForGroup } from './use-client-hosted-browser-rows-for-group'
 
 const EditorPanel = lazy(() => import('../editor/EditorPanel'))
-const EMPTY_GROUPS: readonly TabGroup[] = []
-const EMPTY_CLIENT_HOSTED_ROWS: readonly ClientHostedBrowserRow[] = []
 
 export default function TabGroupPanel({
   groupId,
@@ -75,17 +70,7 @@ export default function TabGroupPanel({
     tabBarOrder,
     terminalTabs
   } = model
-  // Why: one strip owns the worktree's client-hosted rows, or every split repeats them.
-  const ownsClientHostedRows = useAppStore(
-    (state) =>
-      resolveClientHostedBrowserRowStripGroupId(
-        state.groupsByWorktree[worktreeId] ?? EMPTY_GROUPS
-      ) === groupId
-  )
-  const worktreeClientHostedRows = useClientHostedBrowserRows(worktreeId)
-  const clientHostedRows = ownsClientHostedRows
-    ? worktreeClientHostedRows
-    : EMPTY_CLIENT_HOSTED_ROWS
+  const clientHostedRows = useClientHostedBrowserRowsForGroup(worktreeId, groupId)
   const { setNodeRef: setBodyDropRef } = useDroppable({
     id: getTabPaneBodyDroppableId(groupId),
     data: {
@@ -95,11 +80,10 @@ export default function TabGroupPanel({
     },
     disabled: !isTabDragActive
   })
-  // Why: per-group anchor-name lets the worktree-level overlay position panes via CSS anchor positioning, so moving a tab between groups re-targets the anchor instead of remounting xterm (loses alt-screen TUI state) or reloading `<webview>`.
+  // Why: the per-group anchor lets the overlay reposition without remounting live terminal or webview surfaces.
   const bodyAnchorName = tabGroupBodyAnchorName(groupId)
-  // Why: memoize so a fresh style object each render doesn't break downstream memoization keyed on referential equality.
-  const bodyAnchorStyle = useMemo(
-    () => ({ anchorName: bodyAnchorName }) as React.CSSProperties,
+  const bodyAnchorStyle: React.CSSProperties = useMemo(
+    () => ({ anchorName: bodyAnchorName }),
     [bodyAnchorName]
   )
 

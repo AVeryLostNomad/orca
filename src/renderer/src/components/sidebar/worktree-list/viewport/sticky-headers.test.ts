@@ -128,11 +128,9 @@ describe('getStickyHeaderIndexes', () => {
       [projectGroup]
     )
 
-    expect(rows.filter((row) => row.type === 'header').map((row) => row.key)).toEqual([
-      'project-group:group-personal',
-      'repo:repo-autogenie',
-      'repo:repo-orca'
+    expect(getStickyHeaderIndexes(rows).map((index) => rows[index])).toEqual([
+      expect.objectContaining({ type: 'header', key: 'project-group:group-personal' }),
+      expect.objectContaining({ type: 'header', key: 'repo:repo-orca' })
     ])
-    expect(getStickyHeaderIndexes(rows)).toEqual([0, 3])
   })
 })

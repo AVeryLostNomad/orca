@@ -80,11 +80,9 @@ export function isWslUncPathForCallerLinuxPath(
   callerDistro: string
 ): boolean {
   const parsed = parseWslUncPath(uncPath)
-  if (!parsed) {
-    return false
-  }
   // Why the case split: Windows folds the distro name, the Linux tail it fronts is case-sensitive.
   return (
+    parsed !== null &&
     parsed.distro.toLowerCase() === callerDistro.toLowerCase() &&
     normalizeRuntimePathForComparison(parsed.linuxPath) ===
       normalizeRuntimePathForComparison(linuxPath)
@@ -142,30 +140,23 @@ export function isRuntimePathAbsolute(
   value: string,
   pathFlavor: 'posix' | 'windows' = isWindowsPathFlavor(value) ? 'windows' : 'posix'
 ): boolean {
-  if (pathFlavor === 'windows') {
-    return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\') || value.startsWith('/')
-  }
-  return value.startsWith('/')
+  const isWindowsAbsolute =
+    /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\') || value.startsWith('/')
+  return pathFlavor === 'windows' ? isWindowsAbsolute : value.startsWith('/')
 }
 
 export function resolveRuntimePath(basePath: string, targetPath: string): string {
   const pathFlavor =
     isWindowsPathFlavor(basePath) || isWindowsPathFlavor(targetPath) ? 'windows' : 'posix'
-  if (isRuntimePathAbsolute(targetPath, pathFlavor)) {
-    return normalizeRuntimePathDots(targetPath, pathFlavor)
-  }
-  return normalizeRuntimePathDots(
-    `${trimRuntimePathTrailingSlash(normalizeRuntimePathSeparators(basePath))}/${targetPath}`,
-    pathFlavor
-  )
+  const resolvedPath = isRuntimePathAbsolute(targetPath, pathFlavor)
+    ? targetPath
+    : `${trimRuntimePathTrailingSlash(normalizeRuntimePathSeparators(basePath))}/${targetPath}`
+  return normalizeRuntimePathDots(resolvedPath, pathFlavor)
 }
 
 export function getRuntimePathBasename(value: string): string {
   const trimmed = value.replace(/[\\/]+$/g, '')
-  if (!trimmed) {
-    return ''
-  }
-  return trimmed.split(/[\\/]/).findLast(Boolean) ?? ''
+  return trimmed ? (trimmed.split(/[\\/]/).findLast(Boolean) ?? '') : ''
 }
 
 type AbsoluteRuntimePathParts = {
@@ -213,19 +204,14 @@ export function getRuntimePathParent(value: string): string | null {
   if (!parts) {
     return null
   }
-  if (parts.segments.length > 0) {
-    parts.segments.pop()
-  }
+  parts.segments.pop()
   return parts.segments.length > 0
     ? `${parts.root}${parts.segments.join('/')}`
     : trimRuntimePathTrailingSlash(parts.root)
 }
 
 export function getDeepestCommonRuntimePath(paths: readonly string[]): string | null {
-  if (paths.length === 0) {
-    return null
-  }
-  const first = splitAbsoluteRuntimePath(paths[0])
+  const first = paths.length > 0 ? splitAbsoluteRuntimePath(paths[0]) : null
   if (!first) {
     return null
   }

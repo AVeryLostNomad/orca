@@ -87,12 +87,37 @@ test('merge smoke: colored FontAwesome group selects its group-wide workspace', 
   await expect(workspace).toBeVisible()
   const frame = orcaPage.locator(`[data-project-group-frame$="${groupId}"]`)
   await expect(frame).toBeVisible()
+  const stickyFrame = orcaPage.locator('[data-project-group-sticky-frame]')
+  await expect(stickyFrame).toBeVisible()
+  await expect(stickyFrame).toHaveCSS('border-top-width', '1px')
+  const frameBounds = await frame.boundingBox()
+  const stickyBounds = await stickyFrame.boundingBox()
+  expect(stickyBounds!.x).toBe(frameBounds!.x)
+  expect(stickyBounds!.width).toBe(frameBounds!.width)
+  await orcaPage.screenshot({ path: testInfo.outputPath('group-outline-top.png') })
+  const sidebar = orcaPage.locator('[data-worktree-sidebar]')
+  await sidebar.evaluate((element) => {
+    element.style.height = '120px'
+    element.scrollTop = 60
+  })
+  await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expect(stickyFrame).toBeVisible()
+  await expect
+    .poll(async () => (await stickyFrame.boundingBox())!.y)
+    .toBeGreaterThanOrEqual((await sidebar.boundingBox())!.y)
+  await orcaPage.screenshot({ path: testInfo.outputPath('group-outline-scrolled.png') })
+  await sidebar.evaluate((element) => {
+    element.style.removeProperty('height')
+    element.scrollTop = 0
+  })
   await title.click()
   await expect(workspace).toBeHidden()
   await expect(frame).toBeHidden()
+  await expect(stickyFrame).toBeHidden()
   await title.click()
   await expect(workspace).toBeVisible()
   await expect(frame).toBeVisible()
+  await expect(stickyFrame).toBeVisible()
   await workspace.click()
   await expect
     .poll(() => orcaPage.evaluate(() => window.__store!.getState().activeWorktreeId))

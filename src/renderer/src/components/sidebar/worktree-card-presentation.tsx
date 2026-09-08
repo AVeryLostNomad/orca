@@ -11,6 +11,7 @@ import {
 } from './WorktreeCardMeta'
 import { WorktreeCardPortsDetails, WorktreeCardPortsTrigger } from './WorktreeCardPorts'
 import type { WorktreeCardController } from './use-worktree-card-controller'
+import { normalizeRepoBadgeColor } from '../../../../shared/repo-badge-color'
 
 export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   const {
@@ -205,7 +206,14 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     flushSurface && applyNewCardStyleStatusLaneOffset
       ? getNewCardStyleParentContentMarginLeft(contentIndent)
       : 0
-  const cardStyle = cardPaddingLeft ? { paddingLeft: cardPaddingLeft } : undefined
+  const projectColor = normalizeRepoBadgeColor(repo?.badgeColor)
+  const cardStyle =
+    cardPaddingLeft || projectColor
+      ? ({
+          ...(cardPaddingLeft ? { paddingLeft: cardPaddingLeft } : {}),
+          ...(projectColor ? { '--worktree-project-color': projectColor } : {})
+        } as React.CSSProperties)
+      : undefined
   const detailsAndPortsContent =
     hasDetails || hasPorts ? (
       <div className="flex shrink-0 items-center gap-1">

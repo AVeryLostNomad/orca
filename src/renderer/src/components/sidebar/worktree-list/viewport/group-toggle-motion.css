@@ -17,6 +17,15 @@ html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-si
   animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* New frame snapshots must not cover persistent header snapshots. */
+html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-sidebar-frame) {
+  z-index: 0;
+}
+
+html[data-worktree-sidebar-group-transition]::view-transition-group(.worktree-sidebar-row) {
+  z-index: 1;
+}
+
 /* A virtual row only exists in one snapshot when a group opens or closes. */
 html[data-worktree-sidebar-group-transition]::view-transition-old(.worktree-sidebar-row):only-child,
 html[data-worktree-sidebar-group-transition]::view-transition-old(.worktree-sidebar-frame):only-child {

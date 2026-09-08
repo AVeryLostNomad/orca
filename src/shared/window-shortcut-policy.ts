@@ -174,17 +174,10 @@ export function resolveWindowShortcutAction(
   options: WindowShortcutResolveOptions = {}
 ): WindowShortcutAction | null {
   if (actionMatches('worktree.history.back', input, platform, keybindings, options)) {
-    return {
-      type: 'worktreeHistoryNavigate',
-      direction: 'back'
-    }
+    return { type: 'worktreeHistoryNavigate', direction: 'back' }
   }
-
   if (actionMatches('worktree.history.forward', input, platform, keybindings, options)) {
-    return {
-      type: 'worktreeHistoryNavigate',
-      direction: 'forward'
-    }
+    return { type: 'worktreeHistoryNavigate', direction: 'forward' }
   }
 
   if (actionMatches('floatingTerminal.toggle', input, platform, keybindings, options)) {

@@ -76,10 +76,7 @@ function defaultTerminalFontFamily(): string {
   if (platform === 'win32') {
     return 'Cascadia Mono'
   }
-  if (platform === 'linux') {
-    return 'DejaVu Sans Mono'
-  }
-  return 'SF Mono' // macOS default
+  return platform === 'linux' ? 'DejaVu Sans Mono' : 'SF Mono' // macOS default
 }
 
 export const getDefaultPrimarySelectionMiddleClickPaste = (
