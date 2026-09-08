@@ -54,6 +54,13 @@ export type TabBarItem =
       isPinned: boolean
       data: { id: string; label: string }
     }
+  | {
+      type: 'agent-session'
+      id: string
+      unifiedTabId: string
+      isPinned: boolean
+      data: Tab & { contentType: 'agent-session' }
+    }
 
 export function getTabDragLabel(item: TabBarItem, generatedTitlesEnabled: boolean): string {
   if (item.type === 'terminal') {
@@ -70,6 +77,9 @@ export function getTabDragLabel(item: TabBarItem, generatedTitlesEnabled: boolea
   }
   if (item.type === 'simulator') {
     return item.data.label || 'Mobile Emulator'
+  }
+  if (item.type === 'agent-session') {
+    return item.data.label || 'Agent session'
   }
   return getEditorDisplayLabel(item.data)
 }
@@ -129,11 +139,13 @@ export function buildOrderedTabItems({
   simulatorTabIds,
   codeServerTabIds,
   dataStudioTabIds,
+  agentSessionTabIds,
   terminalMap,
   editorMap,
   browserMap,
   codeServerMap,
   dataStudioMap,
+  agentSessionMap,
   unifiedTabByVisibleId
 }: {
   tabBarOrder?: string[]
@@ -143,11 +155,13 @@ export function buildOrderedTabItems({
   simulatorTabIds: string[]
   codeServerTabIds: string[]
   dataStudioTabIds: string[]
+  agentSessionTabIds: string[]
   terminalMap: Map<string, TerminalTab & { unifiedTabId?: string }>
   editorMap: Map<string, OpenFile & { tabId?: string }>
   browserMap: Map<string, BrowserTabState & { tabId?: string }>
   codeServerMap: Map<string, { id: string; label: string }>
   dataStudioMap: Map<string, { id: string; label: string }>
+  agentSessionMap: Map<string, Tab & { contentType: 'agent-session' }>
   unifiedTabByVisibleId: Map<string, Tab>
 }): TabBarItem[] {
   const ids = reconcileTabOrder(
@@ -157,7 +171,8 @@ export function buildOrderedTabItems({
     browserTabIds,
     simulatorTabIds,
     codeServerTabIds,
-    dataStudioTabIds
+    dataStudioTabIds,
+    agentSessionTabIds
   )
   const items: TabBarItem[] = []
   for (const id of ids) {
@@ -230,6 +245,17 @@ export function buildOrderedTabItems({
         isPinned: simulatorTab.isPinned === true,
         data: simulatorTab
       })
+      continue
+    }
+    const agentSession = agentSessionMap.get(id)
+    if (agentSession) {
+      items.push({
+        type: 'agent-session',
+        id,
+        unifiedTabId: agentSession.id,
+        isPinned: agentSession.isPinned === true,
+        data: agentSession
+      })
     }
   }
   return items
@@ -279,6 +305,12 @@ export function findActiveVisibleTabId(
     }
     if (item.type === 'simulator') {
       return active.activeTabType === 'simulator' && item.id === active.activeSimulatorTabId
+    }
+    if (item.type === 'agent-session') {
+      // Reachable only from TabGroupPanel, which passes the structured tab's own id; the store's
+      // `activeTabId` names a background terminal here (cf. TerminalTitlebarTabs, which resolves
+      // `getActiveTab(...)?.id` for 'simulator' and never renders agent-session items).
+      return active.activeTabType === 'agent-session' && item.id === active.activeTabId
     }
     return (
       (active.activeTabType === 'editor' || active.activeTabType === 'simulator') &&

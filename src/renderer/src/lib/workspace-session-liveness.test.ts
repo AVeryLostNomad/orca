@@ -20,12 +20,14 @@ function createSnapshot(
     activeTabTypeByWorktree: {},
     browserTabsByWorktree: {},
     browserPagesByWorkspace: {},
+    remoteBrowserPageHandlesByPageId: {},
     activeBrowserTabIdByWorktree: {},
     codeServerTabsByWorktree: {},
     activeCodeServerTabIdByWorktree: {},
     dataStudioTabsByWorktree: {},
     activeDataStudioTabIdByWorktree: {},
     browserUrlHistory: [],
+    workspaceDocHistory: [],
     unifiedTabsByWorktree: {},
     groupsByWorktree: {},
     layoutByWorktree: {},
@@ -36,6 +38,7 @@ function createSnapshot(
     lastKnownRelayPtyIdByTabId: {},
     lastVisitedAtByWorktreeId: {},
     defaultTerminalTabsAppliedByWorktreeId: {},
+    closedTerminalTabTombstonesByTabId: {},
     ...overrides
   }
 }

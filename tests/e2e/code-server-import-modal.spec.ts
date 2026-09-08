@@ -43,7 +43,7 @@ test.describe('Code-server editor config import', () => {
     const repoSection = orcaPage.locator(`[data-settings-section="repo-${repo.id}"]`)
     await repoSection.getByRole('button', { name: 'Import from VS Code / Cursor…' }).click()
 
-    const dialog = orcaPage.getByRole('dialog')
+    const dialog = orcaPage.getByRole('dialog', { name: 'Use Your Editor Settings' })
     await expect(dialog.getByText('Use Your Editor Settings')).toBeVisible()
     // Machine-dependent: either detected editor rows or the empty state.
     if (initialState.sources.length > 0) {

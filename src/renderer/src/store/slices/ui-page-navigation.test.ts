@@ -135,6 +135,7 @@ describe('createUISlice settings navigation', () => {
       repoId: null,
       hostId: 'ssh:host-1'
     })
+    expect(store.getState().settingsOpen).toBe(true)
   })
 
   it('rejects malformed settings targets before storing them', () => {
@@ -298,6 +299,18 @@ describe('createUISlice settings navigation', () => {
 
     expect(store.getState().settingsOpen).toBe(false)
     expect(store.getState().activeView).toBe('tasks')
+  })
+
+  it('returns to the graduated Agents view after visiting settings', () => {
+    const store = createUIStore()
+
+    store.getState().openActivityPage()
+    expect(store.getState().activeView).toBe('activity')
+
+    store.getState().openSettingsPage()
+    store.getState().closeSettingsPage()
+
+    expect(store.getState().activeView).toBe('activity')
   })
 
   it('clears transient settings search when opening settings', () => {
@@ -663,6 +676,57 @@ describe('createUISlice space navigation', () => {
     store.getState().closeArtifactsPage()
 
     expect(store.getState().activeView).toBe('tasks')
+  })
+
+  it('records and rewinds Artifacts visits on close', () => {
+    const store = createUIStore()
+    store.setState({ worktreesByRepo: { 'repo-1': [makeWorktree('a')] } })
+
+    store.getState().recordWorktreeVisit('a')
+    store.getState().openArtifactsPage()
+    expect(store.getState().worktreeNavHistory).toEqual(['a', 'artifacts'])
+    expect(store.getState().worktreeNavHistoryIndex).toBe(1)
+
+    store.getState().closeArtifactsPage()
+    expect(store.getState().activeView).toBe('terminal')
+    expect(store.getState().worktreeNavHistoryIndex).toBe(0)
+  })
+
+  it('records and rewinds Skills visits on close', () => {
+    const store = createUIStore()
+    store.setState({ worktreesByRepo: { 'repo-1': [makeWorktree('a')] } })
+
+    store.getState().recordWorktreeVisit('a')
+    store.getState().openSkillsPage()
+    expect(store.getState().worktreeNavHistory).toEqual(['a', 'skills'])
+    expect(store.getState().worktreeNavHistoryIndex).toBe(1)
+
+    store.getState().closeSkillsPage()
+    expect(store.getState().activeView).toBe('terminal')
+    expect(store.getState().worktreeNavHistoryIndex).toBe(0)
+  })
+
+  it('records Artifacts and Skills as separate back/forward entries', () => {
+    const store = createUIStore()
+    store.setState({ worktreesByRepo: { 'repo-1': [makeWorktree('a')] } })
+
+    store.getState().recordWorktreeVisit('a')
+    store.getState().openArtifactsPage()
+    store.getState().openSkillsPage()
+    store.getState().openSkillsPage()
+
+    expect(store.getState().worktreeNavHistory).toEqual(['a', 'artifacts', 'skills'])
+    expect(store.getState().worktreeNavHistoryIndex).toBe(2)
+  })
+
+  it('records a Skills visit when opening a shared skill link', () => {
+    const store = createUIStore()
+
+    store.getState().openSkillShare('share-1')
+    store.getState().openSkillsSharedLinks()
+
+    expect(store.getState().worktreeNavHistory).toEqual(['skills'])
+    expect(store.getState().worktreeNavHistoryIndex).toBe(0)
   })
 
   it('opens and restores Artifacts when its sidebar shortcut is hidden', () => {

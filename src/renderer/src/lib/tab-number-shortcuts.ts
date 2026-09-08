@@ -8,6 +8,7 @@ import {
   activateWebRuntimeSessionTab,
   isWebRuntimeSessionActive
 } from '@/runtime/web-runtime-session'
+import { activateStructuredAgentSessionTab } from '@/lib/structured-agent-session-tab-activation'
 
 type TabNumberShortcutState = Pick<
   AppState,
@@ -59,6 +60,13 @@ export function activateTabNumberShortcut(index: number): boolean {
   const target = resolveTabNumberShortcutTarget(store, index)
   if (!target) {
     return false
+  }
+
+  if (target.contentType === 'agent-session') {
+    return activateStructuredAgentSessionTab({
+      worktreeId: target.worktreeId,
+      tabId: target.id
+    })
   }
 
   const worktreeId = target.worktreeId

@@ -26,7 +26,8 @@ export function useCommandBarFiles(args: {
   const enabled = args.enabled && fileListingAvailable
   const { files, loading, loadError } = useRuntimeFileListForWorktree({
     enabled,
-    worktreeId
+    worktreeId,
+    query
   })
   const indexedFiles = useMemo(() => prepareQuickOpenFiles(files), [files])
   const items = useMemo(

@@ -40,6 +40,7 @@ export function useTabBarItemProjection({
     browserTabs,
     codeServerTabs,
     dataStudioTabs,
+    agentSessionTabs,
     tabBarOrder,
     hoveredTabInsertion,
     activeTabId,
@@ -59,6 +60,10 @@ export function useTabBarItemProjection({
   const browserMap = useMemo(
     () => new Map((browserTabs ?? []).map((tab) => [tab.id, tab])),
     [browserTabs]
+  )
+  const agentSessionMap = useMemo(
+    () => new Map((agentSessionTabs ?? []).map((tab) => [tab.id, tab])),
+    [agentSessionTabs]
   )
   const terminalIds = useMemo(() => tabs.map((tab) => tab.id), [tabs])
   const editorFileIds = useMemo(
@@ -89,6 +94,10 @@ export function useTabBarItemProjection({
         .map((tab) => tab.id),
     [unifiedTabs, resolvedGroupId]
   )
+  const agentSessionTabIds = useMemo(
+    () => agentSessionTabs?.map((tab) => tab.id) ?? [],
+    [agentSessionTabs]
+  )
   const orderedItems = useMemo(
     () =>
       buildOrderedTabItems({
@@ -99,11 +108,13 @@ export function useTabBarItemProjection({
         simulatorTabIds,
         codeServerTabIds,
         dataStudioTabIds,
+        agentSessionTabIds,
         terminalMap,
         editorMap,
         browserMap,
         codeServerMap,
         dataStudioMap,
+        agentSessionMap,
         unifiedTabByVisibleId
       }),
     [
@@ -114,11 +125,13 @@ export function useTabBarItemProjection({
       simulatorTabIds,
       codeServerTabIds,
       dataStudioTabIds,
+      agentSessionTabIds,
       terminalMap,
       editorMap,
       browserMap,
       codeServerMap,
       dataStudioMap,
+      agentSessionMap,
       unifiedTabByVisibleId
     ]
   )

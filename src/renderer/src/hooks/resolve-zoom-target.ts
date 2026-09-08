@@ -1,4 +1,5 @@
 import type { TopLevelView } from '../../../shared/ui-chrome-types'
+import type { WorkspaceVisibleTabType } from '../../../shared/tab-types'
 
 /**
  * Determine which zoom domain (terminal, editor, simulator, or UI) should be adjusted
@@ -6,7 +7,7 @@ import type { TopLevelView } from '../../../shared/ui-chrome-types'
  */
 export function resolveZoomTarget(args: {
   activeView: TopLevelView
-  activeTabType: 'terminal' | 'editor' | 'browser' | 'simulator' | 'vscode' | 'datastudio'
+  activeTabType: WorkspaceVisibleTabType
   activeElement: unknown
 }): 'terminal' | 'editor' | 'simulator' | 'ui' {
   const { activeView, activeTabType, activeElement } = args

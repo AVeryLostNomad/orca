@@ -100,7 +100,7 @@ describe('delayed agent startup subscription', () => {
 
     launchConfigs.reads.value = 0
     for (let update = 0; update < 100; update += 1) {
-      useAppStore.setState({ activeView: update % 2 === 0 ? 'terminal' : 'settings' } as never)
+      useAppStore.setState({ activeView: 'terminal', settingsOpen: update % 2 !== 0 } as never)
     }
 
     expect(launchConfigs.reads.value).toBe(0)

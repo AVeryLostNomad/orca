@@ -1,7 +1,11 @@
 import { getRepoExecutionHostId, normalizeExecutionHostId } from './execution-host'
 import type { FolderWorkspace } from './folder-workspace-types'
 import type { ProjectGroup } from './project-group-types'
-import { getProjectGroupSubtreeIds } from './project-groups'
+import {
+  buildProjectGroupChildIndex,
+  collectProjectGroupSubtreeIds,
+  type ProjectGroupChildIndex
+} from './project-groups'
 import type { Repo } from './repo-types'
 import { getDeepestCommonRuntimePath, getRuntimePathParent } from './cross-platform-path'
 import { folderWorkspaceKey } from './workspace-scope'
@@ -38,11 +42,15 @@ export function deriveProjectGroupWorkspacePath(args: {
   group: ProjectGroup
   projectGroups: readonly ProjectGroup[]
   repos: readonly Repo[]
+  childGroupIndex?: ProjectGroupChildIndex
 }): string | null {
   if (args.group.parentPath) {
     return args.group.parentPath
   }
-  const subtreeIds = getProjectGroupSubtreeIds(args.projectGroups, args.group.id)
+  const subtreeIds = collectProjectGroupSubtreeIds(
+    args.childGroupIndex ?? buildProjectGroupChildIndex(args.projectGroups),
+    args.group.id
+  )
   const paths = args.repos
     .filter(
       (repo) =>
@@ -61,6 +69,7 @@ export function projectGroupToFolderWorkspace(args: {
   group: ProjectGroup
   projectGroups: readonly ProjectGroup[]
   repos: readonly Repo[]
+  childGroupIndex?: ProjectGroupChildIndex
 }): FolderWorkspace | null {
   const folderPath = deriveProjectGroupWorkspacePath(args)
   if (!folderPath) {
@@ -83,4 +92,14 @@ export function projectGroupToFolderWorkspace(args: {
     createdAt: args.group.createdAt,
     updatedAt: args.group.updatedAt
   }
+}
+
+export function findProjectGroupWorkspaceFolder(
+  folderWorkspaceId: string,
+  projectGroups: readonly ProjectGroup[],
+  repos: readonly Repo[]
+): FolderWorkspace | null {
+  const groupId = getProjectGroupIdFromWorkspaceFolderId(folderWorkspaceId)
+  const group = groupId ? projectGroups.find((entry) => entry.id === groupId) : undefined
+  return group ? projectGroupToFolderWorkspace({ group, projectGroups, repos }) : null
 }

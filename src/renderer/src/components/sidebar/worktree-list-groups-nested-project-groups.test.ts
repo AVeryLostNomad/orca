@@ -123,20 +123,32 @@ describe('project groups', () => {
       [folderWorkspace]
     )
 
-    expect(rows).toMatchObject([
+    const folderRows = rows.filter(
+      (row): row is Extract<(typeof rows)[number], { type: 'folder-workspace' }> =>
+        row.type === 'folder-workspace'
+    )
+    expect(rows[0]).toMatchObject({
+      type: 'header',
+      key: 'project-group:group-root',
+      count: 2
+    })
+    expect(
+      folderRows.map((row) => ({
+        id: row.folderWorkspace.id,
+        name: row.folderWorkspace.name,
+        groupDepth: row.groupDepth,
+        isGroupWide: row.isGroupWide === true
+      }))
+    ).toEqual([
       {
-        type: 'header',
-        key: 'project-group:group-root',
-        count: 1
+        id: folderWorkspace.id,
+        name: folderWorkspace.name,
+        groupDepth: 1,
+        isGroupWide: false
       },
       {
-        type: 'folder-workspace',
-        folderWorkspace: {
-          id: 'project-group:group-root',
-          name: 'Group Wide',
-          folderPath: '/monorepo'
-        },
-        projectGroup: { id: 'group-root' },
+        id: `project-group:${group.id}`,
+        name: 'Group Wide',
         groupDepth: 1,
         isGroupWide: true
       }
@@ -206,29 +218,29 @@ describe('project groups', () => {
       [folderWorkspace]
     )
 
-    expect(rows).toMatchObject([
-      {
-        type: 'header',
-        key: 'project-group:group-root',
-        projectGroupDepth: 0
-      },
+    const structuralRows = rows
+      .filter((row) => row.type === 'header' || row.type === 'folder-workspace')
+      .map((row) =>
+        row.type === 'header'
+          ? { type: row.type, key: row.key, depth: row.projectGroupDepth }
+          : {
+              type: row.type,
+              id: row.folderWorkspace.id,
+              depth: row.groupDepth,
+              isGroupWide: row.isGroupWide === true
+            }
+      )
+    expect(structuralRows).toEqual([
+      { type: 'header', key: 'project-group:group-root', depth: 0 },
+      { type: 'folder-workspace', id: 'project-group:group-root', depth: 1, isGroupWide: true },
+      { type: 'header', key: 'project-group:group-shared', depth: 1 },
       {
         type: 'folder-workspace',
-        folderWorkspace: { id: 'project-group:group-root' },
-        groupDepth: 1,
-        isGroupWide: true
+        id: folderWorkspace.id,
+        depth: 2,
+        isGroupWide: false
       },
-      {
-        type: 'header',
-        key: 'project-group:group-shared',
-        projectGroupDepth: 1
-      },
-      {
-        type: 'folder-workspace',
-        folderWorkspace: { id: 'project-group:group-shared' },
-        groupDepth: 2,
-        isGroupWide: true
-      }
+      { type: 'folder-workspace', id: 'project-group:group-shared', depth: 2, isGroupWide: true }
     ])
   })
 

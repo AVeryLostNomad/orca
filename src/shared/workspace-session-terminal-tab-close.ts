@@ -160,7 +160,7 @@ export function closeTerminalTabInWorkspaceSession(
     return { session, ptyIdsToKill: [], closed: false, pinned: false }
   }
   if (
-    !options.force &&
+    options.force !== true &&
     (terminalRow?.isPinned || unifiedTerminalTabs.some((tab) => tab.isPinned))
   ) {
     return { session, ptyIdsToKill: [], closed: false, pinned: true }

@@ -10,6 +10,7 @@ import {
 import { translate } from '@/i18n/i18n'
 import { RichMarkdownSpellcheckSetting } from './RichMarkdownSpellcheckSetting'
 
+
 type EditorDiffMarkdownSettingsSectionProps = {
   settings: GlobalSettings
   updateSettings: (updates: Partial<GlobalSettings>) => void
@@ -79,6 +80,7 @@ export function EditorDiffMarkdownSettingsSection({
           ]}
         />
       </SearchableSetting>
+
 
       <SearchableSetting
         title={translate(

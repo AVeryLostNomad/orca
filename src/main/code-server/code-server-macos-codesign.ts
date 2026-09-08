@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { runProcess } from '../../shared/child-process/run-process'
 
 // Fresh code-server bundles ripgrep and several native .node modules UNSIGNED,
 // and its Node binary carries a Developer-ID signature. On Apple Silicon the
@@ -12,16 +12,18 @@ import { spawn } from 'node:child_process'
 
 type CommandResult = { code: number | null; stdout: string; stderr: string }
 
-function run(command: string, args: string[]): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
-    let stdout = ''
-    let stderr = ''
-    child.stdout?.on('data', (c: Buffer) => (stdout += c.toString()))
-    child.stderr?.on('data', (c: Buffer) => (stderr += c.toString()))
-    child.on('error', (err) => resolve({ code: null, stdout, stderr: `${stderr}${String(err)}` }))
-    child.on('close', (code) => resolve({ code, stdout, stderr }))
-  })
+async function run(command: string, args: string[]): Promise<CommandResult> {
+  try {
+    const { code, stdout, stderr } = await runProcess({
+      program: command,
+      args,
+      timeoutMs: null,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    return { code, stdout, stderr }
+  } catch (error) {
+    return { code: null, stdout: '', stderr: String(error) }
+  }
 }
 
 // Parse `file`'s "<path>: <description>" lines and keep the Mach-O ones. Paths

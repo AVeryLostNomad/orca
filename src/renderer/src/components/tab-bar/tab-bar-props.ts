@@ -1,5 +1,6 @@
 import type { BrowserTab as BrowserTabState } from '../../../../shared/browser-workspace-types'
-import type { WorkspaceVisibleTabType } from '../../../../shared/tab-types'
+import type { ClientHostedBrowserRow } from '../../../../shared/client-hosted-browser-rows'
+import type { Tab, WorkspaceVisibleTabType } from '../../../../shared/tab-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { OpenFile } from '../../store/slices/editor'
 import type { HoveredTabInsertion } from '../tab-group/useTabDragSplit'
@@ -41,6 +42,11 @@ export type TabBarProps = {
   browserTabs?: (BrowserTabState & { tabId?: string })[]
   codeServerTabs?: { id: string; label: string }[]
   dataStudioTabs?: { id: string; label: string }[]
+  /** Pages rendering on a paired client. Appended after the real tabs; never part of tab order. */
+  clientHostedBrowserRows?: readonly ClientHostedBrowserRow[]
+  /** The group's own active tab at render time; a client-hosted selection dies when it moves. */
+  groupActiveTabId?: string | null
+  agentSessionTabs?: (Tab & { contentType: 'agent-session' })[]
   activeFileId?: string | null
   activeBrowserTabId?: string | null
   activeCodeServerTabId?: string | null
@@ -50,6 +56,7 @@ export type TabBarProps = {
   onActivateFile?: (fileId: string) => void
   onCloseFile?: (fileId: string) => void
   onActivateBrowserTab?: (tabId: string) => void
+  onActivateAgentSession?: (tabId: string) => void
   onCloseBrowserTab?: (tabId: string) => void
   onDuplicateBrowserTab?: (tabId: string) => void
   onActivateCodeServerTab?: (tabId: string) => void

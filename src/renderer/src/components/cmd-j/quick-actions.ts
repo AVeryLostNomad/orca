@@ -9,6 +9,7 @@ import {
 } from './quick-action-context'
 import { translate } from '@/i18n/i18n'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
+import { getNativeChatSplitQuickActions } from './native-chat-split-quick-actions'
 
 export type CmdJQuickActionRunResult =
   | { status: 'ok' }
@@ -131,6 +132,7 @@ export const getCmdJQuickActions = createLocalizedCatalog((): CmdJQuickAction[] 
     isAvailable: workspaceActionAvailability,
     run: (ctx) => runWorkspaceAction(ctx, ctx.openNewTerminalTab)
   },
+  ...getNativeChatSplitQuickActions(),
   {
     id: CREATE_WORKSPACE_QUICK_ACTION_ID,
     kind: 'action',

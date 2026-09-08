@@ -25,6 +25,8 @@ type RecentTabSwitchingState = Pick<
   | 'activeTabId'
   | 'activeTabType'
   | 'browserTabsByWorktree'
+  | 'codeServerTabsByWorktree'
+  | 'dataStudioTabsByWorktree'
   | 'groupsByWorktree'
   | 'openFiles'
   | 'tabBarOrderByWorktree'

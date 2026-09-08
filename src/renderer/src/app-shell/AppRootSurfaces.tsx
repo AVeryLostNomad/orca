@@ -13,6 +13,11 @@ import { shouldRenderPetOverlay } from '../components/pet/pet-overlay-visibility
 import { useAppStore } from '../store'
 import type { UpdateStatus } from '../../../shared/update-status-types'
 import { useLazyModalMounts } from './use-lazy-modal-mounts'
+import {
+  selectAppRootSurfacePetEnabled,
+  selectAppRootSurfaceTelemetryOptedIn,
+  selectAppRootSurfaceVoiceEnabled
+} from './app-root-surface-settings'
 import type { FloatingWorkspacePanelState } from './use-floating-workspace-panel'
 import type { OnboardingGate } from './use-onboarding-and-feature-tips'
 
@@ -121,11 +126,14 @@ export function AppRootSurfaces(props: {
   const activeView = useAppStore((s) => s.activeView)
   const activeModal = useAppStore((s) => s.activeModal)
   const settingsOpen = useAppStore((s) => s.settingsOpen)
-  const settings = useAppStore((s) => s.settings)
+  // Keep this always-mounted surface subscribed only to the settings fields it reads. A
+  // settings object replacement for an unrelated preference should not rerender every overlay.
+  const voiceEnabled = useAppStore(selectAppRootSurfaceVoiceEnabled)
+  const petEnabled = useAppStore(selectAppRootSurfacePetEnabled)
+  const telemetryOptedIn = useAppStore(selectAppRootSurfaceTelemetryOptedIn)
   const statusBarVisible = useAppStore((s) => s.statusBarVisible)
   const persistedUIReady = useAppStore((s) => s.persistedUIReady)
   const petVisible = useAppStore((s) => s.petVisible)
-  const petEnabled = useAppStore((s) => s.settings?.experimentalPet === true)
   const dictationState = useAppStore((s) => s.dictationState)
   const updateStatus = useAppStore((s) => s.updateStatus)
   const activeContextualTourId = useAppStore((s) => s.activeContextualTourId)
@@ -133,8 +141,7 @@ export function AppRootSurfaces(props: {
 
   const shouldMountSetupGuideTelemetryObserver = persistedUIReady
   const shouldMountUpdateCard = shouldMountUpdateCardForStatus(updateStatus)
-  const shouldMountDictationController =
-    settings?.voice?.enabled === true || dictationState !== 'idle'
+  const shouldMountDictationController = voiceEnabled || dictationState !== 'idle'
   const renderPetOverlay = shouldRenderPetOverlay({ persistedUIReady, petEnabled, petVisible })
 
   return (
@@ -273,10 +280,7 @@ export function AppRootSurfaces(props: {
         </Suspense>
       ) : null}
       {/* Why: mount at App root to render once per session; internal cohort gate limits it to pre-telemetry users — see telemetry-plan.md §First-launch experience. */}
-      <OverlayBoundary
-        boundaryId="overlay.telemetry-first-launch"
-        resetKey={settings?.telemetry?.optedIn ?? 'unknown'}
-      >
+      <OverlayBoundary boundaryId="overlay.telemetry-first-launch" resetKey={telemetryOptedIn}>
         <TelemetryFirstLaunchSurface />
       </OverlayBoundary>
       <OverlayBoundary boundaryId="overlay.zoom" resetKey={activeView}>

@@ -1,7 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmationDialogProvider } from './components/confirmation-dialog'
+import { BrowserWebAuthnAccountDialog } from './components/browser-webauthn-account-dialog'
+import { DocPreviewExternalLinkConfirmation } from './components/browser-pane/workspace-doc/doc-preview-external-link-confirmation'
 import { LinkRoutingPreferenceDialogProvider } from './components/link-routing-preference-dialog'
 import { SkillFreshnessNudge } from './components/skills/SkillFreshnessNudge'
 import PinnedTabCloseDialog from './components/terminal-pane/PinnedTabCloseDialog'
@@ -13,7 +15,12 @@ import { AppBackgroundServices } from './app-shell/AppBackgroundServices'
 import { AppRootSurfaces } from './app-shell/AppRootSurfaces'
 import { AppWorkspaceShell } from './app-shell/AppWorkspaceShell'
 import { WindowControls } from './app-shell/WindowControls'
-import { hasCustomTitleBar } from './app-shell/app-window-chrome'
+import {
+  MAC_TRAFFIC_LIGHTS_WIDTH,
+  WINDOW_CONTROLS_HEIGHT,
+  WINDOW_CONTROLS_WIDTH,
+  hasCustomTitleBar
+} from './app-shell/app-window-chrome'
 import { useAppChromeLayout } from './app-shell/use-app-chrome-layout'
 import { useAppSessionPersistence } from './app-shell/use-app-session-persistence'
 import { useAppShellServices } from './app-shell/use-app-shell-services'
@@ -32,7 +39,11 @@ function App(): React.JSX.Element {
   const onboardingGate = useOnboardingAndFeatureTips()
   const clearUnreadDockBadge = useUnreadDockBadge()
 
-  useAppShellServices()
+  // Why enabled && open: the overlay only renders while the feature is on, and its panel is
+  // aria-hidden while closed — so that pair is what "on screen" means for the floating workspace.
+  useAppShellServices({
+    floatingPanelVisible: floatingWorkspace.enabled && floatingWorkspace.open
+  })
   useAppStartupHydration(onboardingGate.applyStartupOnboardingState)
   useAppSessionPersistence()
   useRuntimeGraphSync()
@@ -40,6 +51,16 @@ function App(): React.JSX.Element {
   useDocumentAppearance()
   useWindowVisibilityEffects()
   useGlobalKeybindings({ layout, floatingWorkspace })
+
+  // Why: the same vars are set inline on .app-layout below, but portaled surfaces
+  // (sheets, dialogs) mount outside it and would otherwise fall back to 0px and
+  // render their controls under the Windows/Linux window-controls overlay.
+  useEffect(() => {
+    const root = document.documentElement.style
+    root.setProperty('--window-controls-width', WINDOW_CONTROLS_WIDTH)
+    root.setProperty('--window-controls-height', WINDOW_CONTROLS_HEIGHT)
+    root.setProperty('--mac-traffic-lights-width', MAC_TRAFFIC_LIGHTS_WIDTH)
+  }, [])
 
   const { cancelReturnFocusFrame } = floatingWorkspace
   const setAppRootNode = useCallback(
@@ -61,14 +82,17 @@ function App(): React.JSX.Element {
         {
           '--collapsed-sidebar-header-width': `${layout.collapsedSidebarHeaderWidth}px`,
           // Shared so surfaces can avoid the Windows/Linux window-controls overlay without hardcoding 138px everywhere.
-          '--window-controls-width': hasCustomTitleBar ? '138px' : '0px',
+          '--window-controls-width': WINDOW_CONTROLS_WIDTH,
           // Side-position activity bar uses this to push icons below the Windows/Linux window-controls overlay.
-          '--window-controls-height': hasCustomTitleBar ? '36px' : '0px'
+          '--window-controls-height': WINDOW_CONTROLS_HEIGHT,
+          // Full-bleed surfaces use this to keep the macOS traffic lights uncovered.
+          '--mac-traffic-lights-width': MAC_TRAFFIC_LIGHTS_WIDTH
         } as React.CSSProperties
       }
     >
       <TooltipProvider delayDuration={400}>
         <ConfirmationDialogProvider>
+          <DocPreviewExternalLinkConfirmation />
           <LinkRoutingPreferenceDialogProvider>
             <AppBackgroundServices />
             <AppWorkspaceShell layout={layout} floatingWorkspace={floatingWorkspace} />
@@ -78,6 +102,7 @@ function App(): React.JSX.Element {
             />
             {/* Why: inside the providers — TerminalPane needs the link-routing dialog context. */}
             <QuickCommandModalTerminal />
+            <BrowserWebAuthnAccountDialog />
           </LinkRoutingPreferenceDialogProvider>
         </ConfirmationDialogProvider>
       </TooltipProvider>

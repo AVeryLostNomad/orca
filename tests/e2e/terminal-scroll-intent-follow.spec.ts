@@ -168,6 +168,7 @@ async function injectQueuedWriteThenType(page: Page, paneKey: string): Promise<v
   await page.evaluate((targetPaneKey) => {
     const injectionTarget = window as Window & {
       __terminalPtyDataInjection?: { inject: (paneKey: string, data: string) => boolean }
+      __releaseScrollIntentTestWrite?: () => void
     }
     const state = window.__store?.getState()
     const worktreeId = state?.activeWorktreeId
@@ -184,14 +185,24 @@ async function injectQueuedWriteThenType(page: Page, paneKey: string): Promise<v
     }
     const terminal = pane.terminal
     const originalWrite = terminal.write
-    const holder: { write: { data: string; callback?: () => void } | null } = { write: null }
+    const heldWrites: { data: string; callback?: () => void }[] = []
     terminal.write = ((data: string, callback?: () => void) => {
-      holder.write = { data, callback }
+      heldWrites.push({ data, callback })
     }) as typeof terminal.write
+    injectionTarget.__releaseScrollIntentTestWrite = () => {
+      terminal.write = originalWrite
+      delete injectionTarget.__releaseScrollIntentTestWrite
+      for (const held of heldWrites) {
+        originalWrite.call(terminal, held.data, held.callback)
+      }
+    }
     try {
       const payload = '\x1b[?2026h\r\x1b[2KWorking in-flight\x1b[?2026l'
       if (!injectionTarget.__terminalPtyDataInjection?.inject(targetPaneKey, payload)) {
         throw new Error('PTY injector unavailable')
+      }
+      if (heldWrites.length === 0) {
+        throw new Error('Foreground terminal write was not captured')
       }
       const textarea = pane.container.querySelector<HTMLTextAreaElement>('.xterm-helper-textarea')
       if (!textarea) {
@@ -204,15 +215,20 @@ async function injectQueuedWriteThenType(page: Page, paneKey: string): Promise<v
       // keydown never becomes user input there. terminal.input(data) is the
       // shared end of both platforms' typing paths (fires onUserInput + onData).
       pane.terminal.input('x')
-    } finally {
-      terminal.write = originalWrite
+    } catch (error) {
+      injectionTarget.__releaseScrollIntentTestWrite()
+      throw error
     }
-    const heldWrite = holder.write
-    if (!heldWrite) {
-      throw new Error('Foreground terminal write was not captured')
-    }
-    originalWrite.call(terminal, heldWrite.data, heldWrite.callback)
   }, paneKey)
+  try {
+    await page.keyboard.press('x')
+  } finally {
+    await page.evaluate(() => {
+      ;(
+        window as Window & { __releaseScrollIntentTestWrite?: () => void }
+      ).__releaseScrollIntentTestWrite?.()
+    })
+  }
 }
 
 async function startStreamingFixturePhase1(page: Page): Promise<string> {
@@ -305,5 +321,6 @@ test.describe('terminal scroll intent keeps following output', () => {
         { timeout: 5_000, intervals: [25] }
       )
       .toBe(0)
+    await waitForMarkerAtBottom(orcaPage, 'STREAM_PHASE2_DONE')
   })
 })

@@ -78,15 +78,22 @@ describe('project groups', () => {
       new Set([groupedRepo.id])
     )
 
+    const groupWideIndex = rows.findIndex(
+      (row) =>
+        row.type === 'folder-workspace' &&
+        row.folderWorkspace.id === `project-group:${group.id}` &&
+        row.isGroupWide === true
+    )
+    const repoHeaderIndex = rows.findIndex(
+      (row) => row.type === 'header' && row.key === `repo:${groupedRepo.id}`
+    )
     expect(rows[0]).toMatchObject({
       type: 'header',
-      key: 'project-group:group-1'
+      key: 'project-group:group-1',
+      count: 2
     })
-    expect(rows[1]).toMatchObject({
-      type: 'header',
-      key: 'repo:repo-1',
-      projectGroupDepth: 1
-    })
+    expect(groupWideIndex).toBeGreaterThan(0)
+    expect(repoHeaderIndex).toBeGreaterThan(groupWideIndex)
   })
 
   it('does not resurrect filtered repos as empty Project Group headers', () => {
@@ -183,8 +190,16 @@ describe('project groups', () => {
     expect(rows[0]).toMatchObject({
       type: 'header',
       key: 'project-group:group-1',
-      count: 2
+      count: 3
     })
+    expect(
+      rows.some(
+        (row) =>
+          row.type === 'folder-workspace' &&
+          row.folderWorkspace.id === `project-group:${group.id}` &&
+          row.isGroupWide === true
+      )
+    ).toBe(true)
     // Why: empty/placeholder projects sort after projects with visible activity.
     expect(rows.filter((row) => row.type === 'header').map((row) => row.key)).toEqual([
       'project-group:group-1',

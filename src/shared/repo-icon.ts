@@ -86,7 +86,7 @@ function normalizeGitHubAvatarHost(rawHost?: string): string {
   }
 }
 
-function isSupportedImageSrc(src: string, source: RepoIconImageSource): boolean {
+function computeIsSupportedImageSrc(src: string, source: RepoIconImageSource): boolean {
   if (source === 'upload') {
     return (
       /^data:image\/png;base64,[A-Za-z0-9+/=\s]+$/i.test(src) &&
@@ -117,6 +117,34 @@ function isSupportedImageSrc(src: string, source: RepoIconImageSource): boolean 
   }
 
   return url.hostname === 'www.google.com' && url.pathname === '/s2/favicons'
+}
+
+type ImageSrcVerdict = { src: unknown; source: unknown; supported: boolean }
+
+/**
+ * Why: `getRepos()` re-hydrates every repo on every call, and validating one inline data URI means
+ * scanning a 400 KB string twice with a regex and base64-decoding its header. `hydrateRepo` is
+ * handed the *same* persisted `repoIcon` object every time, so the verdict is cached on that object
+ * and dies with it — no cap, no eviction, and nothing retained once a repo or an icon is replaced.
+ *
+ * `src`/`source` are re-checked on a hit, so mutating the persisted icon in place cannot serve a
+ * stale verdict. Both are the identical string references in the steady state, so the compare is a
+ * pointer check, not a 400 KB scan.
+ */
+const imageSrcVerdicts = new WeakMap<object, ImageSrcVerdict>()
+
+function isSupportedImageSrc(
+  candidate: Record<string, unknown>,
+  src: string,
+  source: RepoIconImageSource
+): boolean {
+  const cached = imageSrcVerdicts.get(candidate)
+  if (cached && cached.src === candidate.src && cached.source === candidate.source) {
+    return cached.supported
+  }
+  const supported = computeIsSupportedImageSrc(src, source)
+  imageSrcVerdicts.set(candidate, { src: candidate.src, source: candidate.source, supported })
+  return supported
 }
 
 export function sanitizeRepoIcon(value: unknown): RepoIcon | null | undefined {
@@ -165,7 +193,7 @@ export function sanitizeRepoIcon(value: unknown): RepoIcon | null | undefined {
     if (!isRepoIconImageSource(source) || src.length > MAX_REPO_ICON_DATA_URL_LENGTH) {
       return undefined
     }
-    if (!isSupportedImageSrc(src, source)) {
+    if (!isSupportedImageSrc(candidate, src, source)) {
       return undefined
     }
     const label = typeof candidate.label === 'string' ? candidate.label.trim().slice(0, 80) : ''

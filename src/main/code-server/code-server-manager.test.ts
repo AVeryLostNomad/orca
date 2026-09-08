@@ -29,6 +29,7 @@ vi.mock('../startup/hydrate-shell-path', () => ({
   ),
   mergePathSegments: vi.fn(() => [])
 }))
+vi.mock('../../shared/child-process/run-process', () => ({ spawnProcess: spawnMock }))
 // execFile is only pulled in transitively (windows process-rows helper); a
 // bare vi.fn() keeps promisify(execFile) importable without real forks.
 vi.mock('node:child_process', () => ({ spawn: spawnMock, execFile: vi.fn() }))

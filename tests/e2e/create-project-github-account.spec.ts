@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { expect, test } from './helpers/orca-app'
 import { waitForSessionReady } from './helpers/store'
+import { openSidebarProjectDialog } from './helpers/sidebar-project-dialog'
 
 const PERSONAL_ACCOUNT = {
   host: 'github.com',
@@ -57,10 +58,7 @@ test('creates a project with the selected GitHub account and no global Git ident
   const projectName = `github-account-${Date.now()}`
   const projectPath = path.join(parentPath, projectName)
 
-  await orcaPage
-    .getByRole('button', { name: /Add Project/i })
-    .first()
-    .click()
+  await openSidebarProjectDialog(orcaPage)
   const addDialog = orcaPage.getByRole('dialog', { name: /Add a project/i })
   await expect(addDialog).toBeVisible()
   await addDialog.getByRole('button', { name: /Create new project/i }).click()

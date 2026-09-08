@@ -41,11 +41,12 @@ export function useTabBarQuickCommandsShortcut({
     (s) => s.settings?.terminalShortcutPolicy ?? 'orca-first'
   )
   const activeView = useAppStore((s) => s.activeView)
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
 
   // Why: this hook only runs in the focused tab group's menu component, so the
   // listener naturally scopes to the active group with no extra coordination.
   useEffect(() => {
-    if (activeView !== 'terminal') {
+    if (activeView !== 'terminal' || settingsOpen) {
       return
     }
     const platform = getShortcutPlatform()
@@ -133,10 +134,10 @@ export function useTabBarQuickCommandsShortcut({
       window.removeEventListener('keyup', onKeyUp, { capture: true })
       window.removeEventListener('blur', onBlur)
     }
-  }, [activeView, keybindings, menuOpen, onOpenChange, terminalShortcutPolicy])
+  }, [activeView, keybindings, menuOpen, onOpenChange, settingsOpen, terminalShortcutPolicy])
 
   useEffect(() => {
-    if (activeView !== 'terminal') {
+    if (activeView !== 'terminal' || settingsOpen) {
       return
     }
     const onToggleQuickCommandsMenu = (): void => {
@@ -146,5 +147,5 @@ export function useTabBarQuickCommandsShortcut({
     return () => {
       window.removeEventListener(TOGGLE_QUICK_COMMANDS_MENU_EVENT, onToggleQuickCommandsMenu)
     }
-  }, [activeView, menuOpen, onOpenChange])
+  }, [activeView, menuOpen, onOpenChange, settingsOpen])
 }

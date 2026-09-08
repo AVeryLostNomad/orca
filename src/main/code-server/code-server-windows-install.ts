@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { runProcess } from '../../shared/child-process/run-process'
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
@@ -20,8 +20,15 @@ import {
   CODE_SERVER_WINDOWS_SHA256
 } from './code-server-windows-package'
 
+type WindowsExtractor = (
+  file: string,
+  args: string[],
+  options: { windowsHide: boolean; maxBuffer: number },
+  callback: (error: Error | null, stdout?: string, stderr?: string) => void
+) => void
+
 export type WindowsInstallDeps = {
-  execFileImpl?: typeof execFile
+  execFileImpl?: WindowsExtractor
   downloadImpl?: (
     url: string,
     dest: string,
@@ -175,8 +182,9 @@ function runExtractor(
   args: string[],
   deps: WindowsInstallDeps
 ): Promise<{ ok: boolean; detail: string }> {
-  const run = deps.execFileImpl ?? execFile
-  return new Promise((resolve) => {
+  const run = deps.execFileImpl
+  if (run) {
+    const { promise, resolve } = Promise.withResolvers<{ ok: boolean; detail: string }>()
     run(file, args, { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (error, _stdout, stderr) => {
       if (!error) {
         resolve({ ok: true, detail: '' })
@@ -184,7 +192,23 @@ function runExtractor(
       }
       resolve({ ok: false, detail: String(stderr ?? '').trim() || error.message })
     })
+    return promise
+  }
+  return runProcess({
+    program: file,
+    args,
+    timeoutMs: null,
+    maxOutputBytes: 4 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe']
   })
+    .then(({ code, stderr }) => ({
+      ok: code === 0,
+      detail: code === 0 ? '' : stderr.trim() || `extractor exited with code ${code}`
+    }))
+    .catch((error: unknown) => ({
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error)
+    }))
 }
 
 function quotePowerShellLiteral(value: string): string {

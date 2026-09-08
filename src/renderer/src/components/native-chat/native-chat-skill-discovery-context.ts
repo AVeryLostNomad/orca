@@ -21,6 +21,7 @@ export type NativeChatSkillStateInputs = Pick<
   | 'restoredRuntimeHostIdByWorkspaceSessionKey'
   | 'settings'
   | 'tabsByWorktree'
+  | 'unifiedTabsByWorktree'
   | 'worktreesByRepo'
 >
 
@@ -28,6 +29,7 @@ type NativeChatSkillTab = { id: string; startupCwd?: string }
 
 type NativeChatSkillWorktreeState = {
   tabsByWorktree: Record<string, readonly NativeChatSkillTab[]>
+  unifiedTabsByWorktree?: Record<string, readonly { id: string }[]>
   worktreesByRepo: Record<string, readonly { id: string; path: string }[]>
 }
 
@@ -50,6 +52,7 @@ export function selectNativeChatSkillStateInputs(state: AppState): NativeChatSki
     restoredRuntimeHostIdByWorkspaceSessionKey: state.restoredRuntimeHostIdByWorkspaceSessionKey,
     settings: state.settings,
     tabsByWorktree: state.tabsByWorktree,
+    unifiedTabsByWorktree: state.unifiedTabsByWorktree,
     worktreesByRepo: state.worktreesByRepo
   }
 }
@@ -58,7 +61,7 @@ export function resolveNativeChatSkillDiscoveryCwd(
   state: NativeChatSkillWorktreeState,
   terminalTabId: string
 ): string | null {
-  const found = findTerminalTab(state.tabsByWorktree, terminalTabId)
+  const found = findNativeChatTab(state, terminalTabId)
   if (!found) {
     return null
   }
@@ -81,7 +84,7 @@ export function resolveNativeChatSkillDiscoveryContext(
   state: NativeChatSkillStateInputs,
   terminalTabId: string
 ): NativeChatSkillDiscoveryContext | null {
-  const worktreeId = findTerminalTab(state.tabsByWorktree, terminalTabId)?.worktreeId ?? null
+  const worktreeId = findNativeChatTab(state, terminalTabId)?.worktreeId ?? null
   if (!worktreeId) {
     return null
   }
@@ -139,6 +142,16 @@ export function resolveNativeChatSkillDiscoveryContext(
     // owned panes resolve host semantics on the runtime, never here).
     discoveryTarget: { cwd, worktreeId, ...(projectRuntime ? { projectRuntime } : {}) }
   }
+}
+
+function findNativeChatTab(
+  state: Pick<NativeChatSkillWorktreeState, 'tabsByWorktree' | 'unifiedTabsByWorktree'>,
+  tabId: string
+): { worktreeId: string; tab: NativeChatSkillTab } | null {
+  return (
+    findTerminalTab(state.tabsByWorktree, tabId) ??
+    findTerminalTab(state.unifiedTabsByWorktree ?? {}, tabId)
+  )
 }
 
 function findTerminalTab(

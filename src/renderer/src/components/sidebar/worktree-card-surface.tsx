@@ -4,8 +4,6 @@ import { LoaderCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AutoRenameFailedDialog } from './AutoRenameFailedDialog'
 import WorktreeContextMenu from './WorktreeContextMenu'
-import { WorktreeCardDetailsHover } from './WorktreeCardMeta'
-import { WorktreeCardPortsDetails } from './WorktreeCardPorts'
 import { WorktreeCardParentContent } from './worktree-card-parent-content'
 import { buildWorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
@@ -39,85 +37,13 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
     handleDragStart,
     handleDragEnd,
     handleContextMenuSelect,
-    hoverIssue,
-    hoverLinearIssue,
-    hoverJiraIssue,
-    hoverReview,
-    hoverComment,
-    metaAutomationProvenance,
-    metaCliProvenance,
-    workspacePorts,
-    detailsHoverControl,
-    handleRenameTitle,
-    handleEditIssue,
-    handleEditComment,
-    handleOpenGitHubIssueInOrca,
-    linearIssue,
-    handleOpenLinearIssueInOrca,
-    handleOpenReviewInOrca,
-    handleOpenAutomation,
-    handleOpenAutomationRun,
-    hasExplicitLinkedReview,
-    handleUnlinkReview,
     showRenameErrorDialog,
     setShowRenameErrorDialog
   } = card
-  const { titleOnlyCard, hasHoverDetails, hoverBranchName, hoverWorkspaceTitle, cardStyle } =
-    presentation
+  const { titleOnlyCard, cardStyle } = presentation
   const canEditWorkspaceRecord = workspaceRecordMutable && !affiliateListMode
 
   const parentCardContent = <WorktreeCardParentContent card={card} presentation={presentation} />
-
-  const parentHoverTriggerBody = (
-    <div className="group/worktree-card w-full min-w-0" data-worktree-card-hover-trigger="">
-      {parentCardContent}
-    </div>
-  )
-
-  const parentCardBodyWithHoverDetails =
-    hasHoverDetails && !titleRenaming ? (
-      <WorktreeCardDetailsHover
-        issue={hoverIssue}
-        linearIssue={hoverLinearIssue}
-        jiraIssue={hoverJiraIssue}
-        review={hoverReview}
-        comment={hoverComment}
-        automationProvenance={metaAutomationProvenance}
-        cliProvenance={metaCliProvenance}
-        automationHostId={worktree.hostId}
-        branchName={hoverBranchName}
-        workspaceTitle={hoverWorkspaceTitle}
-        workspaceTitleRenameDisabled={isDeleting || !canEditWorkspaceRecord}
-        detailsAfter={
-          workspacePorts.length > 0 ? <WorktreeCardPortsDetails ports={workspacePorts} /> : null
-        }
-        openDelay={100}
-        hoverControl={detailsHoverControl}
-        onRenameWorkspaceTitle={canEditWorkspaceRecord ? handleRenameTitle : undefined}
-        onEditIssue={canEditWorkspaceRecord ? handleEditIssue : undefined}
-        onEditComment={canEditWorkspaceRecord ? handleEditComment : undefined}
-        onOpenGitHubIssueInOrca={
-          hoverIssue && 'url' in hoverIssue && hoverIssue.url
-            ? handleOpenGitHubIssueInOrca
-            : undefined
-        }
-        onOpenLinearIssueInOrca={linearIssue?.url ? handleOpenLinearIssueInOrca : undefined}
-        onOpenReviewInOrca={
-          hoverReview?.url && hoverReview.provider === 'github' ? handleOpenReviewInOrca : undefined
-        }
-        onOpenAutomation={canEditWorkspaceRecord ? handleOpenAutomation : undefined}
-        onOpenAutomationRun={canEditWorkspaceRecord ? handleOpenAutomationRun : undefined}
-        // Why: branch lookup can surface a review without persisted metadata; only unlink when explicitly linked.
-        onUnlinkReview={
-          canEditWorkspaceRecord && hasExplicitLinkedReview ? handleUnlinkReview : undefined
-        }
-      >
-        {parentHoverTriggerBody}
-      </WorktreeCardDetailsHover>
-    ) : (
-      parentHoverTriggerBody
-    )
-
   const cardBody = (
     <div
       className={cn(
@@ -166,7 +92,7 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
           </div>
         </div>
       )}
-      {parentCardBodyWithHoverDetails}
+      {parentCardContent}
 
       {newCardStyle && lineageChildren ? (
         <div

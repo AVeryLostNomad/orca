@@ -9,7 +9,8 @@ const keybindingsMock = vi.hoisted(() => ({
 
 const appStoreMock = vi.hoisted(() => ({
   state: {
-    activeView: 'terminal' as 'terminal' | 'settings',
+    activeView: 'terminal' as const,
+    settingsOpen: false,
     keybindings: {} as Record<string, string[]>,
     settings: {
       terminalShortcutPolicy: 'orca-first' as 'orca-first' | 'terminal-first'
@@ -161,6 +162,7 @@ beforeEach(() => {
   keybindingsMock.matchAction.mockClear()
   keybindingsMock.matchAction.mockReturnValue(false)
   appStoreMock.state.activeView = 'terminal'
+  appStoreMock.state.settingsOpen = false
   appStoreMock.state.keybindings = {}
   appStoreMock.state.settings.terminalShortcutPolicy = 'orca-first'
   vi.stubGlobal('window', {
@@ -193,8 +195,8 @@ describe('TabBarQuickCommandsMenu keyboard shortcut', () => {
     })
   })
 
-  it('does not register keyboard listeners while the terminal workbench is hidden', async () => {
-    appStoreMock.state.activeView = 'settings'
+  it('does not register keyboard listeners while Settings is open', async () => {
+    appStoreMock.state.settingsOpen = true
     reactRuntime.index = 0
     const { TabBarQuickCommandsMenu } = await import('./TabBarQuickCommandsMenu')
     TabBarQuickCommandsMenu(makeProps())

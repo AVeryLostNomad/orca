@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawnProcess } from '../../shared/child-process/run-process'
 import { mkdir, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -84,9 +84,9 @@ async function runPosixInstall(onProgress?: InstallProgress): Promise<void> {
   }
 
   await new Promise<void>((resolvePromise, reject) => {
-    const child = spawn(
-      'sh',
-      [
+    const child = spawnProcess({
+      program: 'sh',
+      args: [
         script,
         '--method',
         'standalone',
@@ -95,8 +95,8 @@ async function runPosixInstall(onProgress?: InstallProgress): Promise<void> {
         '--version',
         CODE_SERVER_VERSION
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
-    )
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
     let stderr = ''
     // install.sh does not emit machine-readable progress; surface indeterminate
     // motion by nudging toward, but never reaching, completion.
@@ -148,7 +148,11 @@ async function runPosixInstall(onProgress?: InstallProgress): Promise<void> {
   // macOS: strip the quarantine attribute so the bundled binary can execute.
   if (process.platform === 'darwin') {
     await new Promise<void>((resolvePromise) => {
-      const xattr = spawn('xattr', ['-dr', 'com.apple.quarantine', realRoot], { windowsHide: true })
+      const xattr = spawnProcess({
+        program: 'xattr',
+        args: ['-dr', 'com.apple.quarantine', realRoot],
+        stdio: 'ignore'
+      })
       xattr.on('error', () => resolvePromise())
       xattr.on('close', () => resolvePromise())
     })
@@ -186,7 +190,7 @@ async function relocateInstall(stagingRoot: string, realRoot: string): Promise<v
 
 function copyTreeWithCp(from: string, to: string): Promise<void> {
   return new Promise<void>((resolvePromise, reject) => {
-    const child = spawn('cp', ['-R', from, to], { windowsHide: true })
+    const child = spawnProcess({ program: 'cp', args: ['-R', from, to] })
     child.on('error', reject)
     child.on('close', (code) =>
       code === 0 ? resolvePromise() : reject(new Error(`cp exited with code ${code}`))

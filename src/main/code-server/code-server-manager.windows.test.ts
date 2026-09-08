@@ -31,6 +31,7 @@ vi.mock('../startup/hydrate-shell-path', () => ({
   ),
   mergePathSegments: vi.fn(() => [])
 }))
+vi.mock('../../shared/child-process/run-process', () => ({ spawnProcess: spawnMock }))
 vi.mock('node:child_process', () => ({ spawn: spawnMock, execFile: vi.fn() }))
 vi.mock('node:net', () => ({ createServer: createServerMock }))
 vi.mock('node:fs', async (importOriginal) => {
@@ -106,16 +107,14 @@ describe('CodeServerManager on win32', () => {
     await manager.acquire()
 
     expect(spawnMock).toHaveBeenCalledTimes(1)
-    const [command, args, options] = spawnMock.mock.calls[0] as [
-      string,
-      string[],
-      { windowsHide: boolean }
+    const [spec] = spawnMock.mock.calls[0] as [
+      { program: string; args: string[]; stdio: ['ignore', 'ignore', 'pipe'] }
     ]
-    expect(command).toBe(WIN_LAUNCH.command)
-    expect(args[0]).toBe(WIN_LAUNCH.args[0])
-    expect(args).toContain('--bind-addr')
-    expect(args).toContain('--session-socket')
-    expect(options.windowsHide).toBe(true)
+    expect(spec.program).toBe(WIN_LAUNCH.command)
+    expect(spec.args[0]).toBe(WIN_LAUNCH.args[0])
+    expect(spec.args).toContain('--bind-addr')
+    expect(spec.args).toContain('--session-socket')
+    expect(spec.stdio).toEqual(['ignore', 'ignore', 'pipe'])
   })
 
   it('kills the whole child tree via the injected tree killer on release', async () => {

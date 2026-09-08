@@ -34,10 +34,10 @@ export async function ensureWorkspaceNotesFile(
   if (!workspaceId) {
     throw new Error('workspaceId is required')
   }
-  // Session-scoped grant; the root lives under userData, outside every repo/workspace allowed root.
-  authorizeExternalPath(getWorkspaceNotesRoot())
   const dir = getWorkspaceNotesDir(workspaceId)
   await mkdir(dir, { recursive: true })
+  // Authorize after creation so symlinked profile roots also receive their canonical grant.
+  authorizeExternalPath(getWorkspaceNotesRoot())
   // meta.json records ownership so GC can reverse the hashed dir name.
   await writeIfMissing(
     join(dir, 'meta.json'),

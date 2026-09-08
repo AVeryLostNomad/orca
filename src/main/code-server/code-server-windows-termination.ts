@@ -6,7 +6,7 @@ import { terminateWindowsProcessTree, type WindowsTreeKiller } from '../windows-
 
 export type WindowsCodeServerTerminationDeps = {
   killWindowsTree?: WindowsTreeKiller
-  readProcessRows?: () => Promise<WindowsProcessRow[]>
+  readProcessRows?: () => Promise<readonly WindowsProcessRow[]>
 }
 
 // Kill the live code-server child's whole tree. SIGTERM on Windows terminates
@@ -36,7 +36,7 @@ export async function reapWindowsCodeServerOrphan(
   deps: WindowsCodeServerTerminationDeps = {}
 ): Promise<void> {
   const readRows = deps.readProcessRows ?? queryWindowsProcessRowsFresh
-  let rows: WindowsProcessRow[]
+  let rows: readonly WindowsProcessRow[]
   try {
     rows = await readRows()
   } catch {
@@ -54,10 +54,7 @@ export async function reapWindowsCodeServerOrphan(
 // forward-slash the install path, so compare with separators normalized.
 function isCodeServerProcessRow(row: WindowsProcessRow, cacheRoot: string): boolean {
   const needle = normalizeForPathCompare(cacheRoot)
-  return (
-    normalizeForPathCompare(row.command).includes(needle) ||
-    normalizeForPathCompare(row.executablePath).includes(needle)
-  )
+  return normalizeForPathCompare(row.command).includes(needle)
 }
 
 function normalizeForPathCompare(value: string): string {

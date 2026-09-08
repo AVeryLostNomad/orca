@@ -6,7 +6,10 @@ import type { AppState } from '@/store/types'
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
 import { RepoForkIndicator } from '@/components/repo/repo-fork-indicator'
 import type { FolderWorkspacePathStatus } from '../../../../../../shared/folder-workspace-path-status'
+import { isConfirmedStaleFolderPathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
+import type { ExecutionHostId } from '../../../../../../shared/execution-host'
+import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
 import type {
   WorkspaceStatus,
   WorkspaceStatusDefinition
@@ -26,7 +29,11 @@ import {
   WORKTREE_SECTION_HEADER_PADDING_LEFT
 } from './indentation'
 import { FolderPathStatusIndicator } from './FolderPathStatusIndicator'
-import { ProjectGroupHeaderMenu } from './project-group-header-actions'
+import { RepoScanUnavailableIndicator } from './RepoScanUnavailableIndicator'
+import {
+  ProjectGroupCreateWorkspaceButton,
+  ProjectGroupHeaderMenu
+} from './project-group-header-actions'
 import {
   RepoHeaderCreateWorkspaceButton,
   RepoHeaderProjectActionsMenu,
@@ -55,14 +62,23 @@ export type SectionHeaderRowContext = {
   }) => FolderWorkspacePathStatus | null
   toggleGroupWithScrollAnchor: (groupKey: string) => void
   projectActions: RepoHeaderProjectActions
-  onChangeProjectGroupIcon: (groupId: string) => void
-  onRenameProjectGroup: (groupId: string, currentName: string) => void
-  onDeleteProjectGroup: (groupId: string, groupName: string) => void
+  onChangeProjectGroupIcon: (groupId: string, hostId?: ExecutionHostId) => void
+  onRenameProjectGroup: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
+  onDeleteProjectGroup: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
+  onCreateFolderWorkspace: (projectGroup: ProjectGroup) => void
   onWorkspaceStatusDragOver: (event: React.DragEvent, status: WorkspaceStatus) => void
   onWorkspaceStatusDragLeave: (event: React.DragEvent) => void
   onWorkspacePinDragOver: (event: React.DragEvent) => void
   onWorkspacePinDragLeave: (event: React.DragEvent) => void
   onWorkspaceStatusDrop: (event: React.DragEvent, status: WorkspaceStatus) => void
+}
+
+// The folder-scan project group whose parent path is gone can't create new workspaces.
+function isFolderWorkspaceCreateDisabled(status: FolderWorkspacePathStatus | null): boolean {
+  return (
+    status?.exists === false &&
+    (isConfirmedStaleFolderPathStatus(status) || status.reason === 'ambiguous-connection')
+  )
 }
 
 export function renderWorktreeSectionHeaderRow(args: {
@@ -82,6 +98,11 @@ export function renderWorktreeSectionHeaderRow(args: {
   const projectGroupIdForHeader =
     isProjectGroupHeader && !row.repo && typeof row.projectGroup?.id === 'string'
       ? row.projectGroup.id
+      : undefined
+  // Why: rename/delete must route to the host that owns this row, not to whichever host has focus.
+  const projectGroupHostIdForHeader =
+    row.projectGroup && 'createdFrom' in row.projectGroup
+      ? getProjectGroupHostId(row.projectGroup)
       : undefined
   const repoHeaderIndex =
     projectIdForHeader !== undefined
@@ -346,6 +367,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               </div>
               <RepoForkIndicator upstream={row.repo?.upstream} />
               <FolderPathStatusIndicator status={projectGroupPathStatus} />
+              {isRepoHeader ? <RepoScanUnavailableIndicator repo={row.repo!} /> : null}
             </div>
           </div>
         </div>
@@ -372,10 +394,21 @@ export function renderWorktreeSectionHeaderRow(args: {
           {isProjectGroupHeader && !row.repo && projectGroupIdForHeader ? (
             <ProjectGroupHeaderMenu
               groupId={projectGroupIdForHeader}
+              hostId={projectGroupHostIdForHeader}
               label={row.label}
               onChangeIcon={ctx.onChangeProjectGroupIcon}
               onRename={ctx.onRenameProjectGroup}
               onDelete={ctx.onDeleteProjectGroup}
+            />
+          ) : null}
+
+          {folderBackedProjectGroup ? (
+            <ProjectGroupCreateWorkspaceButton
+              projectGroup={folderBackedProjectGroup}
+              label={row.label}
+              pathStatus={projectGroupPathStatus}
+              disabled={isFolderWorkspaceCreateDisabled(projectGroupPathStatus)}
+              onCreate={ctx.onCreateFolderWorkspace}
             />
           ) : null}
 

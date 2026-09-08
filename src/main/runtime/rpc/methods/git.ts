@@ -29,15 +29,20 @@ export const GIT_METHODS: RpcMethod[] = [
     handler: async (params, { runtime, signal }) => {
       const options =
         params.includeIgnored === undefined &&
+        params.includeLineStats === undefined &&
         params.bypassEffectiveUpstreamNegativeCache === undefined &&
         params.reuseLineStats === undefined &&
         params.branchLineTotalMergeBase === undefined &&
+        params.admissionTier === undefined &&
         signal === undefined
           ? undefined
           : {
               ...(params.includeIgnored === undefined
                 ? {}
                 : { includeIgnored: params.includeIgnored }),
+              ...(params.includeLineStats === undefined
+                ? {}
+                : { includeLineStats: params.includeLineStats }),
               ...(params.bypassEffectiveUpstreamNegativeCache === true
                 ? { bypassEffectiveUpstreamNegativeCache: true }
                 : {}),
@@ -45,10 +50,11 @@ export const GIT_METHODS: RpcMethod[] = [
               ...(params.branchLineTotalMergeBase === undefined
                 ? {}
                 : { branchLineTotalMergeBase: params.branchLineTotalMergeBase }),
+              admissionTier: params.admissionTier ?? 'status',
               ...(signal ? { signal } : {})
             }
       return options === undefined
-        ? runtime.getRuntimeGitStatus(params.worktree)
+        ? runtime.getRuntimeGitStatus(params.worktree, { admissionTier: 'status' })
         : runtime.getRuntimeGitStatus(params.worktree, options)
     }
   }),
@@ -104,7 +110,7 @@ export const GIT_METHODS: RpcMethod[] = [
     name: 'git.branchCompare',
     params: GitBranchCompare,
     handler: async (params, { runtime }) =>
-      runtime.getRuntimeGitBranchCompare(params.worktree, params.baseRef)
+      runtime.getRuntimeGitBranchCompare(params.worktree, params.baseRef, params.admissionTier)
   }),
   defineMethod({
     name: 'git.commitCompare',

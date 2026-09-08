@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { test as base, expect } from './helpers/orca-app'
+import { test as base, expect } from './helpers/source-control-generation-app'
 import { providePrivateSeededTestRepo } from './helpers/seeded-test-repo'
 import {
   createBranchCommit,

@@ -60,6 +60,7 @@ export function useTabGroupWorkspaceModel({
     browserItems,
     codeServerItems,
     dataStudioItems,
+    agentSessionItems,
     tabBarOrder
   } = useTabGroupItemProjections({ groupId, worktreeId, worktreeState })
 
@@ -85,7 +86,8 @@ export function useTabGroupWorkspaceModel({
     activateEditor,
     activateBrowser,
     activateCodeServer,
-    activateDataStudio
+    activateDataStudio,
+    activateAgentSession
   } = useTabGroupActivationCommands({ groupId, worktreeId, groupTabs, worktreeState })
 
   const creationCommands = useTabGroupCreationCommands({ groupId, worktreeId, worktreeState })
@@ -97,6 +99,7 @@ export function useTabGroupWorkspaceModel({
     codeServerItems,
     dataStudioItems,
     editorItems,
+    agentSessionItems,
     terminalTabs,
     tabBarOrder,
     groupTabs,
@@ -105,6 +108,7 @@ export function useTabGroupWorkspaceModel({
       focusGroup: () => {
         focusGroup(worktreeId, groupId)
       },
+      activateAgentSession,
       activateBrowser,
       activateCodeServer,
       activateDataStudio,

@@ -7,7 +7,8 @@ const {
   cacheRootMock,
   renameMock,
   mkdirMock,
-  windowsInstallMock
+  windowsInstallMock,
+  runProcessMock
 } = vi.hoisted(() => ({
   spawnMock: vi.fn(),
   resolveLaunchMock: vi.fn(),
@@ -15,10 +16,14 @@ const {
   cacheRootMock: vi.fn(() => '/userData/code-server'),
   renameMock: vi.fn(() => Promise.resolve()),
   mkdirMock: vi.fn(() => Promise.resolve()),
-  windowsInstallMock: vi.fn(() => Promise.resolve())
+  windowsInstallMock: vi.fn(() => Promise.resolve()),
+  runProcessMock: vi.fn(() => Promise.resolve({ code: 0, stdout: '', stderr: '' }))
 }))
 
-vi.mock('node:child_process', () => ({ spawn: spawnMock }))
+vi.mock('../../shared/child-process/run-process', () => ({
+  spawnProcess: spawnMock,
+  runProcess: runProcessMock
+}))
 vi.mock('node:os', () => ({ tmpdir: () => '/tmp' }))
 vi.mock('node:fs/promises', () => ({
   mkdir: mkdirMock,
@@ -72,6 +77,8 @@ describe('ensureCodeServerInstalled', () => {
     mkdirMock.mockReset()
     mkdirMock.mockResolvedValue(undefined)
     windowsInstallMock.mockReset()
+    runProcessMock.mockReset()
+    runProcessMock.mockResolvedValue({ code: 0, stdout: '', stderr: '' })
     windowsInstallMock.mockResolvedValue(undefined)
   })
 
@@ -127,9 +134,9 @@ describe('ensureCodeServerInstalled', () => {
       }
     })
     await ensureCodeServerInstalled()
-    expect(spawnMock).toHaveBeenCalledWith(
-      'sh',
-      [
+    expect(spawnMock).toHaveBeenCalledWith({
+      program: 'sh',
+      args: [
         '/res/code-server/install.sh',
         '--method',
         'standalone',
@@ -138,8 +145,8 @@ describe('ensureCodeServerInstalled', () => {
         '--version',
         '4.127.0'
       ],
-      expect.objectContaining({ stdio: expect.anything() })
-    )
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
   })
 
   it('classifies unsupported-arch by the install.sh sentinel message', async () => {
@@ -166,9 +173,9 @@ describe('ensureCodeServerInstalled', () => {
     await ensureCodeServerInstalled()
 
     // install.sh got a whitespace-free prefix (the staging dir), never the real one.
-    const [, args] = spawnMock.mock.calls[0]
-    const prefixIndex = (args as string[]).indexOf('--prefix')
-    const passedPrefix = (args as string[])[prefixIndex + 1]
+    const passedPrefix = (spawnMock.mock.calls[0][0].args as string[])[
+      (spawnMock.mock.calls[0][0].args as string[]).indexOf('--prefix') + 1
+    ]
     expect(passedPrefix).toBe('/tmp/orca-code-server-install')
     expect(passedPrefix).not.toMatch(/\s/)
 
@@ -188,9 +195,10 @@ describe('ensureCodeServerInstalled', () => {
 
     await ensureCodeServerInstalled()
 
-    const [, args] = spawnMock.mock.calls[0]
-    const prefixIndex = (args as string[]).indexOf('--prefix')
-    expect((args as string[])[prefixIndex + 1]).toBe('/userData/code-server')
+    const passedPrefix = (spawnMock.mock.calls[0][0].args as string[])[
+      (spawnMock.mock.calls[0][0].args as string[]).indexOf('--prefix') + 1
+    ]
+    expect(passedPrefix).toBe('/userData/code-server')
     expect(renameMock).not.toHaveBeenCalled()
   })
 })

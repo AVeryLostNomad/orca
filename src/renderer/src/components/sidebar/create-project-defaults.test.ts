@@ -111,6 +111,18 @@ describe('create project defaults', () => {
     ).toBe('~/orca/projects')
     expect(
       formatCreateProjectParentSummary({
+        parent: '/home/alice/orca/projects',
+        defaultParent: '/home/alice/orca/projects'
+      })
+    ).toBe('~/orca/projects')
+    expect(
+      formatCreateProjectParentSummary({
+        parent: 'C:\\Users\\alice\\orca\\projects',
+        defaultParent: 'C:\\Users\\alice\\orca\\projects'
+      })
+    ).toBe('~/orca/projects')
+    expect(
+      formatCreateProjectParentSummary({
         parent: '',
         defaultParent: '',
         runtimeEnvironmentId: 'env-1'
@@ -130,5 +142,26 @@ describe('create project defaults', () => {
         isRemoteHost: true
       })
     ).toBe('host folder not selected')
+  })
+
+  it('keeps a configured Workspace Directory verbatim in the summary', () => {
+    expect(
+      formatCreateProjectParentSummary({
+        parent: 'J:\\PROJECTS',
+        defaultParent: 'J:\\PROJECTS'
+      })
+    ).toBe('J:\\PROJECTS')
+    expect(
+      formatCreateProjectParentSummary({
+        parent: '/data/orca/projects',
+        defaultParent: '/data/orca/projects'
+      })
+    ).toBe('/data/orca/projects')
+    expect(
+      formatCreateProjectParentSummary({
+        parent: 'D:\\code\\orca\\projects',
+        defaultParent: 'D:\\code\\orca\\projects'
+      })
+    ).toBe('D:\\code\\orca\\projects')
   })
 })

@@ -6,15 +6,18 @@ import { selectProjectGroupRemovalTargets } from '@/store/slices/project-group-r
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { RepoIcon } from '../../../../../../shared/repo-icon'
+import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 
 export type ProjectGroupNameDialogState =
   | { type: 'create-from-repo'; repo: Repo }
-  | { type: 'rename'; groupId: string; currentName: string }
+  // hostId is the group row's owner host, so the mutation is not routed to whichever host has focus.
+  | { type: 'rename'; groupId: string; currentName: string; hostId?: ExecutionHostId }
 
 export type ProjectGroupDeleteDialogState = {
   groupId: string
   groupName: string
   removeContainedProjects: boolean
+  hostId?: ExecutionHostId
 }
 
 export type ProjectGroupDialogs = ReturnType<typeof useProjectGroupDialogs>
@@ -74,7 +77,10 @@ export function useProjectGroupDialogs(args: {
   )
   const [nameDialog, setNameDialog] = useState<ProjectGroupNameDialogState | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<ProjectGroupDeleteDialogState | null>(null)
-  const [iconDialogGroupId, setIconDialogGroupId] = useState<string | null>(null)
+  const [iconDialog, setIconDialog] = useState<{
+    groupId: string
+    hostId?: ExecutionHostId
+  } | null>(null)
 
   const handleCreateGroupFromRepo = useCallback((repo: Repo) => {
     setNameDialog({ type: 'create-from-repo', repo })
@@ -97,17 +103,19 @@ export function useProjectGroupDialogs(args: {
     [moveProjectToGroup]
   )
 
-  const handleRenameProjectGroup = useCallback((groupId: string, currentName: string) => {
-    setNameDialog({ type: 'rename', groupId, currentName })
-  }, [])
+  const handleRenameProjectGroup = useCallback(
+    (groupId: string, currentName: string, hostId?: ExecutionHostId) => {
+      setNameDialog({ type: 'rename', groupId, currentName, hostId })
+    },
+    []
+  )
 
-  const handleChangeProjectGroupIcon = useCallback((groupId: string) => {
-    setIconDialogGroupId(groupId)
+  const handleChangeProjectGroupIcon = useCallback((groupId: string, hostId?: ExecutionHostId) => {
+    setIconDialog({ groupId, hostId })
   }, [])
-
   const handleSaveProjectGroupIcon = useCallback(
-    async (groupId: string, icon: RepoIcon | null) => {
-      const saved = await updateProjectGroup(groupId, { icon })
+    async (groupId: string, icon: RepoIcon | null, hostId?: ExecutionHostId) => {
+      const saved = await updateProjectGroup(groupId, { icon }, { hostId })
       if (!saved) {
         toast.error(
           translate(
@@ -133,7 +141,26 @@ export function useProjectGroupDialogs(args: {
         }
         return
       }
-      await updateProjectGroup(nameDialog.groupId, { name })
+      const renamed = await updateProjectGroup(
+        nameDialog.groupId,
+        { name },
+        { hostId: nameDialog.hostId }
+      )
+      if (!renamed) {
+        toast.error(
+          translate(
+            'auto.components.sidebar.WorktreeList.groupRenameFailed',
+            'Failed to rename group'
+          ),
+          {
+            description: translate(
+              'auto.components.sidebar.WorktreeList.groupRenameFailedDesc',
+              // Why: a falsy result also covers RPC timeout/disconnect, so the copy must not assert the host refused.
+              "Orca could not confirm the new name with the group's host. Recheck the group after reconnecting."
+            )
+          }
+        )
+      }
     },
     [createProjectGroup, moveProjectToGroup, nameDialog, updateProjectGroup]
   )
@@ -142,7 +169,12 @@ export function useProjectGroupDialogs(args: {
     if (!deleteDialog) {
       return null
     }
-    return selectProjectGroupRemovalTargets(projectGroups, repos, deleteDialog.groupId)
+    return selectProjectGroupRemovalTargets(
+      projectGroups,
+      repos,
+      deleteDialog.groupId,
+      deleteDialog.hostId
+    )
   }, [deleteDialog, projectGroups, repos])
   const deleteProjectCount = deleteTargets?.projectIds.length ?? 0
   const deleteProjectNames = useMemo(
@@ -155,9 +187,12 @@ export function useProjectGroupDialogs(args: {
   const removeContainedProjects =
     deleteProjectCount > 0 && deleteDialog?.removeContainedProjects === true
 
-  const handleDeleteProjectGroup = useCallback((groupId: string, groupName: string) => {
-    setDeleteDialog({ groupId, groupName, removeContainedProjects: false })
-  }, [])
+  const handleDeleteProjectGroup = useCallback(
+    (groupId: string, groupName: string, hostId?: ExecutionHostId) => {
+      setDeleteDialog({ groupId, groupName, removeContainedProjects: false, hostId })
+    },
+    []
+  )
 
   const handleConfirmDeleteProjectGroup = useCallback(async () => {
     if (!deleteDialog) {
@@ -166,7 +201,8 @@ export function useProjectGroupDialogs(args: {
     try {
       reportProjectGroupDeleteFailures(
         await deleteProjectGroupWithContainedProjects(deleteDialog.groupId, {
-          removeContainedProjects
+          removeContainedProjects,
+          hostId: deleteDialog.hostId
         })
       )
     } finally {
@@ -179,9 +215,12 @@ export function useProjectGroupDialogs(args: {
     nameDialog,
     setNameDialog,
     deleteDialog,
-    iconDialogGroup: projectGroups.find((group) => group.id === iconDialogGroupId) ?? null,
-    setIconDialogGroupId,
     setDeleteDialog,
+    iconDialogGroup: projectGroups.find((group) => group.id === iconDialog?.groupId) ?? null,
+    iconDialogHostId: iconDialog?.hostId,
+    setIconDialogGroupId: (groupId: string | null) => {
+      setIconDialog((current) => (groupId === null ? null : current))
+    },
     deleteProjectCount,
     deleteProjectNames,
     removeContainedProjects,

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawnProcess, type ChildProcessHandle } from '../../shared/child-process/run-process'
 import { net } from 'electron'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-server-types'
@@ -70,7 +70,7 @@ export type CodeServerManagerDeps = WindowsCodeServerTerminationDeps & {
 }
 
 export class CodeServerManager implements CodeServerProvider {
-  private child: ChildProcess | null = null
+  private child: ChildProcessHandle | null = null
   private port: number | null = null
   private refCount = 0
   private quitting = false
@@ -238,9 +238,10 @@ export class CodeServerManager implements CodeServerProvider {
     // profile.buildSpawn returns a real executable on every platform (Windows
     // spawns the package's bundled node.exe against entry.js — never a .cmd),
     // so no shell and no windows-batch-spawn routing is needed.
-    const child = spawn(command, args, {
+    const child = spawnProcess({
+      program: command,
+      args,
       stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true,
       env: spawnEnv
     })
     this.child = child

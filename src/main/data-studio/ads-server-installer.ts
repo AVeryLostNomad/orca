@@ -1,6 +1,6 @@
 import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { spawn } from 'node:child_process'
+import { spawnProcess } from '../../shared/child-process/run-process'
 import { net } from 'electron'
 import { getAdsServerRoot, resolveAdsServerEntry } from './ads-server'
 
@@ -89,9 +89,10 @@ export function tarExecutable(
 function extractTarGz(archive: string, destination: string): Promise<void> {
   return new Promise((resolve, reject) => {
     mkdirSync(destination, { recursive: true })
-    const child = spawn(tarExecutable(), ['-xzf', archive, '-C', destination], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true
+    const child = spawnProcess({
+      program: tarExecutable(),
+      args: ['-xzf', archive, '-C', destination],
+      stdio: ['ignore', 'ignore', 'pipe']
     })
     let stderrTail = ''
     child.stderr?.on('data', (chunk: Buffer) => {

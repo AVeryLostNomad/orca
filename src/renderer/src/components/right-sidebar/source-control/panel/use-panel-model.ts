@@ -1,3 +1,5 @@
+import { useCallback } from 'react'
+import { openGitHubPRLinkModal } from '../../github-pr-link-modal'
 import { useGitHistoryCommitActions } from '../sync/use-git-history-commit-actions'
 import { useSourceControlCommitFlows } from '../commit/use-commit-flows'
 import { useSourceControlDiscardConfirmation } from '../commit/use-discard-confirmation'
@@ -58,6 +60,7 @@ export function useSourceControlPanelModel() {
     isHostedReviewCreationLoading,
     isHostedReviewStateLoading,
     isRemoteOperationActive,
+    openModal,
     openCommittedDiff,
     refreshActiveGitStatusAfterMutation,
     remoteStatus,
@@ -65,6 +68,7 @@ export function useSourceControlPanelModel() {
     resolveSplitTargetGroupId,
     setIsExecutingBulk,
     sourceControlRef,
+    suppressedGitHubPRState,
     unresolvedConflicts,
     worktreePath
   } = foundation
@@ -100,9 +104,21 @@ export function useSourceControlPanelModel() {
     prGenerating,
     isCreatingPr,
     hostedReviewReviewLabel: hostedReviewCreateCopy.reviewLabel,
+    hasSuppressedGitHubPRState: suppressedGitHubPRState !== null,
     conflictOperation,
     effectiveBaseRef
   })
+  const handleRelinkSuppressedGitHubPR = useCallback(() => {
+    if (!activeWorktree || !activeWorktreeId || suppressedGitHubPRState?.status !== 'matched') {
+      return
+    }
+    openGitHubPRLinkModal({
+      openModal,
+      worktree: activeWorktree,
+      worktreeId: activeWorktreeId,
+      currentPR: suppressedGitHubPRState.number
+    })
+  }, [activeWorktree, activeWorktreeId, openModal, suppressedGitHubPRState])
   const actionDispatch = useSourceControlActionDispatch({
     createPrHeaderAction: actionModel.createPrHeaderAction,
     handleAbortMerge,
@@ -192,7 +208,8 @@ export function useSourceControlPanelModel() {
     ...noteOpening,
     ...entryMutations,
     ...moveChanges,
-    ...discardConfirmation
+    ...discardConfirmation,
+    handleRelinkSuppressedGitHubPR
   }
 }
 

@@ -42,6 +42,7 @@ export type WindowShortcutAction =
   | { type: 'deleteCurrentWorkspace' }
   | { type: 'openWorkspaceBoard' }
   | { type: 'openTasks' }
+  | { type: 'toggleAgentDashboard' }
   | { type: 'switchRecentTab' }
   | { type: 'jumpToWorktreeIndex'; index: number }
   | { type: 'jumpToTabIndex'; index: number }
@@ -255,6 +256,10 @@ export function resolveWindowShortcutAction(
     return { type: 'openTasks' }
   }
 
+  if (actionMatches('dashboard.toggle', input, platform, keybindings, options)) {
+    return { type: 'toggleAgentDashboard' }
+  }
+
   if (actionMatches('tab.previousRecent', input, platform, keybindings, options)) {
     return { type: 'switchRecentTab' }
   }
@@ -330,6 +335,8 @@ export function getWindowShortcutActionId(action: WindowShortcutAction): Keybind
       return 'workspace.openBoard'
     case 'openTasks':
       return 'view.tasks'
+    case 'toggleAgentDashboard':
+      return 'dashboard.toggle'
     case 'switchRecentTab':
       return 'tab.previousRecent'
     case 'worktreeHistoryNavigate':
