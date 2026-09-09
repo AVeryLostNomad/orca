@@ -7,6 +7,7 @@ import { diagnoseGhAuth } from '../github/auth-diagnose'
 import { checkOrcaStarred, getAuthenticatedViewer, starOrca } from '../github/client'
 import { deleteGithubPatToken, saveGithubPatToken } from '../github/github-pat-store'
 import { invalidateGithubAccountToken } from '../github/github-account-env'
+import { resolveGithubAuthorIdentity } from '../github/github-author-identity'
 import { getRateLimit } from '../github/rate-limit'
 import { getCohortAtEmit } from '../telemetry/cohort-classifier'
 import { track } from '../telemetry/client'
@@ -32,6 +33,10 @@ export function registerGitHubAccountHandlers(store: Store): void {
 
   ipcMain.handle('gh:diagnoseAuth', (_event, args?: { host?: string }) =>
     diagnoseGhAuth(args?.host)
+  )
+
+  ipcMain.handle('gh:resolveAuthorIdentity', (_event, args?: { accountRef?: string }) =>
+    resolveGithubAuthorIdentity(args?.accountRef)
   )
 
   ipcMain.handle(
