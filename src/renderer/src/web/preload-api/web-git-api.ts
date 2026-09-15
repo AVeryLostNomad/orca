@@ -3,6 +3,8 @@ import { callAbortableRuntimeEnvironment } from '../../runtime/abortable-runtime
 import { toRuntimeWorktreeSelector } from '../../runtime/runtime-worktree-selector'
 import { translate } from '@/i18n/i18n'
 import type { GitMoveChangesResult } from '../../../../shared/git-move-changes'
+import { createWebGitRemoteUrlApi } from './web-git-remote-url-api'
+import { createWebGitStashApi } from './web-git-stash-api'
 import { callRuntimeResult } from './web-runtime-calls'
 import { requireActiveEnvironment, updateEnvironmentFromResponse } from './web-runtime-session'
 import {
@@ -265,21 +267,8 @@ export function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
         targetWorktree: toRuntimeWorktreeSelector(targetWorktree.id)
       })
     },
-    remoteFileUrl: async ({ worktreePath, relativePath, line }) => {
-      const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
-      return callRuntimeResult('git.remoteFileUrl', {
-        worktree: toRuntimeWorktreeSelector(worktree.id),
-        relativePath,
-        line
-      })
-    },
-    remoteCommitUrl: async ({ worktreePath, sha }) => {
-      const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
-      return callRuntimeResult('git.remoteCommitUrl', {
-        worktree: toRuntimeWorktreeSelector(worktree.id),
-        sha
-      })
-    }
+    ...createWebGitStashApi(),
+    ...createWebGitRemoteUrlApi()
   }
 }
 
@@ -301,5 +290,8 @@ export async function mutateGitPaths(
   filePaths: string[]
 ): Promise<void> {
   const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
-  await callRuntimeResult(method, { worktree: toRuntimeWorktreeSelector(worktree.id), filePaths })
+  await callRuntimeResult(method, {
+    worktree: toRuntimeWorktreeSelector(worktree.id),
+    filePaths
+  })
 }

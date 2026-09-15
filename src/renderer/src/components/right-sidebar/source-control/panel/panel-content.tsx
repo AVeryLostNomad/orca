@@ -2,6 +2,7 @@ import { GitHistoryPanel } from '../sync/git-history-panel'
 import { shouldShowSourceControlCompareUnavailableCard } from './header-toolbar'
 import { shouldRenderCommitArea } from '../commit/component-gates'
 import { SourceControlBranchSection } from '../listing/branch-section'
+import { SourceControlStashSection } from '../listing/stash-section'
 import { SourceControlContentStatus } from '../listing/content-status'
 import { SourceControlUncommittedSections } from '../listing/uncommitted-sections'
 import { CompareUnavailable } from '../sync/compare-summary'
@@ -17,12 +18,15 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
     activeOpenRowKeys,
     branchEntries,
     branchSummary,
+    applyStash,
     canMoveChanges,
+    canStash,
     collapsedSections,
     collapsedTreeDirs,
     conflictOperation,
     diffCommentCountByPath,
     displaySections,
+    dropStash,
     expandedSubmoduleKeys,
     fileFilterState,
     fileListScrollElement,
@@ -45,6 +49,7 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
     isExecutingBulk,
     isGitHistoryVisible,
     loadCommitFiles,
+    loadStashFiles,
     normalizedFilter,
     openAllDiffs,
     openBranchAllDiffs,
@@ -55,16 +60,21 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
     refreshActiveGitStatus,
     refreshBranchCompare,
     refreshGitHistory,
+    refreshStashes,
     repositoryHuge,
     requestDiscardAllInArea,
     requestMoveChanges,
+    requestStashArea,
     requestDiscardEntry,
     requestDiscardPaths,
     revealInExplorer,
     selectedKeySet,
     setBaseRefDialogOpen,
+    setSelectedStash,
     sourceControlAiActionsVisible,
     sourceControlViewMode,
+    stashListState,
+    stashes,
     toggleSection,
     toggleSubmodule,
     toggleTreeDir,
@@ -149,6 +159,8 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
           requestDiscardAllInArea={requestDiscardAllInArea}
           canMoveChanges={canMoveChanges}
           requestMoveChanges={requestMoveChanges}
+          canStash={canStash}
+          requestStashArea={requestStashArea}
           handleStageAllPaths={handleStageAllPaths}
           handleUnstagePaths={handleUnstagePaths}
           sourceControlViewMode={sourceControlViewMode}
@@ -208,6 +220,20 @@ export function SourceControlPanelContent(props: SourceControlPanelReadyProps) {
           openCommittedDiff={openCommittedDiff}
           openBranchAllDiffs={openBranchAllDiffs}
           diffCommentCountByPath={diffCommentCountByPath}
+        />
+      )}
+
+      {stashes.length > 0 && (
+        <SourceControlStashSection
+          state={stashListState}
+          stashes={stashes}
+          collapsedSections={collapsedSections}
+          toggleSection={toggleSection}
+          onRefresh={() => void refreshStashes()}
+          onLoadStashFiles={loadStashFiles}
+          onSelectStash={setSelectedStash}
+          onApplyStash={(stash) => void applyStash(stash)}
+          onDeleteStash={(stash) => void dropStash(stash)}
         />
       )}
 

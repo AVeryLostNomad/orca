@@ -10,6 +10,7 @@ import { useSourceControlActionDispatch } from '../review/use-action-dispatch'
 import { useSourceControlActionModel } from '../review/use-action-model'
 import { useSourceControlCreatePrIntentFlows } from '../review/use-create-pr-intent-flows'
 import { useSourceControlReviewFlows } from '../review/use-review-flows'
+import { useSourceControlStashes } from '../sync/use-stashes'
 import { useSourceControlUpstreamStatusFetch } from '../sync/use-upstream-status-fetch'
 import { useSourceControlPanelFoundation } from './use-panel-foundation'
 import { useCommandBarSourceControlIntent } from './use-command-bar-intent'
@@ -70,6 +71,7 @@ export function useSourceControlPanelModel() {
     sourceControlRef,
     suppressedGitHubPRState,
     unresolvedConflicts,
+    worktreeMap,
     worktreePath
   } = foundation
   const {
@@ -184,6 +186,21 @@ export function useSourceControlPanelModel() {
     clearSelection,
     refreshActiveGitStatusAfterMutation
   })
+  const stashes = useSourceControlStashes({
+    activeRepoSettings,
+    activeWorktreeId,
+    worktreePath,
+    branchName,
+    entries,
+    grouped,
+    isFolder,
+    isBranchVisible,
+    isExecutingBulk,
+    setIsExecutingBulk,
+    clearSelection,
+    refreshActiveGitStatusAfterMutation,
+    worktreeMap
+  })
   const discardConfirmation = useSourceControlDiscardConfirmation({
     activeRepoSettings,
     activeWorktreeId,
@@ -208,6 +225,7 @@ export function useSourceControlPanelModel() {
     ...noteOpening,
     ...entryMutations,
     ...moveChanges,
+    ...stashes,
     ...discardConfirmation,
     handleRelinkSuppressedGitHubPR
   }

@@ -37,6 +37,11 @@ type RuntimeGitCommandName =
   | 'discardRuntimeGitPath'
   | 'getRuntimeGitRemoteFileUrl'
   | 'getRuntimeGitRemoteCommitUrl'
+  | 'listRuntimeGitStashes'
+  | 'listRuntimeGitStashFiles'
+  | 'pushRuntimeGitStash'
+  | 'applyRuntimeGitStash'
+  | 'dropRuntimeGitStash'
 
 export type RuntimeGitCommandSurface = Pick<RuntimeGitCommands, RuntimeGitCommandName>
 
@@ -81,6 +86,11 @@ export function installRuntimeGitCommandSurface(
     bulkDiscardRuntimeGitPaths: commands.bulkDiscardRuntimeGitPaths.bind(commands),
     discardRuntimeGitPath: commands.discardRuntimeGitPath.bind(commands),
     getRuntimeGitRemoteFileUrl: commands.getRuntimeGitRemoteFileUrl.bind(commands),
-    getRuntimeGitRemoteCommitUrl: commands.getRuntimeGitRemoteCommitUrl.bind(commands)
+    getRuntimeGitRemoteCommitUrl: commands.getRuntimeGitRemoteCommitUrl.bind(commands),
+    listRuntimeGitStashes: commands.listRuntimeGitStashes.bind(commands),
+    listRuntimeGitStashFiles: commands.listRuntimeGitStashFiles.bind(commands),
+    pushRuntimeGitStash: commands.pushRuntimeGitStash.bind(commands),
+    applyRuntimeGitStash: commands.applyRuntimeGitStash.bind(commands),
+    dropRuntimeGitStash: commands.dropRuntimeGitStash.bind(commands)
   } satisfies RuntimeGitCommandSurface)
 }

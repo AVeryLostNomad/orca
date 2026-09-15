@@ -10,6 +10,8 @@
  * within the Git 2.25 baseline (see docs/reference/git-compatibility.md).
  */
 
+import { dropGitStash } from './git-stash'
+
 export type GitMoveChangesExec = (
   args: string[],
   cwd: string
@@ -95,19 +97,9 @@ async function dropStashEntry(
   cwd: string,
   stashSha: string
 ): Promise<void> {
-  try {
-    const { stdout } = await exec(['stash', 'list', '--format=%H %gd'], cwd)
-    for (const line of stdout.split('\n')) {
-      const [sha, selector] = line.trim().split(' ')
-      if (sha === stashSha && selector) {
-        await exec(['stash', 'drop', selector], cwd)
-        return
-      }
-    }
-  } catch {
-    // Why: dropping is cleanup only — the move already succeeded (or the
-    // source was restored); a leftover stash entry is harmless and visible.
-  }
+  // Why: dropping is cleanup only — the move already succeeded (or the
+  // source was restored); a leftover stash entry is harmless and visible.
+  await dropGitStash(exec, cwd, stashSha)
 }
 
 /** Put the just-stashed changes back into the source worktree. */

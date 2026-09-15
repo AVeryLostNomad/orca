@@ -16,6 +16,8 @@ import {
   GitRebaseFromBase,
   GitRemoteCommitUrl,
   GitRemoteFileUrl,
+  GitStashPush,
+  GitStashSha,
   GitStatusParams,
   GitSubmoduleStatus,
   GitTargetedRemote,
@@ -49,12 +51,16 @@ export const GIT_METHODS: RpcMethod[] = [
               ...(params.reuseLineStats === true ? { reuseLineStats: true } : {}),
               ...(params.branchLineTotalMergeBase === undefined
                 ? {}
-                : { branchLineTotalMergeBase: params.branchLineTotalMergeBase }),
+                : {
+                    branchLineTotalMergeBase: params.branchLineTotalMergeBase
+                  }),
               admissionTier: params.admissionTier ?? 'status',
               ...(signal ? { signal } : {})
             }
       return options === undefined
-        ? runtime.getRuntimeGitStatus(params.worktree, { admissionTier: 'status' })
+        ? runtime.getRuntimeGitStatus(params.worktree, {
+            admissionTier: 'status'
+          })
         : runtime.getRuntimeGitStatus(params.worktree, options)
     }
   }),
@@ -221,6 +227,34 @@ export const GIT_METHODS: RpcMethod[] = [
     params: GitMoveChanges,
     handler: async (params, { runtime }) =>
       runtime.moveRuntimeGitChanges(params.worktree, params.targetWorktree)
+  }),
+  defineMethod({
+    name: 'git.stashList',
+    params: WorktreeSelector,
+    handler: async (params, { runtime }) => runtime.listRuntimeGitStashes(params.worktree)
+  }),
+  defineMethod({
+    name: 'git.stashFiles',
+    params: GitStashSha,
+    handler: async (params, { runtime }) =>
+      runtime.listRuntimeGitStashFiles(params.worktree, params.sha)
+  }),
+  defineMethod({
+    name: 'git.stashPush',
+    params: GitStashPush,
+    handler: async (params, { runtime }) =>
+      runtime.pushRuntimeGitStash(params.worktree, params.request)
+  }),
+  defineMethod({
+    name: 'git.stashApply',
+    params: GitStashSha,
+    handler: async (params, { runtime }) =>
+      runtime.applyRuntimeGitStash(params.worktree, params.sha)
+  }),
+  defineMethod({
+    name: 'git.stashDrop',
+    params: GitStashSha,
+    handler: async (params, { runtime }) => runtime.dropRuntimeGitStash(params.worktree, params.sha)
   }),
   defineMethod({
     name: 'git.remoteFileUrl',

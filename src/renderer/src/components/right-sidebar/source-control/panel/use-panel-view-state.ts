@@ -5,9 +5,9 @@ import { normalizeSourceControlViewMode } from '../commit/commit-drafts'
 import type { SourceControlStoreActions } from '../listing/use-store-actions'
 import type { SourceControlWorktreeContext } from '../listing/use-worktree-context'
 
-// Why: Committed on Branch starts collapsed — it's reference material; the
-// working-set sections are the panel's focus.
-const DEFAULT_COLLAPSED_SECTIONS = ['history', 'branch'] as const
+// Why: Committed on Branch and Stashes start collapsed — they're reference
+// material; the working-set sections are the panel's focus.
+const DEFAULT_COLLAPSED_SECTIONS = ['history', 'branch', 'stashes'] as const
 
 function createDefaultCollapsedSections(): Set<string> {
   return new Set(DEFAULT_COLLAPSED_SECTIONS)

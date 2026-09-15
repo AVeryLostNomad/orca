@@ -1,6 +1,7 @@
 import { RuntimeGitDiffCommands } from './runtime-git-diff-commands'
 import { RuntimeGitGenerationCommands } from './runtime-git-generation-commands'
 import { RuntimeGitStagingCommands } from './runtime-git-staging-commands'
+import { RuntimeGitStashCommands } from './runtime-git-stash-commands'
 import { RuntimeGitStatusCommands } from './runtime-git-status-commands'
 import { RuntimeGitSyncCommands } from './runtime-git-sync-commands'
 import type { RuntimeGitCommandHost } from './runtime-git-command-target'
@@ -47,6 +48,11 @@ export class RuntimeGitCommands {
   readonly bulkUnstageRuntimeGitPaths: RuntimeGitStagingCommands['bulkUnstageRuntimeGitPaths']
   readonly bulkDiscardRuntimeGitPaths: RuntimeGitStagingCommands['bulkDiscardRuntimeGitPaths']
   readonly discardRuntimeGitPath: RuntimeGitStagingCommands['discardRuntimeGitPath']
+  readonly listRuntimeGitStashes: RuntimeGitStashCommands['listRuntimeGitStashes']
+  readonly listRuntimeGitStashFiles: RuntimeGitStashCommands['listRuntimeGitStashFiles']
+  readonly pushRuntimeGitStash: RuntimeGitStashCommands['pushRuntimeGitStash']
+  readonly applyRuntimeGitStash: RuntimeGitStashCommands['applyRuntimeGitStash']
+  readonly dropRuntimeGitStash: RuntimeGitStashCommands['dropRuntimeGitStash']
 
   constructor(host: RuntimeGitCommandHost) {
     const status = new RuntimeGitStatusCommands(host)
@@ -54,6 +60,7 @@ export class RuntimeGitCommands {
     const sync = new RuntimeGitSyncCommands(host)
     const generation = new RuntimeGitGenerationCommands(host)
     const staging = new RuntimeGitStagingCommands(host)
+    const stash = new RuntimeGitStashCommands(host)
 
     this.getRuntimeGitStatus = status.getRuntimeGitStatus.bind(status)
     this.getRuntimeGitSubmoduleStatus = status.getRuntimeGitSubmoduleStatus.bind(status)
@@ -95,5 +102,10 @@ export class RuntimeGitCommands {
     this.bulkUnstageRuntimeGitPaths = staging.bulkUnstageRuntimeGitPaths.bind(staging)
     this.bulkDiscardRuntimeGitPaths = staging.bulkDiscardRuntimeGitPaths.bind(staging)
     this.discardRuntimeGitPath = staging.discardRuntimeGitPath.bind(staging)
+    this.listRuntimeGitStashes = stash.listRuntimeGitStashes.bind(stash)
+    this.listRuntimeGitStashFiles = stash.listRuntimeGitStashFiles.bind(stash)
+    this.pushRuntimeGitStash = stash.pushRuntimeGitStash.bind(stash)
+    this.applyRuntimeGitStash = stash.applyRuntimeGitStash.bind(stash)
+    this.dropRuntimeGitStash = stash.dropRuntimeGitStash.bind(stash)
   }
 }

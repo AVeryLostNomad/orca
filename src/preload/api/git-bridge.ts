@@ -3,6 +3,7 @@ import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../share
 import type { GitStagingArea, GitUpstreamStatus } from '../../shared/git-status-types'
 import type { GitPushTarget } from '../../shared/worktree/types'
 import type { GitHistoryOptions, GitHistoryResult } from '../../shared/git-history'
+import type { GitStashPushRequest } from '../../shared/git-stash'
 import type { PreloadApi } from '../api-types'
 
 export const gitApi = {
@@ -103,7 +104,12 @@ export const gitApi = {
   }): Promise<void> => ipcRenderer.invoke('git:rebaseFromBase', args),
   branchDiff: (args: {
     worktreePath: string
-    compare: { baseRef: string; baseOid: string; headOid: string; mergeBase: string }
+    compare: {
+      baseRef: string
+      baseOid: string
+      headOid: string
+      mergeBase: string
+    }
     filePath: string
     oldPath?: string
     connectionId?: string
@@ -190,6 +196,19 @@ export const gitApi = {
     targetWorktreePath: string
     connectionId?: string
   }) => ipcRenderer.invoke('git:moveChanges', args),
+  stashList: (args: { worktreePath: string; connectionId?: string }) =>
+    ipcRenderer.invoke('git:stashList', args),
+  stashFiles: (args: { worktreePath: string; sha: string; connectionId?: string }) =>
+    ipcRenderer.invoke('git:stashFiles', args),
+  stashPush: (args: {
+    worktreePath: string
+    request: GitStashPushRequest
+    connectionId?: string
+  }) => ipcRenderer.invoke('git:stashPush', args),
+  stashApply: (args: { worktreePath: string; sha: string; connectionId?: string }) =>
+    ipcRenderer.invoke('git:stashApply', args),
+  stashDrop: (args: { worktreePath: string; sha: string; connectionId?: string }) =>
+    ipcRenderer.invoke('git:stashDrop', args),
   remoteFileUrl: (args: {
     worktreePath: string
     relativePath: string

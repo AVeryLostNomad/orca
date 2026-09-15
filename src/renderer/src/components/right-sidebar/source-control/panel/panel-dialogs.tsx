@@ -1,5 +1,7 @@
 import { readSourceControlLaunchRecipeAgentId } from '@/lib/source-control-launch-agent-selection'
 import { SourceControlMoveChangesDialog } from '../commit/move-changes-dialog'
+import { SourceControlStashEntryDialog } from '../commit/stash-entry-dialog'
+import { SourceControlStashPushDialog } from '../commit/stash-push-dialog'
 import { SourceControlDialogLayer } from './dialog-layer'
 import type { SourceControlPanelReadyProps } from './panel-props'
 
@@ -12,8 +14,17 @@ export function SourceControlPanelDialogs({
   const {
     activeConnectionId,
     activeGroupId,
+    applyStash,
     branchName,
+    cancelPendingStashPush,
+    dropStash,
     executeMoveChanges,
+    executeStashPush,
+    isExecutingBulk,
+    isMutatingStash,
+    pendingStashPush,
+    selectedStash,
+    setSelectedStash,
     moveChangesDialogOpen,
     setMoveChangesDialogOpen,
     activeSourceControlLaunchPlatform,
@@ -62,6 +73,24 @@ export function SourceControlPanelDialogs({
         currentWorktreeId={activeWorktreeId}
         sourceBranchName={branchName}
         onSelectTarget={(target) => void executeMoveChanges(target)}
+      />
+      <SourceControlStashPushDialog
+        pending={pendingStashPush}
+        branchName={branchName}
+        isExecuting={isExecutingBulk}
+        onCancel={cancelPendingStashPush}
+        onSubmit={(submission) => void executeStashPush(submission)}
+      />
+      <SourceControlStashEntryDialog
+        stash={selectedStash}
+        isMutating={isMutatingStash}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedStash(null)
+          }
+        }}
+        onApply={(stash) => void applyStash(stash)}
+        onDelete={(stash) => void dropStash(stash)}
       />
       <SourceControlDialogLayer
         clearNotesOpen={resolvedPendingDiffCommentsClear !== null}
@@ -126,7 +155,9 @@ export function SourceControlPanelDialogs({
         }}
         onSaveCommitMessageDefaults={handleSaveCommitMessageGenerationDefaults}
         onGeneratePullRequestFields={(params) => {
-          void handleGeneratePullRequestFields({ sourceControlAiResolvedParams: params })
+          void handleGeneratePullRequestFields({
+            sourceControlAiResolvedParams: params
+          })
         }}
         onSavePullRequestDefaults={handleSavePullRequestGenerationDefaults}
       />

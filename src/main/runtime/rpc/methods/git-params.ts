@@ -123,7 +123,9 @@ const CommitMessageAiSettings = z.object({
   customAgentCommand: z.string()
 })
 
-const SourceControlAiSettings = CommitMessageAiSettings.omit({ customPrompt: true }).extend({
+const SourceControlAiSettings = CommitMessageAiSettings.omit({
+  customPrompt: true
+}).extend({
   actions: z
     .record(
       z.string(),
@@ -268,6 +270,21 @@ export const GitRemoteFileUrl = WorktreeSelector.extend({
     .transform((v) => (typeof v === 'string' ? v : ''))
     .pipe(z.string().min(1, 'Missing relative path')),
   line: z.number().int().min(1)
+})
+
+export const GitStashSha = WorktreeSelector.extend({
+  sha: z
+    .unknown()
+    .transform((v) => (typeof v === 'string' ? v : ''))
+    .pipe(FullGitObjectId)
+})
+
+export const GitStashPush = WorktreeSelector.extend({
+  request: z.object({
+    message: z.string(),
+    scope: z.enum(['all', 'staged', 'unstaged', 'untracked']),
+    paths: z.array(z.string().min(1, 'Missing file path')).optional()
+  })
 })
 
 export const GitRemoteCommitUrl = WorktreeSelector.extend({

@@ -1,4 +1,12 @@
 import type { GitMoveChangesResult } from '../../shared/git-move-changes'
+import type {
+  GitStashApplyResult,
+  GitStashDropResult,
+  GitStashFilesResult,
+  GitStashListResult,
+  GitStashPushRequest,
+  GitStashPushResult
+} from '../../shared/git-stash'
 import type { GitStatusResult } from '../../shared/git-status-types'
 import type { RemoveWorktreeResult } from '../../shared/worktree/create-types'
 import type { GitWorktreeInfo } from '../../shared/worktree/types'
@@ -69,7 +77,11 @@ export class SshGitWorktreeProvider extends SshGitReviewHeadProvider {
     repoPath: string,
     branchName: string,
     targetDir: string,
-    options?: { base?: string; checkoutExistingBranch?: boolean; noCheckout?: boolean }
+    options?: {
+      base?: string
+      checkoutExistingBranch?: boolean
+      noCheckout?: boolean
+    }
   ): Promise<void> {
     await this.runWithGitReadInvalidation(async () => {
       await this.mux.request('git.addWorktree', {
@@ -118,6 +130,46 @@ export class SshGitWorktreeProvider extends SshGitReviewHeadProvider {
     }
   }
 
+  // Why: an old relay answers every stash method with -32601; name the fix instead of leaking a JSON-RPC code.
+  private async requestStash<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    try {
+      return (await this.mux.request(method, params)) as T
+    } catch (error) {
+      if (isJsonRpcMethodNotFoundError(error)) {
+        throw new Error(
+          'The remote Orca agent is out of date and does not support stashes. Reconnect to update it.'
+        )
+      }
+      throw error
+    }
+  }
+
+  listStashes(worktreePath: string): Promise<GitStashListResult> {
+    return this.requestStash('git.stashList', { worktreePath })
+  }
+
+  listStashFiles(worktreePath: string, sha: string): Promise<GitStashFilesResult> {
+    return this.requestStash('git.stashFiles', { worktreePath, sha })
+  }
+
+  pushStash(worktreePath: string, request: GitStashPushRequest): Promise<GitStashPushResult> {
+    return this.runWithGitReadInvalidation(() =>
+      this.requestStash('git.stashPush', { worktreePath, request })
+    )
+  }
+
+  applyStash(worktreePath: string, sha: string): Promise<GitStashApplyResult> {
+    return this.runWithGitReadInvalidation(() =>
+      this.requestStash('git.stashApply', { worktreePath, sha })
+    )
+  }
+
+  dropStash(worktreePath: string, sha: string): Promise<GitStashDropResult> {
+    return this.runWithGitReadInvalidation(() =>
+      this.requestStash('git.stashDrop', { worktreePath, sha })
+    )
+  }
+
   async worktreeIsClean(
     worktreePath: string,
     options: { includeUntracked?: boolean } = {}
@@ -134,7 +186,10 @@ export class SshGitWorktreeProvider extends SshGitReviewHeadProvider {
             return result
           }
           const trackedStdout = filterUntrackedPorcelainStatus(result.stdout)
-          return { clean: !trackedStdout, ...(trackedStdout ? { stdout: trackedStdout } : {}) }
+          return {
+            clean: !trackedStdout,
+            ...(trackedStdout ? { stdout: trackedStdout } : {})
+          }
         }
         return result
       },
@@ -171,7 +226,10 @@ export class SshGitWorktreeProvider extends SshGitReviewHeadProvider {
 
   async renameCurrentBranch(worktreePath: string, newBranch: string): Promise<void> {
     await this.runWithGitReadInvalidation(async () => {
-      await this.mux.request('git.renameCurrentBranch', { worktreePath, newBranch })
+      await this.mux.request('git.renameCurrentBranch', {
+        worktreePath,
+        newBranch
+      })
     })
   }
 
@@ -180,7 +238,10 @@ export class SshGitWorktreeProvider extends SshGitReviewHeadProvider {
   // that hasn't shipped it yet degrades to no marker rather than failing materialization.
   async markRemoteOrcaCreated(repoPath: string, remoteName: string): Promise<void> {
     try {
-      await this.mux.request('git.markRemoteOrcaCreated', { repoPath, remoteName })
+      await this.mux.request('git.markRemoteOrcaCreated', {
+        repoPath,
+        remoteName
+      })
     } catch (error) {
       if (!isJsonRpcMethodNotFoundError(error)) {
         throw error

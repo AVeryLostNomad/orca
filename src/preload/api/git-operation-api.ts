@@ -1,5 +1,13 @@
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
 import type { GitMoveChangesResult } from '../../shared/git-move-changes'
+import type {
+  GitStashApplyResult,
+  GitStashDropResult,
+  GitStashFilesResult,
+  GitStashListResult,
+  GitStashPushRequest,
+  GitStashPushResult
+} from '../../shared/git-stash'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { GitPushTarget } from '../../shared/worktree/types'
 import type { HostedReviewProvider } from '../../shared/hosted-review'
@@ -128,4 +136,25 @@ export type GitOperationApi = {
     targetWorktreePath: string
     connectionId?: string
   }) => Promise<GitMoveChangesResult>
+  stashList: (args: { worktreePath: string; connectionId?: string }) => Promise<GitStashListResult>
+  stashFiles: (args: {
+    worktreePath: string
+    sha: string
+    connectionId?: string
+  }) => Promise<GitStashFilesResult>
+  stashPush: (args: {
+    worktreePath: string
+    request: GitStashPushRequest
+    connectionId?: string
+  }) => Promise<GitStashPushResult>
+  stashApply: (args: {
+    worktreePath: string
+    sha: string
+    connectionId?: string
+  }) => Promise<GitStashApplyResult>
+  stashDrop: (args: {
+    worktreePath: string
+    sha: string
+    connectionId?: string
+  }) => Promise<GitStashDropResult>
 }

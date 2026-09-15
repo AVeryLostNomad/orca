@@ -35,6 +35,13 @@ import {
   syncRuntimeGitForkDefaultBranch as syncRuntimeGitForkDefaultBranchImplementation
 } from './runtime-git-sync-client'
 import {
+  applyRuntimeGitStash as applyRuntimeGitStashImplementation,
+  dropRuntimeGitStash as dropRuntimeGitStashImplementation,
+  listRuntimeGitStashFiles as listRuntimeGitStashFilesImplementation,
+  listRuntimeGitStashes as listRuntimeGitStashesImplementation,
+  pushRuntimeGitStash as pushRuntimeGitStashImplementation
+} from './runtime-git-stash-client'
+import {
   bulkDiscardRuntimeGitPaths as bulkDiscardRuntimeGitPathsImplementation,
   bulkStageRuntimeGitPaths as bulkStageRuntimeGitPathsImplementation,
   bulkUnstageRuntimeGitPaths as bulkUnstageRuntimeGitPathsImplementation,
@@ -91,3 +98,8 @@ export const bulkDiscardRuntimeGitPaths = bulkDiscardRuntimeGitPathsImplementati
 export const discardRuntimeGitPath = discardRuntimeGitPathImplementation
 export const getRuntimeGitRemoteFileUrl = getRuntimeGitRemoteFileUrlImplementation
 export const getRuntimeGitRemoteCommitUrl = getRuntimeGitRemoteCommitUrlImplementation
+export const listRuntimeGitStashes = listRuntimeGitStashesImplementation
+export const listRuntimeGitStashFiles = listRuntimeGitStashFilesImplementation
+export const pushRuntimeGitStash = pushRuntimeGitStashImplementation
+export const applyRuntimeGitStash = applyRuntimeGitStashImplementation
+export const dropRuntimeGitStash = dropRuntimeGitStashImplementation

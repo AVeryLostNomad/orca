@@ -30,6 +30,11 @@ describe('SshGitProvider public API parity', () => {
       'discardChanges',
       'bulkDiscardChanges',
       'moveChangesToWorktree',
+      'listStashes',
+      'listStashFiles',
+      'pushStash',
+      'applyStash',
+      'dropStash',
       'detectConflictOperation',
       'abortMerge',
       'abortRebase',
@@ -65,7 +70,7 @@ describe('SshGitProvider public API parity', () => {
       'getRemoteCommitUrl'
     ] as const
 
-    expect(methods).toHaveLength(53)
+    expect(methods).toHaveLength(58)
     for (const method of methods) {
       expect(provider[method], method).toBeTypeOf('function')
     }

@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderInput, Minus, Plus, Trash, Undo2 } from 'lucide-react'
+import { Archive, FolderInput, Minus, Plus, Trash, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
@@ -59,6 +59,8 @@ export function SourceControlUncommittedSections(props: {
   requestDiscardAllInArea: (area: DiscardAllArea, paths?: readonly string[]) => void
   canMoveChanges: boolean
   requestMoveChanges: () => void
+  canStash: boolean
+  requestStashArea: (area: SourceControlSectionArea) => void
   handleStageAllPaths: (paths: readonly string[]) => Promise<void>
   handleUnstagePaths: (paths: readonly string[]) => Promise<void>
   sourceControlViewMode: SourceControlViewMode
@@ -105,6 +107,9 @@ export function SourceControlUncommittedSections(props: {
         const canMoveAll = !props.normalizedFilter && sectionIndex === 0 && props.canMoveChanges
         const canUnstageAll = !props.normalizedFilter && unstageAllPaths.length > 0
         const canRevertAll = !props.normalizedFilter && discardAllPaths.length > 0
+        // Why: git refuses to stash unmerged entries, so the conflicts section gets no stash action.
+        const canStashArea =
+          !props.normalizedFilter && props.canStash && id !== 'conflicts' && actionItems.length > 0
         const sectionLabel = id === 'conflicts' ? CONFLICTS_SECTION_LABEL : SECTION_LABELS[area]
         const sectionViewAction = getSourceControlSectionViewAction(actionSection)
         return (
@@ -129,6 +134,20 @@ export function SourceControlUncommittedSections(props: {
                         onClick={(event) => {
                           event.stopPropagation()
                           props.requestMoveChanges()
+                        }}
+                        disabled={props.isExecutingBulk}
+                      />
+                    )}
+                    {canStashArea && (
+                      <ActionButton
+                        icon={Archive}
+                        title={translate(
+                          'auto.components.right.sidebar.SourceControl.stashAreaAction',
+                          'Stash changes'
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          props.requestStashArea(area)
                         }}
                         disabled={props.isExecutingBulk}
                       />

@@ -6,6 +6,14 @@ import type {
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
 import type { GitMoveChangesResult } from '../../shared/git-move-changes'
 import type {
+  GitStashApplyResult,
+  GitStashDropResult,
+  GitStashFilesResult,
+  GitStashListResult,
+  GitStashPushRequest,
+  GitStashPushResult
+} from '../../shared/git-stash'
+import type {
   GitConflictOperation,
   GitStagingArea,
   GitStatusResult,
@@ -47,6 +55,11 @@ export type IGitProvider = {
     worktreePath: string,
     targetWorktreePath: string
   ): Promise<GitMoveChangesResult>
+  listStashes(worktreePath: string): Promise<GitStashListResult>
+  listStashFiles(worktreePath: string, sha: string): Promise<GitStashFilesResult>
+  pushStash(worktreePath: string, request: GitStashPushRequest): Promise<GitStashPushResult>
+  applyStash(worktreePath: string, sha: string): Promise<GitStashApplyResult>
+  dropStash(worktreePath: string, sha: string): Promise<GitStashDropResult>
   detectConflictOperation(worktreePath: string): Promise<GitConflictOperation>
   abortMerge(worktreePath: string): Promise<void>
   abortRebase(worktreePath: string): Promise<void>
@@ -76,18 +89,32 @@ export type IGitProvider = {
   getBranchDiff(
     worktreePath: string,
     baseRef: string,
-    options?: { includePatch?: boolean; filePath?: string; oldPath?: string; headOid?: string }
+    options?: {
+      includePatch?: boolean
+      filePath?: string
+      oldPath?: string
+      headOid?: string
+    }
   ): Promise<GitDiffResult[]>
   getCommitDiff(
     worktreePath: string,
-    args: { commitOid: string; parentOid?: string | null; filePath: string; oldPath?: string }
+    args: {
+      commitOid: string
+      parentOid?: string | null
+      filePath: string
+      oldPath?: string
+    }
   ): Promise<GitDiffResult>
   listWorktrees(repoPath: string, options?: { signal?: AbortSignal }): Promise<GitWorktreeInfo[]>
   addWorktree(
     repoPath: string,
     branchName: string,
     targetDir: string,
-    options?: { base?: string; checkoutExistingBranch?: boolean; noCheckout?: boolean }
+    options?: {
+      base?: string
+      checkoutExistingBranch?: boolean
+      noCheckout?: boolean
+    }
   ): Promise<void>
   removeWorktree(
     worktreePath: string,
