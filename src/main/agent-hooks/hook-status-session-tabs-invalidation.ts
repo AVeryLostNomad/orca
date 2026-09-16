@@ -40,6 +40,7 @@ export function createHookStatusSessionTabsInvalidator(): {
       (previous.payload.interactivePrompt ?? null) !== (next.interactivePrompt ?? null) ||
       (previous.payload.interrupted ?? false) !== (next.interrupted ?? false) ||
       (previous.payload.turnCompletedAt ?? null) !== (next.turnCompletedAt ?? null) ||
+      (previous.payload.subagentCompletedAt ?? null) !== (next.subagentCompletedAt ?? null) ||
       (previous.payload.lastAssistantMessage ?? null) !== (next.lastAssistantMessage ?? null) ||
       previous.restoredUnconfirmed !== restoredUnconfirmed
     )

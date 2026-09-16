@@ -35,6 +35,12 @@ export type HookListenerState = {
   codexSubagentTranscriptByPaneKey: Map<string, CodexSubagentTranscriptState>
   /** Root Codex state/model, kept separate from child hook traffic. */
   codexLeadStateByPaneKey: Map<string, CodexLeadTurnState>
+  /** Live in-process OMP subagents per Pi-family pane. Why: OMP children share the
+   *  Codex thread-spawn shape (id/description/state), so the roster helpers are reused. */
+  piFamilySubagentRosterByPaneKey: Map<string, CodexSubagentRoster>
+  /** Last state from the LEAD Pi-family session, so a child event can re-emit the pane status
+   *  without inventing a transition. */
+  piFamilyLeadStateByPaneKey: Map<string, AgentStatusState>
 }
 
 export type ClaudeLeadTurnState = {
@@ -73,7 +79,9 @@ export function createHookListenerState(): HookListenerState {
     claudeSessionOwnerByPaneKey: new Map(),
     codexSubagentRosterByPaneKey: new Map(),
     codexSubagentTranscriptByPaneKey: new Map(),
-    codexLeadStateByPaneKey: new Map()
+    codexLeadStateByPaneKey: new Map(),
+    piFamilySubagentRosterByPaneKey: new Map(),
+    piFamilyLeadStateByPaneKey: new Map()
   }
 }
 
@@ -93,6 +101,8 @@ export function clearPaneCacheState(state: HookListenerState, paneKey: string): 
   state.codexSubagentRosterByPaneKey.delete(paneKey)
   state.codexSubagentTranscriptByPaneKey.delete(paneKey)
   state.codexLeadStateByPaneKey.delete(paneKey)
+  state.piFamilySubagentRosterByPaneKey.delete(paneKey)
+  state.piFamilyLeadStateByPaneKey.delete(paneKey)
 }
 
 /** Does this pane still hold anything that can ASSERT a state — a stored row, or a Claude latch that
@@ -111,7 +121,9 @@ export function paneHasStateClaims(state: HookListenerState, paneKey: string): b
     state.claudeActiveSessionCronPaneKeys.has(paneKey) ||
     state.claudeSessionOwnerByPaneKey.has(paneKey) ||
     state.codexSubagentRosterByPaneKey.has(paneKey) ||
-    state.codexLeadStateByPaneKey.has(paneKey)
+    state.codexLeadStateByPaneKey.has(paneKey) ||
+    state.piFamilySubagentRosterByPaneKey.has(paneKey) ||
+    state.piFamilyLeadStateByPaneKey.has(paneKey)
   )
 }
 
@@ -166,6 +178,8 @@ export function movePaneCacheState(
   movePaneScopedMapEntries(state.codexSubagentRosterByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedMapEntries(state.codexSubagentTranscriptByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedMapEntries(state.codexLeadStateByPaneKey, fromPaneKey, toPaneKey)
+  movePaneScopedMapEntries(state.piFamilySubagentRosterByPaneKey, fromPaneKey, toPaneKey)
+  movePaneScopedMapEntries(state.piFamilyLeadStateByPaneKey, fromPaneKey, toPaneKey)
 }
 
 export function clearPaneTurnCacheState(state: HookListenerState, paneKey: string): void {
@@ -213,4 +227,6 @@ export function clearAllListenerCaches(state: HookListenerState): void {
   state.codexSubagentRosterByPaneKey.clear()
   state.codexSubagentTranscriptByPaneKey.clear()
   state.codexLeadStateByPaneKey.clear()
+  state.piFamilySubagentRosterByPaneKey.clear()
+  state.piFamilyLeadStateByPaneKey.clear()
 }

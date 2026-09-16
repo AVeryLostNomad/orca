@@ -20,7 +20,13 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
   // Why: OMP can switch sessions in-process, so each latest-only post needs fresh identity.
   const ctxParam = ', ctx'
   const bareCtxParams = '_event, ctx'
-  const captureSessionMetadata = ['    updateRuntimeOmpSessionMetadata(ctx)']
+  // Why: a subagent runner must neither report as the lead nor overwrite the lead's session
+  // identity, so the check runs before any metadata capture.
+  const ignoreSubagentRunner = ['    if (ompSubagentSessionFile(ctx)) return']
+  const captureSessionMetadata = [
+    ...ignoreSubagentRunner,
+    '    updateRuntimeOmpSessionMetadata(ctx)'
+  ]
   const primeDaemonWorkerGuard =
     kind === 'prime-agent'
       ? [
@@ -101,7 +107,13 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
     '  })',
     '',
     `  pi.on('agent_start', (${bareCtxParams}) => {`,
-    ...captureSessionMetadata,
+    '    const subagentFile = ompSubagentSessionFile(ctx)',
+    '    if (subagentFile) {',
+    '      if (subagentEndReportedFile === subagentFile) subagentEndReportedFile = null',
+    "      post('subagent_start', describeOmpSubagent(ctx, subagentFile), { subagent: true })",
+    '      return',
+    '    }',
+    '    updateRuntimeOmpSessionMetadata(ctx)',
     '    clearPendingAgentEndCheck()',
     '    agentEndReported = false',
     "    post('agent_start')",
@@ -151,6 +163,7 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
     '  const AGENT_END_IDLE_RECHECK_MAX_MS = 250',
     '  let agentSettledSupported = false',
     '  let agentEndReported = false',
+    '  let subagentEndReportedFile: string | null = null',
     '  let agentEndIdleRecheckMs = AGENT_END_IDLE_RECHECK_MS',
     '  let pendingAgentEndCheck: ReturnType<typeof setTimeout> | null = null',
     '  let pendingAgentEndContext: { isIdle: () => boolean } | null = null',
@@ -199,7 +212,16 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
     '  })',
     '',
     "  pi.on('agent_end', (event, ctx) => {",
-    ...captureSessionMetadata,
+    '    const subagentFile = ompSubagentSessionFile(ctx)',
+    '    if (subagentFile) {',
+    '      // Why: a child finishing is never the pane finishing; report it on its own channel once,',
+    "      // without touching the lead's per-run guard.",
+    '      if (event?.willContinue === true || subagentEndReportedFile === subagentFile) return',
+    '      subagentEndReportedFile = subagentFile',
+    "      post('subagent_end', describeOmpSubagent(ctx, subagentFile), { subagent: true })",
+    '      return',
+    '    }',
+    '    updateRuntimeOmpSessionMetadata(ctx)',
     '    if (event?.willContinue === true) {',
     '      clearPendingAgentEndCheck()',
     '      return',

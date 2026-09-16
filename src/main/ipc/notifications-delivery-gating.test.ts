@@ -370,4 +370,47 @@ describe('registerNotificationHandlers', () => {
     expect(await handler({}, { source: 'test' })).toEqual({ delivered: true })
     expect(notificationShowMock).toHaveBeenCalledTimes(2)
   })
+
+  it('delivers subagent completions only when their toggle is on', async () => {
+    let subagentTaskComplete = false
+    registerNotificationHandlers({
+      getSettings: () => ({
+        notifications: {
+          enabled: true,
+          agentTaskComplete: true,
+          subagentTaskComplete,
+          terminalBell: true,
+          suppressWhenFocused: true
+        }
+      })
+    } as never)
+
+    const handler = getDispatchHandler()
+    expect(await handler({}, { source: 'subagent-task-complete' })).toEqual({
+      delivered: false,
+      reason: 'source-disabled'
+    })
+    expect(setTrayAttentionMock).not.toHaveBeenCalled()
+    expect(notificationCtorMock).not.toHaveBeenCalled()
+
+    subagentTaskComplete = true
+    expect(
+      await handler(
+        {},
+        {
+          source: 'subagent-task-complete',
+          worktreeId: 'repo::wt1',
+          worktreeLabel: 'feat/notis',
+          agentType: 'omp',
+          agentSubagentLabel: 'Reviewer'
+        }
+      )
+    ).toEqual({ delivered: true })
+    expect(notificationCtorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'feat/notis - OMP subagent finished',
+        body: 'Subagent finished: Reviewer'
+      })
+    )
+  })
 })

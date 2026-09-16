@@ -58,6 +58,39 @@ export const getNotificationsPaneSearchEntries = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate(
+      'auto.components.settings.notifications.search.8182812faf',
+      'Subagent Task Complete'
+    ),
+    description: translate(
+      'auto.components.settings.notifications.search.a2e83c3d06',
+      'Notify when a subagent or background task finishes while the main agent is still running.'
+    ),
+    keywords: [
+      ...translateSearchKeyword(
+        'auto.components.settings.notifications.search.ca8faa40d7',
+        'notifications'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.notifications.search.1dca7b2a24',
+        'subagent'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.notifications.search.c5f43ef30f',
+        'background'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.notifications.search.7fa07e9600',
+        'agent'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.notifications.search.5f7472d3fb',
+        'complete'
+      ),
+      ...translateSearchKeyword('auto.components.settings.notifications.search.193e1f107c', 'task')
+    ]
+  },
+  {
     title: translate('auto.components.settings.notifications.search.a5edee1d99', 'Terminal Bell'),
     description: translate(
       'auto.components.settings.notifications.search.d3f1c48677',

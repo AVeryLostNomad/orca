@@ -22,6 +22,8 @@ export function buildClaudeStatusPayload(
     interrupted?: boolean
     sessionBoundary?: boolean
     turnCompletedAt?: number
+    subagentCompletedAt?: number
+    subagentCompletedLabel?: string
   }
 ): ParsedAgentStatusPayload | null {
   // Why: child-driven refreshes are roster bookkeeping, not lead tool activity; read the cached snapshot without merging so they can't clear a live AskUserQuestion card or clobber the tool preview.
@@ -49,6 +51,8 @@ export function buildClaudeStatusPayload(
     interrupted: options.interrupted,
     sessionBoundary: options.sessionBoundary,
     turnCompletedAt: options.turnCompletedAt,
+    subagentCompletedAt: options.subagentCompletedAt,
+    subagentCompletedLabel: options.subagentCompletedLabel,
     subagents: claudeRosterToSnapshots(state.claudeSubagentRosterByPaneKey.get(paneKey))
   })
 }

@@ -51,7 +51,7 @@ function hasFreshActiveHookStatus(
 }
 
 export type TerminalNotificationEvent = {
-  source: 'terminal-bell' | 'agent-task-complete'
+  source: 'terminal-bell' | 'agent-task-complete' | 'subagent-task-complete'
   terminalTitle?: string
   paneKey?: string
   agentStatusSnapshot?: AgentCompletionStatusSnapshot
@@ -105,13 +105,16 @@ export function dispatchTerminalNotification(
   }
   // Why: a process can die before its hook emits done; do not label the
   // resulting completion notification with that stale active state or prompt.
+  // Why: a child finish arrives with the lead's unchanged row; the stamped snapshot is the only authority worth naming.
   const agentStatus =
     event.source === 'agent-task-complete'
       ? (eventAgentStatusSnapshot ??
         (event.agentCompletionSource === 'process-exit' && freshStoredAgentStatus?.state !== 'done'
           ? undefined
           : freshStoredAgentStatus))
-      : undefined
+      : event.source === 'subagent-task-complete'
+        ? event.agentStatusSnapshot
+        : undefined
   if (
     event.source === 'agent-task-complete' &&
     isSupersededAgentCompletionSnapshot(storedAgentStatus, eventAgentStatusSnapshot)
@@ -197,7 +200,11 @@ export function dispatchTerminalNotification(
         agentToolName: agentStatus.toolName,
         agentToolInput: agentStatus.toolInput,
         agentLastAssistantMessage: agentStatus.lastAssistantMessage,
-        agentInterrupted: agentStatus.interrupted
+        agentInterrupted: agentStatus.interrupted,
+        ...(event.source === 'subagent-task-complete' &&
+        event.agentStatusSnapshot?.subagentCompletedLabel
+          ? { agentSubagentLabel: event.agentStatusSnapshot.subagentCompletedLabel }
+          : {})
       }
     : {}
   const notificationId =

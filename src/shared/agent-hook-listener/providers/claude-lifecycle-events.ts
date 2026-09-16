@@ -40,6 +40,7 @@ export function normalizeClaudeSubagentLifecycleEvent(
   let roster = state.claudeSubagentRosterByPaneKey.get(paneKey)
   let endedChildWork = false
   let endedRuntimeChildWork = false
+  let finishedChildLabel: string | undefined
   if (eventName === 'TeammateIdle') {
     const teammateName = lifecycleId
     // Why: on claude 2.1.21x teammates are turn-based — TeammateIdle means "turn over, awaiting mail", not finished. The row parks as idle (confirmed teammate) instead of leaving, so the sidebar keeps showing resumable children.
@@ -75,6 +76,10 @@ export function normalizeClaudeSubagentLifecycleEvent(
         // Why: one-shot stops are true finishes (row removed); teammate-shaped stops are turn ends on 2.1.21x — the row parks idle and a later SubagentStart revives it.
         stopClaudeSubagent(roster, agentId)
         endedChildWork = wasWorking && roster.get(agentId)?.state !== 'working'
+        // Why: only a removed row is a true finish; a parked teammate merely ended a turn.
+        if (endedRuntimeChildWork && !roster.has(agentId)) {
+          finishedChildLabel = tracked?.description ?? tracked?.agentType ?? agentId
+        }
       }
       // Why: a blocked child that dies without another tool event would pin its permission/question wait on the pane forever — nothing else references that agent again.
       clearClaudePendingWaitForAgent(state, paneKey, (waitingAgentId) => waitingAgentId === agentId)
@@ -103,7 +108,8 @@ export function normalizeClaudeSubagentLifecycleEvent(
   return buildClaudeCachedLeadStatusPayload(state, eventName, paneKey, hookPayload, {
     workingChildEvidence,
     endedChildWork,
-    endedRuntimeChildWork
+    endedRuntimeChildWork,
+    finishedChildLabel
   })
 }
 /** Re-emit the cached lead state without touching its tool/prompt caches; child churn and parallel completions must not dismiss live cards. */
@@ -116,6 +122,8 @@ export function buildClaudeCachedLeadStatusPayload(
     workingChildEvidence?: boolean
     endedChildWork?: boolean
     endedRuntimeChildWork?: boolean
+    /** Set when a live one-shot child just finished; stamps the re-emit for the subagent notification. */
+    finishedChildLabel?: string
   } = {}
 ): ParsedAgentStatusPayload | null {
   const lead = state.claudeLeadStateByPaneKey.get(paneKey)
@@ -139,6 +147,9 @@ export function buildClaudeCachedLeadStatusPayload(
     updateToolSnapshot: false,
     interrupted: lead?.interrupted,
     // Why: draining the last background child is this turn's all-clear; the stamp lets a consumer pair it with the announcement already sent.
-    turnCompletedAt: lead?.turnCompletedAt
+    turnCompletedAt: lead?.turnCompletedAt,
+    ...(evidence.finishedChildLabel !== undefined
+      ? { subagentCompletedAt: Date.now(), subagentCompletedLabel: evidence.finishedChildLabel }
+      : {})
   })
 }

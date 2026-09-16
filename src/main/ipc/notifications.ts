@@ -110,21 +110,27 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
       _event,
       args: NotificationDispatchRequest
     ): NotificationDispatchResult | Promise<NotificationDispatchResult> => {
+      const settings = store.getSettings().notifications
       // Why: light the tray attention dot before the cooldown/focus/enabled gates so they can't hold it back (clears on window show/restore; see index.ts).
-      if (args.source === 'agent-task-complete' || args.source === 'terminal-bell') {
+      // A child finishing is opt-in, so it only asks for attention when its toggle is on.
+      if (
+        args.source === 'agent-task-complete' ||
+        args.source === 'terminal-bell' ||
+        (args.source === 'subagent-task-complete' && settings.subagentTaskComplete)
+      ) {
         const activeWindow = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed()) ?? null
         if (!isMainWindowVisible(activeWindow)) {
           setTrayAttention(true)
         }
       }
 
-      const settings = store.getSettings().notifications
       if (!settings.enabled) {
         return { delivered: false, reason: 'disabled' }
       }
 
       if (
         (args.source === 'agent-task-complete' && !settings.agentTaskComplete) ||
+        (args.source === 'subagent-task-complete' && !settings.subagentTaskComplete) ||
         (args.source === 'terminal-bell' && !settings.terminalBell)
       ) {
         return { delivered: false, reason: 'source-disabled' }
@@ -138,7 +144,8 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
         if (reserveNotificationCooldown(recentMobileNotifications, dedupeKey, Date.now())) {
           runtime.dispatchMobileNotification({
             type: 'notification',
-            source: args.source,
+            // Why: paired phones may run an older app that only routes the original sources.
+            source: args.source === 'subagent-task-complete' ? 'agent-task-complete' : args.source,
             title: notificationOptions.title,
             body: notificationOptions.body,
             worktreeId: args.worktreeId,

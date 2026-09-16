@@ -11,6 +11,11 @@ import { collectLeafIdsInOrder } from '@/components/terminal-pane/layout-seriali
 import { createCodexAutoApprovalHookCompletionSuppressor } from '@/components/terminal-pane/codex-auto-approval-notification-suppression'
 import { dispatchAgentHookTerminalLifecycle } from '@/components/terminal-pane/agent-hook-terminal-lifecycle'
 import {
+  announceSubagentCompletion,
+  forgetSubagentCompletionAnnouncements,
+  resetSubagentCompletionAnnouncements
+} from './agent-hook-subagent-completion-announcer'
+import {
   isAgentHookCompletionTrackingEnabled,
   shouldSyncAgentHookCompletionForStoreUpdate,
   type AgentHookCompletionStoreSnapshot
@@ -42,6 +47,7 @@ function disposeCoordinatorForPaneKey(paneKey: string): void {
   coordinatorsByPaneKey.get(paneKey)?.coordinator.dispose()
   coordinatorsByPaneKey.delete(paneKey)
   paneKeysRequiringFreshWorking.delete(paneKey)
+  forgetSubagentCompletionAnnouncements(paneKey)
 }
 
 function buildTabIndex(tabsByWorktree: StoreSnapshot['tabsByWorktree']): TabIndex {
@@ -104,12 +110,8 @@ function isAgentTaskCompleteNotificationEnabled(): boolean {
   return notifications?.enabled !== false && notifications?.agentTaskComplete !== false
 }
 
-function isTerminalAttentionEnabled(): boolean {
-  return useAppStore.getState().settings?.experimentalTerminalAttention === true
-}
-
 function isAgentTaskCompleteTrackingEnabled(): boolean {
-  return isAgentTaskCompleteNotificationEnabled() || isTerminalAttentionEnabled()
+  return isAgentHookCompletionTrackingEnabled(useAppStore.getState())
 }
 
 function syncAgentTaskCompleteTrackingEnabled(enabled: boolean): void {
@@ -329,6 +331,8 @@ export function observeAgentHookCompletionForNotification({
   if (seedOnly === true) {
     entry.coordinator.seedHookStatus(payload)
   } else {
+    // Why: replay seeds restore state only; a child that finished while no renderer listened is not news.
+    announceSubagentCompletion(paneKey, worktreeId, payload)
     entry.coordinator.observeHookStatus(payload)
   }
 }
@@ -339,6 +343,7 @@ export function resetAgentHookCompletionNotificationCoordinators(): void {
   }
   coordinatorsByPaneKey.clear()
   paneKeysRequiringFreshWorking.clear()
+  resetSubagentCompletionAnnouncements()
   lastPrunedLivenessSnapshot = null
   wasAgentTaskCompleteTrackingEnabled = isAgentTaskCompleteTrackingEnabled()
   requireFreshWorkingForNewTrackingCoordinators = !wasAgentTaskCompleteTrackingEnabled

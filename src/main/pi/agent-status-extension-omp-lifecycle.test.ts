@@ -104,4 +104,132 @@ describe('OMP agent_end contract', () => {
       vi.useRealTimers()
     }
   })
+
+  describe('OMP in-process subagents', () => {
+    const PARENT_SESSION_DIR =
+      '/home/u/.omp/agent/sessions/-GitHub-orca/2026-09-02T01-39-16-093Z_01a05fc5-39fd-74e9-bf37-729832f2f0da'
+    const leadContext = {
+      hasUI: true,
+      sessionManager: {
+        getSessionId: () => 'lead-session',
+        getSessionFile: () => `${PARENT_SESSION_DIR}.jsonl`
+      }
+    }
+    const subagentContext = {
+      hasUI: false,
+      sessionManager: {
+        getSessionId: () => 'sub-session',
+        getSessionFile: () => `${PARENT_SESSION_DIR}/Reviewer.jsonl`
+      }
+    }
+
+    function postedPayloads(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+      return fetchMock.mock.calls.map((call) => JSON.parse(String(call[1]?.body)).payload)
+    }
+
+    it.each(OMP_RUNTIME_CASES)(
+      'reports a %s subagent runner on its own channel without touching the lead',
+      async (_name, args) => {
+        const harness = createAgentStatusExtensionHarness(args)
+
+        await harness.callHook('agent_start', undefined, leadContext)
+        await harness.callHook('agent_start', undefined, subagentContext)
+        await harness.callHook(
+          'tool_call',
+          { toolName: 'bash', input: { command: 'ls' } },
+          subagentContext
+        )
+        await harness.callHook(
+          'message_end',
+          { message: { role: 'assistant', content: 'hi' } },
+          subagentContext
+        )
+        await harness.callHook('agent_end', { willContinue: true }, subagentContext)
+        await harness.callHook('agent_end', { willContinue: false }, subagentContext)
+        await harness.callHook('agent_end', { willContinue: false }, subagentContext)
+        await harness.callHook('agent_end', { willContinue: false }, leadContext)
+
+        expect(postedPayloads(harness.fetchMock)).toEqual([
+          { hook_event_name: 'agent_start', session_id: 'lead-session' },
+          {
+            hook_event_name: 'subagent_start',
+            subagent_id: 'sub-session',
+            subagent_label: 'Reviewer'
+          },
+          {
+            hook_event_name: 'subagent_end',
+            subagent_id: 'sub-session',
+            subagent_label: 'Reviewer'
+          },
+          { hook_event_name: 'agent_end', session_id: 'lead-session' }
+        ])
+      }
+    )
+
+    it('recognizes a Windows subagent transcript path', async () => {
+      const harness = createAgentStatusExtensionHarness({ kind: 'omp' })
+
+      await harness.callHook('agent_start', undefined, {
+        hasUI: false,
+        sessionManager: {
+          getSessionId: () => 'sub-win',
+          getSessionFile: () =>
+            'C:\\Users\\u\\.omp\\agent\\sessions\\-GitHub-orca\\2026-09-02T01-39-16-093Z_01a05fc5-39fd-74e9-bf37-729832f2f0da\\Fixer.jsonl'
+        }
+      })
+
+      expect(postedPayloads(harness.fetchMock)).toEqual([
+        { hook_event_name: 'subagent_start', subagent_id: 'sub-win', subagent_label: 'Fixer' }
+      ])
+    })
+
+    it('keeps reporting a headless top-level OMP run as the lead', async () => {
+      // Why: `omp -p` has no UI either; only a transcript nested in a session directory marks a child.
+      const harness = createAgentStatusExtensionHarness({ kind: 'omp' })
+
+      await harness.callHook(
+        'agent_end',
+        { willContinue: false },
+        {
+          hasUI: false,
+          sessionManager: {
+            getSessionId: () => 'print-session',
+            getSessionFile: () => `${PARENT_SESSION_DIR}.jsonl`
+          }
+        }
+      )
+
+      expect(postedPayloads(harness.fetchMock)).toEqual([
+        { hook_event_name: 'agent_end', session_id: 'print-session' }
+      ])
+    })
+
+    it('never lets a subagent post displace the pending lead post', async () => {
+      const finishDeliveries: (() => void)[] = []
+      const harness = createAgentStatusExtensionHarness({
+        kind: 'omp',
+        fetchImpl: vi.fn(
+          () =>
+            new Promise((resolve) => {
+              finishDeliveries.push(() => resolve({ ok: true }))
+            })
+        )
+      })
+
+      await harness.callHook('agent_start', undefined, leadContext)
+      await harness.callHook('agent_start', undefined, subagentContext)
+      await harness.callHook('agent_end', { willContinue: false }, leadContext)
+      finishDeliveries[0]?.()
+      await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(2))
+      finishDeliveries[1]?.()
+      await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(3))
+      finishDeliveries[2]?.()
+
+      expect(postedHookNames(harness.fetchMock)).toEqual([
+        'agent_start',
+        'agent_end',
+        'subagent_start'
+      ])
+    })
+  })
 })

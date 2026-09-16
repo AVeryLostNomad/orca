@@ -42,6 +42,8 @@ export class RuntimeAgentRowStore {
       (previous.payload.interactivePrompt ?? null) !== (args.payload.interactivePrompt ?? null) ||
       (previous.payload.interrupted ?? false) !== (args.payload.interrupted ?? false) ||
       (previous.payload.turnCompletedAt ?? null) !== (args.payload.turnCompletedAt ?? null) ||
+      (previous.payload.subagentCompletedAt ?? null) !==
+        (args.payload.subagentCompletedAt ?? null) ||
       (previous.payload.lastAssistantMessage ?? null) !==
         (args.payload.lastAssistantMessage ?? null)
     )

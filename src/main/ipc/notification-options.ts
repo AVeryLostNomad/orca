@@ -40,6 +40,10 @@ export function buildNotificationOptions(args: NotificationDispatchRequest): {
     }
   }
 
+  if (args.source === 'subagent-task-complete') {
+    return buildSubagentTaskCompleteNotificationOptions(args)
+  }
+
   const richOptions = buildAgentTaskCompleteNotificationOptions(args)
   if (richOptions) {
     return richOptions
@@ -67,6 +71,23 @@ function buildAgentTaskCompleteNotificationOptions(
   return {
     title: `${worktreeContext} - ${agentLabel} ${statusText}`,
     body: buildAgentTaskCompleteRichBody(args) ?? `${agentLabel} ${statusText}.`
+  }
+}
+
+function buildSubagentTaskCompleteNotificationOptions(args: NotificationDispatchRequest): {
+  title: string
+  body: string
+} {
+  const agentLabel = formatNotificationAgentLabel(args.agentType)
+  const subagentLabel = normalizeNotificationText(
+    args.agentSubagentLabel,
+    NOTIFICATION_BODY_PREVIEW_MAX_LENGTH
+  )
+  return {
+    title: `${formatNotificationWorktreeContext(args)} - ${agentLabel} subagent finished`,
+    body: subagentLabel
+      ? `Subagent finished: ${subagentLabel}`
+      : 'A subagent or background task finished.'
   }
 }
 

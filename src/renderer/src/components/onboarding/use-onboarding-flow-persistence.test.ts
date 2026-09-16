@@ -49,6 +49,7 @@ describe('onboarding flow persistence', () => {
     const notifications = buildCompletedOnboardingNotificationSettings({
       enabled: false,
       agentTaskComplete: false,
+      subagentTaskComplete: false,
       terminalBell: false,
       suppressWhenFocused: false,
       customSoundId: 'two-tone',
@@ -59,6 +60,7 @@ describe('onboarding flow persistence', () => {
     expect(notifications).toEqual({
       enabled: true,
       agentTaskComplete: true,
+      subagentTaskComplete: false,
       terminalBell: true,
       suppressWhenFocused: false,
       customSoundId: 'two-tone',

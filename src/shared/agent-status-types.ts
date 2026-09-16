@@ -204,6 +204,12 @@ export type AgentStatusPayload = {
    *  `stateStartedAt` stays pinned for that whole working run, so this is the per-turn identity.
    *  Present on the gated `working` row and that turn's later all-clear `done`. Event-only — not stored on AgentStatusEntry. */
   turnCompletedAt?: number
+  /** Wall-clock ms when an in-process subagent/background task of this pane finished while the
+   *  lead state is re-emitted unchanged. Event-only — drives the optional subagent notification;
+   *  never stored on AgentStatusEntry. */
+  subagentCompletedAt?: number
+  /** Description of the child that `subagentCompletedAt` refers to, when the provider exposes one. */
+  subagentCompletedLabel?: string
   /** Live in-process children of the reporting session. See AgentStatusEntry. */
   subagents?: AgentSubagentSnapshot[]
 }
@@ -242,6 +248,12 @@ export function pickParsedAgentStatusPayload(
     ...(row.interrupted !== undefined ? { interrupted: row.interrupted } : {}),
     ...(row.sessionBoundary !== undefined ? { sessionBoundary: row.sessionBoundary } : {}),
     ...(row.turnCompletedAt !== undefined ? { turnCompletedAt: row.turnCompletedAt } : {}),
+    ...(row.subagentCompletedAt !== undefined
+      ? { subagentCompletedAt: row.subagentCompletedAt }
+      : {}),
+    ...(row.subagentCompletedLabel !== undefined
+      ? { subagentCompletedLabel: row.subagentCompletedLabel }
+      : {}),
     ...(row.subagents !== undefined ? { subagents: row.subagents } : {})
   }
 }
@@ -405,6 +417,14 @@ function normalizeAgentStatusObject(parsed: unknown): ParsedAgentStatusPayload |
     interrupted: obj.interrupted === true && state === 'done' ? true : undefined,
     sessionBoundary: obj.sessionBoundary === true && state === 'done' ? true : undefined,
     turnCompletedAt: normalizeTurnCompletedAtField(obj.turnCompletedAt, state),
+    subagentCompletedAt:
+      typeof obj.subagentCompletedAt === 'number' && Number.isFinite(obj.subagentCompletedAt)
+        ? obj.subagentCompletedAt
+        : undefined,
+    subagentCompletedLabel: normalizeOptionalField(
+      obj.subagentCompletedLabel,
+      AGENT_STATUS_TOOL_INPUT_MAX_LENGTH
+    ),
     subagents: normalizeSubagentsField(obj.subagents)
   }
 }

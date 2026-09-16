@@ -516,4 +516,72 @@ describe('shared agent-hook-listener', () => {
       payload: { state: 'done', prompt: '', agentType: 'prime-agent' }
     })
   })
+
+  describe('OMP in-process subagent lifecycle', () => {
+    let state: HookListenerState
+
+    beforeEach(() => {
+      state = createHookListenerState()
+    })
+
+    function omp(payload: Record<string, unknown>) {
+      return normalizeHookPayload(
+        state,
+        'omp',
+        {
+          paneKey: PANE_KEY,
+          tabId: 'tab-1',
+          worktreeId: 'wt',
+          env: 'production',
+          version: '1',
+          payload
+        },
+        'production'
+      )
+    }
+
+    it('keeps a subagent finish out of the lead state and stamps it for notification', () => {
+      expect(omp({ hook_event_name: 'agent_start' })?.payload.state).toBe('working')
+
+      const started = omp({
+        hook_event_name: 'subagent_start',
+        subagent_id: 'sub-1',
+        subagent_label: 'Reviewer'
+      })
+      expect(started?.payload).toMatchObject({ state: 'working', agentType: 'omp' })
+      expect(started?.payload.subagents).toEqual([
+        expect.objectContaining({ id: 'sub-1', description: 'Reviewer', state: 'working' })
+      ])
+      expect(started?.payload.subagentCompletedAt).toBeUndefined()
+
+      const ended = omp({
+        hook_event_name: 'subagent_end',
+        subagent_id: 'sub-1',
+        subagent_label: 'Reviewer'
+      })
+      expect(ended?.payload.state).toBe('working')
+      expect(ended?.payload.subagents).toBeUndefined()
+      expect(ended?.payload.subagentCompletedAt).toEqual(expect.any(Number))
+      expect(ended?.payload.subagentCompletedLabel).toBe('Reviewer')
+
+      const done = omp({ hook_event_name: 'agent_end' })
+      expect(done?.payload.state).toBe('done')
+      expect(done?.payload.subagentCompletedAt).toBeUndefined()
+    })
+
+    it('re-emits a finished lead unchanged when a detached subagent ends later', () => {
+      omp({ hook_event_name: 'agent_start' })
+      omp({ hook_event_name: 'subagent_start', subagent_id: 'sub-2', subagent_label: 'Indexer' })
+      expect(omp({ hook_event_name: 'agent_end' })?.payload.state).toBe('done')
+
+      const ended = omp({ hook_event_name: 'subagent_end', subagent_id: 'sub-2' })
+      expect(ended?.payload.state).toBe('done')
+      expect(ended?.payload.subagentCompletedAt).toEqual(expect.any(Number))
+      expect(ended?.payload.subagentCompletedLabel).toBeUndefined()
+    })
+
+    it('ignores subagent events without an id', () => {
+      expect(omp({ hook_event_name: 'subagent_end' })).toBeNull()
+    })
+  })
 })

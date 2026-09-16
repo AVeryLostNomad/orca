@@ -3,6 +3,8 @@ import type { AgentStatusState, AgentType } from './agent-status-types'
 export type NotificationSettings = {
   enabled: boolean
   agentTaskComplete: boolean
+  /** A subagent or background task of a still-running agent finished. Off by default: only the lead's completion is the "task done" signal most people want. */
+  subagentTaskComplete: boolean
   terminalBell: boolean
   suppressWhenFocused: boolean
   customSoundId:
@@ -21,7 +23,11 @@ export type NotificationSettings = {
   customSoundVolume: number
 }
 
-export type NotificationEventSource = 'agent-task-complete' | 'terminal-bell' | 'test'
+export type NotificationEventSource =
+  | 'agent-task-complete'
+  | 'subagent-task-complete'
+  | 'terminal-bell'
+  | 'test'
 
 export type NotificationDispatchRequest = {
   source: NotificationEventSource
@@ -43,6 +49,8 @@ export type NotificationDispatchRequest = {
   agentToolInput?: string
   agentLastAssistantMessage?: string
   agentInterrupted?: boolean
+  /** Description of the finished subagent/background task; only set for 'subagent-task-complete'. */
+  agentSubagentLabel?: string
 }
 
 export type NotificationDispatchResult = {

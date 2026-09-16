@@ -58,17 +58,21 @@ export function buildCodexChildDrivenStatusPayload(
   state: HookListenerState,
   eventName: unknown,
   paneKey: string,
-  hookPayload: Record<string, unknown>
+  hookPayload: Record<string, unknown>,
+  finishedChildLabel?: string
 ): ParsedAgentStatusPayload | null {
   const leadState = state.codexLeadStateByPaneKey.get(paneKey)?.state ?? 'working'
   const stateName = codexRosterEffectiveState(
     state.codexSubagentRosterByPaneKey.get(paneKey),
     leadState
   )
-  return buildCodexStatusPayload(state, eventName, '', paneKey, hookPayload, {
+  const payload = buildCodexStatusPayload(state, eventName, '', paneKey, hookPayload, {
     stateName,
     updateLead: false
   })
+  return payload && finishedChildLabel !== undefined
+    ? { ...payload, subagentCompletedAt: Date.now(), subagentCompletedLabel: finishedChildLabel }
+    : payload
 }
 
 export function normalizeCodexSubagentLifecycleEvent(
@@ -93,10 +97,18 @@ export function normalizeCodexSubagentLifecycleEvent(
       },
       Date.now()
     )
-  } else {
-    finishCodexSubagent(roster, agentId)
+    return buildCodexChildDrivenStatusPayload(state, eventName, paneKey, hookPayload)
   }
-  return buildCodexChildDrivenStatusPayload(state, eventName, paneKey, hookPayload)
+  const tracked = roster.get(agentId)
+  finishCodexSubagent(roster, agentId)
+  // Why: an untracked stop (start lost to a restart) is still a finish the user may want announced.
+  return buildCodexChildDrivenStatusPayload(
+    state,
+    eventName,
+    paneKey,
+    hookPayload,
+    tracked?.description ?? tracked?.agentType ?? readString(hookPayload, 'agent_type') ?? agentId
+  )
 }
 
 export function normalizeCodexEvent(

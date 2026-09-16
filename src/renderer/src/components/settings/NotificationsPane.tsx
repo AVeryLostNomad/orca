@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
-import { BellRing, Bot, Siren } from 'lucide-react'
+import { BellRing, Bot, GitFork, Siren } from 'lucide-react'
 import { useAppStore } from '@/store'
 import {
   MacNotificationPermissionCard,
@@ -143,6 +143,25 @@ export function NotificationsPane({
         onToggle={() =>
           void updateNotificationSettings({
             agentTaskComplete: !notificationSettings.agentTaskComplete
+          })
+        }
+      />
+
+      <NotificationSettingToggle
+        icon={<GitFork className="size-4" />}
+        label={translate(
+          'auto.components.settings.NotificationsPane.9a6d8eeb36',
+          'Subagent Task Complete'
+        )}
+        description={translate(
+          'auto.components.settings.NotificationsPane.d862c75e9f',
+          'A subagent or background task finishes before the main agent does.'
+        )}
+        checked={notificationSettings.subagentTaskComplete}
+        disabled={!notificationSettings.enabled}
+        onToggle={() =>
+          void updateNotificationSettings({
+            subagentTaskComplete: !notificationSettings.subagentTaskComplete
           })
         }
       />
