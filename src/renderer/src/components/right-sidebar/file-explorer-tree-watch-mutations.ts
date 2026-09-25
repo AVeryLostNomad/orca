@@ -1,4 +1,3 @@
-import type { FileTreeBatchOperation } from '@pierre/trees'
 import type { FsChangedPayload } from '../../../../shared/filesystem-entry-types'
 import {
   normalizeRuntimePathForComparison,
@@ -31,8 +30,11 @@ function hasKnownDirectoryEntries(files: readonly string[], relativePath: string
   return files.some((file) => file === dirPrefix || file.startsWith(dirPrefix))
 }
 
-function hasKnownPath(files: readonly string[], relativePath: string): boolean {
-  return files.includes(relativePath) || hasKnownDirectoryEntries(files, relativePath)
+function knownPathKind(files: readonly string[], relativePath: string): boolean | null {
+  if (hasKnownDirectoryEntries(files, relativePath)) {
+    return true
+  }
+  return files.includes(relativePath) ? false : null
 }
 
 /**
@@ -58,6 +60,7 @@ export function mapFsEventsToTreeFileMutations({
   }
 
   const mutations: FileExplorerTreeFileMutation[] = []
+  let knownFiles = files
   for (const evt of payload.events) {
     if (evt.kind === 'overflow') {
       return { mutations: [], needsFullRelist: true }
@@ -66,108 +69,77 @@ export function mapFsEventsToTreeFileMutations({
     if (!relativePath) {
       continue
     }
-    if (evt.kind === 'create') {
-      mutations.push({ kind: 'create', relativePath, isDirectory: evt.isDirectory === true })
-    } else if (evt.kind === 'delete') {
+    if (evt.kind === 'delete') {
       // Why: watchers cannot report isDirectory for deletes; infer from the flat cache.
-      mutations.push({
+      const mutation: FileExplorerTreeFileMutation = {
         kind: 'delete',
         relativePath,
-        isDirectory: hasKnownDirectoryEntries(files, relativePath)
-      })
+        isDirectory: hasKnownDirectoryEntries(knownFiles, relativePath)
+      }
+      mutations.push(mutation)
+      knownFiles = applyTreeFileListMutations(knownFiles, [mutation])
+      continue
+    }
+
+    const eventKind =
+      typeof evt.isDirectory === 'boolean'
+        ? evt.isDirectory
+        : knownPathKind(knownFiles, relativePath)
+    if (evt.kind === 'create') {
+      const createKind =
+        typeof evt.isDirectory === 'boolean'
+          ? evt.isDirectory
+          : hasKnownDirectoryEntries(knownFiles, relativePath)
+            ? true
+            : null
+      if (createKind === null) {
+        return { mutations: [], needsFullRelist: true }
+      }
+      const mutation: FileExplorerTreeFileMutation = {
+        kind: 'create',
+        relativePath,
+        isDirectory: createKind
+      }
+      mutations.push(mutation)
+      knownFiles = applyTreeFileListMutations(knownFiles, [mutation])
     } else if (evt.kind === 'rename') {
       const fromRelativePath = evt.oldAbsolutePath
         ? toWatchRelativePath(worktreePath, evt.oldAbsolutePath)
         : null
-      if (!fromRelativePath) {
-        // Why: a rename into the worktree from outside is a create here.
-        mutations.push({ kind: 'create', relativePath, isDirectory: evt.isDirectory === true })
-        continue
+      const sourceKind = fromRelativePath ? knownPathKind(knownFiles, fromRelativePath) : null
+      const isDirectory = typeof evt.isDirectory === 'boolean' ? evt.isDirectory : sourceKind
+      if (isDirectory === null) {
+        return { mutations: [], needsFullRelist: true }
       }
-      mutations.push({
-        kind: 'rename',
-        fromRelativePath,
-        toRelativePath: relativePath,
-        isDirectory: evt.isDirectory === true || hasKnownDirectoryEntries(files, fromRelativePath)
-      })
-    } else if (evt.kind === 'update') {
-      // Windows can classify a new file as update; known-path updates don't change the tree.
-      if (evt.isDirectory !== true && !hasKnownPath(files, relativePath)) {
-        mutations.push({ kind: 'create', relativePath, isDirectory: false })
+      const mutation: FileExplorerTreeFileMutation = fromRelativePath
+        ? { kind: 'rename', fromRelativePath, toRelativePath: relativePath, isDirectory }
+        : { kind: 'create', relativePath, isDirectory }
+      mutations.push(mutation)
+      knownFiles = applyTreeFileListMutations(knownFiles, [mutation])
+    } else if (knownPathKind(knownFiles, relativePath) === null) {
+      // Windows can classify a new entry as update. Without authoritative
+      // metadata, a directory here would poison the flat cache as a file.
+      if (eventKind === null) {
+        return { mutations: [], needsFullRelist: true }
       }
+      const mutation: FileExplorerTreeFileMutation = {
+        kind: 'create',
+        relativePath,
+        isDirectory: eventKind
+      }
+      mutations.push(mutation)
+      knownFiles = applyTreeFileListMutations(knownFiles, [mutation])
+    } else if (eventKind !== null && eventKind !== knownPathKind(knownFiles, relativePath)) {
+      const mutation: FileExplorerTreeFileMutation = {
+        kind: 'create',
+        relativePath,
+        isDirectory: eventKind
+      }
+      mutations.push(mutation)
+      knownFiles = applyTreeFileListMutations(knownFiles, [mutation])
     }
   }
   return { mutations, needsFullRelist: false }
-}
-
-/** Minimal model probe so op-building stays testable without a real tree. */
-export type TreeMutationModelProbe = {
-  getItem(path: string): { isDirectory(): boolean } | null
-}
-
-/**
- * Translate flat-list mutations into guarded @pierre/trees batch operations.
- * Returns null when the model cannot reconcile locally (escalate to a relist).
- */
-export function buildTreeModelBatchOps(
-  model: TreeMutationModelProbe,
-  mutations: readonly FileExplorerTreeFileMutation[],
-  passesFilter: (relativePath: string) => boolean
-): FileTreeBatchOperation[] | null {
-  const ops: FileTreeBatchOperation[] = []
-  for (const mutation of mutations) {
-    if (mutation.kind === 'create') {
-      if (!passesFilter(mutation.relativePath) || model.getItem(mutation.relativePath)) {
-        continue
-      }
-      ops.push({
-        type: 'add',
-        path: mutation.isDirectory ? `${mutation.relativePath}/` : mutation.relativePath
-      })
-    } else if (mutation.kind === 'delete') {
-      const item = model.getItem(mutation.relativePath)
-      if (!item) {
-        continue
-      }
-      ops.push({
-        type: 'remove',
-        path: item.isDirectory() ? `${mutation.relativePath}/` : mutation.relativePath,
-        recursive: true
-      })
-    } else {
-      const fromItem = model.getItem(mutation.fromRelativePath)
-      const destItem = model.getItem(mutation.toRelativePath)
-      if (!fromItem) {
-        if (destItem) {
-          continue
-        }
-        if (!passesFilter(mutation.toRelativePath)) {
-          continue
-        }
-        if (mutation.isDirectory) {
-          // Why: the moved directory's children are unknown to the model; relist.
-          return null
-        }
-        ops.push({ type: 'add', path: mutation.toRelativePath })
-        continue
-      }
-      const isDirectory = fromItem.isDirectory()
-      const fromCanonical = isDirectory
-        ? `${mutation.fromRelativePath}/`
-        : mutation.fromRelativePath
-      if (!passesFilter(mutation.toRelativePath) || destItem) {
-        ops.push({ type: 'remove', path: fromCanonical, recursive: true })
-        continue
-      }
-      ops.push({
-        type: 'move',
-        from: fromCanonical,
-        to: isDirectory ? `${mutation.toRelativePath}/` : mutation.toRelativePath,
-        collision: 'replace'
-      })
-    }
-  }
-  return ops
 }
 
 /**
@@ -181,9 +153,28 @@ export function applyTreeFileListMutations(
   let next = [...files]
   for (const mutation of mutations) {
     if (mutation.kind === 'create') {
-      const entry = mutation.isDirectory ? `${mutation.relativePath}/` : mutation.relativePath
-      if (!next.includes(entry)) {
-        next.push(entry)
+      for (let slashIndex = mutation.relativePath.lastIndexOf('/'); slashIndex !== -1;) {
+        const ancestor = mutation.relativePath.slice(0, slashIndex)
+        next = next.filter((file) => file !== ancestor)
+        slashIndex = ancestor.lastIndexOf('/')
+      }
+
+      const directoryEntry = `${mutation.relativePath}/`
+      if (mutation.isDirectory) {
+        next = next.filter((file) => file !== mutation.relativePath)
+        if (!next.includes(directoryEntry)) {
+          next.push(directoryEntry)
+        }
+      } else {
+        const hasOnlyFile =
+          next.includes(mutation.relativePath) &&
+          !next.some((file) => file.startsWith(directoryEntry))
+        if (!hasOnlyFile) {
+          next = next.filter(
+            (file) => file !== mutation.relativePath && !file.startsWith(directoryEntry)
+          )
+          next.push(mutation.relativePath)
+        }
       }
     } else if (mutation.kind === 'delete') {
       const dirPrefix = `${mutation.relativePath}/`
@@ -194,23 +185,48 @@ export function applyTreeFileListMutations(
     } else {
       const fromDirPrefix = `${mutation.fromRelativePath}/`
       const toDirPrefix = `${mutation.toRelativePath}/`
-      const seen = new Set<string>()
-      const renamed: string[] = []
-      for (const file of next) {
-        let mapped = file
-        if (file === mutation.fromRelativePath) {
-          mapped = mutation.isDirectory ? toDirPrefix : mutation.toRelativePath
-        } else if (file === fromDirPrefix) {
-          mapped = toDirPrefix
-        } else if (file.startsWith(fromDirPrefix)) {
-          mapped = `${toDirPrefix}${file.slice(fromDirPrefix.length)}`
+      const sourceEntries = next.filter(
+        (file) =>
+          file === mutation.fromRelativePath ||
+          file === fromDirPrefix ||
+          file.startsWith(fromDirPrefix)
+      )
+      next = next.filter(
+        (file) =>
+          file !== mutation.fromRelativePath &&
+          !file.startsWith(fromDirPrefix) &&
+          file !== mutation.toRelativePath &&
+          !file.startsWith(toDirPrefix)
+      )
+      for (let slashIndex = mutation.toRelativePath.lastIndexOf('/'); slashIndex !== -1;) {
+        const ancestor = mutation.toRelativePath.slice(0, slashIndex)
+        next = next.filter((file) => file !== ancestor)
+        slashIndex = ancestor.lastIndexOf('/')
+      }
+
+      const seen = new Set(next)
+      for (const file of sourceEntries) {
+        let mapped: string | null = null
+        if (mutation.isDirectory) {
+          if (file === mutation.fromRelativePath || file === fromDirPrefix) {
+            mapped = toDirPrefix
+          } else if (file.startsWith(fromDirPrefix)) {
+            mapped = `${toDirPrefix}${file.slice(fromDirPrefix.length)}`
+          }
+        } else if (file === mutation.fromRelativePath) {
+          mapped = mutation.toRelativePath
         }
-        if (!seen.has(mapped)) {
+        if (mapped && !seen.has(mapped)) {
           seen.add(mapped)
-          renamed.push(mapped)
+          next.push(mapped)
         }
       }
-      next = renamed
+      if (sourceEntries.length === 0) {
+        const entry = mutation.isDirectory ? toDirPrefix : mutation.toRelativePath
+        if (!seen.has(entry)) {
+          next.push(entry)
+        }
+      }
     }
   }
   return next

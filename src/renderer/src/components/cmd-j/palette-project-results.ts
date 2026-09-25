@@ -90,7 +90,7 @@ function buildCmdJProjectSearchCandidates({
         'auto.components.cmd.j.palette.project.results.repoGroup',
         'Repo group'
       ),
-      rowKey: getProjectGroupHeaderKey(group.id),
+      rowKey: getProjectGroupHeaderKey(group),
       order,
       keywords: uniqueNormalizedCmdJPaletteKeywords([group.name, ...PROJECT_GROUP_ALIASES])
     })

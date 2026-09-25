@@ -99,7 +99,6 @@ export function AppWorkspaceShell(props: {
   const sidebarScrollRefs = { scrollOffsetRef, scrollAnchorRef }
 
   return (
-    // Why: workspace activation is a hot path; activeWorktreeId in reset keys would remount whole surfaces during wake.
     <RecoverableRenderErrorBoundary
       boundaryId="app.workspace-shell"
       surface="workspace-shell"
@@ -227,11 +226,12 @@ export function AppWorkspaceShell(props: {
           <RecoverableRenderErrorBoundary
             boundaryId="right-sidebar"
             surface="right-sidebar"
-            resetKey={
-              layout.rightSidebarTab === 'explorer'
-                ? `${layout.rightSidebarTab}:${layout.rightSidebarExplorerView}`
-                : layout.rightSidebarTab
-            }
+            resetKey={JSON.stringify([
+              layout.rightSidebarTab,
+              layout.rightSidebarTab === 'explorer' ? layout.rightSidebarExplorerView : null,
+              layout.activeWorktreeId,
+              layout.rightSidebarOpen
+            ])}
             title={translate('auto.App.ed6b168d00', 'The right sidebar hit an error.')}
             description={translate(
               'auto.App.8d1e160ed1',

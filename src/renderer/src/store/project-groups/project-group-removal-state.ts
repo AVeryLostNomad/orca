@@ -16,7 +16,12 @@ export function applyProjectGroupDeleteCascade(
   const ownerGroups = state.projectGroups.filter((group) =>
     ownsRowHost(getProjectGroupHostId(group))
   )
-  const deletedGroupIds = getProjectGroupSubtreeIds(ownerGroups, groupId)
+  const rootGroup = ownerGroups.find((group) => group.id === groupId)
+  const deletedGroupIds = getProjectGroupSubtreeIds(
+    ownerGroups,
+    groupId,
+    rootGroup ? getProjectGroupHostId(rootGroup) : 'local'
+  )
   const isDeletedGroup = (group: ProjectGroup): boolean =>
     deletedGroupIds.has(group.id) && ownsRowHost(getProjectGroupHostId(group))
   return {

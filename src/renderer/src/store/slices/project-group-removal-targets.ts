@@ -31,7 +31,12 @@ export function selectProjectGroupRemovalTargets(
     }
   }
 
-  const deletedGroupIds = getProjectGroupSubtreeIds(ownerGroups, groupId)
+  const rootGroup = ownerGroups.find((group) => group.id === groupId)
+  const deletedGroupIds = getProjectGroupSubtreeIds(
+    ownerGroups,
+    groupId,
+    rootGroup ? getProjectGroupHostId(rootGroup) : 'local'
+  )
   const projectIds: string[] = []
   for (const repo of repos) {
     if (

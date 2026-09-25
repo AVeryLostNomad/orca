@@ -4,6 +4,7 @@ import type { ProjectGroup } from './project-group-types'
 import {
   buildProjectGroupChildIndex,
   collectProjectGroupSubtreeIds,
+  getProjectGroupExecutionHostId,
   type ProjectGroupChildIndex
 } from './project-groups'
 import type { Repo } from './repo-types'
@@ -29,13 +30,7 @@ export function getProjectGroupIdFromWorkspaceFolderId(folderWorkspaceId: string
 }
 
 function groupOwnsRepo(group: ProjectGroup, repo: Repo): boolean {
-  if (group.executionHostId) {
-    return getRepoExecutionHostId(repo) === group.executionHostId
-  }
-  if (group.connectionId) {
-    return repo.connectionId === group.connectionId
-  }
-  return !repo.connectionId && getRepoExecutionHostId(repo) === 'local'
+  return getRepoExecutionHostId(repo) === getProjectGroupExecutionHostId(group)
 }
 
 export function deriveProjectGroupWorkspacePath(args: {
@@ -49,7 +44,8 @@ export function deriveProjectGroupWorkspacePath(args: {
   }
   const subtreeIds = collectProjectGroupSubtreeIds(
     args.childGroupIndex ?? buildProjectGroupChildIndex(args.projectGroups),
-    args.group.id
+    args.group.id,
+    getProjectGroupExecutionHostId(args.group)
   )
   const paths = args.repos
     .filter(
@@ -79,9 +75,9 @@ export function projectGroupToFolderWorkspace(args: {
     id: projectGroupWorkspaceFolderId(args.group.id),
     projectGroupId: args.group.id,
     name: 'Group Wide',
+    executionHostId: normalizeExecutionHostId(args.group.executionHostId) ?? null,
     folderPath,
     connectionId: args.group.connectionId ?? null,
-    executionHostId: normalizeExecutionHostId(args.group.executionHostId) ?? null,
     linkedTask: null,
     comment: '',
     isArchived: false,
@@ -99,7 +95,8 @@ export function findProjectGroupWorkspaceFolder(
   projectGroups: readonly ProjectGroup[],
   repos: readonly Repo[]
 ): FolderWorkspace | null {
-  const groupId = getProjectGroupIdFromWorkspaceFolderId(folderWorkspaceId)
-  const group = groupId ? projectGroups.find((entry) => entry.id === groupId) : undefined
+  const group = projectGroups.find(
+    (entry) => folderWorkspaceId === projectGroupWorkspaceFolderId(entry.id)
+  )
   return group ? projectGroupToFolderWorkspace({ group, projectGroups, repos }) : null
 }

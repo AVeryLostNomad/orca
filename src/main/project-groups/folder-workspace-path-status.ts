@@ -4,7 +4,11 @@ import type {
   FolderWorkspacePathStatus,
   FolderWorkspacePathStatusRequest
 } from '../../shared/folder-workspace-path-status'
-import { getProjectGroupSubtreeIds } from '../../shared/project-groups'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupSubtreeIds
+} from '../../shared/project-groups'
+import { toSshExecutionHostId } from '../../shared/execution-host'
 import { findProjectGroupWorkspaceFolder } from '../../shared/project-group-workspace'
 import type { FolderWorkspace } from '../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../shared/project-group-types'
@@ -33,8 +37,20 @@ function getFolderScopeCandidateRepos(args: {
   projectGroups: readonly ProjectGroup[]
   repos: readonly Repo[]
 }): Repo[] {
+  const rootGroup = args.projectGroupId
+    ? (args.projectGroups.find(
+        (group) =>
+          group.id === args.projectGroupId &&
+          (!args.connectionId ||
+            getProjectGroupExecutionHostId(group) === toSshExecutionHostId(args.connectionId))
+      ) ?? args.projectGroups.find((group) => group.id === args.projectGroupId))
+    : undefined
   const groupIds = args.projectGroupId
-    ? getProjectGroupSubtreeIds(args.projectGroups, args.projectGroupId)
+    ? getProjectGroupSubtreeIds(
+        args.projectGroups,
+        args.projectGroupId,
+        rootGroup ? getProjectGroupExecutionHostId(rootGroup) : 'local'
+      )
     : null
   const groupRepos = groupIds
     ? args.repos.filter(

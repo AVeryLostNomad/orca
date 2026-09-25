@@ -15,9 +15,9 @@ import {
 } from './file-explorer-tree-input'
 import {
   applyTreeFileListMutations,
-  buildTreeModelBatchOps,
   type FileExplorerTreeFileMutation
 } from './file-explorer-tree-watch-mutations'
+import { buildTreeModelBatchOps } from './file-explorer-tree-batch-operations'
 import { FILE_EXPLORER_TREE_UNSAFE_CSS } from './file-explorer-tree-theme'
 import { toWorktreeRelativeDirSet } from './file-explorer-tree-relative-paths'
 import { buildIgnoredSet } from './status-display'
@@ -206,13 +206,13 @@ export function useFileExplorerTreeModel({
     if (signature === lastResetSignatureRef.current) {
       return
     }
-    lastResetSignatureRef.current = signature
     const expanded = useAppStore.getState().expandedDirs[activeWorktreeId] ?? new Set<string>()
     resetFileTreePathsWithExpansion(
       model,
       inputPaths,
       toWorktreeRelativeDirSet(expanded, worktreePath)
     )
+    lastResetSignatureRef.current = signature
   }, [
     model,
     activeWorktreeId,
@@ -228,10 +228,7 @@ export function useFileExplorerTreeModel({
       if (!model || mutations.length === 0) {
         return
       }
-      knownFilesRef.current = applyTreeFileListMutations(knownFilesRef.current, mutations)
-      if (fileListLoadingRef.current) {
-        relistDirtyRef.current = true
-      }
+      const nextKnownFiles = applyTreeFileListMutations(knownFilesRef.current, mutations)
       const currentFilters = filtersRef.current
       const ops = buildTreeModelBatchOps(model, mutations, (relativePath) =>
         passesFileExplorerTreeFilters(relativePath, currentFilters)
@@ -244,10 +241,15 @@ export function useFileExplorerTreeModel({
         if (ops.length > 0) {
           model.batch(ops)
         }
-      } catch {
-        // Why: a mutation the model rejects means our view of it drifted; relist.
+      } catch (error) {
+        console.warn('[file-explorer] watcher mutation batch failed; relisting', error)
+        lastResetSignatureRef.current = null
         refreshFileList()
         return
+      }
+      knownFilesRef.current = nextKnownFiles
+      if (fileListLoadingRef.current) {
+        relistDirtyRef.current = true
       }
       lastResetSignatureRef.current = buildFileExplorerTreeInputPaths(
         knownFilesRef.current,

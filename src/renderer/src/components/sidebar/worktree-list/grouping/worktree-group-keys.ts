@@ -1,8 +1,13 @@
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shared/worktree/types'
-import { getWorkspaceStatus, getWorkspaceStatusGroupKey } from '../../workspace-status'
-import { cloneDefaultWorkspaceStatuses } from '../../../../../../shared/workspace-statuses'
+import { getRepoExecutionHostId } from '../../../../../../shared/execution-host'
+import { getProjectGroupHostIdentity } from '../../../../../../shared/project-groups'
+import {
+  cloneDefaultWorkspaceStatuses,
+  getWorkspaceStatus,
+  getWorkspaceStatusGroupKey
+} from '../../../../../../shared/workspace-statuses'
 import type { AppState } from '../../../../store/types'
 import { ALL_GROUP_KEY, getPRGroupKey, getProjectGroupHeaderKey } from './group-keys'
 import { buildProjectGroupingIndex, getProjectGroupingForRepo } from './project-grouping'
@@ -60,21 +65,31 @@ export function getGroupKeysForWorktree(
     return [groupKey]
   }
   const repo = repoMap.get(worktree.repoId)
-  const groupIds: string[] = []
-  const groupsById = new Map(projectGroups.map((group) => [group.id, group]))
+  const groupsByIdentity = new Map(
+    projectGroups.map((group) => [getProjectGroupHostIdentity(group), group])
+  )
+  const groupKeys: string[] = []
   const visited = new Set<string>()
   let currentGroupId = repo?.projectGroupId ?? null
-  while (currentGroupId && !visited.has(currentGroupId)) {
-    const group = groupsById.get(currentGroupId)
+  const hostId = repo ? getRepoExecutionHostId(repo) : undefined
+  while (currentGroupId && hostId) {
+    const identity = getProjectGroupHostIdentity({
+      id: currentGroupId,
+      connectionId: null,
+      executionHostId: hostId
+    })
+    if (visited.has(identity)) {
+      break
+    }
+    const group = groupsByIdentity.get(identity)
     if (!group) {
       // Why: repos can arrive before their remote Project Group metadata; reveal
       // keys must match the top-level fallback rows buildRows actually renders.
       break
     }
-    visited.add(currentGroupId)
-    groupIds.unshift(currentGroupId)
-    const parentId = group.parentGroupId ?? null
-    currentGroupId = parentId && groupsById.has(parentId) ? parentId : null
+    visited.add(identity)
+    groupKeys.unshift(getProjectGroupHeaderKey(group))
+    currentGroupId = group.parentGroupId
   }
-  return [...groupIds.map((id) => getProjectGroupHeaderKey(id)), groupKey]
+  return [...groupKeys, groupKey]
 }

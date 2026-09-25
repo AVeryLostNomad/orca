@@ -1,6 +1,9 @@
 import type { Repo } from '../../../../shared/repo-types'
-import { getProjectGroupSubtreeIds } from '../../../../shared/project-groups'
 import { isPathInsideOrEqual } from '../../../../shared/cross-platform-path'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupSubtreeIds
+} from '../../../../shared/project-groups'
 import { parseExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
@@ -21,9 +24,14 @@ export function getFolderLineageCandidateRepos(
   context: LineageResolutionContext,
   folder: LineageFolder
 ): Repo[] {
+  const rootGroup = context.groupsById.get(folder.projectGroupId)?.[0]
   let groupIds = context.groupSubtreeIdsByRoot.get(folder.projectGroupId)
   if (!groupIds) {
-    groupIds = getProjectGroupSubtreeIds(context.groups, folder.projectGroupId)
+    groupIds = getProjectGroupSubtreeIds(
+      context.groups,
+      folder.projectGroupId,
+      rootGroup ? getProjectGroupExecutionHostId(rootGroup) : 'local'
+    )
     context.groupSubtreeIdsByRoot.set(folder.projectGroupId, groupIds)
   }
   const grouped = context.repos.filter(

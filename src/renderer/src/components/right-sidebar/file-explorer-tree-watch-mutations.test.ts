@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { FileTree } from '@pierre/trees'
+
 import {
   applyTreeFileListMutations,
-  buildTreeModelBatchOps,
   mapFsEventsToTreeFileMutations,
-  type FileExplorerTreeFileMutation,
-  type TreeMutationModelProbe
+  type FileExplorerTreeFileMutation
 } from './file-explorer-tree-watch-mutations'
+import {
+  buildTreeModelBatchOps,
+  type TreeMutationModelProbe
+} from './file-explorer-tree-batch-operations'
 
 const worktreePath = '/repo'
 
@@ -55,12 +59,13 @@ describe('mapFsEventsToTreeFileMutations', () => {
       payload: {
         worktreePath,
         events: [
-          { kind: 'create', absolutePath: '/repo/new.txt' },
+          { kind: 'create', absolutePath: '/repo/new.txt', isDirectory: false },
           { kind: 'delete', absolutePath: '/repo/gone.txt' },
           {
             kind: 'rename',
             absolutePath: '/repo/UPPER.txt',
-            oldAbsolutePath: '/repo/upper.txt'
+            oldAbsolutePath: '/repo/upper.txt',
+            isDirectory: false
           }
         ]
       },
@@ -88,12 +93,17 @@ describe('mapFsEventsToTreeFileMutations', () => {
     expect(result.mutations).toEqual([{ kind: 'delete', relativePath: 'dir', isDirectory: true }])
   })
 
-  it('treats a rename from outside the worktree as a create', () => {
+  it('treats a rename from outside the worktree as a create with metadata', () => {
     const result = mapFsEventsToTreeFileMutations({
       payload: {
         worktreePath,
         events: [
-          { kind: 'rename', absolutePath: '/repo/in.txt', oldAbsolutePath: '/elsewhere/out.txt' }
+          {
+            kind: 'rename',
+            absolutePath: '/repo/in.txt',
+            oldAbsolutePath: '/elsewhere/out.txt',
+            isDirectory: false
+          }
         ]
       },
       worktreePath,
@@ -104,13 +114,13 @@ describe('mapFsEventsToTreeFileMutations', () => {
     ])
   })
 
-  it('treats an update of an unknown path as a create (Windows quirk)', () => {
+  it('treats an update of an unknown path as a create when metadata is authoritative', () => {
     const result = mapFsEventsToTreeFileMutations({
       payload: {
         worktreePath,
         events: [
           { kind: 'update', absolutePath: '/repo/known.txt' },
-          { kind: 'update', absolutePath: '/repo/unknown.txt' }
+          { kind: 'update', absolutePath: '/repo/unknown.txt', isDirectory: false }
         ]
       },
       worktreePath,
@@ -118,6 +128,36 @@ describe('mapFsEventsToTreeFileMutations', () => {
     })
     expect(result.mutations).toEqual([
       { kind: 'create', relativePath: 'unknown.txt', isDirectory: false }
+    ])
+  })
+
+  it('relist unknown creates instead of inventing a file type', () => {
+    const result = mapFsEventsToTreeFileMutations({
+      payload: {
+        worktreePath,
+        events: [{ kind: 'create', absolutePath: '/repo/unknown' }]
+      },
+      worktreePath,
+      files: []
+    })
+    expect(result).toEqual({ mutations: [], needsFullRelist: true })
+  })
+
+  it('infers a directory create from descendants seen earlier in the batch', () => {
+    const result = mapFsEventsToTreeFileMutations({
+      payload: {
+        worktreePath,
+        events: [
+          { kind: 'create', absolutePath: '/repo/dir/a.txt', isDirectory: false },
+          { kind: 'create', absolutePath: '/repo/dir' }
+        ]
+      },
+      worktreePath,
+      files: []
+    })
+    expect(result.mutations).toEqual([
+      { kind: 'create', relativePath: 'dir/a.txt', isDirectory: false },
+      { kind: 'create', relativePath: 'dir', isDirectory: true }
     ])
   })
 })
@@ -171,6 +211,39 @@ describe('applyTreeFileListMutations', () => {
     ]
     expect(applyTreeFileListMutations([], mutations)).toEqual(['a.txt'])
   })
+  it('replaces incompatible path types and file ancestors in the flat cache', () => {
+    expect(
+      applyTreeFileListMutations(
+        ['node', 'node/stale.txt', 'parent'],
+        [
+          { kind: 'create', relativePath: 'node', isDirectory: false },
+          { kind: 'create', relativePath: 'parent/child.txt', isDirectory: false }
+        ]
+      )
+    ).toEqual(['node', 'parent/child.txt'])
+    expect(
+      applyTreeFileListMutations(
+        ['node'],
+        [{ kind: 'create', relativePath: 'node', isDirectory: true }]
+      )
+    ).toEqual(['node/'])
+  })
+
+  it('replaces a rename destination subtree before remapping its source', () => {
+    expect(
+      applyTreeFileListMutations(
+        ['source/a.txt', 'destination', 'destination/stale.txt'],
+        [
+          {
+            kind: 'rename',
+            fromRelativePath: 'source',
+            toRelativePath: 'destination',
+            isDirectory: true
+          }
+        ]
+      )
+    ).toEqual(['destination/a.txt'])
+  })
 })
 
 describe('buildTreeModelBatchOps', () => {
@@ -206,7 +279,7 @@ describe('buildTreeModelBatchOps', () => {
     expect(ops).toEqual([])
   })
 
-  it('moves known renames and removes when the destination already exists', () => {
+  it('moves known renames with replace semantics at the destination', () => {
     const ops = buildTreeModelBatchOps(
       probe({ 'a.txt': false, dir: true, 'clash.txt': false, 'other.txt': false }),
       [
@@ -224,7 +297,86 @@ describe('buildTreeModelBatchOps', () => {
     expect(ops).toEqual([
       { type: 'move', from: 'a.txt', to: 'b.txt', collision: 'replace' },
       { type: 'move', from: 'dir/', to: 'dir2/', collision: 'replace' },
-      { type: 'remove', path: 'other.txt', recursive: true }
+      { type: 'move', from: 'other.txt', to: 'clash.txt', collision: 'replace' }
+    ])
+  })
+
+  it('reconciles sequential delete-create replacement against virtual batch state', () => {
+    const ops = buildTreeModelBatchOps(
+      probe({ item: false }),
+      [
+        { kind: 'delete', relativePath: 'item', isDirectory: false },
+        { kind: 'create', relativePath: 'item', isDirectory: false }
+      ],
+      passAll
+    )
+    expect(ops).toEqual([
+      { type: 'remove', path: 'item', recursive: true },
+      { type: 'add', path: 'item' }
+    ])
+  })
+
+  it('reconciles implicit directories across a sequential delete and recreate', () => {
+    const model = new FileTree({
+      paths: [],
+      initialExpansion: 'closed',
+      flattenEmptyDirectories: false
+    })
+    try {
+      const ops = buildTreeModelBatchOps(
+        model,
+        [
+          { kind: 'create', relativePath: 'dir/child.ts', isDirectory: false },
+          { kind: 'delete', relativePath: 'dir', isDirectory: true },
+          { kind: 'create', relativePath: 'dir/child.ts', isDirectory: false }
+        ],
+        passAll
+      )
+      expect(ops).toEqual([
+        { type: 'add', path: 'dir/child.ts' },
+        { type: 'remove', path: 'dir/', recursive: true },
+        { type: 'add', path: 'dir/child.ts' }
+      ])
+      model.batch(ops ?? [])
+      expect(model.getItem('dir/child.ts')).not.toBeNull()
+    } finally {
+      model.cleanUp()
+    }
+  })
+
+  it('does not plan removal for a create filtered out of the model', () => {
+    expect(
+      buildTreeModelBatchOps(
+        probe({}),
+        [
+          { kind: 'create', relativePath: '.hidden', isDirectory: false },
+          { kind: 'delete', relativePath: '.hidden', isDirectory: false }
+        ],
+        () => false
+      )
+    ).toEqual([])
+  })
+
+  it('replaces path types and creates implicit directories under former files', () => {
+    expect(
+      buildTreeModelBatchOps(
+        probe({ entry: true }),
+        [{ kind: 'create', relativePath: 'entry', isDirectory: false }],
+        passAll
+      )
+    ).toEqual([
+      { type: 'remove', path: 'entry/', recursive: true },
+      { type: 'add', path: 'entry' }
+    ])
+    expect(
+      buildTreeModelBatchOps(
+        probe({ parent: false }),
+        [{ kind: 'create', relativePath: 'parent/child.txt', isDirectory: false }],
+        passAll
+      )
+    ).toEqual([
+      { type: 'remove', path: 'parent', recursive: true },
+      { type: 'add', path: 'parent/child.txt' }
     ])
   })
 

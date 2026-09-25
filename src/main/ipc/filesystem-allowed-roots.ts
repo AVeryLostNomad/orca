@@ -9,8 +9,10 @@ import { isPathInsideOrEqual } from '../../shared/cross-platform-path'
 import {
   buildProjectGroupChildIndex,
   collectProjectGroupSubtreeIds,
+  getProjectGroupExecutionHostId,
   type ProjectGroupChildIndex
 } from '../../shared/project-groups'
+import type { ExecutionHostId } from '../../shared/execution-host'
 import type { FolderWorkspace } from '../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../shared/project-group-types'
 import type { Repo } from '../../shared/repo-types'
@@ -31,10 +33,11 @@ export function getLocalRepos(store: Store) {
 function getFolderScopeCandidateRepos(
   folderPath: string,
   projectGroupId: string,
+  rootHostId: ExecutionHostId,
   childGroupIndex: ProjectGroupChildIndex,
   repos: readonly Repo[]
 ): Repo[] {
-  const groupIds = collectProjectGroupSubtreeIds(childGroupIndex, projectGroupId)
+  const groupIds = collectProjectGroupSubtreeIds(childGroupIndex, projectGroupId, rootHostId)
   return repos.filter(
     (repo) =>
       (typeof repo.projectGroupId === 'string' && groupIds.has(repo.projectGroupId)) ||
@@ -45,6 +48,7 @@ function getFolderScopeCandidateRepos(
 function isRemoteOnlyFolderScope(
   folderPath: string,
   projectGroupId: string,
+  rootHostId: ExecutionHostId,
   connectionId: string | null | undefined,
   childGroupIndex: ProjectGroupChildIndex,
   repos: readonly Repo[]
@@ -55,6 +59,7 @@ function isRemoteOnlyFolderScope(
   const candidates = getFolderScopeCandidateRepos(
     folderPath,
     projectGroupId,
+    rootHostId,
     childGroupIndex,
     repos
   )
@@ -90,7 +95,14 @@ function getLocalFolderScopeRoots(store: Store, repos: readonly Repo[]): string[
     })
     if (
       groupPath &&
-      !isRemoteOnlyFolderScope(groupPath, group.id, group.connectionId, childGroupIndex, repos)
+      !isRemoteOnlyFolderScope(
+        groupPath,
+        group.id,
+        getProjectGroupExecutionHostId(group),
+        group.connectionId,
+        childGroupIndex,
+        repos
+      )
     ) {
       roots.push(resolve(groupPath))
     }
@@ -100,6 +112,7 @@ function getLocalFolderScopeRoots(store: Store, repos: readonly Repo[]): string[
       !isRemoteOnlyFolderScope(
         workspace.folderPath,
         workspace.projectGroupId,
+        'local',
         getFolderWorkspaceConnectionId(workspace, projectGroups),
         childGroupIndex,
         repos

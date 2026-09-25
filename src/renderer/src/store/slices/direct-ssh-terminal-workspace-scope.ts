@@ -75,7 +75,11 @@ function folderHasContradictoryOwner(
     ) {
       return true
     }
-    const groupIds = getProjectGroupSubtreeIds(input.projectGroups ?? [], folder.projectGroupId)
+    const groupIds = getProjectGroupSubtreeIds(
+      input.projectGroups ?? [],
+      folder.projectGroupId,
+      expectedHostId
+    )
     const candidateRepos = input.repos.filter(
       (repo) =>
         (repo.projectGroupId != null && groupIds.has(repo.projectGroupId)) ||

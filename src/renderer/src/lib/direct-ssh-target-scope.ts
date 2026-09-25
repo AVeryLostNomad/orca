@@ -5,8 +5,6 @@ import {
   toSshExecutionHostId,
   type ExecutionHostId
 } from '../../../shared/execution-host'
-import { isPathInsideOrEqual } from '../../../shared/cross-platform-path'
-import { getProjectGroupSubtreeIds } from '../../../shared/project-groups'
 import { folderWorkspaceKey, worktreeWorkspaceKey } from '../../../shared/workspace-scope'
 import type {
   DirectSshFolderOwner as FolderOwner,
@@ -18,6 +16,7 @@ import type {
   DirectSshWorktreeOwner as WorktreeOwner
 } from './direct-ssh-target-scope-types'
 import { indexDirectSshOwnerRows } from './direct-ssh-target-owner-index'
+import { getFolderCandidateRepos } from './direct-ssh-folder-candidates'
 export type {
   DirectSshGitRepoRef,
   DirectSshTargetScope,
@@ -149,37 +148,6 @@ function resolveWorktreeEvidence(
   return evidence
 }
 
-function getFolderCandidateRepos(
-  folder: FolderOwner,
-  groups: readonly GroupOwner[],
-  repos: readonly RepoOwner[],
-  scopeConnectionId: string | null
-): RepoOwner[] {
-  const groupIds = getProjectGroupSubtreeIds(groups, folder.projectGroupId)
-  const groupRepos = repos.filter(
-    (repo) => typeof repo.projectGroupId === 'string' && groupIds.has(repo.projectGroupId)
-  )
-  const pathRepos = repos.filter(
-    (repo) =>
-      !(typeof repo.projectGroupId === 'string' && groupIds.has(repo.projectGroupId)) &&
-      isPathInsideOrEqual(folder.folderPath, repo.path)
-  )
-  if (scopeConnectionId) {
-    return [
-      ...groupRepos,
-      ...pathRepos.filter((repo) => (repo.connectionId ?? null) === scopeConnectionId)
-    ]
-  }
-  if (groupRepos.length === 0) {
-    return pathRepos
-  }
-  const groupConnections = new Set(groupRepos.map((repo) => repo.connectionId ?? null))
-  return [
-    ...groupRepos,
-    ...pathRepos.filter((repo) => groupConnections.has(repo.connectionId ?? null))
-  ]
-}
-
 function resolveFolderEvidence(
   input: DirectSshTargetScopeInput,
   folder: FolderOwner,
@@ -203,6 +171,7 @@ function resolveFolderEvidence(
   const scopeConnection = folderConnection ?? groupConnection
   const candidateRepos = getFolderCandidateRepos(
     folder,
+    group,
     input.projectGroups ?? [],
     input.repos,
     scopeConnection

@@ -4,7 +4,10 @@ import type {
   FolderWorkspacePathStatus,
   FolderWorkspacePathStatusRequest
 } from '../../../../shared/folder-workspace-path-status'
-import { getProjectGroupSubtreeIds } from '../../../../shared/project-groups'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupSubtreeIds
+} from '../../../../shared/project-groups'
 import { isPathInsideOrEqual } from '../../../../shared/cross-platform-path'
 import type { FolderWorkspacePathStatusCacheEntry } from '../repos/repo-state'
 
@@ -80,7 +83,11 @@ export function getFolderWorkspaceStatusRequestSnapshot(
   if (!folderPath || !projectGroupId) {
     return null
   }
-  const groupIds = getProjectGroupSubtreeIds(state.projectGroups, projectGroupId)
+  const groupIds = getProjectGroupSubtreeIds(
+    state.projectGroups,
+    projectGroupId,
+    projectGroup ? getProjectGroupExecutionHostId(projectGroup) : 'local'
+  )
   const candidateRepos = state.repos.filter(
     (repo) =>
       (typeof repo.projectGroupId === 'string' && groupIds.has(repo.projectGroupId)) ||

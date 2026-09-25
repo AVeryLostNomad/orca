@@ -4,7 +4,16 @@ import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shar
 import { folderWorkspaceToWorktree } from '../../../../../../shared/folder-workspace-worktree'
 import { parseWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import { getProjectGroupHeaderKey } from '../grouping/group-keys'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
+import {
+  LOCAL_EXECUTION_HOST_ID,
+  normalizeExecutionHostId,
+  toSshExecutionHostId,
+  type ExecutionHostId
+} from '../../../../../../shared/execution-host'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupHostIdentity
+} from '../../../../../../shared/project-groups'
 import { getFolderWorkspaceLaneKey } from '../grouping/folder-workspace-lanes'
 import type { WorktreeGroupBy } from '../grouping/row-types'
 import { getFolderWorkspaceHostId } from '../../folder-workspace-host-id'
@@ -72,24 +81,53 @@ export function getFolderWorkspaceRevealGroupKeys(
     return []
   }
 
-  const groupsById = new Map(projectGroups.map((group) => [group.id, group]))
+  const defaultHostId = options?.defaultHostId ?? LOCAL_EXECUTION_HOST_ID
+  const groupsByIdentity = new Map(
+    projectGroups.map((group) => [getProjectGroupHostIdentity(group), group])
+  )
+  const folderHostId =
+    normalizeExecutionHostId(folderWorkspace.executionHostId) ??
+    (folderWorkspace.connectionId
+      ? toSshExecutionHostId(folderWorkspace.connectionId)
+      : defaultHostId)
   const keys: string[] = []
   const seen = new Set<string>()
-  let groupId: string | null = folderWorkspace.projectGroupId
-  while (groupId && !seen.has(groupId)) {
-    seen.add(groupId)
-    const group = groupsById.get(groupId)
-    if (!group) {
+  const matchingGroups = projectGroups.filter(
+    (group) => group.id === folderWorkspace.projectGroupId
+  )
+  const owningGroup =
+    groupsByIdentity.get(
+      getProjectGroupHostIdentity({
+        id: folderWorkspace.projectGroupId,
+        connectionId: null,
+        executionHostId: folderHostId
+      })
+    ) ??
+    matchingGroups.find((group) => getProjectGroupExecutionHostId(group) === 'local') ??
+    matchingGroups[0]
+  let group: ProjectGroup | undefined = owningGroup
+  while (group) {
+    const identity = getProjectGroupHostIdentity(group)
+    if (seen.has(identity)) {
       break
     }
-    keys.unshift(getProjectGroupHeaderKey(group.id))
-    groupId = group.parentGroupId
+    seen.add(identity)
+    keys.unshift(getProjectGroupHeaderKey(group))
+    const parentGroupId = group.parentGroupId
+    group = parentGroupId
+      ? groupsByIdentity.get(
+          getProjectGroupHostIdentity({
+            id: parentGroupId,
+            connectionId: null,
+            executionHostId: folderHostId
+          })
+        )
+      : undefined
   }
 
   // Under non-repo grouping the project-group headers above do not exist, so the
   // lane and host headers are the ones actually hiding the row (#15362). Lane
   // keys come from the same function grouping uses, so the two cannot disagree.
-  const owningGroup = groupsById.get(folderWorkspace.projectGroupId)
   if (options?.groupBy && options.groupBy !== 'repo' && owningGroup) {
     keys.push(
       getFolderWorkspaceLaneKey(

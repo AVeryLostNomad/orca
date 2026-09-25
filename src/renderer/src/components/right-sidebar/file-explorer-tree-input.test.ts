@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { FileTree } from '@pierre/trees'
+
 import {
   buildFileExplorerTreeGitStatus,
   buildFileExplorerTreeInputPaths
@@ -31,6 +33,21 @@ describe('buildFileExplorerTreeInputPaths', () => {
         ignoredSet: new Set(['dist'])
       })
     ).toEqual(['src/a.ts'])
+  })
+
+  it('promotes conflicting ancestors to directories before a reset', () => {
+    const paths = buildFileExplorerTreeInputPaths(['node', 'node/child.ts'], filters)
+    const model = new FileTree({
+      paths,
+      initialExpansion: 'closed',
+      flattenEmptyDirectories: false
+    })
+    try {
+      expect(model.getItem('node')?.isDirectory()).toBe(true)
+      expect(model.getItem('node/child.ts')).not.toBeNull()
+    } finally {
+      model.cleanUp()
+    }
   })
 })
 

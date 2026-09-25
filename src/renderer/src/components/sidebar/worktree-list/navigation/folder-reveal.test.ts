@@ -116,7 +116,7 @@ describe('worktree list folder reveal', () => {
         [folderWorkspace],
         [child, root]
       )
-    ).toEqual([getProjectGroupHeaderKey(root.id), getProjectGroupHeaderKey(child.id)])
+    ).toEqual([getProjectGroupHeaderKey(root), getProjectGroupHeaderKey(child)])
   })
 })
 
@@ -151,7 +151,7 @@ describe('reveal keys under non-repo grouping', () => {
       workspaceStatuses: [],
       defaultHostId: 'local'
     })
-    expect(keys).toContain(getProjectGroupHeaderKey(group.id))
+    expect(keys).toContain(getProjectGroupHeaderKey(group))
     expect(keys.some((key) => key.startsWith('workspace-status:'))).toBe(false)
   })
 })

@@ -154,6 +154,57 @@ describe('project-groups', () => {
     ).toEqual(['child', 'grandchild', 'root'])
   })
 
+  it('keeps matching group ids isolated by execution host', () => {
+    const groups = [
+      { id: 'root', parentGroupId: null, executionHostId: 'local' },
+      { id: 'local-child', parentGroupId: 'root', executionHostId: 'local' },
+      { id: 'root', parentGroupId: null, executionHostId: 'ssh:builder' },
+      { id: 'remote-child', parentGroupId: 'root', executionHostId: 'ssh:builder' }
+    ]
+
+    expect([...getProjectGroupSubtreeIds(groups, 'root', 'local')].sort()).toEqual([
+      'local-child',
+      'root'
+    ])
+    expect([...getProjectGroupSubtreeIds(groups, 'root', 'ssh:builder')].sort()).toEqual([
+      'remote-child',
+      'root'
+    ])
+  })
+
+  it('breaks persisted parent cycles into visible roots', () => {
+    const groups = normalizeProjectGroups([
+      { id: 'alpha', name: 'Alpha', parentGroupId: 'bravo', tabOrder: 1 },
+      { id: 'bravo', name: 'Bravo', parentGroupId: 'alpha', tabOrder: 0 }
+    ])
+
+    expect(groups.map((group) => [group.id, group.parentGroupId])).toEqual([
+      ['bravo', null],
+      ['alpha', null]
+    ])
+  })
+
+  it('preserves persisted groups that share an id on different hosts', () => {
+    const groups = normalizeProjectGroups([
+      { id: 'shared', name: 'Local', executionHostId: 'local' },
+      { id: 'shared', name: 'Builder', executionHostId: 'ssh:builder' }
+    ])
+
+    expect(groups.map((group) => [group.id, group.executionHostId])).toEqual([
+      ['shared', 'ssh:builder'],
+      ['shared', 'local']
+    ])
+  })
+
+  it('clears membership when only a different host owns the group id', () => {
+    const [remoteRepo] = clearMissingProjectGroupMemberships(
+      [repo({ projectGroupId: 'shared', connectionId: 'builder' })],
+      normalizeProjectGroups([{ id: 'shared', name: 'Local', executionHostId: 'local' }])
+    )
+
+    expect(remoteRepo.projectGroupId).toBeNull()
+  })
+
   it('collects wide descendant groups without overflowing argument limits', () => {
     const groups = [
       { id: 'root', parentGroupId: null },

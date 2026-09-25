@@ -41,18 +41,34 @@ export function buildFileExplorerTreeInputPaths(
   relativePaths: readonly string[],
   filters: FileExplorerTreeInputFilters
 ): string[] {
+  const normalizedPaths: string[] = []
+  const directoryPaths = new Set<string>()
+  for (const rawPath of relativePaths) {
+    const normalized = normalizeRelativePath(rawPath)
+    const path = normalized.replace(/\/+$/, '')
+    if (!path) {
+      continue
+    }
+    if (normalized.endsWith('/')) {
+      directoryPaths.add(path)
+    }
+    for (let slashIndex = path.lastIndexOf('/'); slashIndex !== -1;) {
+      const ancestor = path.slice(0, slashIndex)
+      directoryPaths.add(ancestor)
+      slashIndex = ancestor.lastIndexOf('/')
+    }
+    normalizedPaths.push(path)
+  }
+
   const result: string[] = []
   const seen = new Set<string>()
-  for (const rawPath of relativePaths) {
-    const path = normalizeRelativePath(rawPath)
-    if (!path || seen.has(path)) {
+  for (const path of normalizedPaths) {
+    const treePath = directoryPaths.has(path) ? `${path}/` : path
+    if (seen.has(treePath) || !passesFileExplorerTreeFilters(treePath, filters)) {
       continue
     }
-    if (!passesFileExplorerTreeFilters(path, filters)) {
-      continue
-    }
-    seen.add(path)
-    result.push(path)
+    seen.add(treePath)
+    result.push(treePath)
   }
   return result
 }

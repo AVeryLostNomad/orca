@@ -2,7 +2,10 @@ import type { Repo } from '../../../shared/repo-types'
 import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import { isPathInsideOrEqual } from '../../../shared/cross-platform-path'
-import { getProjectGroupSubtreeIds } from '../../../shared/project-groups'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupSubtreeIds
+} from '../../../shared/project-groups'
 import {
   getRepoExecutionHostId,
   LOCAL_EXECUTION_HOST_ID,
@@ -12,7 +15,8 @@ import {
 } from '../../../shared/execution-host'
 import {
   getProjectGroupIdFromWorkspaceFolderId,
-  projectGroupToFolderWorkspace
+  projectGroupToFolderWorkspace,
+  projectGroupWorkspaceFolderId
 } from '../../../shared/project-group-workspace'
 import {
   findFolderWorkspaceCandidateRepos,
@@ -50,7 +54,9 @@ export function resolveFolderWorkspaceForState(
   const group = projectGroupId
     ? state.projectGroups.find(
         (candidate) =>
-          candidate.id === projectGroupId && belongsToExecutionHost(candidate, executionHostId)
+          candidate.id === projectGroupId &&
+          belongsToExecutionHost(candidate, executionHostId) &&
+          folderWorkspaceId === projectGroupWorkspaceFolderId(candidate.id)
       )
     : undefined
   return group
@@ -79,7 +85,10 @@ function getGroupWideWorkspaceCandidateRepos(args: {
     }
     return !repo.connectionId && getRepoExecutionHostId(repo) === LOCAL_EXECUTION_HOST_ID
   }
-  const groupIds = getProjectGroupSubtreeIds(args.projectGroups, args.projectGroupId)
+  const groupHostId =
+    args.executionHostId ??
+    (args.connectionId ? toSshExecutionHostId(args.connectionId) : LOCAL_EXECUTION_HOST_ID)
+  const groupIds = getProjectGroupSubtreeIds(args.projectGroups, args.projectGroupId, groupHostId)
   const groupRepos = args.repos.filter(
     (repo) =>
       typeof repo.projectGroupId === 'string' &&
@@ -107,7 +116,15 @@ export function getFolderWorkspaceCandidateRepos(
   if (!workspace) {
     return []
   }
-  const group = state.projectGroups.find((entry) => entry.id === workspace.projectGroupId)
+  const group = state.projectGroups.find(
+    (entry) =>
+      entry.id === workspace.projectGroupId &&
+      getProjectGroupExecutionHostId(entry) ===
+        (workspace.executionHostId ??
+          (workspace.connectionId
+            ? toSshExecutionHostId(workspace.connectionId)
+            : LOCAL_EXECUTION_HOST_ID))
+  )
   return getGroupWideWorkspaceCandidateRepos({
     folderPath: workspace.folderPath,
     projectGroupId: workspace.projectGroupId,

@@ -1,22 +1,76 @@
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
-import { getActiveRuntimeTarget, settingsForRuntimeOwner } from '../../runtime/runtime-rpc-client'
+import {
+  callRuntimeRpc,
+  getActiveRuntimeTarget,
+  settingsForRuntimeOwner
+} from '../../runtime/runtime-rpc-client'
 import type { FetchedProjectGroupCatalog } from './project-group-catalog'
 import type { HostCatalogFence } from '../host-catalog-fencing'
 import type { RepoSlice } from '../repos/repo-state'
 import { arrayElementsUnchanged } from '../catalog-identity'
-import { claimHostCatalogFence, isHostCatalogFenceCurrent } from '../host-catalog-fencing'
+import {
+  claimHostCatalogFence,
+  isHostCatalogFenceCurrent,
+  isHostCatalogFenceTargetCurrent
+} from '../host-catalog-fencing'
 import {
   fetchProjectGroupCatalogForTarget,
   mergeFetchedProjectGroupCatalog
 } from './project-group-catalog'
 import { listRuntimeEnvironmentsForAllHostLoad } from '../runtime-catalog-hosts'
+import type { ProjectGroup } from '../../../../shared/project-group-types'
+import { getProjectGroupHostIdentity } from '../../../../shared/project-groups'
+import { projectGroupWithFetchedOwner } from './project-group-owner-stamping'
 
 export function createProjectGroupCatalogActions(
   set: Parameters<StateCreator<AppState>>[0],
   get: Parameters<StateCreator<AppState>>[1]
-): Pick<RepoSlice, 'fetchProjectGroups' | 'fetchProjectGroupsForAllHosts'> {
+): Pick<RepoSlice, 'createProjectGroup' | 'fetchProjectGroups' | 'fetchProjectGroupsForAllHosts'> {
   return {
+    createProjectGroup: async (name) => {
+      try {
+        const target = getActiveRuntimeTarget(get().settings)
+        const mutationFence = claimHostCatalogFence(get, 'project-groups', target)
+        const group =
+          target.kind === 'local'
+            ? await window.api.projectGroups.create({
+                name,
+                createdFrom: 'manual'
+              })
+            : (
+                await callRuntimeRpc<{ group: ProjectGroup }>(
+                  target,
+                  'projectGroup.create',
+                  { name, createdFrom: 'manual' },
+                  { timeoutMs: 15_000 }
+                )
+              ).group
+        const ownedGroup = projectGroupWithFetchedOwner(group, target)
+        if (!isHostCatalogFenceTargetCurrent(get, mutationFence)) {
+          return ownedGroup
+        }
+        claimHostCatalogFence(get, 'project-groups', target)
+        set((s) => {
+          if (
+            s.projectGroups.some(
+              (current) =>
+                getProjectGroupHostIdentity(current) === getProjectGroupHostIdentity(ownedGroup)
+            )
+          ) {
+            return s
+          }
+          return {
+            projectGroups: [...s.projectGroups, ownedGroup],
+            folderWorkspacePathStatuses: {}
+          }
+        })
+        return ownedGroup
+      } catch (err) {
+        console.error('Failed to create project group:', err)
+        return null
+      }
+    },
     fetchProjectGroups: async (options) => {
       try {
         const target = getActiveRuntimeTarget(

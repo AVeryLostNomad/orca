@@ -1,7 +1,12 @@
 import { CircleX, FolderTree, List, Pin } from 'lucide-react'
 import type React from 'react'
+import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { Worktree } from '../../../../../../shared/worktree/types'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupHostIdentity
+} from '../../../../../../shared/project-groups'
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { branchName } from '../../../../lib/git-utils'
 import {
@@ -71,8 +76,15 @@ export const PROJECT_GROUP_META = {
   icon: FolderTree
 } as const
 
-export function getProjectGroupHeaderKey(groupId: string | null): string {
-  return groupId ? `project-group:${groupId}` : UNGROUPED_PROJECT_GROUP_KEY
+export function getProjectGroupHeaderKey(group: ProjectGroup | null): string {
+  if (!group) {
+    return UNGROUPED_PROJECT_GROUP_KEY
+  }
+  return `project-group:${
+    getProjectGroupExecutionHostId(group) === 'local'
+      ? group.id
+      : getProjectGroupHostIdentity(group)
+  }`
 }
 
 export const PINNED_GROUP_KEY = 'pinned'

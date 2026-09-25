@@ -12,60 +12,41 @@ import {
 import { findRepoForHost, repoMatchesHostIdentity } from '../slices/repo-host-identity'
 import { callRuntimeRpc, getActiveRuntimeTarget } from '../../runtime/runtime-rpc-client'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
+import { getRuntimeTargetHostId } from '../runtime-target-host'
+import { claimHostCatalogFence, isHostCatalogFenceTargetCurrent } from '../host-catalog-fencing'
 import type { ProjectRemovalFailure, RepoSlice } from '../repos/repo-state'
 import { mergeProjectCompatibilityForHostRepoChange } from '../repos/repo-catalog-identity'
 import { applyProjectGroupDeleteCascade } from './project-group-removal-state'
 import { repoWithFetchedOwner, settingsForRepoOwner } from '../repos/owner-routing'
 import { projectGroupWithFetchedOwner } from './project-group-owner-stamping'
+import { getProjectGroupUpdateIdentity } from './project-group-catalog'
+import { getProjectGroupUpdateCoordinator } from './project-group-update-coordinator'
 
 export function createProjectGroupMutationActions(
   set: Parameters<StateCreator<AppState>>[0],
   get: Parameters<StateCreator<AppState>>[1]
 ): Pick<
   RepoSlice,
-  | 'createProjectGroup'
   | 'updateProjectGroup'
   | 'deleteProjectGroup'
   | 'deleteProjectGroupWithContainedProjects'
   | 'moveProjectToGroup'
 > {
   return {
-    createProjectGroup: async (name) => {
-      try {
-        const target = getActiveRuntimeTarget(get().settings)
-        const group =
-          target.kind === 'local'
-            ? await window.api.projectGroups.create({
-                name,
-                createdFrom: 'manual'
-              })
-            : (
-                await callRuntimeRpc<{ group: ProjectGroup }>(
-                  target,
-                  'projectGroup.create',
-                  { name, createdFrom: 'manual' },
-                  { timeoutMs: 15_000 }
-                )
-              ).group
-        const ownedGroup = projectGroupWithFetchedOwner(group, target)
-        set((s) => ({
-          projectGroups: [...s.projectGroups, ownedGroup],
-          folderWorkspacePathStatuses: {}
-        }))
-        return ownedGroup
-      } catch (err) {
-        console.error('Failed to create project group:', err)
-        return null
-      }
-    },
-
     updateProjectGroup: async (groupId, updates, options) => {
+      // Why: the sidebar lists groups from every host, so the mutation follows the group's owner, not the focused host.
+      const ownerHostId = resolveProjectGroupOwnerHostId(get(), groupId, options?.hostId)
+      const target = getActiveRuntimeTarget(
+        settingsForProjectGroupOwner(get(), groupId, options?.hostId)
+      )
+      const updateIdentity = getProjectGroupUpdateIdentity(
+        ownerHostId ?? getRuntimeTargetHostId(target),
+        groupId
+      )
+      const projectGroupUpdates = getProjectGroupUpdateCoordinator(get)
+      const ticket = projectGroupUpdates.begin(updateIdentity, Object.keys(updates))
+      const mutationFence = claimHostCatalogFence(get, 'project-groups', target)
       try {
-        // Why: the sidebar lists groups from every host, so the mutation follows the group's owner, not the focused host.
-        const ownerHostId = resolveProjectGroupOwnerHostId(get(), groupId, options?.hostId)
-        const target = getActiveRuntimeTarget(
-          settingsForProjectGroupOwner(get(), groupId, options?.hostId)
-        )
         const updated =
           target.kind === 'local'
             ? await window.api.projectGroups.update({ groupId, updates })
@@ -80,27 +61,60 @@ export function createProjectGroupMutationActions(
         if (!updated) {
           return false
         }
+        if (!isHostCatalogFenceTargetCurrent(get, mutationFence)) {
+          return true
+        }
+        claimHostCatalogFence(get, 'project-groups', target)
+        const latestFields = projectGroupUpdates.latestFields(
+          updateIdentity,
+          ticket
+        ) as (keyof typeof updates)[]
+        if (
+          latestFields.length === 0 ||
+          projectGroupUpdates.hasLaterDeletion(updateIdentity, ticket)
+        ) {
+          return true
+        }
         const ownedGroup = projectGroupWithFetchedOwner(updated, target)
-        set((s) => ({
-          projectGroups: s.projectGroups.map((group) =>
-            projectGroupMatchesOwnerHost(group, groupId, ownerHostId) ? ownedGroup : group
-          ),
-          folderWorkspacePathStatuses: {}
-        }))
+        set((s) => {
+          let changed = false
+          const projectGroups = s.projectGroups.map((group) => {
+            if (!projectGroupMatchesOwnerHost(group, groupId, ownerHostId)) {
+              return group
+            }
+            const next = { ...group }
+            for (const field of latestFields) {
+              Object.assign(next, { [field]: ownedGroup[field] })
+            }
+            next.updatedAt = Math.max(group.updatedAt, ownedGroup.updatedAt)
+            changed = true
+            return next
+          })
+          return changed ? { projectGroups, folderWorkspacePathStatuses: {} } : s
+        })
         return true
       } catch (err) {
         console.error('Failed to update project group:', err)
         return false
+      } finally {
+        projectGroupUpdates.finish(updateIdentity, ticket)
       }
     },
 
     deleteProjectGroup: async (groupId, options) => {
+      // Why: deletion targets the group's owner host (see updateProjectGroup); focus may be elsewhere.
+      const ownerHostId = resolveProjectGroupOwnerHostId(get(), groupId, options?.hostId)
+      const target = getActiveRuntimeTarget(
+        settingsForProjectGroupOwner(get(), groupId, options?.hostId)
+      )
+      const updateIdentity = getProjectGroupUpdateIdentity(
+        ownerHostId ?? getRuntimeTargetHostId(target),
+        groupId
+      )
+      const projectGroupUpdates = getProjectGroupUpdateCoordinator(get)
+      const ticket = projectGroupUpdates.begin(updateIdentity, ['delete'], true)
+      const mutationFence = claimHostCatalogFence(get, 'project-groups', target)
       try {
-        // Why: deletion targets the group's owner host (see updateProjectGroup); focus may be elsewhere.
-        const ownerHostId = resolveProjectGroupOwnerHostId(get(), groupId, options?.hostId)
-        const target = getActiveRuntimeTarget(
-          settingsForProjectGroupOwner(get(), groupId, options?.hostId)
-        )
         const deleted =
           target.kind === 'local'
             ? await window.api.projectGroups.delete({ groupId })
@@ -115,11 +129,19 @@ export function createProjectGroupMutationActions(
         if (!deleted) {
           return false
         }
-        set((s) => applyProjectGroupDeleteCascade(s, groupId, ownerHostId))
+        if (!isHostCatalogFenceTargetCurrent(get, mutationFence)) {
+          return true
+        }
+        claimHostCatalogFence(get, 'project-groups', target)
+        if (projectGroupUpdates.isLatestMutation(updateIdentity, ticket)) {
+          set((s) => applyProjectGroupDeleteCascade(s, groupId, ownerHostId))
+        }
         return true
       } catch (err) {
         console.error('Failed to delete project group:', err)
         return false
+      } finally {
+        projectGroupUpdates.finish(updateIdentity, ticket)
       }
     },
 

@@ -43,10 +43,10 @@ export function claimHostCatalogFence(
   }
 }
 
-export function isHostCatalogFenceCurrent(get: () => AppState, fence: HostCatalogFence): boolean {
-  if (latestHostCatalogGenerationByStore.get(get)?.get(fence.key) !== fence.generation) {
-    return false
-  }
+export function isHostCatalogFenceTargetCurrent(
+  get: () => AppState,
+  fence: HostCatalogFence
+): boolean {
   if (fence.target.kind !== 'environment') {
     return true
   }
@@ -58,5 +58,12 @@ export function isHostCatalogFenceCurrent(get: () => AppState, fence: HostCatalo
     getEnvironmentSshStateGeneration(fence.target.environmentId) === fence.sshStateGeneration &&
     getRuntimeEnvironmentConnectionGeneration(fence.target.environmentId) ===
       fence.runtimeConnectionGeneration
+  )
+}
+
+export function isHostCatalogFenceCurrent(get: () => AppState, fence: HostCatalogFence): boolean {
+  return (
+    latestHostCatalogGenerationByStore.get(get)?.get(fence.key) === fence.generation &&
+    isHostCatalogFenceTargetCurrent(get, fence)
   )
 }

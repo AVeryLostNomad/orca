@@ -2,7 +2,10 @@ import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import type { Repo } from '../../../shared/repo-types'
 import { isPathInsideOrEqual } from '../../../shared/cross-platform-path'
-import { getProjectGroupSubtreeIds } from '../../../shared/project-groups'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupSubtreeIds
+} from '../../../shared/project-groups'
 
 export function inferFolderScopeConnectionIdForMigration(args: {
   folderPath: string
@@ -10,7 +13,12 @@ export function inferFolderScopeConnectionIdForMigration(args: {
   projectGroups: readonly ProjectGroup[]
   repos: readonly Repo[]
 }): string | null {
-  const groupIds = getProjectGroupSubtreeIds(args.projectGroups, args.projectGroupId)
+  const rootGroup = args.projectGroups.find((group) => group.id === args.projectGroupId)
+  const groupIds = getProjectGroupSubtreeIds(
+    args.projectGroups,
+    args.projectGroupId,
+    rootGroup ? getProjectGroupExecutionHostId(rootGroup) : 'local'
+  )
   const groupRepos = args.repos.filter(
     (repo) => typeof repo.projectGroupId === 'string' && groupIds.has(repo.projectGroupId)
   )

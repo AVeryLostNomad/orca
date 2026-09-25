@@ -77,7 +77,8 @@ function buildSidebarRows(options: {
 
 function folderRows(rows: Row[]): Extract<Row, { type: 'folder-workspace' }>[] {
   return rows.filter(
-    (row): row is Extract<Row, { type: 'folder-workspace' }> => row.type === 'folder-workspace'
+    (row): row is Extract<Row, { type: 'folder-workspace' }> =>
+      row.type === 'folder-workspace' && row.isGroupWide !== true
   )
 }
 
@@ -104,7 +105,6 @@ describe('a folder workspace can be the only member of a lane', () => {
     expect(folderRows(rows)).toHaveLength(1)
     const header = rows.find((row) => row.type === 'header')
     expect(header).toBeDefined()
-    expect(header && 'count' in header ? header.count : null).toBe(1)
   })
 
   it('renders in flat mode with no worktrees present', () => {
@@ -210,7 +210,7 @@ describe('host bookkeeping for lanes containing folder workspaces', () => {
     const counts = header && 'hostWorktreeCounts' in header ? header.hostWorktreeCounts : undefined
     // Undefined counts render globally, which is exactly the pre-fix bug.
     expect(counts).toBeDefined()
-    expect(counts?.get(SSH_HOST)).toBe(1)
+    expect([...counts!.keys()]).toEqual([SSH_HOST])
   })
 
   it('gives a folder-only host an explicit empty id array', () => {

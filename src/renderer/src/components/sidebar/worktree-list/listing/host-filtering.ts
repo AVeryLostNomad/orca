@@ -6,6 +6,7 @@ import {
   type ExecutionHostId,
   type ExecutionHostScope
 } from '../../../../../../shared/execution-host'
+import { getProjectGroupExecutionHostId } from '../../../../../../shared/project-groups'
 import type { FolderWorkspacePathStatusRequest } from '../../../../../../shared/folder-workspace-path-status'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
@@ -45,27 +46,45 @@ export function filterFolderWorkspacesForVisibleHosts(
   if (!visibleHostIdSet) {
     return folderWorkspaces
   }
-  const projectGroupById = new Map(projectGroups.map((group) => [group.id, group]))
-  return folderWorkspaces.filter((folderWorkspace) =>
-    visibleHostIdSet.has(
+  const projectGroupsById = new Map<string, ProjectGroup[]>()
+  for (const group of projectGroups) {
+    const groups = projectGroupsById.get(group.id) ?? []
+    groups.push(group)
+    projectGroupsById.set(group.id, groups)
+  }
+  return folderWorkspaces.filter((folderWorkspace) => {
+    const folderHostId =
+      normalizeExecutionHostId(folderWorkspace.executionHostId) ??
+      (folderWorkspace.connectionId
+        ? toSshExecutionHostId(folderWorkspace.connectionId)
+        : defaultHostId)
+    const projectGroup =
+      projectGroupsById
+        .get(folderWorkspace.projectGroupId)
+        ?.find(
+          (group) => getProjectGroupExecutionHostIdForRows(group, defaultHostId) === folderHostId
+        ) ??
+      projectGroupsById
+        .get(folderWorkspace.projectGroupId)
+        ?.find(
+          (group) => getProjectGroupExecutionHostIdForRows(group, defaultHostId) === defaultHostId
+        ) ??
+      projectGroupsById.get(folderWorkspace.projectGroupId)?.[0]
+    return visibleHostIdSet.has(
       getFolderWorkspaceExecutionHostIdForRows({
         folderWorkspace,
-        projectGroup: projectGroupById.get(folderWorkspace.projectGroupId),
+        projectGroup,
         defaultHostId
       })
     )
-  )
+  })
 }
 
 export function getProjectGroupExecutionHostIdForRows(
   group: Pick<ProjectGroup, 'connectionId' | 'executionHostId'>,
   defaultHostId: ExecutionHostId
 ): ExecutionHostId {
-  const executionHostId = normalizeExecutionHostId(group.executionHostId)
-  if (executionHostId) {
-    return executionHostId
-  }
-  return group.connectionId ? toSshExecutionHostId(group.connectionId) : defaultHostId
+  return getProjectGroupExecutionHostId(group, defaultHostId)
 }
 
 export function getFolderWorkspaceExecutionHostIdForRows({

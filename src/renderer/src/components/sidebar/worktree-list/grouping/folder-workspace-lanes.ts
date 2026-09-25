@@ -1,7 +1,12 @@
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
-import { projectGroupToFolderWorkspace } from '../../../../../../shared/project-group-workspace'
 import type { Repo } from '../../../../../../shared/repo-types'
+import {
+  normalizeExecutionHostId,
+  toSshExecutionHostId
+} from '../../../../../../shared/execution-host'
+import { getProjectGroupExecutionHostId } from '../../../../../../shared/project-groups'
+import { projectGroupToFolderWorkspace } from '../../../../../../shared/project-group-workspace'
 import type { WorkspaceStatusDefinition } from '../../../../../../shared/worktree/types'
 import {
   getWorkspaceStatus,
@@ -32,10 +37,25 @@ export function getRenderableFolderWorkspaces(
   projectGroups: readonly ProjectGroup[],
   repos: readonly Repo[]
 ): RenderableFolderWorkspace[] {
-  const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
+  const projectGroupsById = new Map<string, ProjectGroup[]>()
+  for (const group of projectGroups) {
+    const groups = projectGroupsById.get(group.id) ?? []
+    groups.push(group)
+    projectGroupsById.set(group.id, groups)
+  }
   const renderable: RenderableFolderWorkspace[] = []
   for (const folderWorkspace of folderWorkspaces) {
-    const projectGroup = projectGroupsById.get(folderWorkspace.projectGroupId)
+    const folderHostId =
+      normalizeExecutionHostId(folderWorkspace.executionHostId) ??
+      (folderWorkspace.connectionId ? toSshExecutionHostId(folderWorkspace.connectionId) : 'local')
+    const projectGroup =
+      projectGroupsById
+        .get(folderWorkspace.projectGroupId)
+        ?.find((group) => getProjectGroupExecutionHostId(group) === folderHostId) ??
+      projectGroupsById
+        .get(folderWorkspace.projectGroupId)
+        ?.find((group) => getProjectGroupExecutionHostId(group) === 'local') ??
+      projectGroupsById.get(folderWorkspace.projectGroupId)?.[0]
     // A group filtered out for host visibility legitimately hides its workspaces.
     if (!projectGroup?.parentPath) {
       continue

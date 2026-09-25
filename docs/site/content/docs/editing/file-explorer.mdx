@@ -2,7 +2,7 @@
 title: File explorer & external drag-drop
 ---
 
-The file explorer lives on the left side of each worktree. It tracks your on-disk files in real time — create, rename, delete, and move all map to filesystem operations, so external changes (say, from the agent) show up instantly. Directory listings sort directories first, then files, with **natural (numeric-aware) name order** — `9`, `99`, `100` instead of lexicographic `100`, `99`. The same ordering applies to SSH, remote runtime, Source Control tree nodes, folder pickers, and the mobile file tree.
+The file explorer lives in the right sidebar of each workspace, including non-git folders. It tracks your on-disk files — create, rename, delete, and move all map to filesystem operations, so external changes (say, from the agent) appear without reopening the workspace. When a filesystem notification cannot establish whether a path is a file or directory, Orca refreshes the listing instead of guessing. Directory listings sort directories first, then files, with **natural (numeric-aware) name order** — `9`, `99`, `100` instead of lexicographic `100`, `99`. The same ordering applies to SSH, remote runtime, Source Control tree nodes, folder pickers, and the mobile file tree.
 
 ## External drag-drop
 
@@ -24,6 +24,10 @@ On the desktop app, right-click a remote file → **Download**, or a remote fold
 ## Search a folder
 
 Right-click a folder and choose **Find in Folder** to open Search with that folder already scoped. You can also select a folder in the file explorer and press `Cmd-Shift-F` on macOS or `Ctrl-Shift-F` on Windows and Linux.
+
+## Recovering a panel error
+
+If a sidebar panel fails, its error message and **Retry** button stay inside the panel; the sidebar's navigation and close control remain available. You can retry, switch sidebar tabs, select another workspace, or close and reopen the sidebar to recover. Switching workspaces does not remount healthy panels.
 
 ## Next steps
 

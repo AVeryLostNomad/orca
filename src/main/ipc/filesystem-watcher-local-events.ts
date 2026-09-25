@@ -78,7 +78,8 @@ async function tryStatIsDirectory(filePath: string): Promise<boolean | undefined
     const s = await stat(filePath)
     return s.isDirectory()
   } catch {
-    // Why: stat failure (EPERM, vanished file) → undefined; renderer treats it as a file event, the safe default (§4.4).
+    // Why: stat failure (EPERM, vanished file) → undefined; the renderer
+    // relists instead of guessing whether the changed path is a file or directory.
     return undefined
   }
 }

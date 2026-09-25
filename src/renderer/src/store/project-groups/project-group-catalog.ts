@@ -1,4 +1,5 @@
 import type { ProjectGroup } from '../../../../shared/project-group-types'
+import { getProjectGroupHostIdentity } from '../../../../shared/project-groups'
 import { callRuntimeRpc, type RuntimeClientTarget } from '../../runtime/runtime-rpc-client'
 import { catalogOwnsHost, getProjectGroupHostId } from '../slices/project-group-owner-routing'
 import { getRuntimeTargetHostId } from '../runtime-target-host'
@@ -11,8 +12,8 @@ export type FetchedProjectGroupCatalog = {
   hostId: ExecutionHostId
 }
 
-function getProjectGroupHostIdentity(group: ProjectGroup): string {
-  return JSON.stringify([getProjectGroupHostId(group), group.id])
+export function getProjectGroupUpdateIdentity(hostId: ExecutionHostId, groupId: string): string {
+  return getProjectGroupHostIdentity({ id: groupId, executionHostId: hostId })
 }
 
 function mergeFetchedProjectGroupsForHost(
@@ -20,7 +21,7 @@ function mergeFetchedProjectGroupsForHost(
   fetched: ProjectGroup[],
   hostId: string
 ): readonly ProjectGroup[] {
-  const fetchedIdentities = new Set(fetched.map(getProjectGroupHostIdentity))
+  const fetchedIdentities = new Set(fetched.map((group) => getProjectGroupHostIdentity(group)))
   const preserved = previous.filter((group) => {
     const existingHostId = getProjectGroupHostId(group)
     return (

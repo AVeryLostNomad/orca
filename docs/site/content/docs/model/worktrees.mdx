@@ -126,6 +126,8 @@ Bulk-deleting workspaces (sidebar multi-select or Resource Manager cleanup) stil
 
 When you import a parent folder that contains several Git repos, Orca can group those repos under a single **project group** in the sidebar. Each project group exposes a **folder workspace** flow — a worktree-like entry that lives at the parent-folder level and binds its task source to one of the repos underneath, so one feature's GitHub/GitLab/Linear/Jira task surface stays attached to the right repo even though the workspace itself is grouped with its siblings in the sidebar.
 
+Groups from different execution hosts remain separate in the sidebar, even when their stored IDs match. Catalog refreshes preserve completed group edits, and malformed cyclic parent links are broken into visible roots instead of hiding the groups and their contents.
+
 To create one, hover the project group's header row in the sidebar and click the **+** action (tooltip: "Create workspace for _group_"). The composer dialog ("Create Folder Workspace") asks you to pick the source project for the workspace's task source, name the workspace, and optionally attach a linked issue or PR. Submit, and the folder workspace appears under the project group alongside the regular repo-scoped worktrees.
 
 When deleting a project group, Orca also offers a checkbox to remove the group's contained projects (the underlying repo registrations) in the same action — so cleanup of a no-longer-used cluster is one confirmation, not several.

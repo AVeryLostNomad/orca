@@ -382,6 +382,108 @@ describe('project groups', () => {
     )
   })
 
+  it('keeps same-id groups and their repos separated by host', () => {
+    const localGroup: ProjectGroup = {
+      id: 'shared',
+      name: 'Local group',
+      parentPath: null,
+      parentGroupId: null,
+      createdFrom: 'manual',
+      tabOrder: 0,
+      isCollapsed: false,
+      color: null,
+      createdAt: 1,
+      updatedAt: 1,
+      executionHostId: 'local'
+    }
+    const remoteGroup: ProjectGroup = {
+      ...localGroup,
+      name: 'Remote group',
+      executionHostId: 'ssh:builder'
+    }
+    const localRepo: Repo = { ...repo, id: 'local-repo', projectGroupId: localGroup.id }
+    const remoteRepo: Repo = {
+      ...repo,
+      id: 'remote-repo',
+      connectionId: 'builder',
+      projectGroupId: remoteGroup.id
+    }
+
+    const rows = buildRows(
+      'repo',
+      [
+        { ...worktree, id: 'local-worktree', repoId: localRepo.id },
+        { ...worktree, id: 'remote-worktree', repoId: remoteRepo.id, hostId: 'ssh:builder' }
+      ],
+      new Map([
+        [localRepo.id, localRepo],
+        [remoteRepo.id, remoteRepo]
+      ]),
+      null,
+      new Set(),
+      undefined,
+      undefined,
+      'manual',
+      undefined,
+      undefined,
+      false,
+      undefined,
+      [localGroup, remoteGroup]
+    )
+
+    expect(rows.filter((row) => row.type === 'header').map((row) => row.key)).toEqual([
+      'project-group:shared',
+      'repo:local-repo',
+      'project-group:ssh:builder\0shared',
+      'repo:remote-repo'
+    ])
+  })
+
+  it('renders groups and contents when persisted parents form a cycle', () => {
+    const alpha: ProjectGroup = {
+      id: 'alpha',
+      name: 'Alpha',
+      parentPath: null,
+      parentGroupId: 'bravo',
+      createdFrom: 'manual',
+      tabOrder: 1,
+      isCollapsed: false,
+      color: null,
+      createdAt: 1,
+      updatedAt: 1
+    }
+    const bravo: ProjectGroup = {
+      ...alpha,
+      id: 'bravo',
+      name: 'Bravo',
+      parentGroupId: 'alpha',
+      tabOrder: 0
+    }
+    const alphaRepo: Repo = { ...repo, id: 'alpha-repo', projectGroupId: alpha.id }
+
+    const rows = buildRows(
+      'repo',
+      [{ ...worktree, id: 'alpha-worktree', repoId: alphaRepo.id }],
+      new Map([[alphaRepo.id, alphaRepo]]),
+      null,
+      new Set(),
+      undefined,
+      undefined,
+      'manual',
+      undefined,
+      undefined,
+      false,
+      undefined,
+      [alpha, bravo]
+    )
+
+    expect(rows.filter((row) => row.type === 'header').map((row) => row.key)).toEqual([
+      'project-group:bravo',
+      'project-group:alpha',
+      'repo:alpha-repo'
+    ])
+  })
+
   it('returns both parent Project Group and repo keys for grouped repo reveals', () => {
     const groupedRepo: Repo = { ...repo, projectGroupId: 'group-1' }
     const group: ProjectGroup = {

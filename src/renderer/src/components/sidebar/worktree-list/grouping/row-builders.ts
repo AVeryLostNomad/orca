@@ -1,6 +1,10 @@
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorktreeLineage } from '../../../../../../shared/worktree/lineage-types'
 import type { Worktree } from '../../../../../../shared/worktree/types'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupHostIdentity
+} from '../../../../../../shared/project-groups'
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { isValidResolvedWorktreeLineageEdge } from '../../../../../../shared/resolved-worktree-lineage'
 import { getProjectedWorktreeLineage } from '../../worktree-lineage-projection'
@@ -258,9 +262,14 @@ export function buildFolderWorkspaceRow(
   pair: RenderableFolderWorkspace,
   groupDepth: number
 ): FolderWorkspaceRow {
+  const groupHostId = getProjectGroupExecutionHostId(pair.projectGroup)
   return {
     type: 'folder-workspace',
-    key: `folder-workspace:${pair.folderWorkspace.id}`,
+    key: `folder-workspace:${
+      groupHostId === 'local'
+        ? pair.folderWorkspace.id
+        : `${getProjectGroupHostIdentity(pair.projectGroup)}\0${pair.folderWorkspace.id}`
+    }`,
     folderWorkspace: pair.folderWorkspace,
     projectGroup: pair.projectGroup,
     depth: 0,

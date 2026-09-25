@@ -28,6 +28,11 @@ import { getRepositoryIconSectionId } from '@/components/settings/repository-set
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorktreeVisibilityDefaults } from '../../../../../../shared/global-settings-types'
+import { getRepoExecutionHostId } from '../../../../../../shared/execution-host'
+import {
+  getProjectGroupExecutionHostId,
+  getProjectGroupHostIdentity
+} from '../../../../../../shared/project-groups'
 import { isGitRepoKind } from '../../../../../../shared/repo-kind'
 import {
   effectiveExternalWorktreeVisibility,
@@ -78,6 +83,10 @@ export function RepoHeaderProjectActionsMenu({
   projectGroups: readonly ProjectGroup[]
   actions: RepoHeaderProjectActions
 }): React.JSX.Element {
+  const repoHostId = getRepoExecutionHostId(repo)
+  const projectGroupsForRepo = projectGroups.filter(
+    (group) => getProjectGroupExecutionHostId(group) === repoHostId
+  )
   return (
     <DropdownMenu modal={false}>
       <Tooltip>
@@ -138,16 +147,16 @@ export function RepoHeaderProjectActionsMenu({
           <FolderPlus className="size-3.5" />
           {translate('auto.components.sidebar.WorktreeList.cbfd565f83', 'New group from project')}
         </DropdownMenuItem>
-        {projectGroups.length > 0 ? (
+        {projectGroupsForRepo.length > 0 ? (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <FolderInput className="size-3.5" />
               {translate('auto.components.sidebar.WorktreeList.4a08fb55f2', 'Move to group')}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              {projectGroups.map((group) => (
+              {projectGroupsForRepo.map((group) => (
                 <DropdownMenuItem
-                  key={group.id}
+                  key={getProjectGroupHostIdentity(group)}
                   disabled={repo.projectGroupId === group.id}
                   onSelect={() => actions.onMoveProjectToGroup(repo, group.id)}
                 >

@@ -8,14 +8,11 @@ import {
   getWorkspaceSourceProvider
 } from '../../../../shared/new-workspace/workspace-source'
 import { isPathInsideOrEqual } from '../../../../shared/cross-platform-path'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import {
-  getRepoExecutionHostId,
-  LOCAL_EXECUTION_HOST_ID,
-  normalizeExecutionHostId,
-  toSshExecutionHostId,
-  type ExecutionHostId
-} from '../../../../shared/execution-host'
-import { getProjectGroupSubtreeIds } from '../../../../shared/project-groups'
+  getProjectGroupExecutionHostId,
+  getProjectGroupSubtreeIds
+} from '../../../../shared/project-groups'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { GitHubWorkItem } from '../../../../shared/github/work-item-types'
@@ -28,16 +25,6 @@ import { translate } from '@/i18n/i18n'
 
 const EMPTY_REPOS: Repo[] = []
 
-function getProjectGroupExecutionHostId(projectGroup: ProjectGroup): ExecutionHostId {
-  const executionHostId = normalizeExecutionHostId(projectGroup.executionHostId)
-  if (executionHostId) {
-    return executionHostId
-  }
-  return projectGroup.connectionId
-    ? toSshExecutionHostId(projectGroup.connectionId)
-    : LOCAL_EXECUTION_HOST_ID
-}
-
 export function getFolderSourceRepos(
   repos: readonly Repo[],
   projectGroups: readonly ProjectGroup[],
@@ -47,8 +34,8 @@ export function getFolderSourceRepos(
     return EMPTY_REPOS
   }
   const folderPath = projectGroup.parentPath
-  const groupIds = getProjectGroupSubtreeIds(projectGroups, projectGroup.id)
   const projectGroupHostId = getProjectGroupExecutionHostId(projectGroup)
+  const groupIds = getProjectGroupSubtreeIds(projectGroups, projectGroup.id, projectGroupHostId)
   return repos.filter(
     (repo) =>
       isGitRepoKind(repo) &&

@@ -16,8 +16,13 @@ import type { FolderWorkspace } from './folder-workspace-types'
 import type { ProjectGroup } from './project-group-types'
 import type { Repo } from './repo-types'
 import { isPathInsideOrEqual } from './cross-platform-path'
-import { getProjectGroupSubtreeIds } from './project-groups'
-import { getRepoExecutionHostId, parseExecutionHostId } from './execution-host'
+import { getProjectGroupExecutionHostId, getProjectGroupSubtreeIds } from './project-groups'
+import {
+  getRepoExecutionHostId,
+  parseExecutionHostId,
+  toSshExecutionHostId,
+  type ExecutionHostId
+} from './execution-host'
 
 export type FolderWorkspaceHostState = {
   folderWorkspaces: readonly FolderWorkspace[]
@@ -57,11 +62,16 @@ function getRepoScopeConnectionId(repo: Repo): string | null {
 function getFolderScopeCandidateRepos(args: {
   folderPath: string
   projectGroupId: string
+  rootGroupHostId: ExecutionHostId
   connectionId: string | null
   projectGroups: readonly ProjectGroup[]
   repos: readonly Repo[]
 }): Repo[] {
-  const groupIds = getProjectGroupSubtreeIds(args.projectGroups, args.projectGroupId)
+  const groupIds = getProjectGroupSubtreeIds(
+    args.projectGroups,
+    args.projectGroupId,
+    args.rootGroupHostId
+  )
   // Classify each repo once. The previous pair of filters read every
   // projectGroupId twice before applying the same path predicate.
   const groupRepos: Repo[] = []
@@ -100,11 +110,19 @@ export function findFolderWorkspaceCandidateRepos(
   if (!workspace) {
     return []
   }
-  const group = state.projectGroups.find((entry) => entry.id === workspace.projectGroupId)
+  const group =
+    state.projectGroups.find(
+      (entry) =>
+        entry.id === workspace.projectGroupId &&
+        getProjectGroupExecutionHostId(entry) ===
+          (workspace.executionHostId ??
+            (workspace.connectionId ? toSshExecutionHostId(workspace.connectionId) : 'local'))
+    ) ?? state.projectGroups.find((entry) => entry.id === workspace.projectGroupId)
   return getFolderScopeCandidateRepos({
     folderPath: workspace.folderPath,
     projectGroupId: workspace.projectGroupId,
     connectionId: normalizeConnectionId(workspace.connectionId ?? group?.connectionId),
+    rootGroupHostId: group ? getProjectGroupExecutionHostId(group) : 'local',
     projectGroups: state.projectGroups,
     repos: state.repos
   })

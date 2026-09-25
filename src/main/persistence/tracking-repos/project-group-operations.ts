@@ -2,6 +2,7 @@ import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import {
   createProjectGroup,
+  getProjectGroupExecutionHostId,
   getProjectGroupSubtreeIds,
   normalizeProjectGroupName
 } from '../../../shared/project-groups'
@@ -93,7 +94,12 @@ export class ProjectGroupPersistenceOperations {
 
   deleteProjectGroup(groupId: string): boolean {
     const before = this.state.projectGroups?.length ?? 0
-    const deletedGroupIds = getProjectGroupSubtreeIds(this.state.projectGroups ?? [], groupId)
+    const rootGroup = (this.state.projectGroups ?? []).find((group) => group.id === groupId)
+    const deletedGroupIds = getProjectGroupSubtreeIds(
+      this.state.projectGroups ?? [],
+      groupId,
+      rootGroup ? getProjectGroupExecutionHostId(rootGroup) : 'local'
+    )
     this.state.projectGroups = (this.state.projectGroups ?? []).filter(
       (group) => !deletedGroupIds.has(group.id)
     )
@@ -106,7 +112,9 @@ export class ProjectGroupPersistenceOperations {
         ? { ...repo, projectGroupId: null }
         : repo
     )
-    const removedFolderWorkspaceKeys = new Set([...deletedGroupIds].map(projectGroupWorkspaceKey))
+    const removedFolderWorkspaceKeys = new Set(
+      [...deletedGroupIds].map((groupId) => projectGroupWorkspaceKey(groupId))
+    )
     for (const workspaceKey of removedFolderWorkspaceKeys) {
       this.state.workspaceSession = removeWorkspaceSessionOwner(
         this.state.workspaceSession,
