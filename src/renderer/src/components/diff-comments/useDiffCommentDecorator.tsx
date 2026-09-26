@@ -177,8 +177,7 @@ export function useDiffCommentDecorator({
       resizeDiffCommentZone(editor, entry)
     }
 
-    // One-shot scroll resolver: getTopForLineNumber(line, includeZones=true) centers on the line+card pair (card sits in a zone above the line).
-    // rAF defer is intentional: run after DiffViewer's restoreViewState rAF so its cached scroll doesn't snap us back off the note.
+    // One-shot scroll resolver: center the note after the editor restores its scroll position.
     const scrollToZone = (commentId: string): void => {
       cancelScrollToZoneFrame()
       scrollToZoneFrameRef.current = requestAnimationFrame(() => {

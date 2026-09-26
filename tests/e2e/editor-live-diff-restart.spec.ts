@@ -43,7 +43,7 @@ test('@golden recovers an empty combined-only draft after workspace switching an
       return { worktreeId, otherId: other.id }
     }, fixture.worktreePath)
 
-    const modified = first.page.locator('.monaco-diff-editor .modified .monaco-editor').first()
+    const modified = first.page.getByTestId('pierre-diff-section').locator('.monaco-editor')
     await expect(modified).toBeVisible({ timeout: 30_000 })
     await modified.click()
     await first.page.keyboard.press('ControlOrMeta+A')

@@ -9,11 +9,10 @@ import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import type { GitBranchChangeEntry } from '../../../../../../shared/git-diff-compare-types'
 import { canOpenDiffSectionPreviewToSide } from '../../diff-section-preview'
 import type { DiffSection } from '../../diff-section-types'
-import type { DiffSectionItemProps } from '../../diff-section-item-props'
 import { requestEditorDocumentSave } from '../../editor-autosave'
 
 export type CombinedDiffSectionActions = {
-  handleSectionSaveRef: DiffSectionItemProps['handleSectionSaveRef']
+  handleSectionSaveRef: React.MutableRefObject<(index: number) => Promise<void>>
   openSection: (index: number) => void
   openSectionPreview: (section: DiffSection) => void
   saveDirtyDocuments: () => Promise<void>

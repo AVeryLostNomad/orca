@@ -16,7 +16,7 @@ Files save on blur and after short idle periods. There is no "dirty" dot because
 
 ## Changes view mode
 
-Toggle **Changes view mode** in any editor tab to flip the file into an in-tab HEAD-vs-working-tree diff without leaving your cursor position. Same shortcuts as the [Diff viewer](/docs/review/diff-viewer) — `n`/`p` to walk hunks, `s` to stage. Toggle again to return to the regular file view.
+Toggle **Changes view mode** in an editor tab to show an in-tab HEAD-vs-working-tree Pierre diff. Use the header's previous/next change controls or `Shift+F7` / `F7` (remappable under Settings → Shortcuts) to walk hunks. Toggle again to return to the regular file view.
 
 Git baseline reads distinguish an empty file, a missing file, and an unavailable read. A failed diff read shows an error with **Retry**, never error text masquerading as file contents. Ordinary editor baseline refreshes do not replace unsaved text. Plain folder workspaces and external files do not acquire repository baselines.
 
@@ -26,9 +26,11 @@ Ordinary code editors show HEAD-relative Git gutters: green for additions, blue 
 
 In Source Control, single-click a file to preview its diff, including Markdown; double-click to open its current working file in a permanent editor tab. Renames use the current destination path. Missing files stay in review, and conflicts keep their resolver. Split-open modifiers reuse the split from the first click. In a combined diff's file navigator, single-click scrolls to the section and double-click opens the working file.
 
-The current working-copy side of an unstaged diff is editable, including text rows in **View all**. The ordinary editor, Changes mode, individual working diff, and combined diff share the same text and undo history. Collapsing a combined row or closing one view does not discard edits that another view still owns.
+All full text diffs use Pierre, including editable working diffs and **View all**. Unchanged regions retain their line counts and expansion controls in both split and inline layouts. The current working-copy side of an unstaged diff is editable; its baseline is read-only. The ordinary editor, Changes mode, individual working diff, and combined diff share the same text and undo history. Collapsing a combined row or closing one view does not discard edits that another view still owns.
 
 Save and autosave use one file queue across these views. Closing the final view prompts for unsaved changes; failed saves preserve them. Unsaved combined-only edits are recovered as ordinary file tabs after restart and require disk verification before autosave resumes. Staged, historical, pull-request, and deleted-file snapshots remain read-only.
+
+Editable Pierre diffs embed the same Monaco editing engine and language-service providers as ordinary file tabs: completion and snippets, signature help, diagnostics, hover, definition navigation, rename, formatting, and code actions. Pierre still owns the diff layout, baseline, and unchanged-region controls. Language-server availability follows the ordinary editor's settings and workspace support. Clicking an ordinary editor's Git gutter still opens the compact custom inline peek; it is separate from full diff views.
 
 ## Whitespace comparison
 

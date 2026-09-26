@@ -1,7 +1,6 @@
 import React from 'react'
 import type { Virtualizer } from '@tanstack/react-virtual'
-import type { editor as monacoEditor } from 'monaco-editor'
-import { DiffSectionItem } from '@/components/editor/DiffSectionItem'
+import { PierreDiffSection } from '@/components/pierre-diff/PierreDiffSection'
 import { translate } from '@/i18n/i18n'
 import type { DecoratedDiffComment } from '@/components/diff-comments/decorated-diff-comment'
 import { CombinedDiffFileTree } from '../../editor/combined-diff/browse-files/combined-diff-file-tree'
@@ -9,7 +8,6 @@ import type { DiffSection } from '@/components/editor/diff-section-types'
 import type { CombinedDiffFileTreeEntry } from '../../editor/combined-diff/resolve-changes/combined-diff-section-identity'
 import type { GitHubPRFile } from '../../../../../shared/github/pull-request-types'
 import type { GitBranchChangeEntry } from '../../../../../shared/git-diff-compare-types'
-import type { DiffSectionItemProps } from '@/components/editor/diff-section-item-props'
 import { PRFilesCombinedDiffToolbar } from './pr-files-combined-diff-toolbar'
 
 export function PRFilesCombinedDiffBody({
@@ -31,8 +29,6 @@ export function PRFilesCombinedDiffBody({
   scrollContainerRef,
   virtualizer,
   sections,
-  settings,
-  sectionHeights,
   inlineReviewComments,
   loadSection,
   retrySection,
@@ -40,9 +36,6 @@ export function PRFilesCombinedDiffBody({
   openFilesOnGitHub,
   renderViewedCheckbox,
   handleAddLineComment,
-  setSectionHeights,
-  modifiedEditorsRef,
-  handleSectionSaveRef,
   getCommentableLineNumbers
 }: {
   files: GitHubPRFile[]
@@ -63,8 +56,6 @@ export function PRFilesCombinedDiffBody({
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
   virtualizer: Virtualizer<HTMLDivElement, Element>
   sections: DiffSection[]
-  settings: DiffSectionItemProps['settings']
-  sectionHeights: Record<number, number>
   inlineReviewComments: DecoratedDiffComment[]
   loadSection: (index: number) => void
   retrySection: (index: number) => void
@@ -77,9 +68,6 @@ export function PRFilesCombinedDiffBody({
   ) => Promise<boolean>
   // Why: a stable callback, not an inline arrow — this re-keys every mounted row's comment decorator.
   getCommentableLineNumbers: (section: DiffSection) => readonly number[] | undefined
-  setSectionHeights: React.Dispatch<React.SetStateAction<Record<number, number>>>
-  modifiedEditorsRef: React.RefObject<Map<number, monacoEditor.IStandaloneCodeEditor>>
-  handleSectionSaveRef: React.MutableRefObject<(index: number) => Promise<void>>
 }): React.JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -119,13 +107,11 @@ export function PRFilesCombinedDiffBody({
                   className="absolute left-0 top-0 w-full"
                   style={{ top: `${virtualItem.start}px` }}
                 >
-                  <DiffSectionItem
+                  <PierreDiffSection
                     section={section}
                     index={virtualItem.index}
                     isBranchMode={false}
                     sideBySide={sideBySide}
-                    settings={settings}
-                    sectionHeight={sectionHeights[virtualItem.index]}
                     worktreeId={`github-pr:${repoId}:${prNumber}`}
                     inlineComments={inlineReviewComments}
                     loadSection={loadSection}
@@ -142,14 +128,7 @@ export function PRFilesCombinedDiffBody({
                       'auto.components.GitHubItemDialog.bf43425540',
                       'Comment'
                     )}
-                    addLineCommentPlaceholder={translate(
-                      'auto.components.GitHubItemDialog.86d84a17ca',
-                      'Add a review comment'
-                    )}
                     getCommentableLineNumbers={getCommentableLineNumbers}
-                    setSectionHeights={setSectionHeights}
-                    modifiedEditorsRef={modifiedEditorsRef}
-                    handleSectionSaveRef={handleSectionSaveRef}
                   />
                 </div>
               )

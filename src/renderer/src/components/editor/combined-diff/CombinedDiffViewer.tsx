@@ -337,8 +337,8 @@ export default function CombinedDiffViewer({
       diffCommentsForWorktree={diffCommentsForWorktree}
       entrySet={entrySet}
       file={file}
-      loadDeferredSection={loadDeferredSection}
       loadSection={loadSection}
+      loadDeferredSection={loadDeferredSection}
       markDirectScrollInput={markDirectScrollInput}
       notes={notes}
       onOpenAlternateDiff={openAlternateDiff}
@@ -346,11 +346,9 @@ export default function CombinedDiffViewer({
       preferences={preferences}
       retrySection={retrySection}
       sectionActions={sectionActions}
-      sectionHeights={sectionHeights}
       sectionRowKeys={sectionRowKeys}
       sections={sections}
       setScrollContainerRef={setScrollContainerRef}
-      setSectionHeights={setSectionHeights}
       settings={settings}
       skippedConflicts={skippedConflicts}
       treeNavigation={treeNavigation}

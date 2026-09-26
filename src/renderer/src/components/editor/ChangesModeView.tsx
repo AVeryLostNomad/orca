@@ -1,14 +1,11 @@
 import React from 'react'
-import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import type { OpenFile } from '@/store/slices/editor'
 import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 import { ConflictBanner } from './ConflictComponents'
-import { getDiffContentSignature } from './diff-content-signature'
+import { PierreFileDiff } from './editor-lazy-views'
 import { translate } from '@/i18n/i18n'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
-
-const DiffViewer = lazy(() => import('./DiffViewer'))
 
 // Why: Changes view mode renders an edit-mode tab as a HEAD-vs-working-tree
 // diff without creating a separate diff-tab object. The modified side is the
@@ -60,18 +57,8 @@ export function ChangesModeView({
       </div>
     )
   }
-  // Why: Monaco renders an empty diff when the two sides match, which reads as
-  // a broken view. Surface an inline banner so the user knows Changes mode is
-  // active but there is simply nothing to diff right now.
   const isDiffBodyPruned = dc.largeDiffRenderLimit?.limited === true
   const isIdentical = !isDiffBodyPruned && dc.originalContent === modifiedContent
-  // Why: after a terminal commit/pull/rebase, Changes mode refreshes the
-  // HEAD-side blob in React state, but Monaco can keep painting the previous
-  // diff if we reuse the same kept model identities. Rotate only the
-  // original-side model identity so Monaco rebuilds the stale HEAD snapshot
-  // without throwing away the modified-side undo history.
-  const headContentSignature = getDiffContentSignature(dc.originalContent)
-  const originalModelKey = `${diffViewStateKey}:original:${headContentSignature}`
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       {activeFile.conflict && <ConflictBanner file={activeFile} entry={activeConflictEntry} />}
@@ -84,20 +71,20 @@ export function ChangesModeView({
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">
-        <DiffViewer
+        <PierreFileDiff
           key={viewStateScopeId}
-          modelKey={diffViewStateKey}
-          workingDocumentId={workingDocumentId}
-          originalModelKey={originalModelKey}
+          scrollKey={diffViewStateKey}
           originalContent={dc.originalContent}
           modifiedContent={modifiedContent}
+          originalReadState={dc.originalReadState}
+          modifiedReadState={dc.modifiedReadState}
           largeDiffRenderLimit={dc.largeDiffRenderLimit}
           language={resolvedLanguage}
-          filePath={activeFile.filePath}
           relativePath={activeFile.relativePath}
           sideBySide={sideBySide}
           worktreeId={activeFile.worktreeId}
-          onSave={onSave}
+          workingDocumentId={workingDocumentId}
+          onSave={workingDocumentId ? onSave : undefined}
         />
       </div>
     </div>

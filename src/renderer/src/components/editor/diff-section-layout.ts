@@ -121,8 +121,8 @@ export function getDiffSectionEstimatedHeight({
 
 /**
  * Single virtualizer estimate for a diff row, shared by the worktree and
- * PR-review viewers so no viewer estimates a row the row's own layout metrics
- * (useDiffSectionLayoutMetrics) would size from the bounded fallback instead.
+ * PR-review viewers so no viewer estimates a row the rendered Pierre section
+ * would size from the bounded fallback instead.
  */
 export function getDiffSectionRowEstimatedHeight(
   section: Pick<

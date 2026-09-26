@@ -7,6 +7,7 @@ import {
   resolveEditorBaseFontSize,
   resolveEditorFontFamily
 } from '@/lib/editor-font-zoom'
+import { useSystemPrefersDark } from '../terminal-pane/use-system-prefers-dark'
 import {
   DEFAULT_EDITOR_THEME_DARK,
   DEFAULT_EDITOR_THEME_LIGHT,
@@ -17,6 +18,15 @@ import {
 } from '@/lib/monaco-highlighting/editor-theme-catalog'
 
 export type PierreDiffThemeType = 'dark' | 'light'
+
+// Pierre's generated shadow-root CSS defines these after inherited host
+// variables. `unsafeCSS` inserts this override after that generated theme.
+export const PIERRE_EDITOR_SURFACE_UNSAFE_CSS = `
+:host {
+  --diffs-dark-bg: var(--editor-surface);
+  --diffs-light-bg: var(--editor-surface);
+}
+`
 
 const registeredLocalPierreThemes = new Set<string>()
 
@@ -81,17 +91,12 @@ const PIERRE_DIFF_FONT_FALLBACK =
   'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace'
 
 export function usePierreDiffThemeType(): PierreDiffThemeType {
-  const theme = useAppStore((s) => s.settings?.theme)
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  return isDark ? 'dark' : 'light'
+  const theme = useAppStore((s) => s.settings?.theme) ?? 'system'
+  const systemPrefersDark = useSystemPrefersDark()
+  return theme === 'dark' || (theme === 'system' && systemPrefersDark) ? 'dark' : 'light'
 }
 
-/**
- * Host-element CSS variables the diffs web component reads through its shadow
- * boundary. Backgrounds track `--editor-surface` so diff panes match Monaco.
- */
+/** Host-element CSS variables for the diff's font metrics. */
 export function usePierreDiffStyleVars(): CSSProperties {
   const settings = useAppStore((s) => s.settings)
   const editorFontZoomLevel = useAppStore((s) => s.editorFontZoomLevel)
@@ -100,8 +105,6 @@ export function usePierreDiffStyleVars(): CSSProperties {
   return {
     '--diffs-font-family': `${resolveEditorFontFamily(settings)}, ${PIERRE_DIFF_FONT_FALLBACK}`,
     '--diffs-font-size': `${fontSize}px`,
-    '--diffs-line-height': `${Math.round(fontSize * 1.5)}px`,
-    '--diffs-light-bg': 'var(--editor-surface)',
-    '--diffs-dark-bg': 'var(--editor-surface)'
+    '--diffs-line-height': `${Math.round(fontSize * 1.5)}px`
   } as CSSProperties
 }

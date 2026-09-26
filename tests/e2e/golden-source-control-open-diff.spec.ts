@@ -13,7 +13,7 @@ import {
 import { waitForSessionReady } from './helpers/store'
 import { forwardRendererConsole } from './helpers/renderer-console-forwarding'
 
-test('@golden opens, edits, and saves an unstaged Monaco working diff', async ({
+test('@golden opens, edits, and saves an unstaged Pierre working diff', async ({
   orcaPage,
   testRepoPath,
   registerPostElectronShutdownCleanup
@@ -27,6 +27,12 @@ test('@golden opens, edits, and saves an unstaged Monaco working diff', async ({
 
   await waitForSessionReady(orcaPage)
   await openGoldenSourceControl(orcaPage, testRepoPath, fixture)
+  await orcaPage.evaluate(() =>
+    window.__store!.getState().updateSettings({
+      diffDefaultView: 'side-by-side',
+      editorAutoSave: false
+    })
+  )
 
   const changedFile = orcaPage
     .locator('[data-testid="source-control-entry"]')
@@ -34,10 +40,10 @@ test('@golden opens, edits, and saves an unstaged Monaco working diff', async ({
   await expect(changedFile).toBeVisible({ timeout: 15_000 })
   await changedFile.click()
 
-  const diffEditor = orcaPage.locator('.monaco-diff-editor').first()
+  const diffEditor = orcaPage.getByTestId('pierre-file-diff')
   await expect(diffEditor).toBeVisible({ timeout: 20_000 })
-  const originalPane = diffEditor.locator('.original .view-lines').first()
-  const modifiedPane = diffEditor.locator('.modified .monaco-editor').first()
+  const originalPane = diffEditor.locator('[data-deletions] [data-content]').first()
+  const modifiedPane = diffEditor.locator('.monaco-editor')
   await expect(originalPane).toContainText(GOLDEN_REMOVED_LINE)
   await expect(modifiedPane).toContainText(GOLDEN_ADDED_LINE)
   await expect(orcaPage.locator('.editor-header-path').first()).toHaveAttribute(
@@ -45,27 +51,23 @@ test('@golden opens, edits, and saves an unstaged Monaco working diff', async ({
     `${absoluteFilePath.replaceAll('\\', '/')} (diff)`
   )
 
-  await expect(diffEditor.locator('.line-insert').first()).toBeVisible()
-  const initialInsertionHeight = await diffEditor
-    .locator('.line-insert')
-    .evaluateAll((elements) =>
-      elements.reduce((height, element) => height + element.getBoundingClientRect().height, 0)
-    )
+  await expect(originalPane).not.toHaveAttribute('contenteditable', 'true')
+  await expect(
+    diffEditor.locator('[data-content] [data-line-type$="addition"]').first()
+  ).toBeVisible()
   await modifiedPane.click()
-  await orcaPage.keyboard.press('ControlOrMeta+End')
+  await orcaPage.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
   await orcaPage.keyboard.press('Enter')
-  await orcaPage.keyboard.type(sentinel)
+  await orcaPage.keyboard.insertText(sentinel)
   await expect(modifiedPane).toContainText(sentinel)
 
-  await expect
-    .poll(() =>
-      diffEditor
-        .locator('.line-insert')
-        .evaluateAll((elements) =>
-          elements.reduce((height, element) => height + element.getBoundingClientRect().height, 0)
-        )
-    )
-    .toBeGreaterThan(initialInsertionHeight)
+  await expect(
+    diffEditor.locator('[data-content] [data-line-type$="addition"]').filter({ hasText: sentinel })
+  ).toBeVisible()
+  await orcaPage.keyboard.press('ControlOrMeta+Z')
+  await expect(modifiedPane).not.toContainText(sentinel)
+  await orcaPage.keyboard.press('ControlOrMeta+Shift+Z')
+  await expect(modifiedPane).toContainText(sentinel)
   await diffEditor.screenshot({ path: testInfo.outputPath('editable-diff-hunks.png') })
   const draft = await orcaPage.evaluate((filePath) => {
     const document = Object.values(window.__store!.getState().workingDocuments).find(

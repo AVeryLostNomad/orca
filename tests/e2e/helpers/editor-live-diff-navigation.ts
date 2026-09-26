@@ -58,7 +58,7 @@ function sourceControlRow(
 
 async function expectDiffForCurrentContent(page: Page, expectedContent: string): Promise<void> {
   const diff = page
-    .locator('.monaco-diff-editor, [data-testid="pierre-file-diff"]')
+    .getByTestId('pierre-file-diff')
     .filter({ hasText: expectedContent.trim() })
     .first()
   await expect(diff).toBeVisible({ timeout: 20_000 })
@@ -203,7 +203,7 @@ export async function exerciseLiveDiffNavigation(page: Page, worktreePath: strin
   const deletedRow = sourceControlRow(page, DELETED_PATH, 'unstaged')
   await expect(deletedRow).toBeVisible()
   await deletedRow.click()
-  const deletedDiff = page.locator('.monaco-diff-editor, [data-testid="pierre-file-diff"]').first()
+  const deletedDiff = page.getByTestId('pierre-file-diff').first()
   await expect(deletedDiff).toBeVisible({ timeout: 20_000 })
   await expect(deletedDiff).toContainText(DELETED_BASELINE.trim())
   await deletedRow.dblclick()
@@ -261,7 +261,7 @@ export async function exerciseLiveDiffNavigation(page: Page, worktreePath: strin
   await expect(historyFile).toHaveAttribute('title', HISTORY_PATH)
   await historyFile.click()
   const historyDiff = page
-    .locator('.monaco-diff-editor, [data-testid="pierre-file-diff"]')
+    .getByTestId('pierre-file-diff')
     .filter({ hasText: HISTORY_CURRENT.trim() })
     .first()
   await expect(historyDiff).toBeVisible({ timeout: 20_000 })

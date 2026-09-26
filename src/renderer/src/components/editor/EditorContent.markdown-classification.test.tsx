@@ -32,7 +32,7 @@ vi.mock('./editor-lazy-views', () => {
   const view = (name: string) => () => <div data-editor-view={name} />
   return {
     MonacoEditor: view('source'),
-    DiffViewer: view('diff'),
+    PierreFileDiff: view('diff'),
     CombinedDiffViewer: view('combined-diff'),
     RichMarkdownEditor: view('rich-editor'),
     MarkdownPreview: view('preview'),

@@ -1,7 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import {
   editorSelectionCache,
-  diffViewStateCache,
   pdfViewPositionCache,
   setWithLRU,
   scrollTopCache
@@ -10,7 +9,6 @@ import {
 beforeEach(() => {
   scrollTopCache.clear()
   editorSelectionCache.clear()
-  diffViewStateCache.clear()
   pdfViewPositionCache.clear()
 })
 
@@ -182,31 +180,5 @@ describe('pdfViewPositionCache', () => {
     setWithLRU(pdfViewPositionCache, '/doc-new.pdf:pdf', { pageNumber: 1, top: 0, left: 0 })
     expect(pdfViewPositionCache.get('/doc-0.pdf:pdf')?.pageNumber).toBe(99)
     expect(pdfViewPositionCache.has('/doc-1.pdf:pdf')).toBe(false)
-  })
-})
-
-describe('diffViewStateCache', () => {
-  it('is an empty Map on import', () => {
-    expect(diffViewStateCache).toBeInstanceOf(Map)
-    expect(diffViewStateCache.size).toBe(0)
-  })
-
-  it('works with setWithLRU for diff-tab keys', () => {
-    const diffState = {
-      original: {
-        cursorState: [],
-        viewState: { scrollTop: 10, scrollTopWithoutViewZones: 10, scrollLeft: 0 }
-      },
-      modified: {
-        cursorState: [],
-        viewState: { scrollTop: 20, scrollTopWithoutViewZones: 20, scrollLeft: 0 }
-      },
-      modelState: { unchangedRegions: [] }
-    } as unknown as typeof diffViewStateCache extends Map<string, infer T> ? T : never
-
-    setWithLRU(diffViewStateCache, 'diff-tab', diffState)
-
-    expect(diffViewStateCache.get('diff-tab')).toBe(diffState)
-    expect(diffViewStateCache.size).toBe(1)
   })
 })

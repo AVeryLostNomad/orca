@@ -1,8 +1,8 @@
 import type * as Monaco from 'monaco-editor'
-import type { Range, TextEdit, WorkspaceEdit } from 'vscode-languageserver-protocol'
+import type { Range, WorkspaceEdit } from 'vscode-languageserver-protocol'
 import { requestLsp } from './lsp-client'
-import { getLspBindingForUri, type LspDocumentBinding } from './lsp-document-binding'
 import { toMonacoRange } from './lsp-monaco-converters'
+import { toMonacoWorkspaceEdit } from './lsp-monaco-workspace-edit'
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
 
 type MonacoModule = typeof Monaco
@@ -42,7 +42,8 @@ export function registerLspRenameProvider(monaco: MonacoModule, languageId: stri
       if (!workspaceEdit) {
         return { edits: [], rejectReason: 'Rename produced no edits' }
       }
-      return toMonacoWorkspaceEdit(monaco, binding, workspaceEdit)
+      const converted = toMonacoWorkspaceEdit(monaco, binding.session, workspaceEdit)
+      return converted.workspaceEdit ?? { edits: [], rejectReason: converted.failureReason }
     },
     async resolveRenameLocation(model, position, token) {
       const binding = lspBindingFor(model)
@@ -65,46 +66,4 @@ export function registerLspRenameProvider(monaco: MonacoModule, languageId: stri
       return { range, text: model.getValueInRange(range) }
     }
   })
-}
-
-// Standalone Monaco can apply rename edits only to models already open.
-function toMonacoWorkspaceEdit(
-  monaco: MonacoModule,
-  binding: LspDocumentBinding,
-  workspaceEdit: WorkspaceEdit
-): Monaco.languages.WorkspaceEdit & { rejectReason?: string } {
-  const edits: Monaco.languages.IWorkspaceTextEdit[] = []
-  const editsByUri = new Map<string, TextEdit[]>()
-  if (workspaceEdit.changes) {
-    for (const [uri, textEdits] of Object.entries(workspaceEdit.changes)) {
-      editsByUri.set(uri, textEdits)
-    }
-  }
-  for (const change of workspaceEdit.documentChanges ?? []) {
-    if ('textDocument' in change) {
-      const existing = editsByUri.get(change.textDocument.uri) ?? []
-      editsByUri.set(change.textDocument.uri, [...existing, ...(change.edits as TextEdit[])])
-    }
-  }
-  for (const [uri, textEdits] of editsByUri) {
-    const model =
-      uri === binding.uri
-        ? binding.model
-        : (getLspBindingForUri(binding.session.sessionId, uri)?.model ??
-          monaco.editor.getModel(monaco.Uri.parse(uri)))
-    if (!model || model.isDisposed()) {
-      return {
-        edits: [],
-        rejectReason: 'Rename touches files that are not open in the editor yet'
-      }
-    }
-    for (const edit of textEdits) {
-      edits.push({
-        resource: model.uri,
-        versionId: undefined,
-        textEdit: { range: toMonacoRange(edit.range), text: edit.newText }
-      })
-    }
-  }
-  return { edits }
 }

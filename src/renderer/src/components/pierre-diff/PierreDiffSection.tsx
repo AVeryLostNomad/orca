@@ -1,35 +1,40 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Plus, RefreshCw } from 'lucide-react'
-import { FileDiff } from '@pierre/diffs/react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import type { FileDiffOptions } from '@pierre/diffs'
 import { usePierreDiffMetadata } from './use-pierre-diff-metadata'
 import { detectLanguage } from '@/lib/language-detect'
 import { EditorFileLoadErrorView } from '../editor/EditorFileLoadErrorView'
-import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { useAppStore } from '@/store'
 import { selectWorktreeDiffComments } from '@/store/worktree-diff-comments-selector'
 import { isDiffComment } from '@/lib/diff-comment-compat'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
+import type { DecoratedDiffComment } from '../diff-comments/decorated-diff-comment'
 import type { DiffSection } from '../editor/diff-section-types'
 import { DiffSectionHeader } from '../editor/DiffSectionHeader'
 import { LargeDiffFallback } from '../editor/LargeDiffFallback'
+import { getLargeDiffRenderLimit } from '../editor/large-diff-render-limit'
+import { LargeDiffLoadPrompt } from '../editor/LargeDiffLoadPrompt'
+import { isCombinedDiffSizeUnknown } from '../editor/combined-diff-on-demand-load'
+import { PierreDiffSectionBinary } from './PierreDiffSectionBinary'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { loadWorkingDocument } from '../editor/working-document-loader'
 import { buildPierreDiffFileInput } from './pierre-diff-file-input'
 import {
+  PIERRE_EDITOR_SURFACE_UNSAFE_CSS,
   usePierreDiffStyleVars,
   usePierreDiffThemeType,
   usePierreSyntaxTheme
 } from './pierre-diff-theme'
 import {
   buildPierreDiffAnnotations,
-  PierreDiffCommentAnnotation,
   type PierreDiffAnnotationData,
   type PierreDiffDraft
 } from './pierre-diff-comment-annotations'
-
-const ImageDiffViewer = lazy(() => import('../editor/ImageDiffViewer'))
-
+import { usePierreWorkingDocumentEditor } from './use-pierre-working-document-editor'
+import { PierreDiffSectionFile } from './PierreDiffSectionFile'
+import { useEditablePierreFileDiff } from './use-editable-pierre-file-diff'
 export type PierreDiffSectionProps = {
   section: DiffSection
   index: number
@@ -37,15 +42,24 @@ export type PierreDiffSectionProps = {
   sideBySide: boolean
   worktreeId?: string
   loadSection: (index: number) => void
+  loadDeferredSection?: (index: number) => void
   retrySection: (index: number) => void
   toggleSection: (index: number) => void
   openSection: (index: number) => void
   openSectionTitle: string
   onOpenPreview?: (section: DiffSection, index: number) => void
   renderHeaderTrailingContent?: (section: DiffSection, index: number) => React.ReactNode
+  inlineComments?: readonly DecoratedDiffComment[]
+  onAddLineComment?: (
+    section: DiffSection,
+    args: { lineNumber: number; startLine?: number; body: string }
+  ) => Promise<boolean>
+  addLineCommentLabel?: string
+  getCommentableLineNumbers?: (section: DiffSection) => readonly number[] | undefined
+  workingDocumentId?: WorkingDocumentId
+  onSave?: (content: string) => Promise<boolean>
 }
-
-/** Combined-diff section rendered by @pierre/diffs; rows are read-only and intrinsic-height. */
+/** Combined-diff section rendered by @pierre/diffs. */
 export function PierreDiffSection({
   section,
   index,
@@ -53,12 +67,19 @@ export function PierreDiffSection({
   sideBySide,
   worktreeId,
   loadSection,
+  loadDeferredSection,
   retrySection,
   toggleSection,
   openSection,
   openSectionTitle,
   onOpenPreview,
-  renderHeaderTrailingContent
+  renderHeaderTrailingContent,
+  inlineComments,
+  onAddLineComment,
+  addLineCommentLabel,
+  getCommentableLineNumbers,
+  workingDocumentId,
+  onSave
 }: PierreDiffSectionProps): React.JSX.Element {
   const diffWordWrap = useAppStore((s) => s.settings?.diffWordWrap)
   const showWhitespace = useAppStore((s) => s.settings?.diffShowWhitespace === true)
@@ -70,8 +91,6 @@ export function PierreDiffSection({
   const themeType = usePierreDiffThemeType()
   const syntaxTheme = usePierreSyntaxTheme()
   const styleVars = usePierreDiffStyleVars()
-  // Why: subscribe to the reference-stable worktree array and filter in a memo
-  // so unrelated store updates don't re-render every section.
   const allDiffComments = useAppStore((s): DiffComment[] | undefined =>
     selectWorktreeDiffComments(s, worktreeId)
   )
@@ -79,20 +98,41 @@ export function PierreDiffSection({
     () => (allDiffComments ?? []).filter((c) => c.filePath === section.path && isDiffComment(c)),
     [allDiffComments, section.path]
   )
-
+  const workingDocument = useAppStore((state) =>
+    workingDocumentId ? state.workingDocuments[workingDocumentId] : undefined
+  )
+  const editableWorkingDocument =
+    workingDocument?.loadState === 'ready' &&
+    workingDocument.writable &&
+    workingDocument.content !== undefined
+      ? workingDocument
+      : undefined
+  const isEditable = editableWorkingDocument !== undefined
+  const modifiedContent = editableWorkingDocument?.content ?? section.modifiedContent
+  const renderLimit = useMemo(
+    () =>
+      section.largeDiffRenderLimit?.limited
+        ? section.largeDiffRenderLimit
+        : getLargeDiffRenderLimit({
+            originalContent: section.originalContent,
+            modifiedContent
+          }),
+    [modifiedContent, section.originalContent, section.largeDiffRenderLimit]
+  )
+  const { edit, editorOptions, createEditor } = usePierreWorkingDocumentEditor({
+    workingDocumentId: isEditable ? workingDocumentId : undefined
+  })
   const [draft, setDraft] = useState<PierreDiffDraft | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const language = detectLanguage(section.path)
-
   useEffect(() => {
     loadSection(index)
   }, [index, loadSection])
-
   const files = useMemo(
     () =>
       buildPierreDiffFileInput({
         originalContent: section.originalContent,
-        modifiedContent: section.modifiedContent,
+        modifiedContent,
         originalReadState: section.diffResult?.originalReadState,
         modifiedReadState: section.diffResult?.modifiedReadState,
         relativePath: section.path,
@@ -100,58 +140,69 @@ export function PierreDiffSection({
         cacheScope: `${section.key}:${section.contentGeneration ?? 0}`
       }),
     [
-      section.originalContent,
-      section.modifiedContent,
-      section.diffResult?.originalReadState,
+      modifiedContent,
+      section.contentGeneration,
       section.diffResult?.modifiedReadState,
-      section.path,
-      section.oldPath,
+      section.diffResult?.originalReadState,
       section.key,
-      section.contentGeneration
+      section.oldPath,
+      section.originalContent,
+      section.path
     ]
   )
-
-  const canComment = Boolean(worktreeId)
+  const comments = inlineComments ?? diffComments
+  const canComment = Boolean(worktreeId || onAddLineComment)
   const options = useMemo(
     (): FileDiffOptions<PierreDiffAnnotationData> => ({
       diffStyle: sideBySide ? 'split' : 'unified',
       themeType,
       theme: syntaxTheme,
+      unsafeCSS: PIERRE_EDITOR_SURFACE_UNSAFE_CSS,
       overflow: diffWordWrap === true ? 'wrap' : 'scroll',
       lineDiffType: showWhitespace ? 'word-alt' : 'none',
-      // Why: the Orca DiffSectionHeader above is the sticky per-file header.
       disableFileHeader: true,
-      // Why: click handling lives on the renderGutterUtility slot node — the
-      // library forbids combining renderGutterUtility with onGutterUtilityClick.
       enableGutterUtility: canComment
     }),
     [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment, showWhitespace]
   )
-
   const lineAnnotations = useMemo(
-    () => buildPierreDiffAnnotations(canComment ? diffComments : [], draft),
-    [canComment, diffComments, draft]
+    () => buildPierreDiffAnnotations(canComment ? comments : [], draft),
+    [canComment, comments, draft]
   )
-
-  // Why: the shared worker keeps semantic comparison off the renderer while
-  // preserving the original source coordinates Pierre uses for comments.
+  const commentableLineNumbers = getCommentableLineNumbers?.(section)
   const {
     fileDiff,
     error: comparisonError,
+    generation,
     retry: retryComparison
   } = usePierreDiffMetadata(files.oldFile, files.newFile, {
     disabled:
       section.loading ||
+      section.loadOnDemand === true ||
       section.error != null ||
       section.diffResult?.kind === 'binary' ||
-      section.largeDiffRenderLimit?.limited === true ||
+      renderLimit.limited ||
       section.collapsed === true,
     language,
-    showWhitespace
+    showWhitespace,
+    retainPreviousWhilePending: isEditable,
+    workingDocumentId
   })
-
+  const editableFileDiff = useEditablePierreFileDiff(fileDiff, options, edit, generation)
   const handleSubmitDraft = useCallback(
     async (pendingDraft: PierreDiffDraft, body: string): Promise<void> => {
+      if (onAddLineComment) {
+        if (
+          commentableLineNumbers !== undefined &&
+          !commentableLineNumbers.includes(pendingDraft.lineNumber)
+        ) {
+          return
+        }
+        if (await onAddLineComment(section, { ...pendingDraft, body })) {
+          setDraft(null)
+        }
+        return
+      }
       if (!worktreeId) {
         return
       }
@@ -170,16 +221,13 @@ export function PierreDiffSection({
         console.error('Failed to add diff comment — draft preserved')
       }
     },
-    [worktreeId, section.path, addDiffComment]
+    [addDiffComment, commentableLineNumbers, onAddLineComment, section, worktreeId]
   )
-
-  // Why: annotations are slotted light-DOM children, so a pending comment
-  // scroll resolves with a plain querySelector once it targets this section.
   useEffect(() => {
     if (!scrollToDiffCommentId || !worktreeId) {
       return
     }
-    if (!diffComments.some((c) => c.id === scrollToDiffCommentId)) {
+    if (!comments.some((c) => c.id === scrollToDiffCommentId)) {
       return
     }
     const frame = requestAnimationFrame(() => {
@@ -189,13 +237,16 @@ export function PierreDiffSection({
       setScrollToDiffCommentId(null)
     })
     return () => cancelAnimationFrame(frame)
-  }, [scrollToDiffCommentId, diffComments, worktreeId, setScrollToDiffCommentId])
-
+  }, [scrollToDiffCommentId, comments, worktreeId, setScrollToDiffCommentId])
+  const workingDocumentError =
+    workingDocument?.loadState === 'error'
+      ? (workingDocument.loadError ?? 'Unable to load the working file.')
+      : undefined
   return (
     <div className="border-b border-border">
       <DiffSectionHeader
         path={section.path}
-        dirty={false}
+        dirty={workingDocument?.isDirty ?? false}
         collapsed={section.collapsed}
         added={section.added ?? 0}
         removed={section.removed ?? 0}
@@ -208,9 +259,13 @@ export function PierreDiffSection({
         onOpenPreview={onOpenPreview ? () => onOpenPreview(section, index) : undefined}
         trailingContent={renderHeaderTrailingContent?.(section, index)}
       />
-
       {!section.collapsed &&
-        (section.loading ? (
+        (section.loadOnDemand && loadDeferredSection ? (
+          <LargeDiffLoadPrompt
+            sizeUnknown={isCombinedDiffSizeUnknown(section)}
+            onLoad={() => loadDeferredSection(index)}
+          />
+        ) : section.loading ? (
           <div className="flex h-10 items-center gap-2 bg-muted/10 px-3 text-[11px] text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
             <span>
@@ -220,6 +275,15 @@ export function PierreDiffSection({
               )}
             </span>
           </div>
+        ) : workingDocumentError ? (
+          <EditorFileLoadErrorView
+            message={workingDocumentError}
+            onRetry={() => {
+              if (workingDocumentId) {
+                void loadWorkingDocument(workingDocumentId, { force: true }).catch(() => undefined)
+              }
+            }}
+          />
         ) : section.error ? (
           <div className="flex h-10 items-center justify-between gap-3 bg-muted/10 px-3 text-[11px] text-muted-foreground">
             <div className="flex min-w-0 items-center gap-2">
@@ -241,40 +305,29 @@ export function PierreDiffSection({
             </Button>
           </div>
         ) : section.diffResult?.kind === 'binary' ? (
-          section.diffResult.isImage ? (
-            <ImageDiffViewer
-              originalContent={section.diffResult.originalContent}
-              modifiedContent={section.diffResult.modifiedContent}
-              filePath={section.path}
-              mimeType={section.diffResult.mimeType}
-              sideBySide={sideBySide}
-              layout="intrinsic"
-            />
-          ) : (
-            <div className="flex items-center justify-center px-6 py-8 text-center">
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-foreground">
-                  {translate(
-                    'auto.components.pierre.diff.PierreDiffSection.fe1a0d0906',
-                    'Binary file changed'
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {isBranchMode
-                    ? translate(
-                        'auto.components.pierre.diff.PierreDiffSection.1c569d7a56',
-                        'Text diff is unavailable for this file in branch compare.'
-                      )
-                    : translate(
-                        'auto.components.pierre.diff.PierreDiffSection.d66e68d349',
-                        'Text diff is unavailable for this file.'
-                      )}
-                </div>
-              </div>
-            </div>
-          )
-        ) : section.largeDiffRenderLimit?.limited ? (
-          <LargeDiffFallback filePath={section.path} renderLimit={section.largeDiffRenderLimit} />
+          <PierreDiffSectionBinary
+            diffResult={section.diffResult}
+            filePath={section.path}
+            sideBySide={sideBySide}
+            isBranchMode={isBranchMode}
+          />
+        ) : renderLimit.limited ? (
+          <LargeDiffFallback
+            filePath={section.path}
+            renderLimit={renderLimit}
+            action={
+              isEditable && editableWorkingDocument.isDirty && onSave
+                ? {
+                    label: translate('auto.components.editor.DiffSectionBody.b5675b0694', 'Save'),
+                    description: translate(
+                      'auto.components.editor.DiffSectionBody.593f2193f6',
+                      'This draft crossed the safe display limit, but it can still be saved.'
+                    ),
+                    onClick: () => void onSave(modifiedContent)
+                  }
+                : undefined
+            }
+          />
         ) : comparisonError ? (
           <EditorFileLoadErrorView message={comparisonError} onRetry={retryComparison} />
         ) : !fileDiff ? (
@@ -288,46 +341,39 @@ export function PierreDiffSection({
             </span>
           </div>
         ) : (
-          <div ref={containerRef} className="bg-[var(--editor-surface)]" style={styleVars}>
-            <FileDiff<PierreDiffAnnotationData>
-              fileDiff={fileDiff}
-              options={options}
+          <div
+            ref={containerRef}
+            data-testid="pierre-diff-section"
+            className="bg-[var(--editor-surface)]"
+            style={styleVars}
+          >
+            <PierreDiffSectionFile
+              createEditor={createEditor}
+              workingDocumentId={workingDocumentId}
+              onSave={onSave}
+              fileDiff={editableFileDiff.fileDiff ?? fileDiff}
+              options={editableFileDiff.options}
+              editorOptions={editorOptions}
+              edit={edit}
               lineAnnotations={lineAnnotations}
-              renderAnnotation={(annotation) =>
-                annotation.metadata ? (
-                  <PierreDiffCommentAnnotation
-                    data={annotation.metadata}
-                    onDeleteComment={
-                      worktreeId ? (id) => void deleteDiffComment(worktreeId, id) : undefined
-                    }
-                    onUpdateComment={
-                      worktreeId ? (id, body) => updateDiffComment(worktreeId, id, body) : undefined
-                    }
-                    onCancelDraft={() => setDraft(null)}
-                    onSubmitDraft={handleSubmitDraft}
-                  />
-                ) : null
+              canComment={canComment}
+              addLineCommentLabel={addLineCommentLabel}
+              onAddAtLine={(lineNumber) => {
+                if (
+                  commentableLineNumbers === undefined ||
+                  commentableLineNumbers.includes(lineNumber)
+                ) {
+                  setDraft({ lineNumber })
+                }
+              }}
+              onDeleteComment={
+                worktreeId ? (id) => void deleteDiffComment(worktreeId, id) : undefined
               }
-              renderGutterUtility={
-                canComment
-                  ? (getHoveredLine) => (
-                      <button
-                        type="button"
-                        className="flex size-4 cursor-pointer items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm"
-                        onClick={() => {
-                          const hovered = getHoveredLine()
-                          // Why: notes anchor to the modified side only (DiffComment.side is always 'modified').
-                          if (!hovered || hovered.side === 'deletions') {
-                            return
-                          }
-                          setDraft({ lineNumber: hovered.lineNumber })
-                        }}
-                      >
-                        <Plus className="size-3" />
-                      </button>
-                    )
-                  : undefined
+              onUpdateComment={
+                worktreeId ? (id, body) => updateDiffComment(worktreeId, id, body) : undefined
               }
+              onCancelDraft={() => setDraft(null)}
+              onSubmitDraft={handleSubmitDraft}
             />
           </div>
         ))}

@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { editor as monacoEditor } from 'monaco-editor'
-import { useAppStore } from '@/store'
-import { DiffSectionItem } from '@/components/editor/DiffSectionItem'
+import { PierreDiffSection } from '@/components/pierre-diff/PierreDiffSection'
 import { CombinedDiffFileTree } from '../../editor/combined-diff/browse-files/combined-diff-file-tree'
 import { useCombinedDiffSectionIndexMap } from '../../editor/combined-diff/resolve-changes/use-combined-diff-section-index-map'
 import { handleCombinedDiffFileTreeNavigation } from '../../editor/combined-diff/browse-files/combined-diff-file-tree-navigation'
@@ -44,7 +42,6 @@ export function PRFilesCombinedDiffViewer({
   onCommentAdded,
   onViewedChange
 }: PRFilesCombinedDiffViewerProps): React.JSX.Element {
-  const settings = useAppStore((s) => s.settings)
   const diffEntrySignature = useMemo(
     () =>
       JSON.stringify(
@@ -113,8 +110,6 @@ export function PRFilesCombinedDiffViewer({
   const loadingIndicesRef = useRef<Set<number>>(new Set())
   const sectionsRef = useRef<DiffSection[]>([])
   const generationRef = useRef(0)
-  const modifiedEditorsRef = useRef<Map<number, monacoEditor.IStandaloneCodeEditor>>(new Map())
-  const handleSectionSaveRef = useRef<(index: number) => Promise<void>>(async () => {})
   useLayoutEffect(() => {
     // Why: keep the loader/navigation callbacks reading the latest sections without a render-phase ref write.
     sectionsRef.current = sections
@@ -341,13 +336,11 @@ export function PRFilesCombinedDiffViewer({
                   className="absolute left-0 top-0 w-full"
                   style={{ top: `${virtualItem.start}px` }}
                 >
-                  <DiffSectionItem
+                  <PierreDiffSection
                     section={section}
                     index={virtualItem.index}
                     isBranchMode={false}
                     sideBySide={sideBySide}
-                    settings={settings}
-                    sectionHeight={sectionHeights[virtualItem.index]}
                     worktreeId={`github-pr:${repoId}:${prNumber}`}
                     inlineComments={inlineReviewComments}
                     loadSection={loadSection}
@@ -358,11 +351,7 @@ export function PRFilesCombinedDiffViewer({
                     renderHeaderTrailingContent={renderViewedCheckbox}
                     onAddLineComment={handleAddLineComment}
                     addLineCommentLabel="Comment"
-                    addLineCommentPlaceholder="Add a review comment"
                     getCommentableLineNumbers={getCommentableLineNumbers}
-                    setSectionHeights={setSectionHeights}
-                    modifiedEditorsRef={modifiedEditorsRef}
-                    handleSectionSaveRef={handleSectionSaveRef}
                   />
                 </div>
               )

@@ -10,7 +10,6 @@ import type { CombinedDiffEntrySet } from '../resolve-changes/use-combined-diff-
 import { combinedDiffViewStateCache } from './combined-diff-view-memory'
 import { useCombinedDiffViewRestore } from './use-combined-diff-view-restore'
 import { disposeClosedEditorTabs } from '../../closed-editor-tab-disposal'
-import type { MonacoModelRegistry } from '../../diff-monaco-model-disposal'
 import type { OpenFile } from '@/store/slices/editor'
 
 function buildAllModeEntrySet(
@@ -125,7 +124,7 @@ describe('useCombinedDiffViewRestore deferral', () => {
       {
         editor: { getModel: () => null, getModels: () => [] },
         Uri: { parse: (v: string) => v }
-      } as unknown as MonacoModelRegistry,
+      } as never,
       [closedTab]
     )
 

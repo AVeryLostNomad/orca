@@ -1,5 +1,5 @@
 import type { DiffLineAnnotation } from '@pierre/diffs/react'
-import type { DiffComment } from '../../../../shared/diff-comment-types'
+import type { DecoratedDiffComment } from '../diff-comments/decorated-diff-comment'
 import { getDiffCommentLineLabel } from '@/lib/diff-comment-compat'
 import { DiffCommentCard } from '../diff-comments/DiffCommentCard'
 import { PierreDiffCommentComposer } from './PierreDiffCommentComposer'
@@ -7,7 +7,7 @@ import { PierreDiffCommentComposer } from './PierreDiffCommentComposer'
 export type PierreDiffDraft = { lineNumber: number; startLine?: number }
 
 export type PierreDiffAnnotationData =
-  | { kind: 'comment'; comment: DiffComment }
+  | { kind: 'comment'; comment: DecoratedDiffComment }
   | { kind: 'draft'; draft: PierreDiffDraft }
 
 /**
@@ -15,7 +15,7 @@ export type PierreDiffAnnotationData =
  * composer anchors wherever the user clicked the gutter "+".
  */
 export function buildPierreDiffAnnotations(
-  comments: readonly DiffComment[],
+  comments: readonly DecoratedDiffComment[],
   draft: PierreDiffDraft | null
 ): DiffLineAnnotation<PierreDiffAnnotationData>[] {
   const annotations: DiffLineAnnotation<PierreDiffAnnotationData>[] = comments.map((comment) => ({
@@ -64,9 +64,19 @@ export function PierreDiffCommentAnnotation({
         startLine={comment.startLine}
         label={getDiffCommentLineLabel(comment)}
         body={comment.body}
-        sentAt={comment.sentAt}
-        onDelete={onDeleteComment ? () => onDeleteComment(comment.id) : undefined}
-        onSubmitEdit={onUpdateComment ? (body) => onUpdateComment(comment.id, body) : undefined}
+        author={comment.author}
+        createdAtLabel={comment.createdAtLabel}
+        url={comment.url}
+        onDelete={
+          onDeleteComment && comment.canDelete !== false
+            ? () => onDeleteComment(comment.id)
+            : undefined
+        }
+        onSubmitEdit={
+          onUpdateComment && comment.canEdit !== false
+            ? (body) => onUpdateComment(comment.id, body)
+            : undefined
+        }
       />
     </div>
   )

@@ -26,7 +26,8 @@ declare global {
 export async function seedLiveDiffLspFixtures(worktreePath: string): Promise<void> {
   writeFileSync(
     path.join(worktreePath, SUPPORT),
-    'export function buildLiveWidget(label: string): { label: string; answerFromSibling: number } {\n  return { label, answerFromSibling: 42 }\n}\n'
+    'export function buildLiveWidget(label: string): { label: string; answerFromSibling: number } {\n  return { label, answerFromSibling: 42 }\n}\n' +
+      'export function buildLiveAction(): number { return 7 }\n'
   )
   writeFileSync(
     path.join(worktreePath, 'tsconfig.json'),
@@ -56,8 +57,8 @@ export async function seedLiveDiffLspFixtures(worktreePath: string): Promise<voi
 }
 
 async function selectSymbol(page: Page, editor: Locator, symbol: string): Promise<void> {
-  await editor.click()
-  await page.keyboard.press('ControlOrMeta+Home')
+  await editor.locator('.view-line').first().click()
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home')
   await page.keyboard.press('ControlOrMeta+F')
   const input = page.getByRole('textbox', { name: 'Find', exact: true })
   await expect(input).toBeVisible()
@@ -107,43 +108,45 @@ export async function exerciseLiveDiffLsp(
       const filePath = path.join(worktreePath, relativePath)
       const uri = pathToFileURL(filePath).toString()
       const openSurface = async (): Promise<Locator> => {
-        if (index === 0) {
-          await page.evaluate(
-            ({ filePath, relativePath }) => {
-              const state = window.__store!.getState()
-              state.openFile(
-                {
-                  filePath,
-                  relativePath,
-                  worktreeId: state.activeWorktreeId!,
-                  language: 'typescript',
-                  mode: 'edit'
-                },
-                { preview: false, focusEditor: true }
-              )
-            },
-            { filePath, relativePath }
-          )
-          return page.locator('.monaco-editor').first()
-        }
         if (index === 1) {
           await page
             .locator(
               `[data-testid="source-control-entry"][data-source-control-path="${relativePath}"]`
             )
             .click()
-          return page.locator('.monaco-diff-editor .modified .monaco-editor').first()
+          const editor = page.getByTestId('pierre-file-diff').locator('.monaco-editor')
+          await expect(editor).toBeVisible()
+          return editor
+        } else if (index === 2) {
+          await page.evaluate((root) => {
+            const state = window.__store!.getState()
+            state.openAllDiffs(state.activeWorktreeId!, root, undefined, 'unstaged')
+          }, worktreePath)
+          await page.locator(`[data-combined-diff-tree-path="${relativePath}"]`).click()
+          const editor = page
+            .locator('[data-combined-diff-section-row]')
+            .filter({ hasText: relativePath })
+            .locator('.monaco-editor')
+          await expect(editor).toBeVisible()
+          return editor
         }
-        await page.evaluate((root) => {
-          const state = window.__store!.getState()
-          state.openAllDiffs(state.activeWorktreeId!, root, undefined, 'unstaged')
-        }, worktreePath)
-        await page.locator(`[data-combined-diff-tree-path="${relativePath}"]`).click()
-        return page
-          .locator('[data-combined-diff-section-row]')
-          .filter({ hasText: relativePath })
-          .locator('.monaco-diff-editor .modified .monaco-editor')
-          .first()
+        await page.evaluate(
+          ({ filePath, relativePath }) => {
+            const state = window.__store!.getState()
+            state.openFile(
+              {
+                filePath,
+                relativePath,
+                worktreeId: state.activeWorktreeId!,
+                language: 'typescript',
+                mode: 'edit'
+              },
+              { preview: false, focusEditor: true }
+            )
+          },
+          { filePath, relativePath }
+        )
+        return page.locator('.monaco-editor').first()
       }
       let editor = await openSurface()
       await expect(editor).toContainText('result.label', { timeout: 30_000 })
@@ -177,8 +180,8 @@ export async function exerciseLiveDiffLsp(
       await expect(page.locator('.monaco-editor').first()).toContainText('answerFromSibling: 42')
       editor = await openSurface()
 
-      await editor.click()
-      await page.keyboard.press('ControlOrMeta+End')
+      await editor.locator('.view-line').first().click()
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
       await page.keyboard.insertText('\nresult.ans')
       await page.keyboard.press('Control+Space')
       await expect(
@@ -189,8 +192,15 @@ export async function exerciseLiveDiffLsp(
       ).toBeVisible({ timeout: 15_000 })
       await page.keyboard.press('Enter')
       await expect.poll(() => documentContent(page, filePath)).toContain('result.answerFromSibling')
+      await page.keyboard.insertText('\nconst labelProbe = buildLiveWidget(')
+      await runEditorCommand(page, 'Trigger Parameter Hints')
+      await expect(page.locator('.parameter-hints-widget').filter({ visible: true })).toContainText(
+        'label: string',
+        { timeout: 15_000 }
+      )
+      await page.keyboard.press('Escape')
 
-      await editor.click()
+      await editor.locator('.view-line').first().click()
       await page.keyboard.press('ControlOrMeta+A')
       await page.keyboard.insertText(COMPACT)
       await page.keyboard.press('ControlOrMeta+S')
@@ -231,6 +241,38 @@ export async function exerciseLiveDiffLsp(
         .poll(() => readFileSync(filePath, 'utf8'))
         .toContain('widgetResult.answerFromSibling')
       await expect(page.getByText(/Installing TypeScript|Starting TypeScript/)).toHaveCount(0)
+      await editor.locator('.view-line').first().click()
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
+      await page.keyboard.insertText('\nexport const actionResult = buildLiveAction()\n')
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (uri) =>
+              window.__liveDiffLspDiagnostics
+                ?.findLast((event) => event.uri === uri)
+                ?.diagnostics.some((diagnostic) => diagnostic.code === 2304),
+            uri
+          )
+        )
+        .toBe(true)
+      await selectSymbol(page, editor, 'buildLiveAction')
+      await runEditorCommand(page, 'Quick Fix')
+      const importAction = page
+        .locator('.action-widget')
+        .filter({ visible: true })
+        .getByRole('option', { name: /import from/ })
+        .first()
+      await expect(importAction).toBeVisible({ timeout: 15_000 })
+      const actionBox = await importAction.boundingBox()
+      if (!actionBox) {
+        throw new Error('Import quick fix has no rendered bounds')
+      }
+      // Monaco dismisses its opening-click guard on actual pointer movement.
+      await page.mouse.move(actionBox.x + actionBox.width / 2, actionBox.y + actionBox.height / 2)
+      await importAction.click()
+      await expect
+        .poll(() => documentContent(page, filePath))
+        .toMatch(/import\s*\{[^}]*buildLiveAction/)
       await editor.screenshot({
         path: screenshotPath(
           `real-lsp-${index === 0 ? 'ordinary' : index === 1 ? 'explicit' : 'combined'}.png`

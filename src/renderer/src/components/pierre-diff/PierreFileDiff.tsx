@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { FileDiff, Virtualizer } from '@pierre/diffs/react'
-import type { FileDiffOptions } from '@pierre/diffs'
+import { EditProvider, Virtualizer } from '@pierre/diffs/react'
+import type { FileDiff as NativeFileDiff, FileDiffOptions } from '@pierre/diffs'
 import { usePierreDiffMetadata } from './use-pierre-diff-metadata'
+import { useEditablePierreFileDiff } from './use-editable-pierre-file-diff'
 import { useAppStore } from '@/store'
 import { selectWorktreeDiffComments } from '@/store/worktree-diff-comments-selector'
 import { isDiffComment } from '@/lib/diff-comment-compat'
 import { scrollTopCache, setWithLRU } from '@/lib/scroll-cache'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { translate } from '@/i18n/i18n'
 import { LargeDiffFallback } from '../editor/LargeDiffFallback'
 import {
   getLargeDiffRenderLimit,
@@ -18,6 +21,7 @@ import { EditorFileLoadErrorView } from '../editor/EditorFileLoadErrorView'
 import { PierreDiffProvider } from './pierre-diff-worker-pool'
 import type { PierreDiffFileSource } from './pierre-diff-file-input'
 import {
+  PIERRE_EDITOR_SURFACE_UNSAFE_CSS,
   usePierreDiffStyleVars,
   usePierreDiffThemeType,
   usePierreSyntaxTheme
@@ -28,7 +32,9 @@ import {
   type PierreDiffAnnotationData,
   type PierreDiffDraft
 } from './pierre-diff-comment-annotations'
-
+import { usePierreWorkingDocumentEditor } from './use-pierre-working-document-editor'
+import { PierreFileDiffNavigation } from './PierreFileDiffNavigation'
+import { PierreEditableFileDiff } from './PierreEditableFileDiff'
 export type PierreFileDiffProps = {
   /** Stable per-tab key for scroll restoration. */
   scrollKey: string
@@ -44,6 +50,9 @@ export type PierreFileDiffProps = {
   largeDiffRenderLimit?: LargeDiffRenderLimit
   /** Rendered into the file header's metadata slot (e.g. an "Edit file" action). */
   headerActions?: React.ReactNode
+  /** Shared working document enables Monaco editing inside the Pierre layout. */
+  workingDocumentId?: WorkingDocumentId
+  onSave?: (content: string) => Promise<boolean>
 }
 
 export default function PierreFileDiff({
@@ -58,7 +67,9 @@ export default function PierreFileDiff({
   sideBySide,
   worktreeId,
   largeDiffRenderLimit,
-  headerActions
+  headerActions,
+  workingDocumentId,
+  onSave
 }: PierreFileDiffProps): React.JSX.Element {
   const diffWordWrap = useAppStore((s) => s.settings?.diffWordWrap)
   const addDiffComment = useAppStore((s) => s.addDiffComment)
@@ -77,10 +88,16 @@ export default function PierreFileDiff({
     () => (allDiffComments ?? []).filter((c) => c.filePath === relativePath && isDiffComment(c)),
     [allDiffComments, relativePath]
   )
+  const workingDocument = useAppStore((state) =>
+    workingDocumentId ? state.workingDocuments[workingDocumentId] : undefined
+  )
 
   const [draft, setDraft] = useState<PierreDiffDraft | null>(null)
+  const { edit, editorOptions, createEditor } = usePierreWorkingDocumentEditor({
+    workingDocumentId
+  })
   const containerRef = useRef<HTMLDivElement | null>(null)
-
+  const nativeFileDiffRef = useRef<NativeFileDiff<PierreDiffAnnotationData> | null>(null)
   const renderLimit = useMemo(
     () => largeDiffRenderLimit ?? getLargeDiffRenderLimit({ originalContent, modifiedContent }),
     [largeDiffRenderLimit, originalContent, modifiedContent]
@@ -114,12 +131,16 @@ export default function PierreFileDiff({
       diffStyle: sideBySide ? 'split' : 'unified',
       themeType,
       theme: syntaxTheme,
+      unsafeCSS: PIERRE_EDITOR_SURFACE_UNSAFE_CSS,
       overflow: diffWordWrap === true ? 'wrap' : 'scroll',
       lineDiffType: showWhitespace ? 'word-alt' : 'none',
       stickyHeader: true,
       // Why: click handling lives on the renderGutterUtility slot node — the
       // library forbids combining renderGutterUtility with onGutterUtilityClick.
-      enableGutterUtility: canComment
+      enableGutterUtility: canComment,
+      onPostRender: (_node, nativeFileDiff) => {
+        nativeFileDiffRef.current = nativeFileDiff
+      }
     }),
     [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment, showWhitespace]
   )
@@ -186,14 +207,38 @@ export default function PierreFileDiff({
 
   // Why: hook order — comparison still needs to settle before the fallback
   // branch below returns early.
-  const { fileDiff, error, retry } = usePierreDiffMetadata(files.oldFile, files.newFile, {
-    disabled: renderLimit.limited,
-    language,
-    showWhitespace
-  })
+  const { fileDiff, error, generation, retry } = usePierreDiffMetadata(
+    files.oldFile,
+    files.newFile,
+    {
+      disabled: renderLimit.limited,
+      language,
+      showWhitespace,
+      retainPreviousWhilePending: workingDocumentId !== undefined,
+      workingDocumentId
+    }
+  )
+  const editableFileDiff = useEditablePierreFileDiff(fileDiff, options, edit, generation)
 
   if (renderLimit.limited) {
-    return <LargeDiffFallback filePath={relativePath} renderLimit={renderLimit} />
+    return (
+      <LargeDiffFallback
+        filePath={relativePath}
+        renderLimit={renderLimit}
+        action={
+          workingDocument?.isDirty && onSave
+            ? {
+                label: translate('auto.components.editor.DiffSectionBody.b5675b0694', 'Save'),
+                description: translate(
+                  'auto.components.editor.DiffSectionBody.593f2193f6',
+                  'This draft crossed the safe display limit, but it can still be saved.'
+                ),
+                onClick: () => void onSave(modifiedContent)
+              }
+            : undefined
+        }
+      />
+    )
   }
   if (error) {
     return <EditorFileLoadErrorView message={error} onRetry={retry} />
@@ -206,58 +251,70 @@ export default function PierreFileDiff({
 
   return (
     <PierreDiffProvider>
-      <div
-        ref={containerRef}
-        data-testid="pierre-file-diff"
-        className="h-full min-h-0 bg-[var(--editor-surface)]"
-        style={styleVars}
-      >
-        {/* Why: FileDiff only windows its DOM inside a Virtualizer scroll container —
-          without it a 60k-line diff builds the full DOM and freezes the renderer. */}
-        <Virtualizer className="h-full min-h-0 overflow-auto scrollbar-editor">
-          <FileDiff<PierreDiffAnnotationData>
-            fileDiff={fileDiff}
-            options={options}
-            lineAnnotations={lineAnnotations}
-            renderAnnotation={(annotation) =>
-              annotation.metadata ? (
-                <PierreDiffCommentAnnotation
-                  data={annotation.metadata}
-                  onDeleteComment={
-                    worktreeId ? (id) => void deleteDiffComment(worktreeId, id) : undefined
-                  }
-                  onUpdateComment={
-                    worktreeId ? (id, body) => updateDiffComment(worktreeId, id, body) : undefined
-                  }
-                  onCancelDraft={() => setDraft(null)}
-                  onSubmitDraft={handleSubmitDraft}
-                />
-              ) : null
-            }
-            renderHeaderMetadata={headerActions ? () => headerActions : undefined}
-            renderGutterUtility={
-              canComment
-                ? (getHoveredLine) => (
-                    <button
-                      type="button"
-                      className="flex size-4 cursor-pointer items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm"
-                      onClick={() => {
-                        const hovered = getHoveredLine()
-                        // Why: notes anchor to the modified side only (DiffComment.side is always 'modified').
-                        if (!hovered || hovered.side === 'deletions') {
-                          return
-                        }
-                        setDraft({ lineNumber: hovered.lineNumber })
-                      }}
-                    >
-                      <Plus className="size-3" />
-                    </button>
-                  )
-                : undefined
-            }
-          />
-        </Virtualizer>
-      </div>
+      <EditProvider createEditor={createEditor}>
+        <div
+          ref={containerRef}
+          data-testid="pierre-file-diff"
+          className="h-full min-h-0 bg-[var(--editor-surface)]"
+          style={styleVars}
+        >
+          {/* Why: FileDiff only windows its DOM inside a Virtualizer scroll container —
+            without it a 60k-line diff builds the full DOM and freezes the renderer. */}
+          <Virtualizer className="h-full min-h-0 overflow-auto scrollbar-editor">
+            <PierreEditableFileDiff
+              key={workingDocumentId}
+              workingDocumentId={workingDocumentId}
+              onSave={onSave}
+              fileDiff={editableFileDiff.fileDiff ?? fileDiff}
+              options={editableFileDiff.options}
+              editorOptions={editorOptions}
+              edit={edit}
+              lineAnnotations={lineAnnotations}
+              renderAnnotation={(annotation) =>
+                annotation.metadata ? (
+                  <PierreDiffCommentAnnotation
+                    data={annotation.metadata}
+                    onDeleteComment={
+                      worktreeId ? (id) => void deleteDiffComment(worktreeId, id) : undefined
+                    }
+                    onUpdateComment={
+                      worktreeId ? (id, body) => updateDiffComment(worktreeId, id, body) : undefined
+                    }
+                    onCancelDraft={() => setDraft(null)}
+                    onSubmitDraft={handleSubmitDraft}
+                  />
+                ) : null
+              }
+              renderHeaderMetadata={headerActions ? () => headerActions : undefined}
+              renderGutterUtility={
+                canComment
+                  ? (getHoveredLine) => (
+                      <button
+                        type="button"
+                        className="flex size-4 cursor-pointer items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm"
+                        onClick={() => {
+                          const hovered = getHoveredLine()
+                          // Why: notes anchor to the modified side only (DiffComment.side is always 'modified').
+                          if (!hovered || hovered.side === 'deletions') {
+                            return
+                          }
+                          setDraft({ lineNumber: hovered.lineNumber })
+                        }}
+                      >
+                        <Plus className="size-3" />
+                      </button>
+                    )
+                  : undefined
+              }
+            />
+            <PierreFileDiffNavigation
+              nativeFileDiffRef={nativeFileDiffRef}
+              shortcutTargetRef={containerRef}
+              fileDiff={editableFileDiff.fileDiff ?? fileDiff}
+            />
+          </Virtualizer>
+        </div>
+      </EditProvider>
     </PierreDiffProvider>
   )
 }

@@ -2,7 +2,7 @@ import { translate } from '@/i18n/i18n'
 import { detectLanguage } from '@/lib/language-detect'
 import type { OpenFile } from '@/store/slices/editor'
 import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
-import { DiffViewer, ImageDiffViewer, MarkdownPreview, PierreFileDiff } from './editor-lazy-views'
+import { ImageDiffViewer, MarkdownPreview, PierreFileDiff } from './editor-lazy-views'
 import { ExternalFileChangeBanner } from './ExternalFileChangeBanner'
 import type { useMarkdownDocuments } from './useMarkdownDocuments'
 import type { WorkingDocument } from '@/store/slices/editor/working-document'
@@ -141,21 +141,7 @@ export function EditorDiffFileSurface({
   }
 
   const diffReloadNonce = activeFile.diffContentReloadNonce ?? 0
-  const diffViewer = isEditable ? (
-    <DiffViewer
-      modelKey={diffViewStateKey}
-      workingDocumentId={workingDocument.id}
-      originalContent={diffContent.originalContent}
-      modifiedContent={modifiedDiffContent}
-      filePath={activeFile.filePath}
-      relativePath={activeFile.relativePath}
-      language={detectLanguage(activeFile.relativePath)}
-      sideBySide={sideBySide}
-      worktreeId={activeFile.worktreeId}
-      onSave={onSave}
-      largeDiffRenderLimit={diffContent.largeDiffRenderLimit}
-    />
-  ) : (
+  const diffViewer = (
     <PierreFileDiff
       // Why: key off the reload nonce so refreshed blobs remount cleanly; content identity is handled via cacheKey.
       key={`${viewStateScopeId}:${diffReloadNonce}`}
@@ -169,6 +155,8 @@ export function EditorDiffFileSurface({
       sideBySide={sideBySide}
       worktreeId={activeFile.worktreeId}
       largeDiffRenderLimit={diffContent.largeDiffRenderLimit}
+      workingDocumentId={isEditable ? workingDocument?.id : undefined}
+      onSave={isEditable ? onSave : undefined}
     />
   )
   if (workingDocument?.externalMutation !== 'changed') {

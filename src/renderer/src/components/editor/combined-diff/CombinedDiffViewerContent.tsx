@@ -24,8 +24,8 @@ type CombinedDiffViewerContentProps = {
   diffCommentsForWorktree: ComponentProps<typeof CombinedDiffToolbar>['diffCommentsForWorktree']
   entrySet: CombinedDiffEntrySet
   file: OpenFile
-  loadDeferredSection: SectionListProps['loadDeferredSection']
   loadSection: SectionListProps['loadSection']
+  loadDeferredSection: SectionListProps['loadDeferredSection']
   markDirectScrollInput: SectionListProps['markDirectScrollInput']
   notes: CombinedDiffNotesActions
   onOpenAlternateDiff: () => void
@@ -33,12 +33,10 @@ type CombinedDiffViewerContentProps = {
   preferences: CombinedDiffViewPreferences
   retrySection: CombinedDiffSectionRetryActions['retrySection']
   sectionActions: CombinedDiffSectionActions
-  sectionHeights: SectionListProps['sectionHeights']
   sectionRowKeys: CombinedDiffSectionRowKeys
   sections: SectionListProps['sections']
   setScrollContainerRef: SectionListProps['setScrollContainerRef']
-  setSectionHeights: SectionListProps['setSectionHeights']
-  settings: SectionListProps['settings']
+  settings: { diffShowWhitespace?: boolean; diffWordWrap?: boolean } | null
   skippedConflicts: OpenFile['skippedConflicts']
   treeNavigation: CombinedDiffTreeNavigation
   toggleSection: SectionListProps['toggleSection']
@@ -55,8 +53,8 @@ export function CombinedDiffViewerContent({
   diffCommentsForWorktree,
   entrySet,
   file,
-  loadDeferredSection,
   loadSection,
+  loadDeferredSection,
   markDirectScrollInput,
   notes,
   onOpenAlternateDiff,
@@ -64,11 +62,9 @@ export function CombinedDiffViewerContent({
   preferences,
   retrySection,
   sectionActions,
-  sectionHeights,
   sectionRowKeys,
   sections,
   setScrollContainerRef,
-  setSectionHeights,
   settings,
   skippedConflicts,
   treeNavigation,
@@ -148,11 +144,8 @@ export function CombinedDiffViewerContent({
             openSectionPreview={sectionActions.openSectionPreview}
             retrySection={retrySection}
             scrollThumb={scrollbar.scrollThumb}
-            sectionHeights={sectionHeights}
             sections={sections}
             setScrollContainerRef={setScrollContainerRef}
-            setSectionHeights={setSectionHeights}
-            settings={settings}
             sideBySide={preferences.sideBySide}
             skippedConflictNotice={skippedConflictNotice}
             toggleSection={toggleSection}

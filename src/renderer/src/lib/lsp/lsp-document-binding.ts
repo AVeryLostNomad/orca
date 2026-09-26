@@ -20,6 +20,7 @@ export type LspDocumentBinding = {
   filePath: string
   worktreeId: string
   documentId?: WorkingDocumentId
+  lspVersion: () => number
   dispose: () => void
 }
 
@@ -141,6 +142,7 @@ export function ensureLspDocumentBinding(
     filePath,
     worktreeId,
     documentId,
+    lspVersion: () => version,
     dispose: () => {
       contentSub.dispose()
       statusSub()

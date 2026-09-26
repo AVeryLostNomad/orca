@@ -1,15 +1,13 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { editor as monacoEditor } from 'monaco-editor'
-import type { DecoratedDiffComment } from '@/components/diff-comments/decorated-diff-comment'
 import { useCombinedDiffSectionIndexMap } from '../../editor/combined-diff/resolve-changes/use-combined-diff-section-index-map'
 import { handleCombinedDiffFileTreeNavigation } from '../../editor/combined-diff/browse-files/combined-diff-file-tree-navigation'
 import { getDiffSectionRowEstimatedHeight } from '@/components/editor/diff-section-layout'
 import type { DiffSection } from '@/components/editor/diff-section-types'
 import { getCombinedDiffBranchEntriesInTreeOrder } from '../../editor/combined-diff/browse-files/combined-diff-file-tree-filter'
 import type { CombinedDiffFileTreeEntry } from '../../editor/combined-diff/resolve-changes/combined-diff-section-identity'
-import { useAppStore } from '@/store'
 import type { GitBranchChangeEntry } from '../../../../../shared/git-diff-compare-types'
+import type { DecoratedDiffComment } from '@/components/diff-comments/decorated-diff-comment'
 import { isPRFileViewed } from '@/components/github/pr-file-content-size'
 import {
   PR_DIFF_OVERSCAN,
@@ -91,7 +89,6 @@ function PRFilesCombinedDiffSections({
   fileTreeCollapsed,
   setFileTreeCollapsed
 }: PRFilesCombinedDiffSectionsProps): React.JSX.Element {
-  const settings = useAppStore((s) => s.settings)
   // Why: this subtree is keyed by the diff signature, so its file set is fixed for the
   // mount. Freezing it in state keeps a stable identity without caching through a ref.
   const [entries] = useState<GitBranchChangeEntry[]>(() =>
@@ -157,12 +154,9 @@ function PRFilesCombinedDiffSections({
   const loadedIndicesRef = useRef<Set<number>>(new Set())
   const loadingIndicesRef = useRef<Set<number>>(new Set())
   const sectionsRef = useRef<DiffSection[]>(sections)
-  const modifiedEditorsRef = useRef<Map<number, monacoEditor.IStandaloneCodeEditor>>(new Map())
-  const handleSectionSaveRef = useRef<(index: number) => Promise<void>>(async () => {})
 
-  // Why: commit-phase write (a render React abandons would leak one), and it must be a layout
-  // effect — collapsing rekeys a section's virtual item, so the remounted DiffSectionItem's
-  // passive effect calls loadSection before any passive effect here could sync this ref.
+  // Why: collapsing rekeys a section's virtual item, so the remounted row's
+  // passive effect calls loadSection after this layout effect syncs the ref.
   useLayoutEffect(() => {
     sectionsRef.current = sections
   }, [sections])
@@ -348,8 +342,6 @@ function PRFilesCombinedDiffSections({
       scrollContainerRef={scrollContainerRef}
       virtualizer={virtualizer}
       sections={sections}
-      settings={settings}
-      sectionHeights={sectionHeights}
       inlineReviewComments={inlineReviewComments}
       loadSection={loadSection}
       retrySection={retrySection}
@@ -358,9 +350,6 @@ function PRFilesCombinedDiffSections({
       renderViewedCheckbox={renderViewedCheckbox}
       handleAddLineComment={handleAddLineComment}
       getCommentableLineNumbers={getCommentableLineNumbers}
-      setSectionHeights={setSectionHeights}
-      modifiedEditorsRef={modifiedEditorsRef}
-      handleSectionSaveRef={handleSectionSaveRef}
     />
   )
 }

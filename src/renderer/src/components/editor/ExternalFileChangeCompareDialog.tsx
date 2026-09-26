@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
 import { readRuntimeFileContent } from '@/runtime/runtime-file-client'
@@ -17,8 +16,7 @@ import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import { useAppStore } from '@/store'
 import type { WorkingDocument } from '@/store/slices/editor/working-document'
 import { translate } from '@/i18n/i18n'
-
-const DiffViewer = lazy(() => import('./DiffViewer'))
+import { PierreFileDiff } from './editor-lazy-views'
 
 type DiskReadState =
   | { kind: 'loading' }
@@ -139,12 +137,11 @@ export function ExternalFileChangeCompareDialog({
               }
             >
               <div className="flex h-full min-h-0 flex-col">
-                <DiffViewer
-                  modelKey={`external-change-compare:${document.id}`}
+                <PierreFileDiff
+                  scrollKey={`external-change-compare:${document.id}`}
                   originalContent={diskState.content}
                   modifiedContent={currentContent}
                   language={language}
-                  filePath={target.filePath}
                   relativePath={target.relativePath}
                   sideBySide
                 />

@@ -24,9 +24,11 @@ import {
   toMonacoTextEdits
 } from './lsp-monaco-converters'
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
+import { registerLspCodeActionProvider } from './lsp-monaco-code-action-provider'
 import { registerLspCompletionProvider } from './lsp-monaco-completion-provider'
 import { registerLspRenameProvider } from './lsp-monaco-rename-provider'
 import { registerLspSemanticTokensProvider } from './lsp-monaco-semantic-tokens-provider'
+import { ensureLspWorkspaceEditHandler } from './lsp-monaco-workspace-edit'
 
 type MonacoModule = typeof Monaco
 
@@ -40,11 +42,14 @@ export function ensureLspProvidersForLanguage(
   languageId: string,
   firstSession: LspWorkspaceSession
 ): void {
+  ensureLspWorkspaceEditHandler(monaco)
+
   if (providersByLanguage.has(languageId)) {
     return
   }
   providersByLanguage.add(languageId)
 
+  registerLspCodeActionProvider(monaco, languageId)
   registerLspCompletionProvider(monaco, languageId, firstSession)
   registerLspRenameProvider(monaco, languageId)
   registerLspSemanticTokensProvider(monaco, languageId, firstSession)

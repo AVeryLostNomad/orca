@@ -1,0 +1,65 @@
+diff --git a/dist/editor/editor.d.ts b/dist/editor/editor.d.ts
+index af9e2ad32ee689737adb94e782cf8006f1ba70f4..7680a1e8d85450fd91fe5bc1fa5b8616dbded8cb 100644
+--- a/dist/editor/editor.d.ts
++++ b/dist/editor/editor.d.ts
+@@ -10,6 +10,11 @@ import { PersistStateStorage } from "./stateStorage.js";
+ interface EditorOptions<LAnnotation> {
+   /** The maximum number of entries to keep in the undo stack. */
+   historyMaxEntries?: number;
++  /**
++   * Stable identity for the active editable document. Defaults to the rendered
++   * file's `cacheKey`, so callers can keep editor state while content versions change.
++   */
++  documentKey?: string;
+   /** Custom keymap groups checked before defaults; later groups take precedence. */
+   keymap?: EditorKeymap;
+   /**
+diff --git a/dist/editor/editor.js b/dist/editor/editor.js
+index b7b69976faebc4a7edfeb19f240c0845bca0b5a0..7beae771369df8b5606a474641e5fa0cea74195e 100644
+--- a/dist/editor/editor.js
++++ b/dist/editor/editor.js
+@@ -85,6 +85,7 @@ var Editor = class {
+ 	#resizeObserver;
+ 	#fileInstance;
+ 	#fileInfo;
++	#documentKey;
+ 	#lineAnnotations;
+ 	#textDocument;
+ 	#renderRange;
+@@ -325,6 +326,7 @@ var Editor = class {
+ 		if (!recycle) {
+ 			this.#textDocument = void 0;
+ 			this.#fileInfo = void 0;
++			this.#documentKey = void 0;
+ 		}
+ 		this.#globalEventDisposes?.forEach((dispose) => dispose());
+ 		this.#globalEventDisposes = void 0;
+@@ -435,7 +437,8 @@ var Editor = class {
+ 			if (this.#themeStyleElement !== void 0) shadowRoot.appendChild(this.#themeStyleElement);
+ 			if (this.#spriteElement !== void 0) shadowRoot.prepend(this.#spriteElement);
+ 		}
+-		const shouldRebuildDocument = this.#textDocument === void 0 || this.#fileInfo === void 0 || this.#fileInfo.name !== fileOrDiff.name || this.#fileInfo.lang !== fileOrDiff.lang || this.#fileInfo.cacheKey !== fileOrDiff.cacheKey;
++		const documentKey = this.#options.documentKey ?? fileOrDiff.cacheKey;
++		const shouldRebuildDocument = this.#textDocument === void 0 || this.#fileInfo === void 0 || this.#fileInfo.name !== fileOrDiff.name || this.#fileInfo.lang !== fileOrDiff.lang || this.#documentKey !== documentKey;
+ 		const persistedCacheKey = this.#options.persistState === true ? requirePersistedCacheKey(fileOrDiff) : void 0;
+ 		let persistedStateTarget;
+ 		if (shouldRebuildDocument) {
+@@ -454,6 +457,7 @@ var Editor = class {
+ 				lang,
+ 				cacheKey
+ 			};
++			this.#documentKey = documentKey;
+ 			this.#textDocument = textDocument;
+ 			if (persistedCacheKey !== void 0) {
+ 				this.#textDocumentCache.set(persistedCacheKey, textDocument);
+@@ -469,6 +473,10 @@ var Editor = class {
+ 			this.#selections = this.#initSelections;
+ 			if (this.#options.__debug === true) console.log(reusableTextDocument !== void 0 ? "[diffs/editor] cached text document reused for" : "[diffs/editor] text document rebuilt from", fileOrDiff.name);
+ 		}
++		else if (this.#fileInfo.cacheKey !== fileOrDiff.cacheKey) this.#fileInfo = {
++			...this.#fileInfo,
++			cacheKey: fileOrDiff.cacheKey
++		};
+ 		if (persistedStateTarget === void 0 && this.#restoreStateOnNextSync && persistedCacheKey !== void 0 && this.#textDocument !== void 0) persistedStateTarget = {
+ 			cacheKey: persistedCacheKey,
+ 			textDocument: this.#textDocument

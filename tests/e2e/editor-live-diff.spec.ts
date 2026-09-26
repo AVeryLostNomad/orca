@@ -122,25 +122,23 @@ test('@golden retains a combined working diff document across collapse and an or
   const section = orcaPage
     .locator('[data-combined-diff-section-row]')
     .filter({ hasText: 'index.ts' })
-  const diffEditor = section.locator('.monaco-diff-editor').first()
+  const diffEditor = section.getByTestId('pierre-diff-section').first()
   await expect(diffEditor).toBeVisible({ timeout: 25_000 })
-  const modifiedPane = diffEditor.locator('.modified .monaco-editor').first()
+  const modifiedPane = diffEditor.locator('.monaco-editor')
   await modifiedPane.click()
-  await orcaPage.keyboard.press('ControlOrMeta+End')
+  await orcaPage.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
   await orcaPage.keyboard.press('Enter')
   await orcaPage.keyboard.type(sentinel)
   await expect(modifiedPane).toContainText(sentinel)
 
   await section.locator('.sticky').first().click()
-  await expect(section.locator('.monaco-diff-editor')).toHaveCount(0)
+  await expect(section.locator('.monaco-editor')).toHaveCount(0)
 
   const navigatorRow = orcaPage.locator(`[data-combined-diff-tree-path="${GOLDEN_CHANGED_PATH}"]`)
   await navigatorRow.click()
-  await expect(section.locator('.monaco-diff-editor .modified .monaco-editor')).toContainText(
-    sentinel
-  )
+  await expect(section.locator('.monaco-editor')).toContainText(sentinel)
   await navigatorRow.dblclick()
-  await expect(orcaPage.locator('.monaco-diff-editor')).toHaveCount(0)
+  await expect(orcaPage.getByTestId('pierre-diff-section')).toHaveCount(0)
   const ordinaryEditor = orcaPage.locator('.monaco-editor').first()
   await expect(ordinaryEditor).toContainText(sentinel, { timeout: 20_000 })
   await ordinaryEditor.click()
@@ -159,9 +157,7 @@ test('@golden retains a combined working diff document across collapse and an or
   const restoredSection = orcaPage
     .locator('[data-combined-diff-section-row]')
     .filter({ hasText: 'index.ts' })
-  const restoredModifiedPane = restoredSection
-    .locator('.monaco-diff-editor .modified .monaco-editor')
-    .first()
+  const restoredModifiedPane = restoredSection.locator('.monaco-editor')
   await expect(restoredModifiedPane).toContainText(sentinel, { timeout: 20_000 })
   await restoredModifiedPane.click()
   await orcaPage.keyboard.press('ControlOrMeta+S')
@@ -217,10 +213,12 @@ test('@golden compares meaningful whitespace after an ordinary editor initialize
           state.setMarkdownViewMode(file.id, 'source')
         }
       })
-      const diff = orcaPage.locator('.monaco-diff-editor').first()
+      const diff = orcaPage.getByTestId('pierre-file-diff')
       await expect(diff).toBeVisible({ timeout: 20_000 })
-      const changes = diff.locator('.line-insert, .line-delete')
-      const modified = diff.locator('.modified .monaco-editor').first()
+      const changes = diff.locator(
+        '[data-content] [data-line-type$="addition"], [data-content] [data-line-type$="deletion"]'
+      )
+      const modified = diff.locator('.monaco-editor')
       if (sample.meaningful) {
         await expect(changes.first()).toBeVisible({ timeout: 15_000 })
       } else {
@@ -676,7 +674,7 @@ test('@golden retains canonical edits and undo through combined viewport evictio
   await exerciseLiveDiffLifetime(orcaPage, fixture.worktreePath)
 })
 
-test('@golden provides real TypeScript language-server actions in ordinary and both modified diff panes', async ({
+test('@golden provides TypeScript language-server actions in ordinary and both Pierre diff views', async ({
   orcaPage,
   testRepoPath,
   registerPostElectronShutdownCleanup

@@ -5,8 +5,7 @@ import { joinPath } from '@/lib/path'
 import type { OpenFile } from '@/store/slices/editor'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import type { DiffComment } from '../../../../../../shared/diff-comment-types'
-import { DiffSectionItem } from '../../DiffSectionItem'
-import type { DiffSectionItemProps } from '../../diff-section-item-props'
+import { PierreDiffSection } from '@/components/pierre-diff/PierreDiffSection'
 import { DiffNotesSendMenu } from '../../DiffNotesSendMenu'
 import { canOpenDiffSectionPreviewToSide } from '../../diff-section-preview'
 import type { DiffSection } from '../../diff-section-types'
@@ -29,14 +28,11 @@ export function CombinedDiffSectionList({
   openSectionPreview,
   retrySection,
   scrollThumb,
-  sectionHeights,
-  sections,
-  setScrollContainerRef,
-  setSectionHeights,
-  settings,
   sideBySide,
   skippedConflictNotice,
   toggleSection,
+  sections,
+  setScrollContainerRef,
   virtualizer,
   workingDocumentIdsBySectionKey
 }: {
@@ -44,7 +40,7 @@ export function CombinedDiffSectionList({
   canOpenWorkspaceFileBrowserForPath: (path: string) => boolean
   diffCommentsForWorktree: DiffComment[]
   file: OpenFile
-  handleSectionSaveRef: DiffSectionItemProps['handleSectionSaveRef']
+  handleSectionSaveRef: React.MutableRefObject<(index: number) => Promise<void>>
   isAllMode: boolean
   isBranchMode: boolean
   isCommitMode: boolean
@@ -56,14 +52,11 @@ export function CombinedDiffSectionList({
   openSectionPreview: (section: DiffSection) => void
   retrySection: (index: number) => void
   scrollThumb: CombinedDiffScrollThumb
-  sectionHeights: Record<number, number>
-  sections: DiffSection[]
-  setScrollContainerRef: (node: HTMLDivElement | null) => void
-  setSectionHeights: React.Dispatch<React.SetStateAction<Record<number, number>>>
-  settings: DiffSectionItemProps['settings']
   sideBySide: boolean
   skippedConflictNotice: React.ReactNode
   toggleSection: (index: number) => void
+  sections: DiffSection[]
+  setScrollContainerRef: (node: HTMLDivElement | null) => void
   virtualizer: Virtualizer<HTMLDivElement, Element>
   workingDocumentIdsBySectionKey: Readonly<Record<string, WorkingDocumentId>>
 }): React.JSX.Element {
@@ -102,13 +95,11 @@ export function CombinedDiffSectionList({
                 // Why: position via top, not transform, so sticky file headers don't jump (transform creates a containing block).
                 style={{ top: `${virtualItem.start}px` }}
               >
-                <DiffSectionItem
+                <PierreDiffSection
                   section={section}
                   index={virtualItem.index}
                   isBranchMode={isBranchMode}
                   sideBySide={sideBySide}
-                  settings={settings}
-                  sectionHeight={sectionHeights[virtualItem.index]}
                   worktreeId={file.worktreeId}
                   loadSection={loadSection}
                   loadDeferredSection={loadDeferredSection}
@@ -130,18 +121,19 @@ export function CombinedDiffSectionList({
                       ? openSectionPreview
                       : undefined
                   }
-                  setSectionHeights={setSectionHeights}
-                  handleSectionSaveRef={handleSectionSaveRef}
                   workingDocumentId={workingDocumentIdsBySectionKey[section.key]}
-                  workingFilePath={joinPath(file.filePath, section.path)}
-                  renderHeaderTrailingContent={(section) => {
-                    const fileNoteCount = commentCountByFilePath.get(section.path) ?? 0
+                  onSave={async () => {
+                    await handleSectionSaveRef.current(virtualItem.index)
+                    return true
+                  }}
+                  renderHeaderTrailingContent={(currentSection) => {
+                    const fileNoteCount = commentCountByFilePath.get(currentSection.path) ?? 0
                     return fileNoteCount > 0 ? (
                       <DiffNotesSendMenu
                         worktreeId={file.worktreeId}
                         groupId={activeGroupId ?? file.worktreeId}
                         comments={diffCommentsForWorktree}
-                        filePath={section.path}
+                        filePath={currentSection.path}
                         showFileScope
                         triggerClassName="p-0.5 can-hover:opacity-0 group-hover:opacity-100"
                       />

@@ -90,6 +90,43 @@ describe('usePierreDiffMetadata', () => {
     expect(result.current.fileDiff).toBe(freshResult.fileDiff)
   })
 
+  it('advances the settled generation when undo reuses a cached semantic result', async () => {
+    const initial = deferred<PierreComparisonResult>()
+    const changed = deferred<PierreComparisonResult>()
+    const restored = deferred<PierreComparisonResult>()
+    mocks.requestComparison
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(changed.promise)
+      .mockReturnValueOnce(restored.promise)
+    const oldFile = file('old.ts', 'const value = 1\n')
+    const initialFile = file('new.ts', 'const value = 1\n')
+    const changedFile = file('new.ts', 'const value = 2\n')
+    const { result, rerender } = renderHook(
+      ({ newFile }) =>
+        usePierreDiffMetadata(oldFile, newFile, { language: 'typescript', showWhitespace: false }),
+      { initialProps: { newFile: initialFile } }
+    )
+    await waitFor(() => expect(mocks.requestComparison).toHaveBeenCalledTimes(1))
+    const initialInput = mocks.requestComparison.mock.calls[0]![0] as PierreComparisonInput
+    const initialResult = resultFor(initialInput, oldFile.contents, initialFile.contents)
+    await act(async () => initial.resolve(initialResult))
+    await waitFor(() => expect(result.current.generation).toBe(1))
+
+    rerender({ newFile: changedFile })
+    await waitFor(() => expect(mocks.requestComparison).toHaveBeenCalledTimes(2))
+    const changedInput = mocks.requestComparison.mock.calls[1]![0] as PierreComparisonInput
+    await act(async () =>
+      changed.resolve(resultFor(changedInput, oldFile.contents, changedFile.contents))
+    )
+    await waitFor(() => expect(result.current.generation).toBe(2))
+
+    rerender({ newFile: initialFile })
+    await waitFor(() => expect(mocks.requestComparison).toHaveBeenCalledTimes(3))
+    await act(async () => restored.resolve(initialResult))
+    await waitFor(() => expect(result.current.generation).toBe(3))
+    expect(result.current.fileDiff).toBe(initialResult.fileDiff)
+  })
+
   it('settles errors and retries only the current comparison pair', async () => {
     mocks.requestComparison.mockRejectedValueOnce(new Error('Tokenizer unavailable'))
     const oldFile = file('old.ts', 'const value = 1\n')

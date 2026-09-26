@@ -65,6 +65,10 @@ Ordinary editor line gutters use `--editor-git-gutter-modified` for replacements
 
 Inline gutter diff peeks inherit Monaco's active editor background, foreground, line-number colors, and inserted/removed line tints. Keep them distinct with a foreground-mixed header and hairline frame, rather than switching back to the app chrome palette.
 
+Full text diffs use Pierre, including editable working-copy panes. Keep its counted unchanged-region separators and expansion controls in both split and inline layouts. Monaco owns working-copy text editing and language-service widgets inside that layout; do not replace the surrounding view with Monaco's DiffEditor. Ordinary file editors and their compact gutter peeks remain separate surfaces.
+
+Pierre's baseline syntax and surfaces must follow the selected Monaco editor theme, including changes while a diff is open. Configure the shared highlight worker pool as well as each diff's theme; inherited host background variables alone cannot override Pierre's shadow-root theme CSS. Hover decorations must not rebuild the Monaco projection's unchanged layout or deletion spacers.
+
 ### List rows: hover, selected, current
 
 A common point of drift. Use these conventions for any list-style row (worktrees, command palette items, settings nav):

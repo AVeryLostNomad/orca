@@ -8,8 +8,8 @@ export const LSP_CLIENT_CAPABILITIES = {
     configuration: true,
     workspaceFolders: true,
     applyEdit: true,
+    executeCommand: { dynamicRegistration: false },
     workspaceEdit: { documentChanges: true, resourceOperations: [] },
-    didChangeConfiguration: {},
     didChangeWatchedFiles: { dynamicRegistration: false },
     symbol: {}
   },
@@ -66,7 +66,7 @@ export const LSP_CLIENT_CAPABILITIES = {
           ]
         }
       },
-      resolveSupport: { properties: ['edit'] },
+      resolveSupport: { properties: ['edit', 'command'] },
       dataSupport: true
     },
     formatting: {},
