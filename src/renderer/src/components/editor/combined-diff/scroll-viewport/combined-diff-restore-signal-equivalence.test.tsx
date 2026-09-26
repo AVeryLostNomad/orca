@@ -50,7 +50,6 @@ function section(key: string, overrides: Partial<DiffSection> = {}): DiffSection
     modifiedContent: '',
     collapsed: false,
     loading: true,
-    dirty: false,
     diffResult: null,
     largeDiffRenderLimit: null,
     ...overrides

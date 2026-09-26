@@ -13,10 +13,16 @@ export type LspWorkspaceSession = {
   status: LspSessionStatus
 }
 
+export type LspSessionLease = {
+  session: LspWorkspaceSession
+  release: () => void
+}
+
 const ENSURE_FAILURE_RETRY_MS = 30_000
 
 const sessionPromisesByKey = new Map<string, Promise<LspWorkspaceSession | null>>()
 const sessionsById = new Map<string, LspWorkspaceSession>()
+const sessionReferenceCounts = new Map<LspWorkspaceSession, number>()
 const notificationListeners = new Map<string, Map<string, Set<(params: unknown) => void>>>()
 const statusListeners = new Map<string, Set<(session: LspWorkspaceSession) => void>>()
 const serverRequestHandlers = new Map<
@@ -102,10 +108,10 @@ export function registerLspServerRequestHandler(
   serverRequestHandlers.set(method, handler)
 }
 
-export function ensureLspSession(
+export function acquireLspSession(
   serverId: LspServerId,
   rootPath: string
-): Promise<LspWorkspaceSession | null> {
+): Promise<LspSessionLease | null> {
   const active = transport()
   if (!active) {
     return Promise.resolve(null)
@@ -145,7 +151,32 @@ export function ensureLspSession(
     )
     sessionPromisesByKey.set(key, pending)
   }
-  return pending
+  return pending.then((session) => {
+    if (!session) {
+      return null
+    }
+    sessionReferenceCounts.set(session, (sessionReferenceCounts.get(session) ?? 0) + 1)
+    let released = false
+    return {
+      session,
+      release: () => {
+        if (released) {
+          return
+        }
+        released = true
+        const remaining = (sessionReferenceCounts.get(session) ?? 1) - 1
+        if (remaining > 0) {
+          sessionReferenceCounts.set(session, remaining)
+          return
+        }
+        sessionReferenceCounts.delete(session)
+        if (sessionPromisesByKey.get(key) === pending) {
+          sessionPromisesByKey.delete(key)
+        }
+        void active.releaseSession(session.sessionId)
+      }
+    }
+  })
 }
 
 /** Send a request; resolves undefined on cancellation or server error (provider

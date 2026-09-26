@@ -34,7 +34,8 @@ export type WorkspaceSessionSnapshot = Pick<
   | 'terminalLayoutsByTabId'
   | 'activeTabIdByWorktree'
   | 'openFiles'
-  | 'editorDrafts'
+  | 'workingDocuments'
+  | 'workingDocumentIdsByTab'
   | 'markdownFrontmatterVisible'
   | 'activeFileIdByWorktree'
   | 'activeTabTypeByWorktree'
@@ -80,7 +81,8 @@ export const SESSION_RELEVANT_FIELDS = [
   'terminalLayoutsByTabId',
   'activeTabIdByWorktree',
   'openFiles',
-  'editorDrafts',
+  'workingDocuments',
+  'workingDocumentIdsByTab',
   'markdownFrontmatterVisible',
   'activeFileIdByWorktree',
   'activeTabTypeByWorktree',
@@ -211,7 +213,11 @@ export function buildWorkspaceSessionPayload(
     activeTabIdByWorktree: snapshot.activeTabIdByWorktree,
     ...buildEditorSessionData(
       snapshot.openFiles,
-      snapshot.editorDrafts,
+      {
+        workingDocuments: snapshot.workingDocuments,
+        workingDocumentIdsByTab: snapshot.workingDocumentIdsByTab,
+        unifiedTabsByWorktree: snapshot.unifiedTabsByWorktree
+      },
       snapshot.markdownFrontmatterVisible,
       snapshot.activeFileIdByWorktree,
       snapshot.activeTabTypeByWorktree

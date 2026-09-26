@@ -70,7 +70,7 @@ export function getTabLayoutSignature(
     return `${item.type}:${item.id}:${item.isPinned}:${item.data.loading}:${Boolean(item.data.loadError)}:${label}`
   }
   if (item.type === 'editor') {
-    return `${item.type}:${item.id}:${item.isPinned}:${item.data.isDirty}:${item.data.isPreview}:${item.data.externalMutation ?? ''}:${status ?? ''}:${label}`
+    return `${item.type}:${item.id}:${item.isPinned}:${item.data.isDirty}:${item.data.isPreview}:${status ?? ''}:${label}`
   }
   return `${item.type}:${item.id}:${item.isPinned}:${label}`
 }

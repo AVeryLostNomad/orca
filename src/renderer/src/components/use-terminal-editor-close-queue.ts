@@ -1,135 +1,182 @@
 import { useCallback } from 'react'
 import { useAppStore } from '../store'
-import { appendUniqueOpenFileIds } from './terminal/unsaved-close-queue'
+import { getEditorClosePlan } from '@renderer/store/slices/editor/working-document-state'
 import { isPinnedActiveEditorTab } from './terminal-workspace-model'
-import type { TerminalEditorCloseFoundation } from './use-terminal-editor-close-foundation'
+import type {
+  PendingEditorCloseState,
+  TerminalEditorCloseFoundation
+} from './use-terminal-editor-close-foundation'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 
 export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFoundation) {
   const {
     activeWorktreeId,
     closeFile,
-    inFlightSaveFileIdRef,
-    pendingEditorCloseQueueRef,
+    closeUnifiedTab,
+    pendingEditorCloseState,
     proceedToNativeWindowClose,
     setActiveFile,
     setActiveTabType,
     setActiveWorktree,
-    setSaveDialogFileId,
+    setPendingEditorCloseState,
     windowCloseAfterDirtyRef
   } = controller
-  const waitForFileClosed = useCallback((fileId: string, timeoutMs: number): Promise<boolean> => {
-    if (!useAppStore.getState().openFiles.some((file) => file.id === fileId)) {
-      return Promise.resolve(true)
-    }
-    return new Promise((resolve) => {
-      let unsub: (() => void) | null = null
-      const timeoutId = window.setTimeout(() => {
-        unsub?.()
-        resolve(false)
-      }, timeoutMs)
-      unsub = useAppStore.subscribe((state) => {
-        if (!state.openFiles.some((file) => file.id === fileId)) {
-          window.clearTimeout(timeoutId)
-          unsub?.()
-          resolve(true)
-        }
-      })
-      if (!useAppStore.getState().openFiles.some((file) => file.id === fileId)) {
-        window.clearTimeout(timeoutId)
-        unsub?.()
-        resolve(true)
-      }
-    })
-  }, [])
 
-  const getNextQueuedEditorClose = useCallback((): string | null => {
-    while (pendingEditorCloseQueueRef.current.length > 0) {
-      const fileId = pendingEditorCloseQueueRef.current[0]
-      if (inFlightSaveFileIdRef.current === fileId) {
-        return null
-      }
-      const file = useAppStore.getState().openFiles.find((candidate) => candidate.id === fileId)
-      if (!file) {
-        pendingEditorCloseQueueRef.current.shift()
-        continue
-      }
-      if (!file.isDirty) {
-        closeFile(fileId)
-        pendingEditorCloseQueueRef.current.shift()
-        continue
-      }
-      return fileId
-    }
-    return null
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- controller refs preserve their original stable identities.
-  }, [closeFile])
-
-  const advanceEditorCloseQueue = useCallback(() => {
-    const nextFileId = getNextQueuedEditorClose()
-    if (nextFileId) {
-      const state = useAppStore.getState()
-      const file = state.openFiles.find((candidate) => candidate.id === nextFileId)
-      if (file && file.worktreeId !== state.activeWorktreeId) {
-        setActiveWorktree(file.worktreeId)
-      }
-      setActiveFile(nextFileId)
-      setActiveTabType('editor')
-      setSaveDialogFileId(nextFileId)
+  const completeWindowCloseIfRequested = useCallback(() => {
+    const pendingWindowClose = windowCloseAfterDirtyRef.current
+    if (!pendingWindowClose) {
       return
     }
-    setSaveDialogFileId(null)
-    const pendingWindowClose = windowCloseAfterDirtyRef.current
-    if (pendingWindowClose) {
-      windowCloseAfterDirtyRef.current = null
-      proceedToNativeWindowClose(pendingWindowClose.isQuitting)
-    }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- controller refs and setters preserve their original stable identities.
-  }, [
-    getNextQueuedEditorClose,
-    proceedToNativeWindowClose,
-    setActiveFile,
-    setActiveTabType,
-    setActiveWorktree
-  ])
+    windowCloseAfterDirtyRef.current = null
+    proceedToNativeWindowClose(pendingWindowClose.isQuitting)
+  }, [proceedToNativeWindowClose, windowCloseAfterDirtyRef])
+
+  const advanceEditorCloseQueue = useCallback(
+    (requestedState: PendingEditorCloseState | null = pendingEditorCloseState) => {
+      if (!requestedState) {
+        completeWindowCloseIfRequested()
+        return
+      }
+
+      const plan = getEditorClosePlan(useAppStore.getState(), requestedState.tabIds)
+      const currentDocumentId =
+        requestedState.currentDocumentId &&
+        plan.dirtyDocumentIds.includes(requestedState.currentDocumentId)
+          ? requestedState.currentDocumentId
+          : null
+      if (currentDocumentId) {
+        setPendingEditorCloseState({
+          tabIds: plan.tabIds,
+          pendingDocumentIds: plan.dirtyDocumentIds,
+          currentDocumentId
+        })
+        return
+      }
+
+      const nextDocumentId = plan.dirtyDocumentIds[0] ?? null
+      if (!nextDocumentId) {
+        for (const tabId of plan.tabIds) {
+          if (
+            Object.values(useAppStore.getState().unifiedTabsByWorktree ?? {}).some((tabs) =>
+              tabs.some((tab) => tab.id === tabId)
+            )
+          ) {
+            closeUnifiedTab(tabId)
+          } else {
+            closeFile(tabId)
+          }
+        }
+        setPendingEditorCloseState(null)
+        completeWindowCloseIfRequested()
+        return
+      }
+
+      const nextState: PendingEditorCloseState = {
+        tabIds: plan.tabIds,
+        pendingDocumentIds: plan.dirtyDocumentIds,
+        currentDocumentId: nextDocumentId
+      }
+      const nextTabId = nextState.tabIds.find((tabId) =>
+        (useAppStore.getState().workingDocumentIdsByTab[tabId] ?? []).includes(nextDocumentId)
+      )
+      const nextTab = nextTabId
+        ? (() => {
+            const unifiedTab = Object.values(useAppStore.getState().unifiedTabsByWorktree ?? {})
+              .flat()
+              .find((tab) => tab.id === nextTabId)
+            return useAppStore
+              .getState()
+              .openFiles.find((file) => file.id === (unifiedTab?.entityId ?? nextTabId))
+          })()
+        : undefined
+      if (nextTab && nextTab.worktreeId !== useAppStore.getState().activeWorktreeId) {
+        setActiveWorktree(nextTab.worktreeId)
+      }
+      if (nextTab) {
+        setActiveFile(nextTab.id)
+        setActiveTabType('editor')
+      }
+      setPendingEditorCloseState(nextState)
+    },
+    [
+      closeFile,
+      closeUnifiedTab,
+      completeWindowCloseIfRequested,
+      pendingEditorCloseState,
+      setActiveFile,
+      setActiveTabType,
+      setActiveWorktree,
+      setPendingEditorCloseState
+    ]
+  )
 
   const queueEditorCloseRequests = useCallback(
-    (fileIds: string[], pendingWindowClose?: { isQuitting: boolean }) => {
+    (tabIds: readonly string[], pendingWindowClose?: { isQuitting: boolean }) => {
       if (pendingWindowClose) {
         windowCloseAfterDirtyRef.current = pendingWindowClose
       }
-      pendingEditorCloseQueueRef.current = appendUniqueOpenFileIds(
-        pendingEditorCloseQueueRef.current,
-        fileIds,
-        new Set(useAppStore.getState().openFiles.map((file) => file.id))
-      )
-      advanceEditorCloseQueue()
+      const queuedTabIds = pendingEditorCloseState
+        ? [...pendingEditorCloseState.tabIds, ...tabIds]
+        : tabIds
+      const plan = getEditorClosePlan(useAppStore.getState(), queuedTabIds)
+      const nextState: PendingEditorCloseState = {
+        tabIds: plan.tabIds,
+        pendingDocumentIds: plan.dirtyDocumentIds,
+        currentDocumentId:
+          pendingEditorCloseState?.currentDocumentId &&
+          plan.dirtyDocumentIds.includes(pendingEditorCloseState.currentDocumentId)
+            ? pendingEditorCloseState.currentDocumentId
+            : null
+      }
+      setPendingEditorCloseState(nextState)
+      advanceEditorCloseQueue(nextState)
     },
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- controller refs preserve their original stable identities.
-    [advanceEditorCloseQueue]
+    [
+      advanceEditorCloseQueue,
+      pendingEditorCloseState,
+      setPendingEditorCloseState,
+      windowCloseAfterDirtyRef
+    ]
   )
 
-  const handleCloseFile = useCallback(
-    (fileId: string) => {
-      const state = useAppStore.getState()
-      if (activeWorktreeId && isPinnedActiveEditorTab(state, activeWorktreeId, fileId)) {
+  const completeEditorCloseForDocument = useCallback(
+    (documentId: WorkingDocumentId) => {
+      if (!pendingEditorCloseState) {
         return
       }
-      const file = state.openFiles.find((candidate) => candidate.id === fileId)
-      if (file?.isDirty) {
-        queueEditorCloseRequests([fileId])
-        return
-      }
-      closeFile(fileId)
+      advanceEditorCloseQueue({
+        ...pendingEditorCloseState,
+        pendingDocumentIds: pendingEditorCloseState.pendingDocumentIds.filter(
+          (pendingDocumentId) => pendingDocumentId !== documentId
+        ),
+        currentDocumentId: null
+      })
     },
-    [activeWorktreeId, closeFile, queueEditorCloseRequests]
+    [advanceEditorCloseQueue, pendingEditorCloseState]
+  )
+
+  const cancelEditorCloseQueue = useCallback(() => {
+    windowCloseAfterDirtyRef.current = null
+    setPendingEditorCloseState(null)
+  }, [setPendingEditorCloseState, windowCloseAfterDirtyRef])
+
+  const handleCloseFile = useCallback(
+    (tabId: string) => {
+      const state = useAppStore.getState()
+      if (activeWorktreeId && isPinnedActiveEditorTab(state, activeWorktreeId, tabId)) {
+        return
+      }
+      queueEditorCloseRequests([tabId])
+    },
+    [activeWorktreeId, queueEditorCloseRequests]
   )
 
   return {
-    waitForFileClosed,
-    getNextQueuedEditorClose,
     advanceEditorCloseQueue,
-    queueEditorCloseRequests,
-    handleCloseFile
+    cancelEditorCloseQueue,
+    completeEditorCloseForDocument,
+    handleCloseFile,
+    queueEditorCloseRequests
   }
 }
 

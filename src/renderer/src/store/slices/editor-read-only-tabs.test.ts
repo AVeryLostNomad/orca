@@ -97,17 +97,6 @@ describe('read-only editor tabs (AI Vault View Log)', () => {
     expect(store.getState().openFiles[0]?.readOnly).toBeUndefined()
   })
 
-  it('markFileDirty and setEditorDraft hard no-op for read-only tabs', () => {
-    const store = createEditorStore()
-    openReadOnlyLog(store)
-
-    store.getState().markFileDirty(LOG_PATH, true)
-    store.getState().setEditorDraft(LOG_PATH, 'stray edit')
-
-    expect(store.getState().openFiles[0]?.isDirty).toBe(false)
-    expect(store.getState().editorDrafts[LOG_PATH]).toBeUndefined()
-  })
-
   it('hydrates a persisted read-only tab clean and ignores any persisted dirty draft', () => {
     const store = createEditorStore()
     store.setState({
@@ -138,8 +127,7 @@ describe('read-only editor tabs (AI Vault View Log)', () => {
     expect(restored).toEqual(
       expect.objectContaining({ readOnly: true, liveTail: true, isDirty: false, mode: 'edit' })
     )
-    expect(restored?.pendingDiskBaselineVerification).toBeUndefined()
-    expect(store.getState().editorDrafts[LOG_PATH]).toBeUndefined()
+    expect(store.getState().workingDocuments).toEqual({})
   })
 
   it('restores the SSH target that owns an external host file', () => {

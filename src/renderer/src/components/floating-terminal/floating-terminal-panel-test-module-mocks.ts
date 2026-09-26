@@ -4,7 +4,6 @@ import {
   hookRuntime,
   mocks,
   parkingBox,
-  saveDialogBox,
   type EffectCallback,
   type FloatingTerminalPanelMocks
 } from './floating-terminal-panel-test-harness'
@@ -108,42 +107,6 @@ export function createContextualTourModule(): Pick<
 > {
   return {
     useContextualTour: mocks.useContextualTour
-  }
-}
-
-export function createTerminalSaveDialogModule() {
-  return {
-    useTerminalSaveDialog: () => ({
-      handleSaveDialogCancel: () => {
-        saveDialogBox.fileId = null
-      },
-      handleSaveDialogDiscard: () => {
-        if (saveDialogBox.fileId) {
-          mocks.markFileDirty(saveDialogBox.fileId, false)
-          mocks.closeFile(saveDialogBox.fileId)
-        }
-        saveDialogBox.fileId = null
-      },
-      handleSaveDialogSave: () => {
-        saveDialogBox.fileId = null
-      },
-      requestCloseFile: (fileId: string) => {
-        const file = (storeBox.state as FloatingPanelStoreState).openFiles.find(
-          (candidate) => candidate.id === fileId
-        )
-        if (file?.isDirty) {
-          saveDialogBox.fileId = fileId
-          return
-        }
-        mocks.closeFile(fileId)
-      },
-      saveDialogFile: saveDialogBox.fileId
-        ? ((storeBox.state as FloatingPanelStoreState).openFiles.find(
-            (file) => file.id === saveDialogBox.fileId
-          ) ?? null)
-        : null,
-      saveDialogFileId: saveDialogBox.fileId
-    })
   }
 }
 

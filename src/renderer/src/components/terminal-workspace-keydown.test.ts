@@ -79,22 +79,25 @@ describe('handleTerminalWorkspaceKeyDown editor.save', () => {
     mocks.state = {
       activeView: 'terminal',
       activeTabType: 'editor',
-      activeFileId: 'file-1',
-      getActiveTab: () => null
+      activeWorktreeId: 'repo-1::/repo/worktree',
+      getActiveTab: (worktreeId: string) =>
+        worktreeId === 'repo-1::/repo/worktree'
+          ? { id: 'editor-surface-1', contentType: 'editor', entityId: 'file-1' }
+          : null
     }
   })
 
-  it('dispatches the save request with the resolved file id', () => {
-    expect(pressCmdS()).toEqual([{ fileId: 'file-1' }])
+  it('dispatches the save request with the active editor surface id', () => {
+    expect(pressCmdS()).toEqual([{ tabId: 'editor-surface-1' }])
   })
 
   it('resolves the floating panel editor when the panel owns the event', () => {
     mocks.targetInsideFloatingPanel = true
     mocks.state.getActiveTab = (worktreeId: string) =>
       worktreeId === FLOATING_TERMINAL_WORKTREE_ID
-        ? { contentType: 'editor', entityId: 'floating-file' }
+        ? { id: 'floating-editor-surface', contentType: 'editor', entityId: 'floating-file' }
         : null
-    expect(pressCmdS()).toEqual([{ fileId: 'floating-file' }])
+    expect(pressCmdS()).toEqual([{ tabId: 'floating-editor-surface' }])
   })
 
   it('does not swallow the chord outside the workspace view', () => {

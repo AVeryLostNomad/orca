@@ -41,6 +41,19 @@ export function applyRemoveWorktreeSuccessState(
     const nextOpenFiles = s.openFiles.some((f) => f.worktreeId === worktreeId)
       ? s.openFiles.filter((f) => f.worktreeId !== worktreeId)
       : s.openFiles
+    const removedEditorTabIds = new Set(
+      (s.unifiedTabsByWorktree[worktreeId] ?? []).map((tab) => tab.id)
+    )
+    const workingDocuments = Object.fromEntries(
+      Object.entries(s.workingDocuments).filter(
+        ([, document]) => document.target.worktreeId !== worktreeId || document.isDirty
+      )
+    ) as typeof s.workingDocuments
+    const workingDocumentIdsByTab = Object.fromEntries(
+      Object.entries(s.workingDocumentIdsByTab).filter(
+        ([tabId]) => !removedEditorTabIds.has(tabId) && !removedFileIds.has(tabId)
+      )
+    ) as typeof s.workingDocumentIdsByTab
     // If the active file belonged to the removed worktree, clear it
     const activeFileCleared = s.activeFileId
       ? s.openFiles.some((f) => f.id === s.activeFileId && f.worktreeId === worktreeId)
@@ -102,7 +115,8 @@ export function applyRemoveWorktreeSuccessState(
       groupsByWorktree: omitByWorktree(s.groupsByWorktree),
       layoutByWorktree: omitByWorktree(s.layoutByWorktree),
       activeGroupIdByWorktree: omitByWorktree(s.activeGroupIdByWorktree),
-      editorDrafts: omitByFileId(s.editorDrafts),
+      workingDocuments,
+      workingDocumentIdsByTab,
       markdownViewMode: omitByFileId(s.markdownViewMode),
       markdownRichModeSizeOverride: omitByFileId(s.markdownRichModeSizeOverride),
       editorViewMode: omitByFileId(s.editorViewMode),

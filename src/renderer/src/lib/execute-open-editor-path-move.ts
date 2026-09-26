@@ -1,6 +1,6 @@
 import { useAppStore } from '@/store'
 import { renameRuntimePath, type RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
-import { requestEditorSaveQuiesce } from '@/components/editor/editor-autosave'
+import { quiesceDocumentSave } from '@/components/editor/editor-autosave'
 import {
   beginEditorPathMove,
   settleEditorPathMove
@@ -69,8 +69,17 @@ export async function executeOpenEditorPathMove(args: {
   }
 
   // Let any in-flight autosave settle so a trailing write can't recreate the old
-  // path after the rename.
-  await Promise.all(affected.map((f) => requestEditorSaveQuiesce({ fileId: f.id })))
+  // path after the rename. A document may have multiple visible tabs, but it has one queue.
+  const affectedDocumentIds = new Set(
+    Object.values(moveState.workingDocuments)
+      .filter(
+        (document) =>
+          isPathInsideOrEqual(fromPath, document.target.filePath) &&
+          document.target.owner.executionHostId === initiatingHostId
+      )
+      .map((document) => document.id)
+  )
+  await Promise.all([...affectedDocumentIds].map((documentId) => quiesceDocumentSave(documentId)))
 
   try {
     await renameRuntimePath(context, fromPath, toPath)
@@ -132,13 +141,12 @@ export async function executeOpenEditorPathMove(args: {
     }
   }
 
-  // Proactively verify every gated tab so the autosave gate resolves even if the
+  // Proactively verify every gated document so the autosave gate resolves even if the
   // destination watcher event never arrives (down / dropped / coalesced).
-  const gatedTabIds = useAppStore
-    .getState()
-    .openFiles.filter((f) => f.pendingSelfMoveEcho?.operationId === operationId)
-    .map((f) => f.id)
-  if (gatedTabIds.length > 0) {
-    verifyLatchedMoveDestinations(worktreePath, context.connectionId, gatedTabIds)
+  const gatedDocumentIds = Object.values(useAppStore.getState().workingDocuments)
+    .filter((document) => document.pendingSelfMoveEcho?.operationId === operationId)
+    .map((document) => document.id)
+  if (gatedDocumentIds.length > 0) {
+    verifyLatchedMoveDestinations(context.connectionId, gatedDocumentIds)
   }
 }

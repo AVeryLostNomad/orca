@@ -1,16 +1,25 @@
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import type { EditorSlice } from '../types/editor-slice'
-import type { OpenFilePathRekey, RekeyOpenFilesResult } from '../types/open-file-path-rekey'
+import type {
+  OpenFilePathRekey,
+  RekeyOpenFilesResult,
+  WorkingDocumentPathRekey
+} from '../types/open-file-path-rekey'
 import { rekeyFileIdRecord } from '../file-ids/open-file-path-rekey'
 import { migrateHydratedEditorTabsAndGroups } from '../file-ids/hydrated-editor-file-ids'
+import {
+  getWorkingDocumentId,
+  getWorkingDocumentTarget,
+  type WorkingDocumentId
+} from '../working-document'
 
 export function createRekeyOpenFilesAction(
   set: EditorSet,
   _get: EditorGet
 ): Pick<EditorSlice, 'rekeyOpenFilesForPathChange'> {
   return {
-    rekeyOpenFilesForPathChange: ({ rekeys, moveOperationId }) => {
-      if (rekeys.length === 0) {
+    rekeyOpenFilesForPathChange: ({ rekeys, documentRekeys = [], moveOperationId }) => {
+      if (rekeys.length === 0 && documentRekeys.length === 0) {
         return { ok: true }
       }
       let result: RekeyOpenFilesResult = { ok: true }
@@ -42,6 +51,58 @@ export function createRekeyOpenFilesAction(
             return s
           }
         }
+        const documentMigrations = new Map<WorkingDocumentId, WorkingDocumentId>()
+        const documentRekeyByOldId = new Map<WorkingDocumentId, WorkingDocumentPathRekey>()
+        for (const rekey of rekeys) {
+          const source = openById.get(rekey.oldFileId)!
+          const target = getWorkingDocumentTarget(source)
+          if (!target) {
+            continue
+          }
+          const oldDocumentId = getWorkingDocumentId(target.owner, target.filePath)
+          const document = s.workingDocuments[oldDocumentId]
+          if (!document) {
+            continue
+          }
+          const newDocumentId = getWorkingDocumentId(target.owner, rekey.newFilePath)
+          const destination = s.workingDocuments[newDocumentId]
+          if (
+            destination &&
+            destination.id !== oldDocumentId &&
+            (document.isDirty || destination.isDirty)
+          ) {
+            result = { ok: false, reason: 'collision' }
+            return s
+          }
+          documentMigrations.set(oldDocumentId, newDocumentId)
+          documentRekeyByOldId.set(oldDocumentId, {
+            documentId: oldDocumentId,
+            oldFilePath: rekey.oldFilePath,
+            newFilePath: rekey.newFilePath,
+            newRelativePath: rekey.newRelativePath,
+            newLanguage: rekey.newLanguage
+          })
+        }
+        for (const rekey of documentRekeys) {
+          const oldDocumentId = rekey.documentId as WorkingDocumentId
+          const document = s.workingDocuments[oldDocumentId]
+          if (!document || document.target.filePath !== rekey.oldFilePath) {
+            result = { ok: false, reason: 'stale' }
+            return s
+          }
+          const newDocumentId = getWorkingDocumentId(document.target.owner, rekey.newFilePath)
+          const destination = s.workingDocuments[newDocumentId]
+          if (
+            destination &&
+            destination.id !== oldDocumentId &&
+            (document.isDirty || destination.isDirty)
+          ) {
+            result = { ok: false, reason: 'collision' }
+            return s
+          }
+          documentMigrations.set(oldDocumentId, newDocumentId)
+          documentRekeyByOldId.set(oldDocumentId, rekey)
+        }
 
         const nextOpenFiles = s.openFiles.map((f) => {
           const rekey = rekeyByOldId.get(f.id)
@@ -49,13 +110,6 @@ export function createRekeyOpenFilesAction(
             return f
           }
           // Spread the whole OpenFile so fields this action doesn't know about survive; change only the path-derived ones.
-          // Gate atomically here so autosave is suspended before any echo can be verified (only a dirty autosave-capable tab can be clobbered).
-          const gatesEcho =
-            moveOperationId !== undefined &&
-            f.isDirty &&
-            // A 'changed' tab is already autosave-suspended via externalMutation; gating it would strand the gate (verification skips a 'changed' tab), so leave the banner as terminal.
-            f.externalMutation !== 'changed' &&
-            (f.mode === 'edit' || (f.mode === 'diff' && f.diffSource === 'unstaged'))
           return {
             ...f,
             id: rekey.newFileId,
@@ -69,18 +123,54 @@ export function createRekeyOpenFilesAction(
               : {}),
             ...(rekey.consumeUntitled
               ? { isUntitled: undefined, deleteUntouchedOnClose: undefined }
-              : {}),
-            ...(gatesEcho
-              ? {
-                  pendingLiveDiskVerification: true,
-                  pendingSelfMoveEcho: {
-                    operationId: moveOperationId,
-                    targetPath: rekey.newFilePath
-                  }
-                }
               : {})
           }
         })
+        const workingDocuments = { ...s.workingDocuments }
+        for (const [oldDocumentId, newDocumentId] of documentMigrations) {
+          const document = workingDocuments[oldDocumentId]
+          if (!document) {
+            continue
+          }
+          const rekey = documentRekeyByOldId.get(oldDocumentId)
+          if (!rekey) {
+            continue
+          }
+          const destination = workingDocuments[newDocumentId]
+          delete workingDocuments[oldDocumentId]
+          if (!destination) {
+            workingDocuments[newDocumentId] = {
+              ...document,
+              id: newDocumentId,
+              target: {
+                ...document.target,
+                filePath: rekey.newFilePath,
+                relativePath: rekey.newRelativePath,
+                ...(rekey.newLanguage === undefined ? {} : { language: rekey.newLanguage })
+              },
+              ...(moveOperationId !== undefined &&
+              document.isDirty &&
+              document.externalMutation !== 'changed'
+                ? {
+                    pendingLiveDiskVerification: true,
+                    pendingSelfMoveEcho: {
+                      operationId: moveOperationId,
+                      targetPath: rekey.newFilePath
+                    }
+                  }
+                : {})
+            }
+          }
+        }
+        const workingDocumentIdsByTab = Object.entries(s.workingDocumentIdsByTab).reduce<
+          typeof s.workingDocumentIdsByTab
+        >((next, [tabId, ids]) => {
+          const mappedTabId = migrations.get(tabId) ?? tabId
+          const mappedIds = ids.map((id) => documentMigrations.get(id) ?? id)
+          const existing = next[mappedTabId] ?? []
+          next[mappedTabId] = [...new Set([...existing, ...mappedIds])]
+          return next
+        }, {})
 
         const activeFileIdByWorktree: Record<string, string | null> = {}
         for (const [wtId, activeId] of Object.entries(s.activeFileIdByWorktree)) {
@@ -114,7 +204,8 @@ export function createRekeyOpenFilesAction(
 
         return {
           openFiles: nextOpenFiles,
-          editorDrafts: rekeyFileIdRecord(s.editorDrafts, migrations),
+          workingDocuments,
+          workingDocumentIdsByTab,
           editorCursorLine: rekeyFileIdRecord(s.editorCursorLine, migrations),
           markdownViewMode: rekeyFileIdRecord(s.markdownViewMode, migrations),
           markdownRichModeSizeOverride: rekeyFileIdRecord(

@@ -3,6 +3,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { within } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type {
   GitBranchChangeEntry,
@@ -17,7 +18,8 @@ const mocks = vi.hoisted(() => {
     path: '/repo',
     displayName: 'Repo',
     badgeColor: '#000',
-    addedAt: 0
+    addedAt: 0,
+    executionHostId: 'local' as const
   }
   const activeWorktree = {
     id: 'wt-1',
@@ -38,7 +40,8 @@ const mocks = vi.hoisted(() => {
     isUnread: false,
     isPinned: false,
     sortOrder: 0,
-    lastActivityAt: 0
+    lastActivityAt: 0,
+    hostId: 'local' as const
   }
   const calls = {
     openDiff: vi.fn(),
@@ -49,8 +52,9 @@ const mocks = vi.hoisted(() => {
     discardRuntimeGitPath: vi.fn(),
     bulkStageRuntimeGitPaths: vi.fn(),
     refreshGitStatusForWorktree: vi.fn(),
-    requestEditorSaveQuiesce: vi.fn(),
-    notifyEditorExternalFileChange: vi.fn()
+    quiesceDocumentSave: vi.fn(),
+    notifyEditorExternalFileChange: vi.fn(),
+    statRuntimePath: vi.fn()
   }
   return {
     activeRepo,
@@ -91,8 +95,12 @@ vi.mock('@/runtime/runtime-git-client', async (importOriginal) => {
   }
 })
 
+vi.mock('@/runtime/runtime-file-metadata-client', () => ({
+  statRuntimePath: mocks.calls.statRuntimePath
+}))
+
 vi.mock('@/components/editor/editor-autosave', () => ({
-  requestEditorSaveQuiesce: mocks.calls.requestEditorSaveQuiesce,
+  quiesceDocumentSave: mocks.calls.quiesceDocumentSave,
   notifyEditorExternalFileChange: mocks.calls.notifyEditorExternalFileChange
 }))
 
@@ -140,12 +148,19 @@ function noopAsync(value: unknown = undefined): () => Promise<unknown> {
 
 function resetState(overrides: Partial<Record<string, unknown>> = {}): void {
   vi.clearAllMocks()
-  mocks.calls.createEmptySplitGroup.mockReturnValue('group-2')
+  mocks.calls.createEmptySplitGroup.mockImplementation((worktreeId: string) => {
+    const activeGroupIdByWorktree = mocks.state.activeGroupIdByWorktree as Record<string, string>
+    activeGroupIdByWorktree[worktreeId] = 'group-2'
+    return 'group-2'
+  })
+  mocks.calls.openFile.mockReturnValue('file-1')
   mocks.calls.discardRuntimeGitPath.mockResolvedValue(undefined)
   mocks.calls.bulkStageRuntimeGitPaths.mockResolvedValue(undefined)
   mocks.calls.refreshGitStatusForWorktree.mockResolvedValue(undefined)
-  mocks.calls.requestEditorSaveQuiesce.mockResolvedValue(undefined)
+  mocks.calls.quiesceDocumentSave.mockResolvedValue(undefined)
+  mocks.calls.statRuntimePath.mockResolvedValue({ size: 1, isDirectory: false, mtime: 1 })
   mocks.state = {
+    workingDocuments: {},
     activeWorktreeId: mocks.activeWorktree.id,
     activeGroupIdByWorktree: { [mocks.activeWorktree.id]: 'group-1' },
     groupsByWorktree: { [mocks.activeWorktree.id]: [{ id: 'group-1', activeTabId: null }] },
@@ -162,6 +177,15 @@ function resetState(overrides: Partial<Record<string, unknown>> = {}): void {
     isRemoteOperationActive: false,
     inFlightRemoteOpKind: null,
     settings: null,
+    detectedWorktreesByRepo: {},
+    folderWorkspaces: [],
+    projectGroups: [],
+    restoredRuntimeHostIdByWorkspaceSessionKey: {},
+    runtimeEnvironments: [],
+    runtimeEnvironmentCatalogHydrated: true,
+    removedRuntimeEnvironmentIds: new Set(),
+    sshConnectionStates: {},
+    sshStateByEnvironment: {},
     hostedReviewCache: {},
     prCache: {},
     commitMessageGenerationRecords: {},
@@ -252,15 +276,17 @@ function clickUncommitted(path: string, init: MouseEventInit = {}): void {
   const row = container.querySelector<HTMLDivElement>(`[data-source-control-path="${path}"]`)
   expect(row).not.toBeNull()
   act(() => {
-    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, ...init }))
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, ...init }))
   })
 }
-
-function doubleClickUncommitted(path: string): void {
+async function doubleClickUncommitted(path: string, init: MouseEventInit = {}): Promise<void> {
   const row = container.querySelector<HTMLDivElement>(`[data-source-control-path="${path}"]`)
   expect(row).not.toBeNull()
-  act(() => {
-    row?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+  await act(async () => {
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, ...init }))
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2, ...init }))
+    row?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2, ...init }))
+    await Promise.resolve()
   })
 }
 
@@ -269,9 +295,27 @@ function clickBranchRow(init: MouseEventInit = {}): void {
     (candidate) => candidate.textContent === 'branch.ts'
   )
   const row = label?.closest('div')
-  expect(row).not.toBeNull()
+  if (!row) {
+    throw new Error('Branch file row is not visible')
+  }
   act(() => {
-    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, ...init }))
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, ...init }))
+  })
+}
+
+async function doubleClickBranchRow(): Promise<void> {
+  const label = [...container.querySelectorAll('span')].find(
+    (candidate) => candidate.textContent === 'branch.ts'
+  )
+  const row = label?.closest('div')
+  if (!row) {
+    throw new Error('Branch file row is not visible')
+  }
+  await act(async () => {
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }))
+    row?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }))
+    await Promise.resolve()
   })
 }
 
@@ -331,25 +375,98 @@ describe('SourceControl preview row opens', () => {
     )
   })
 
-  it('keeps explicit permanent uncommitted opens permanent', () => {
+  it('opens a preview diff on the first click and the current working file on double-click', async () => {
     resetState({
       gitStatusByWorktree: { [mocks.activeWorktree.id]: [gitEntry({ path: 'src/file.ts' })] }
     })
     renderSourceControl()
 
-    doubleClickUncommitted('src/file.ts')
+    await doubleClickUncommitted('src/file.ts')
 
+    expect(mocks.calls.openDiff).toHaveBeenCalledTimes(1)
     expect(mocks.calls.openDiff).toHaveBeenCalledWith(
       mocks.activeWorktree.id,
       '/repo/wt/src/file.ts',
       'src/file.ts',
       'typescript',
       false,
-      { targetGroupId: undefined, preview: false }
+      { targetGroupId: undefined, preview: true }
+    )
+    expect(mocks.calls.openFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: '/repo/wt/src/file.ts',
+        relativePath: 'src/file.ts',
+        worktreeId: mocks.activeWorktree.id,
+        language: 'typescript',
+        mode: 'edit',
+        runtimeEnvironmentId: undefined,
+        operationProvenance: expect.objectContaining({
+          generation: expect.objectContaining({
+            route: { executionHostId: 'local', runtimeEnvironmentId: null }
+          })
+        })
+      }),
+      {
+        targetGroupId: undefined,
+        preview: false,
+        focusEditor: true,
+        suppressActiveRuntimeFallback: true
+      }
+    )
+    expect(mocks.calls.statRuntimePath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        worktreeId: mocks.activeWorktree.id,
+        expectedExecutionHostId: 'local'
+      }),
+      '/repo/wt/src/file.ts'
+    )
+    expect(mocks.state.setEditorViewMode).toHaveBeenCalledWith('file-1', 'edit')
+  })
+
+  it('reuses the modifier-click split for the working-file double-click', async () => {
+    resetState({
+      gitStatusByWorktree: { [mocks.activeWorktree.id]: [gitEntry({ path: 'src/file.ts' })] }
+    })
+    renderSourceControl()
+
+    await doubleClickUncommitted('src/file.ts', { ctrlKey: true })
+
+    expect(mocks.calls.createEmptySplitGroup).toHaveBeenCalledTimes(1)
+    expect(mocks.calls.openDiff).toHaveBeenCalledWith(
+      mocks.activeWorktree.id,
+      '/repo/wt/src/file.ts',
+      'src/file.ts',
+      'typescript',
+      false,
+      { targetGroupId: 'group-2', preview: false }
+    )
+    expect(mocks.calls.openFile).toHaveBeenCalledWith(
+      expect.objectContaining({ filePath: '/repo/wt/src/file.ts' }),
+      expect.objectContaining({ targetGroupId: 'group-2', preview: false })
     )
   })
 
-  it('passes preview through markdown edit-in-changes and conflict file opens', () => {
+  it('does not treat a nested stage control double-click as a working-file open', async () => {
+    resetState({
+      gitStatusByWorktree: { [mocks.activeWorktree.id]: [gitEntry({ path: 'src/file.ts' })] }
+    })
+    renderSourceControl()
+
+    const row = container.querySelector<HTMLDivElement>('[data-source-control-path="src/file.ts"]')
+    const stageButton = row?.querySelector<HTMLButtonElement>('button[aria-label="Stage"]')
+    expect(stageButton).not.toBeNull()
+    await act(async () => {
+      stageButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+      stageButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }))
+      stageButton?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }))
+      await Promise.resolve()
+    })
+
+    expect(mocks.calls.openDiff).not.toHaveBeenCalled()
+    expect(mocks.calls.openFile).not.toHaveBeenCalled()
+  })
+
+  it('opens Markdown rows as preview diffs while preserving conflict-file routing', () => {
     resetState({
       gitStatusByWorktree: {
         [mocks.activeWorktree.id]: [
@@ -367,14 +484,12 @@ describe('SourceControl preview row opens', () => {
     clickUncommitted('docs/readme.md')
     clickUncommitted('src/conflict.ts')
 
-    expect(mocks.calls.openFile).toHaveBeenCalledWith(
-      {
-        filePath: '/repo/wt/docs/readme.md',
-        relativePath: 'docs/readme.md',
-        worktreeId: mocks.activeWorktree.id,
-        language: 'markdown',
-        mode: 'edit'
-      },
+    expect(mocks.calls.openDiff).toHaveBeenCalledWith(
+      mocks.activeWorktree.id,
+      '/repo/wt/docs/readme.md',
+      'docs/readme.md',
+      'markdown',
+      false,
       { targetGroupId: undefined, preview: true }
     )
     expect(mocks.calls.openConflictFile).toHaveBeenCalledWith(
@@ -411,12 +526,7 @@ describe('SourceControl preview row opens', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.calls.requestEditorSaveQuiesce).toHaveBeenCalledWith({
-      worktreeId: mocks.activeWorktree.id,
-      worktreePath: '/repo/wt',
-      relativePath: 'src/file.ts',
-      runtimeEnvironmentId: 'runtime-remote'
-    })
+    expect(mocks.calls.quiesceDocumentSave).not.toHaveBeenCalled()
     expect(mocks.calls.notifyEditorExternalFileChange).toHaveBeenCalledWith({
       worktreeId: mocks.activeWorktree.id,
       worktreePath: '/repo/wt',
@@ -519,6 +629,11 @@ describe('SourceControl preview row opens', () => {
       gitBranchCompareSummaryByWorktree: { [mocks.activeWorktree.id]: branchSummary() }
     })
     renderSourceControl()
+    act(() =>
+      within(container)
+        .getByRole('button', { name: /Committed on Branch/ })
+        .click()
+    )
 
     clickBranchRow()
 
@@ -529,6 +644,41 @@ describe('SourceControl preview row opens', () => {
       expect.objectContaining({ status: 'ready' }),
       'typescript',
       { targetGroupId: undefined, preview: true }
+    )
+  })
+
+  it('opens a preview branch diff on the first click and the current working file on double-click', async () => {
+    resetState({
+      gitBranchChangesByWorktree: { [mocks.activeWorktree.id]: [branchEntry()] },
+      gitBranchCompareSummaryByWorktree: { [mocks.activeWorktree.id]: branchSummary() }
+    })
+    renderSourceControl()
+    act(() =>
+      within(container)
+        .getByRole('button', { name: /Committed on Branch/ })
+        .click()
+    )
+
+    await doubleClickBranchRow()
+
+    expect(mocks.calls.openBranchDiff).toHaveBeenCalledTimes(1)
+    expect(mocks.calls.openBranchDiff).toHaveBeenCalledWith(
+      mocks.activeWorktree.id,
+      '/repo/wt',
+      expect.objectContaining({ path: 'src/branch.ts' }),
+      expect.objectContaining({ status: 'ready' }),
+      'typescript',
+      { targetGroupId: undefined, preview: true }
+    )
+    expect(mocks.calls.openFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: '/repo/wt/src/branch.ts',
+        relativePath: 'src/branch.ts',
+        worktreeId: mocks.activeWorktree.id,
+        language: 'typescript',
+        mode: 'edit'
+      }),
+      expect.objectContaining({ preview: false, focusEditor: true })
     )
   })
 })

@@ -1,3 +1,4 @@
+import type { WorkingDocument } from '@/store/slices/editor/working-document'
 import type {
   AgentStatusEntry,
   MigrationUnsupportedPtyEntry
@@ -45,7 +46,7 @@ export type WorkspaceDecisionInputs = {
   runtimePaneTitlesByTabId: Record<string, Record<number, string>>
   retainedAgentsByPaneKey: Record<string, { worktreeId: string; entry: AgentStatusEntry }>
   openFiles: readonly { id: string; worktreeId: string; isDirty: boolean }[]
-  editorDrafts: Record<string, string>
+  workingDocuments: Record<string, WorkingDocument>
   browserTabsByWorktree: Record<string, unknown[]>
   gitStatusByWorktree: Record<string, readonly unknown[]>
   gitStatusByWorktreeIdentity?: ReadonlyMap<string, readonly { path: string }[]>
@@ -113,9 +114,11 @@ export function getWorkspaceDecisionDetails(
 ): WorkspaceDecisionDetails {
   const workspaceRecord = inputs.worktreeMap.get(worktree.worktreeId)
   const tabs = inputs.tabsByWorktree[worktree.worktreeId] ?? []
-  const openFiles = inputs.openFiles.filter((file) => file.worktreeId === worktree.worktreeId)
-  const dirtyEditorBufferCount = openFiles.filter(
-    (file) => file.isDirty || inputs.editorDrafts[file.id] !== undefined
+  const openEditorFileCount = inputs.openFiles.filter(
+    (file) => file.worktreeId === worktree.worktreeId
+  ).length
+  const dirtyEditorBufferCount = Object.values(inputs.workingDocuments).filter(
+    (document) => document.target.worktreeId === worktree.worktreeId && document.isDirty
   ).length
   const gitEntries = inputs.gitStatusByWorktreeIdentity
     ? inputs.gitStatusByWorktreeIdentity.get(getWorkspaceSpaceWorktreeIdentity(worktree))
@@ -208,7 +211,7 @@ export function getWorkspaceDecisionDetails(
     completedAgentCount: Object.values(inputs.retainedAgentsByPaneKey).filter(
       (entry) => entry.worktreeId === worktree.worktreeId && entry.entry.state === 'done'
     ).length,
-    openEditorFileCount: openFiles.length,
+    openEditorFileCount,
     dirtyEditorBufferCount,
     browserTabCount: inputs.browserTabsByWorktree[worktree.worktreeId]?.length ?? 0,
     changedFileCount: gitEntries ? gitEntries.length : null,

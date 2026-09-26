@@ -24,9 +24,13 @@ import {
   selectEditorPanelGitBranchEntries,
   selectEditorPanelGitStatusEntries
 } from './editor-panel-git-entry-selector'
-import { createEditorPanelDraftSelector } from './editor-panel-draft-selector'
-import { createCurrentMarkdownArtifactRequest } from './markdown-artifact-upload'
+import { createEditorPanelDocumentSelector } from './editor-panel-document-selector'
+import {
+  createCurrentMarkdownArtifactRequest,
+  createMarkdownArtifactRequest
+} from './markdown-artifact-upload'
 import { useEditorPanelSave } from './useEditorPanelSave'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 
 function EditorPanelInner({
   activeFileId: activeFileIdProp,
@@ -52,7 +56,9 @@ function EditorPanelInner({
       ? canShowWorkspaceFileBrowserAction(s, activeWorktreeId, activeFile.filePath)
       : false
   )
-  const markFileDirty = useAppStore((s) => s.markFileDirty)
+  const activeDocumentId = useAppStore((state) =>
+    activeFile ? (getWorkingDocumentForFile(state, activeFile.id)?.id ?? null) : null
+  )
   const pendingEditorReveal = useAppStore((s) => s.pendingEditorReveal)
   // Why: background Git refreshes for other worktrees must not wake every
   // mounted Monaco/rich editor pane.
@@ -76,11 +82,11 @@ function EditorPanelInner({
   const markdownTableOfContentsVisible = useAppStore((s) => s.markdownTableOfContentsVisible)
   const setMarkdownTableOfContentsVisible = useAppStore((s) => s.setMarkdownTableOfContentsVisible)
   const clearUntitled = useAppStore((s) => s.clearUntitled)
-  const editorDraftSelector = useMemo(
-    () => createEditorPanelDraftSelector(activeFile),
+  const documentSelector = useMemo(
+    () => createEditorPanelDocumentSelector(activeFile),
     [activeFile]
   )
-  const editorDrafts = useAppStore(editorDraftSelector)
+  const documentContentByTab = useAppStore(documentSelector)
   const settings = useAppStore((s) => s.settings)
   const updateSettings = useAppStore((s) => s.updateSettings)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -133,33 +139,31 @@ function EditorPanelInner({
   useScratchLanguageAutodetect(activeFile)
   useMarkdownPreviewShortcut({ activeFile, panelRef, openMarkdownPreview })
 
-  const handleContentChangeForFile = useEditorContentChangeHandler({ fileContents, diffContents })
+  const handleDocumentContentChange = useEditorContentChangeHandler()
+  const handleContentChangeForFile = useCallback(
+    (file: (typeof openFiles)[number], content: string) => {
+      const id = getWorkingDocumentForFile(useAppStore.getState(), file.id)?.id ?? null
+      handleDocumentContentChange(id, content)
+    },
+    [handleDocumentContentChange]
+  )
 
   const handleContentChange = useCallback(
     (content: string) => {
-      handleContentChangeForFile(activeFile, content)
+      handleDocumentContentChange(activeDocumentId, content)
     },
-    [activeFile, handleContentChangeForFile]
+    [activeDocumentId, handleDocumentContentChange]
   )
 
-  const handleDirtyStateHint = useCallback(
-    (dirty: boolean) => {
-      if (activeFile) {
-        markFileDirty(activeFile.id, dirty)
-      }
-    },
-    [activeFile, markFileDirty]
-  )
-
-  const { handleSave, handleSaveForFile } = useEditorPanelSave({
+  const { handleSave, handleSaveForDocument } = useEditorPanelSave({
+    activeDocumentId,
     activeFile,
-    openFiles,
     requestRenameForFile
   })
   useEditorCmdSaveRequest({
-    activeFile,
-    openFiles,
-    fileContents,
+    activeTabId: activeViewStateId ?? null,
+    activeDocumentId,
+    isUntitled: activeFile?.isUntitled === true,
     handleSave,
     enabled: isCmdSaveOwner
   })
@@ -174,8 +178,10 @@ function EditorPanelInner({
       return
     }
     // Why: an in-progress diff edit is what the user sees, so copy the draft over the snapshot.
-    await window.api.ui.writeClipboardText(editorDrafts[activeFile.id] ?? dc.modifiedContent)
-  }, [activeFile, diffContents, editorDrafts])
+    await window.api.ui.writeClipboardText(
+      documentContentByTab[activeFile.id] ?? dc.modifiedContent
+    )
+  }, [activeFile, diffContents, documentContentByTab])
 
   if (!activeFile) {
     return null
@@ -183,7 +189,7 @@ function EditorPanelInner({
   const model = getEditorPanelRenderModel({
     activeFile,
     fileContents,
-    editorDrafts,
+    documentContentByTab,
     gitStatusEntries,
     gitBranchEntries,
     markdownViewMode,
@@ -279,10 +285,12 @@ function EditorPanelInner({
   let activeMarkdownContent: string | null = null
   if (activeFile.mode === 'markdown-preview') {
     activeMarkdownContent =
-      editorDrafts[markdownDocumentStateFileId] ?? fileContents[activeFile.id]?.content ?? null
+      documentContentByTab[markdownDocumentStateFileId] ??
+      fileContents[activeFile.id]?.content ??
+      null
   } else if (activeFile.mode === 'edit') {
     activeMarkdownContent =
-      editorDrafts[activeFile.id] ?? fileContents[activeFile.id]?.content ?? null
+      documentContentByTab[activeFile.id] ?? fileContents[activeFile.id]?.content ?? null
   }
   const canShowMarkdownFrontmatterToggle = Boolean(
     model.isMarkdown &&
@@ -297,11 +305,13 @@ function EditorPanelInner({
     markdownTableOfContentsVisible[markdownDocumentStateFileId] ?? false
   const createActiveMarkdownArtifactRequest = () =>
     Promise.resolve(
-      createCurrentMarkdownArtifactRequest(
-        activeFile,
-        markdownDocumentStateFileId,
-        activeMarkdownContent ?? ''
-      )
+      activeDocumentId
+        ? createCurrentMarkdownArtifactRequest(
+            activeFile,
+            activeDocumentId,
+            activeMarkdownContent ?? ''
+          )
+        : createMarkdownArtifactRequest(activeFile, activeMarkdownContent ?? '')
     )
 
   return (
@@ -320,7 +330,7 @@ function EditorPanelInner({
         openFiles={openFiles}
         fileContents={fileContents}
         diffContents={diffContents}
-        editorDrafts={editorDrafts}
+        documentContentByTab={documentContentByTab}
         pendingEditorReveal={pendingEditorReveal}
         renameDialogFile={renameDialogFile}
         renameError={renameError}
@@ -358,9 +368,8 @@ function EditorPanelInner({
         }
         onContentChange={handleContentChange}
         onContentChangeForFile={handleContentChangeForFile}
-        onDirtyStateHint={handleDirtyStateHint}
         onSave={handleSave}
-        onSaveForFile={handleSaveForFile}
+        onSaveForDocument={handleSaveForDocument}
         onReloadContent={reloadContent}
         onCloseMarkdownTableOfContents={() =>
           setMarkdownTableOfContentsVisible(markdownDocumentStateFileId, false)

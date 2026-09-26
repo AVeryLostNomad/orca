@@ -162,6 +162,8 @@ export function useCombinedDiffViewRestore({
           status: entry.status,
           area: 'area' in entry ? entry.area : undefined,
           oldPath: entry.oldPath,
+          submodule: 'submodule' in entry ? entry.submodule : undefined,
+          submoduleRoot: 'submoduleRoot' in entry ? entry.submoduleRoot : undefined,
           added: 'added' in entry ? entry.added : undefined,
           removed: 'removed' in entry ? entry.removed : undefined,
           originalContent: '',
@@ -170,7 +172,6 @@ export function useCombinedDiffViewRestore({
           loading: !loadOnDemand,
           loadOnDemand,
           error: undefined,
-          dirty: false,
           diffResult: null,
           largeDiffRenderLimit: null
         }

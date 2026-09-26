@@ -4,6 +4,7 @@ export type SourceControlRowOpenEvent = {
   metaKey: boolean
   shiftKey: boolean
   openAsPermanent?: boolean
+  target?: 'diff' | 'file'
 }
 
 type SourceControlOpenModifierKeys = Pick<
@@ -37,8 +38,8 @@ export function toSourceControlRowOpenEvent(
   }
 }
 
-export function toPermanentSourceControlRowOpenEvent(
+export function toWorkingFileSourceControlRowOpenEvent(
   event: SourceControlOpenModifierKeys
 ): SourceControlRowOpenEvent {
-  return { ...toSourceControlRowOpenEvent(event), openAsPermanent: true }
+  return { ...toSourceControlRowOpenEvent(event), target: 'file', openAsPermanent: true }
 }

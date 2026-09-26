@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
 import { useAppStore } from '@/store'
+import { getWorkingDocumentForFile } from './editor/working-document-state'
+import type { WorkingDocumentTarget } from './editor/working-document'
 import type { OpenFilePathRekey } from './editor'
 import type { Tab, TabGroup } from '../../../../shared/tab-types'
 
@@ -21,9 +24,34 @@ function seedEditTab(overrides: Partial<Record<string, unknown>> = {}): void {
     { suppressActiveRuntimeFallback: true }
   )
   const id = useAppStore.getState().openFiles[0]!.id
-  state.setEditorDraft(id, '20 min of work')
-  state.markFileDirty(id, true)
-  state.setLastKnownDiskSignature(id, 'sig-a')
+  const target = {
+    owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+    filePath: '/repo/a.md',
+    worktreeId: 'wt-1',
+    relativePath: 'a.md',
+    language: 'markdown',
+    operationProvenance: {
+      generation: { route: { executionHostId: 'local', runtimeEnvironmentId: null } }
+    }
+  } as WorkingDocumentTarget
+  useAppStore.setState((current) => ({
+    openFiles: current.openFiles.map((file) =>
+      file.id === id ? { ...file, operationProvenance: target.operationProvenance } : file
+    )
+  }))
+  state.retainWorkingDocument(id, target)
+  const document = getWorkingDocumentForFile(useAppStore.getState(), id)
+  if (!document) {
+    throw new Error(`Expected working document for ${id}`)
+  }
+  const diskContent = 'saved copy'
+  state.acceptWorkingDocumentLoad(
+    document.id,
+    document.revision,
+    diskContent,
+    getDiskBaselineSignature(diskContent)
+  )
+  state.setWorkingDocumentContent(document.id, '20 min of work')
   useAppStore.setState((s) => ({
     editorCursorLine: { ...s.editorCursorLine, [id]: 42 },
     markdownViewMode: { ...s.markdownViewMode, [id]: 'rendered' } as never,
@@ -49,7 +77,7 @@ describe('rekeyOpenFilesForPathChange', () => {
     useAppStore.setState(useAppStore.getInitialState(), true)
   })
 
-  it('retargets the session preserving draft, dirty, baseline, cursor, view, active, tab bar', () => {
+  it('retargets the session preserving canonical content, baseline, cursor, view, active, tab bar', () => {
     seedEditTab()
     const oldId = useAppStore.getState().openFiles[0]!.id
     const newPath = '/repo/sub/a.md'
@@ -64,11 +92,12 @@ describe('rekeyOpenFilesForPathChange', () => {
     expect(moved.id).toBe(newPath)
     expect(moved.filePath).toBe(newPath)
     expect(moved.relativePath).toBe('sub/a.md')
-    expect(moved.isDirty).toBe(true)
-    expect(moved.lastKnownDiskSignature).toBe('sig-a')
-    // id-keyed state migrated to the new id, old key gone.
-    expect(s.editorDrafts[newPath]).toBe('20 min of work')
-    expect(s.editorDrafts[oldId]).toBeUndefined()
+    const movedDocument = getWorkingDocumentForFile(s, moved.id)
+    expect(movedDocument).toMatchObject({
+      content: '20 min of work',
+      isDirty: true,
+      lastKnownDiskSignature: getDiskBaselineSignature('saved copy')
+    })
     expect(s.editorCursorLine[newPath]).toBe(42)
     expect(s.editorCursorLine[oldId]).toBeUndefined()
     expect(s.markdownViewMode[newPath]).toBe('rendered')
@@ -195,21 +224,23 @@ describe('rekeyOpenFilesForPathChange', () => {
     })
 
     const moved = useAppStore.getState().openFiles[0]!
-    // Autosave is gated synchronously by the same commit that re-homes the tab.
-    expect(moved.pendingLiveDiskVerification).toBe(true)
-    expect(moved.pendingSelfMoveEcho).toEqual({ operationId: 'op-42', targetPath: newPath })
+    const document = getWorkingDocumentForFile(useAppStore.getState(), moved.id)
+    expect(document).toMatchObject({
+      pendingLiveDiskVerification: true,
+      pendingSelfMoveEcho: { operationId: 'op-42', targetPath: newPath }
+    })
   })
 
-  it('does not gate a tab already showing the changed-on-disk banner', () => {
+  it('does not gate a document already showing the changed-on-disk banner', () => {
     seedEditTab()
     const oldId = useAppStore.getState().openFiles[0]!.id
-    // A dirty tab that already conflicts with disk: autosave is suspended by the
-    // banner; gating it would strand the gate (verification skips a 'changed' tab).
-    useAppStore.setState((s) => ({
-      openFiles: s.openFiles.map((f) =>
-        f.id === oldId ? { ...f, externalMutation: 'changed' as const } : f
-      )
-    }))
+    const document = getWorkingDocumentForFile(useAppStore.getState(), oldId)
+    if (!document) {
+      throw new Error('Expected dirty working document')
+    }
+    useAppStore.getState().setWorkingDocumentExternalState(document.id, {
+      externalMutation: 'changed'
+    })
 
     useAppStore.getState().rekeyOpenFilesForPathChange({
       rekeys: [rekeyFor(oldId, '/repo/sub/a.md', 'sub/a.md')],
@@ -217,9 +248,10 @@ describe('rekeyOpenFilesForPathChange', () => {
     })
 
     const moved = useAppStore.getState().openFiles[0]!
-    expect(moved.externalMutation).toBe('changed')
-    expect(moved.pendingLiveDiskVerification).toBeUndefined()
-    expect(moved.pendingSelfMoveEcho).toBeUndefined()
+    const movedDocument = getWorkingDocumentForFile(useAppStore.getState(), moved.id)
+    expect(movedDocument?.externalMutation).toBe('changed')
+    expect(movedDocument?.pendingLiveDiskVerification).toBeUndefined()
+    expect(movedDocument?.pendingSelfMoveEcho).toBeUndefined()
   })
 
   it('migrates a pending editor reveal keyed by fileId to the new tab id', () => {
@@ -241,7 +273,17 @@ describe('rekeyOpenFilesForPathChange', () => {
   it('does not gate a clean destination', () => {
     seedEditTab()
     const oldId = useAppStore.getState().openFiles[0]!.id
-    useAppStore.getState().markFileDirty(oldId, false)
+    const document = getWorkingDocumentForFile(useAppStore.getState(), oldId)
+    if (!document) {
+      throw new Error('Expected working document')
+    }
+    useAppStore
+      .getState()
+      .discardWorkingDocumentEdits(
+        document.id,
+        '20 min of work',
+        getDiskBaselineSignature('20 min of work')
+      )
 
     useAppStore.getState().rekeyOpenFilesForPathChange({
       rekeys: [rekeyFor(oldId, '/repo/sub/a.md', 'sub/a.md')],
@@ -249,8 +291,9 @@ describe('rekeyOpenFilesForPathChange', () => {
     })
 
     const moved = useAppStore.getState().openFiles[0]!
-    expect(moved.pendingLiveDiskVerification).toBeUndefined()
-    expect(moved.pendingSelfMoveEcho).toBeUndefined()
+    const movedDocument = getWorkingDocumentForFile(useAppStore.getState(), moved.id)
+    expect(movedDocument?.pendingLiveDiskVerification).toBeUndefined()
+    expect(movedDocument?.pendingSelfMoveEcho).toBeUndefined()
   })
 
   it('detaches a moved tab from the host mirror so the snapshot cannot cull it', () => {

@@ -1,6 +1,5 @@
 import type { ActiveWorktreeStateTransition } from '../../worktree-helpers'
 import type { TabGroup } from '../../../../../../shared/tab-types'
-import { parseExecutionHostId } from '../../../../../../shared/execution-host'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import { sanitizeRecentTabIds } from '../../tab-group-state'
 import {
@@ -14,6 +13,14 @@ import type {
   RestoredEditorOwnerResult
 } from '../types/restored-editor-owner'
 import { resolveRestoredEditorOwnerDestination } from './restored-editor-owner-destination'
+import { migrateRestoredEditorActiveGroupIds } from './restored-editor-owner-active-groups'
+import { resolveRestoredEditorExternalSshTargetId } from './restored-editor-owner-execution-target'
+import { migrateRestoredEditorPendingState } from './restored-editor-owner-pending-state'
+import {
+  getWorkingDocumentId,
+  getWorkingDocumentOwner,
+  type WorkingDocumentId
+} from '../working-document'
 
 export function buildRestoredEditorOwnerTransition(
   args: RestoredEditorOwnerMigration,
@@ -28,11 +35,10 @@ export function buildRestoredEditorOwnerTransition(
         : { patch: destination.patch, activate: false }
     }
     const { source, newFileId, previewIdMigrations, operationProvenance } = destination
-    const parsedHost = parseExecutionHostId(args.targetExecutionHostId)
-    const externalSshTargetId =
-      parsedHost?.kind === 'ssh' && args.targetRuntimeEnvironmentId === null
-        ? parsedHost.targetId
-        : undefined
+    const externalSshTargetId = resolveRestoredEditorExternalSshTargetId(
+      args.targetExecutionHostId,
+      args.targetRuntimeEnvironmentId
+    )
     const migrations = new Map([[source.id, newFileId], ...previewIdMigrations])
     const movedFileIds = new Set(migrations.keys())
     const sourceWorktreeId = source.worktreeId
@@ -158,19 +164,74 @@ export function buildRestoredEditorOwnerTransition(
       ),
       ...mappedMovedTabBarIds
     ]
-    const nextActiveGroupIdByWorktree = { ...s.activeGroupIdByWorktree }
-    if (sourceGroupState.groups.length > 0) {
-      const previousActiveGroupId = nextActiveGroupIdByWorktree[sourceWorktreeId]
-      nextActiveGroupIdByWorktree[sourceWorktreeId] = sourceGroupState.groups.some(
-        (group) => group.id === previousActiveGroupId
-      )
-        ? previousActiveGroupId
-        : sourceGroupState.groups[0].id
-    } else {
-      delete nextActiveGroupIdByWorktree[sourceWorktreeId]
+    const nextActiveGroupIdByWorktree = migrateRestoredEditorActiveGroupIds(
+      s.activeGroupIdByWorktree,
+      sourceGroupState.groups.map((group) => group.id),
+      sourceWorktreeId,
+      targetWorktreeId,
+      targetGroupId
+    )
+    const sourceTabIds = [
+      source.id,
+      ...(s.unifiedTabsByWorktree[sourceWorktreeId] ?? [])
+        .filter((tab) => tab.entityId === source.id)
+        .map((tab) => tab.id)
+    ]
+    const sourceDocumentId = sourceTabIds
+      .flatMap((tabId) => s.workingDocumentIdsByTab[tabId] ?? [])
+      .find((documentId) => {
+        const document = s.workingDocuments[documentId]
+        return document?.target.filePath === source.filePath
+      })
+    const sourceDocument = sourceDocumentId ? s.workingDocuments[sourceDocumentId] : undefined
+    const targetOwner = getWorkingDocumentOwner(operationProvenance)
+    const targetDocumentId = sourceDocument
+      ? getWorkingDocumentId(targetOwner, sourceDocument.target.filePath)
+      : undefined
+    const destinationDocument = targetDocumentId ? s.workingDocuments[targetDocumentId] : undefined
+    if (
+      sourceDocument &&
+      destinationDocument &&
+      sourceDocumentId !== targetDocumentId &&
+      (sourceDocument.isDirty || destinationDocument.isDirty)
+    ) {
+      assignResult({ ok: false, reason: 'collision' })
+      return { patch: {}, activate: false }
     }
-    nextActiveGroupIdByWorktree[targetWorktreeId] = targetGroupId
-
+    const workingDocuments = { ...s.workingDocuments }
+    if (sourceDocument && sourceDocumentId && targetDocumentId) {
+      if (sourceDocumentId !== targetDocumentId) {
+        delete workingDocuments[sourceDocumentId]
+      }
+      if (!destinationDocument || sourceDocumentId === targetDocumentId) {
+        workingDocuments[targetDocumentId] = {
+          ...sourceDocument,
+          id: targetDocumentId,
+          target: {
+            ...sourceDocument.target,
+            owner: targetOwner,
+            worktreeId: targetWorktreeId,
+            relativePath: args.targetRelativePath,
+            externalSshTargetId,
+            operationProvenance
+          },
+          pendingOwnerMigration: undefined
+        }
+      }
+    }
+    const workingDocumentIdsByTab = Object.entries(s.workingDocumentIdsByTab).reduce(
+      (memberships, [tabId, documentIds]) => {
+        const nextTabId = tabId === source.id ? newFileId : tabId
+        const nextDocumentIds =
+          sourceDocumentId && targetDocumentId
+            ? documentIds.map((id) => (id === sourceDocumentId ? targetDocumentId : id))
+            : documentIds
+        const existing = memberships[nextTabId] ?? []
+        memberships[nextTabId] = [...new Set([...existing, ...nextDocumentIds])]
+        return memberships
+      },
+      {} as Record<string, readonly WorkingDocumentId[]>
+    )
     assignResult({ ok: true, fileId: newFileId })
     return {
       patch: {
@@ -184,7 +245,6 @@ export function buildRestoredEditorOwnerTransition(
                 runtimeEnvironmentId: args.targetRuntimeEnvironmentId,
                 externalSshTargetId,
                 operationProvenance,
-                pendingOwnerMigration: undefined,
                 mirroredFromRuntimeSession: undefined
               }
             : file.markdownPreviewSourceFileId === source.id
@@ -197,12 +257,12 @@ export function buildRestoredEditorOwnerTransition(
                   externalSshTargetId,
                   operationProvenance,
                   markdownPreviewSourceFileId: newFileId,
-                  pendingOwnerMigration: undefined,
                   mirroredFromRuntimeSession: undefined
                 }
               : file
         ),
-        editorDrafts: rekeyFileIdRecord(s.editorDrafts, migrations),
+        workingDocuments,
+        workingDocumentIdsByTab,
         editorCursorLine: rekeyFileIdRecord(s.editorCursorLine, migrations),
         markdownViewMode: rekeyFileIdRecord(s.markdownViewMode, migrations),
         markdownRichModeSizeOverride: rekeyFileIdRecord(s.markdownRichModeSizeOverride, migrations),
@@ -223,34 +283,13 @@ export function buildRestoredEditorOwnerTransition(
         layoutByWorktree: nextLayoutByWorktree,
         activeGroupIdByWorktree: nextActiveGroupIdByWorktree,
         tabBarOrderByWorktree: nextTabBarOrderByWorktree,
-        ...(s.pendingEditorReveal?.fileId && migrations.has(s.pendingEditorReveal.fileId)
-          ? {
-              pendingEditorReveal: {
-                ...s.pendingEditorReveal,
-                fileId: migrations.get(s.pendingEditorReveal.fileId)!,
-                filePath: source.filePath
-              }
-            }
-          : {}),
-        ...(s.pendingEditorFocusRequest?.fileId &&
-        migrations.has(s.pendingEditorFocusRequest.fileId)
-          ? {
-              pendingEditorFocusRequest: {
-                ...s.pendingEditorFocusRequest,
-                fileId: migrations.get(s.pendingEditorFocusRequest.fileId)!,
-                worktreeId: targetWorktreeId
-              }
-            }
-          : {}),
-        ...(s.pendingExplorerReveal?.filePath === source.filePath &&
-        s.pendingExplorerReveal.worktreeId === sourceWorktreeId
-          ? {
-              pendingExplorerReveal: {
-                ...s.pendingExplorerReveal,
-                worktreeId: targetWorktreeId
-              }
-            }
-          : {})
+        ...migrateRestoredEditorPendingState(
+          s,
+          migrations,
+          source.filePath,
+          sourceWorktreeId,
+          targetWorktreeId
+        )
       },
       activate: true,
       preferredActiveUnifiedTabId: mappedMovedTabIds.at(-1)

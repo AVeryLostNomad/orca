@@ -29,7 +29,7 @@ export function useWorkspaceSpaceManagerBindings() {
   const agentStatusEpoch = useAppStore((state) => state.agentStatusEpoch)
   const retainedAgentsByPaneKey = useAppStore((state) => state.retainedAgentsByPaneKey)
   const openFiles = useAppStore((state) => state.openFiles)
-  const editorDrafts = useAppStore((state) => state.editorDrafts)
+  const workingDocuments = useAppStore((state) => state.workingDocuments)
   const browserTabsByWorktree = useAppStore((state) => state.browserTabsByWorktree)
   const gitStatusByWorktree = useAppStore((state) => state.gitStatusByWorktree)
   const remoteStatusesByWorktree = useAppStore((state) => state.remoteStatusesByWorktree)
@@ -83,7 +83,7 @@ export function useWorkspaceSpaceManagerBindings() {
     agentStatusEpoch,
     retainedAgentsByPaneKey,
     openFiles,
-    editorDrafts,
+    workingDocuments,
     browserTabsByWorktree,
     gitStatusByWorktree,
     remoteStatusesByWorktree,

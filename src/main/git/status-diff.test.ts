@@ -110,6 +110,8 @@ describe('getDiff', () => {
       kind: 'text',
       originalContent: 'index-content\n',
       modifiedContent: 'working-tree-content',
+      originalReadState: 'present',
+      modifiedReadState: 'present',
       originalIsBinary: false,
       modifiedIsBinary: false
     })
@@ -128,17 +130,22 @@ describe('getDiff', () => {
     })
   })
 
-  it('falls back to HEAD for unstaged diffs when the file is not in the index', async () => {
+  it('falls back to HEAD for a proven index-path absence', async () => {
     gitExecFileAsyncBufferMock
-      .mockRejectedValueOnce(new Error('missing index'))
+      .mockRejectedValueOnce(
+        Object.assign(new Error('missing index'), {
+          code: 128,
+          stderr: "fatal: path 'src/fallback.ts' exists on disk, but not in the index"
+        })
+      )
       .mockResolvedValueOnce({ stdout: Buffer.from('head-content\n') })
     readFileMock.mockResolvedValue(Buffer.from('working-tree-content'))
 
-    const result = await getDiff('/repo', 'src/file.ts', false)
+    const result = await getDiff('/repo', 'src/fallback.ts', false)
 
     expect(gitExecFileAsyncBufferMock).toHaveBeenNthCalledWith(
       2,
-      ['show', '--end-of-options', 'HEAD:src/file.ts'],
+      ['show', '--end-of-options', 'HEAD:src/fallback.ts'],
       {
         cwd: '/repo',
         maxBuffer: 10 * 1024 * 1024,
@@ -147,6 +154,90 @@ describe('getDiff', () => {
     )
     expect(result.originalContent).toBe('head-content\n')
     expect(result.modifiedContent).toBe('working-tree-content')
+    expect(result.originalReadState).toBe('present')
+    expect(result.modifiedReadState).toBe('present')
+  })
+
+  it('keeps a present empty index blob instead of falling back to HEAD', async () => {
+    gitExecFileAsyncBufferMock.mockResolvedValueOnce({ stdout: Buffer.alloc(0) })
+    readFileMock.mockResolvedValue(Buffer.from('working-tree-content'))
+
+    const result = await getDiff('/repo', 'src/empty-index.ts', false)
+
+    expect(gitExecFileAsyncBufferMock).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      originalContent: '',
+      modifiedContent: 'working-tree-content',
+      originalReadState: 'present',
+      modifiedReadState: 'present'
+    })
+  })
+
+  it('keeps an unrecognized Git exit 128 unavailable rather than treating it as a deletion', async () => {
+    gitExecFileAsyncBufferMock.mockRejectedValue(
+      Object.assign(new Error('not a repository'), {
+        code: 128,
+        stderr: 'fatal: not a git repository (or any of the parent directories): .git'
+      })
+    )
+    readFileMock.mockResolvedValue(Buffer.from('working-tree-content'))
+
+    const result = await getDiff('/repo', 'src/unavailable.ts', false)
+
+    expect(result).toMatchObject({
+      originalContent: '',
+      modifiedContent: 'working-tree-content',
+      originalReadState: 'unavailable',
+      modifiedReadState: 'present'
+    })
+  })
+
+  it('keeps an unverified invalid HEAD unavailable', async () => {
+    gitExecFileAsyncBufferMock
+      .mockRejectedValueOnce(
+        Object.assign(new Error('missing index'), {
+          code: 128,
+          stderr: "fatal: path 'src/new-file.ts' exists on disk, but not in the index"
+        })
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error('unborn HEAD'), {
+          code: 128,
+          stderr: "fatal: invalid object name 'HEAD'."
+        })
+      )
+    readFileMock.mockResolvedValue(Buffer.from('working-tree-content'))
+
+    const result = await getDiff('/repo', 'src/new-file.ts', false)
+
+    expect(result).toMatchObject({
+      originalContent: '',
+      modifiedContent: 'working-tree-content',
+      originalReadState: 'unavailable',
+      modifiedReadState: 'present'
+    })
+  })
+
+  it('marks a proven absent staged index side without treating it as unavailable', async () => {
+    gitExecFileAsyncBufferMock.mockImplementation(async (args: string[]) => {
+      if (args[1] === ':src/staged-delete.ts') {
+        throw Object.assign(new Error('missing index path'), {
+          code: 128,
+          stderr:
+            "fatal: path 'src/staged-delete.ts' does not exist (neither on disk nor in the index)"
+        })
+      }
+      return { stdout: Buffer.from('head-content\n') }
+    })
+
+    const result = await getDiff('/repo', 'src/staged-delete.ts', true)
+
+    expect(result).toMatchObject({
+      originalContent: 'head-content\n',
+      modifiedContent: '',
+      originalReadState: 'present',
+      modifiedReadState: 'absent'
+    })
   })
 
   it('marks binary content in the diff payload', async () => {
@@ -257,6 +348,8 @@ describe('getDiff', () => {
       kind: 'binary',
       originalContent: pdfBuffer.toString('base64'),
       modifiedContent: pdfBuffer.toString('base64'),
+      originalReadState: 'present',
+      modifiedReadState: 'present',
       originalIsBinary: true,
       modifiedIsBinary: true,
       isImage: true,
@@ -284,6 +377,8 @@ describe('getDiff', () => {
     expect(result.modifiedDeleted).toBe(true)
     expect(result.originalContent).toBe(pngBuffer.toString('base64'))
     expect(result.modifiedContent).toBe('')
+    expect(result.originalReadState).toBe('present')
+    expect(result.modifiedReadState).toBe('absent')
   })
 
   it('does not treat an unreadable working-tree image as a deletion', async () => {
@@ -305,6 +400,8 @@ describe('getDiff', () => {
       throw new Error('expected binary diff result')
     }
     expect(result.modifiedDeleted).toBeUndefined()
+    expect(result.originalReadState).toBe('present')
+    expect(result.modifiedReadState).toBe('unavailable')
   })
 
   it('coalesces concurrent identical staged diff reads while in flight', async () => {

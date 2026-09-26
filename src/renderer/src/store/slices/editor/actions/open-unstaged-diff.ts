@@ -72,12 +72,13 @@ export function createOpenUnstagedDiff(
           const replaceablePreviewIndex = s.openFiles.findIndex(
             (file) => file.id === replaceablePreviewId
           )
-          if (replaceablePreviewIndex !== -1) {
+          const replacedPreview = s.openFiles[replaceablePreviewIndex]
+          if (replacedPreview && !replacedPreview.isDirty) {
             return {
               openFiles: s.openFiles.map((file, index) =>
                 index === replaceablePreviewIndex ? newFile : file
               ),
-              ...removeEditorStateForReplacedPreview(s, s.openFiles[replaceablePreviewIndex], id),
+              ...removeEditorStateForReplacedPreview(s, replacedPreview, id),
               activeFileId: id,
               activeTabType: 'editor',
               activeFileIdByWorktree: { ...s.activeFileIdByWorktree, [worktreeId]: id },

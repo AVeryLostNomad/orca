@@ -22,7 +22,7 @@ describe('readWorkingDiffFile', () => {
     await expect(readWorkingDiffFile(filePath)).resolves.toEqual({
       content: 'hello',
       isBinary: false,
-      missing: false
+      readState: 'present'
     })
   })
 
@@ -34,7 +34,7 @@ describe('readWorkingDiffFile', () => {
     await expect(readWorkingDiffFile(filePath)).resolves.toEqual({
       content: '',
       isBinary: true,
-      missing: false
+      readState: 'present'
     })
   })
 
@@ -47,7 +47,7 @@ describe('readWorkingDiffFile', () => {
     await expect(readWorkingDiffFile(filePath)).resolves.toEqual({
       content: pngBytes.toString('base64'),
       isBinary: true,
-      missing: false
+      readState: 'present'
     })
   })
 
@@ -58,7 +58,7 @@ describe('readWorkingDiffFile', () => {
     await expect(readWorkingDiffFile(filePath)).resolves.toEqual({
       content: '',
       isBinary: false,
-      missing: true
+      readState: 'absent'
     })
   })
 
@@ -75,7 +75,7 @@ describe('readWorkingDiffFile', () => {
     await expect(readWorkingDiffFile(filePath)).resolves.toEqual({
       content: pngBuffer.toString('base64'),
       isBinary: true,
-      missing: false
+      readState: 'present'
     })
   })
 
@@ -87,7 +87,7 @@ describe('readWorkingDiffFile', () => {
     await expect(readWorkingDiffFile(filePath)).resolves.toEqual({
       content: '',
       isBinary: true,
-      missing: false
+      readState: 'present'
     })
   })
 })

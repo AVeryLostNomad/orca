@@ -20,6 +20,8 @@ export type PersistedOpenFile = {
   worktreeId: string
   language: string
   isPreview?: boolean
+  /** Validated execution host that owns this document. Absent for legacy sessions. */
+  executionHostId?: ExecutionHostId
   runtimeEnvironmentId?: string | null
   /** SSH target that owns an absolute path outside the worktree. */
   externalSshTargetId?: string

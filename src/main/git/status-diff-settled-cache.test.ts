@@ -357,10 +357,19 @@ describe('settled diff cache', () => {
     expect(settledDiffCache.stats().entries).toBe(0)
   })
 
-  it('caches a new file whose absence from the index git actually reported', async () => {
-    gitExecFileAsyncBufferMock.mockRejectedValue(
-      Object.assign(new Error("fatal: path 'src/file.ts' does not exist"), { code: 128 })
-    )
+  it('caches a new file whose index absence Git actually reported', async () => {
+    gitExecFileAsyncBufferMock.mockImplementation(async (args: string[]) => {
+      if (args[1] === `:${FILE}`) {
+        throw Object.assign(new Error(`fatal: path '${FILE}' does not exist`), {
+          code: 128,
+          stderr: `fatal: path '${FILE}' does not exist (neither on disk nor in the index)`
+        })
+      }
+      throw Object.assign(new Error(`fatal: path '${FILE}' does not exist`), {
+        code: 128,
+        stderr: `fatal: path '${FILE}' exists on disk, but not in 'HEAD'`
+      })
+    })
 
     await getDiff(REPO, FILE, false)
     const spawnsAfterFirst = blobReadCount()

@@ -125,46 +125,36 @@ describe('handleRichMarkdownSaveShortcut (Cmd/Ctrl+S persistence site)', () => {
     } as unknown as KeyboardEvent & { preventDefault: ReturnType<typeof vi.fn> }
   }
 
-  function saveContext(editor: Editor | null): {
+  function saveContext(): {
     ctx: KeyHandlerContext
     onSave: ReturnType<typeof vi.fn>
-    onContentChange: ReturnType<typeof vi.fn>
     flush: ReturnType<typeof vi.fn>
   } {
     const onSave = vi.fn()
-    const onContentChange = vi.fn()
     const flush = vi.fn()
     const ctx = {
-      editorRef: { current: editor },
-      originalSourceRef: { current: '# Title\n\n_word_\n' },
-      baseCanonicalRef: { current: '# Title\n\n*word*' },
-      lastCommittedMarkdownRef: { current: '' },
-      reconcileRoundTripRef: { current: roundTrip },
-      onContentChangeRef: { current: onContentChange },
+      editorRef: { current: null },
+      lastCommittedMarkdownRef: { current: '# Title!\n\n_word_\n' },
       onSaveRef: { current: onSave },
       flushPendingSerialization: flush
     } as unknown as KeyHandlerContext
-    return { ctx, onSave, onContentChange, flush }
+    return { ctx, onSave, flush }
   }
 
-  it('flushes then saves SOURCE-PRESERVING bytes on Cmd+S (mac)', () => {
+  it('flushes then saves the current canonical document serialization on Cmd+S (mac)', () => {
     vi.stubGlobal('navigator', { userAgent: 'Macintosh' })
-    const editor = fakeEditor(() => '# Title!\n\n*word*')
-    const { ctx, onSave, onContentChange, flush } = saveContext(editor)
+    const { ctx, onSave, flush } = saveContext()
     const event = saveEvent()
 
     expect(handleRichMarkdownSaveShortcut(ctx, event)).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(flush).toHaveBeenCalledTimes(1)
-    // onSave/onContentChange receive reconciled bytes, not raw *word*.
     expect(onSave).toHaveBeenCalledWith('# Title!\n\n_word_\n')
-    expect(onContentChange).toHaveBeenCalledWith('# Title!\n\n_word_\n')
   })
 
   it('ignores non-save keystrokes and touches nothing', () => {
     vi.stubGlobal('navigator', { userAgent: 'Macintosh' })
-    const editor = fakeEditor(() => '# Title!\n\n*word*')
-    const { ctx, onSave, flush } = saveContext(editor)
+    const { ctx, onSave, flush } = saveContext()
     const event = { ...saveEvent(), key: 'a', code: 'KeyA' } as KeyboardEvent & {
       preventDefault: ReturnType<typeof vi.fn>
     }

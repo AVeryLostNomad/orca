@@ -56,6 +56,8 @@ export const MAX_LOGGED_ROOT_IDS = 12
 // root to rows that can no longer be checked.
 export const LAST_KNOWN_ROOT_SCAN_RETENTION_MS = 5 * 60_000
 
+const BASE_SENSITIVITY_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' })
+
 type RootScan = { exists: boolean; skills: ScannedSkill[]; unavailable?: boolean }
 
 const rootScans = new SkillScanCoalescer<RootScan>(MAX_CACHED_SKILL_ROOTS)
@@ -309,9 +311,7 @@ export async function discoverSkills(args: {
   }
   return {
     skills,
-    sources: sources.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
-    ),
+    sources: sources.sort((a, b) => BASE_SENSITIVITY_COLLATOR.compare(a.label, b.label)),
     scannedAt: Date.now()
   }
 }

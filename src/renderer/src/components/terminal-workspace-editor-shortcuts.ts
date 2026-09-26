@@ -4,7 +4,7 @@ import {
   ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT,
   type EditorRequestCmdSaveDetail
 } from './editor/editor-autosave'
-import { getEditorCmdSaveFileId } from './editor/editor-cmd-save-target'
+import { getEditorCmdSaveTabId } from './editor/editor-cmd-save-target'
 import { isEventTargetInsideFloatingWorkspacePanel } from '@/lib/floating-workspace-terminal-actions'
 
 type EditorShortcutContext = {
@@ -32,13 +32,13 @@ export function handleTerminalWorkspaceEditorShortcut({
       const state = useAppStore.getState()
       const floatingPanelOwnsEvent =
         isEventTargetInsideFloatingWorkspacePanel(event.target) || floatingWorkspaceFocused
-      const requestedFileId = getEditorCmdSaveFileId(state, floatingPanelOwnsEvent)
-      if (requestedFileId) {
+      const requestedTabId = getEditorCmdSaveTabId(state, floatingPanelOwnsEvent)
+      if (requestedTabId) {
         event.preventDefault()
         notifyTerminalCapture('editor.save')
         window.dispatchEvent(
           new CustomEvent<EditorRequestCmdSaveDetail>(ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT, {
-            detail: { fileId: requestedFileId }
+            detail: { tabId: requestedTabId }
           })
         )
         return true

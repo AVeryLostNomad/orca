@@ -43,7 +43,7 @@ vi.mock('../../store/slices/browser-webview-cleanup', () => ({
 }))
 
 vi.mock('../editor/editor-autosave', () => ({
-  requestEditorFileClose: vi.fn()
+  requestEditorTabClose: vi.fn()
 }))
 
 vi.mock('../terminal/terminal-tab-actions', () => ({

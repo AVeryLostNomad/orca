@@ -4,11 +4,10 @@ import { basename } from '@/lib/path'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import {
   buildDiffEditorFileId,
-  buildOwnedEditorFileId,
-  resolveEditorFileIdForOwner,
   type OpenFilePathRekey,
   type RekeyOpenFilesResult
 } from '@/store/slices/editor'
+import type { WorkingDocumentPathRekey } from '@/store/slices/editor/types/open-file-path-rekey'
 import {
   isPathInsideOrEqual,
   isWindowsAbsolutePathLike,
@@ -16,6 +15,7 @@ import {
   relativePathInsideRoot
 } from '../../../shared/cross-platform-path'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
+import { reserveRemappedEditorFileId } from './remap-open-editor-tab-id-reservation'
 
 // Re-export the shared, flavor-aware containment check: move selection must fold
 // case + separators (Windows/UNC/WSL) so a same-file tab differing only in case
@@ -236,35 +236,18 @@ export function remapOpenEditorTabsForPathChange({
   // unaffected tab already at the destination is honoured via
   // resolveEditorFileIdForOwner; a same-owner conflict is a real collision the
   // rekey action rejects.
-  const ownerKeyOf = (file: { worktreeId: string; runtimeEnvironmentId?: string | null }): string =>
-    `${file.worktreeId}::${file.runtimeEnvironmentId?.trim() || ''}`
   const plainPathOwner = new Map<string, string>()
   const reservedSourceId = (file: {
     filePath: string
     worktreeId: string
     runtimeEnvironmentId?: string | null
-  }): string => {
-    const updatedPath = updatedPathOf(file)
-    const ownerKey = ownerKeyOf(file)
-    const claimed = plainPathOwner.get(updatedPath)
-    if (claimed === ownerKey) {
-      return updatedPath
-    }
-    if (claimed !== undefined) {
-      return buildOwnedEditorFileId(updatedPath, file.worktreeId, file.runtimeEnvironmentId)
-    }
-    const id = resolveEditorFileIdForOwner(
+  }): string =>
+    reserveRemappedEditorFileId({
       state,
-      updatedPath,
-      file.worktreeId,
-      file.runtimeEnvironmentId,
-      ['edit']
-    )
-    if (id === updatedPath) {
-      plainPathOwner.set(updatedPath, ownerKey)
-    }
-    return id
-  }
+      updatedPath: updatedPathOf(file),
+      file,
+      plainPathOwner
+    })
 
   const rekeys: OpenFilePathRekey[] = []
   // Edits first so a preview can point its source id at the moved edit's new id.
@@ -326,8 +309,38 @@ export function remapOpenEditorTabsForPathChange({
       newRelativePath
     })
   }
-  if (rekeys.length === 0) {
+  const rekeyedPaths = new Set(rekeys.map((rekey) => rekey.oldFilePath))
+  const documentRekeys: WorkingDocumentPathRekey[] = []
+  for (const document of Object.values(state.workingDocuments)) {
+    if (
+      !isPathInsideOrEqual(fromPath, document.target.filePath) ||
+      document.target.owner.executionHostId !== initiatingHostId ||
+      rekeyedPaths.has(document.target.filePath)
+    ) {
+      continue
+    }
+    const newFilePath = computeMovedPath(fromPath, toPath, document.target.filePath)
+    documentRekeys.push({
+      documentId: document.id,
+      oldFilePath: document.target.filePath,
+      newFilePath,
+      newRelativePath: getUpdatedRelativePath({
+        filePath: document.target.filePath,
+        relativePath: document.target.relativePath,
+        worktreeId: document.target.worktreeId,
+        updatedPath: newFilePath,
+        initiatingWorktreeId: worktreeId,
+        initiatingWorktreePath: worktreePath
+      }),
+      newLanguage: detectLanguage(basename(newFilePath))
+    })
+  }
+  if (rekeys.length === 0 && documentRekeys.length === 0) {
     return { ok: true }
   }
-  return useAppStore.getState().rekeyOpenFilesForPathChange({ rekeys, moveOperationId })
+  return useAppStore.getState().rekeyOpenFilesForPathChange({
+    rekeys,
+    documentRekeys,
+    moveOperationId
+  })
 }

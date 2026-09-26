@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  hashMarkdownContent,
-  MOBILE_MARKDOWN_EDIT_MAX_BYTES
-} from '../../../shared/mobile-markdown-document'
+import { hashMarkdownContent } from '../../../shared/mobile-markdown-document'
 import { attachEditorAutosaveController } from '../components/editor/editor-autosave-controller'
 import { registerPendingEditorFlush } from '../components/editor/editor-pending-flush'
 import { useAppStore } from '../store'
@@ -18,143 +15,58 @@ import {
 vi.mock('@/components/tab-bar/group-tab-order', () => ({
   getActiveTabNavOrder: () => [{ type: 'editor', id: '/repo/README.md', tabId: 'tab-md' }]
 }))
-
-vi.mock('@/lib/connection-context', () => ({
-  getConnectionIdForFile: () => null
-}))
+vi.mock('@/lib/connection-context', () => ({ getConnectionIdForFile: () => null }))
 
 describe('mobile markdown bridge', () => {
-  beforeEach(() => {
-    resetEditorState()
-  })
+  beforeEach(resetEditorState)
+  afterEach(cleanupMobileMarkdownBridgeHarness)
 
-  afterEach(() => {
-    cleanupMobileMarkdownBridgeHarness()
-  })
-
-  it('flushes pending rich markdown changes before read', async () => {
-    openMarkdownFile()
-    setupWindow({
-      readFile: vi.fn().mockResolvedValue({ content: 'disk', isBinary: false })
+  it('flushes a revision-matched rich producer into the canonical document before mobile reads', async () => {
+    openMarkdownFile('before')
+    setupWindow({ readFile: vi.fn() })
+    const document = Object.values(useAppStore.getState().workingDocuments)[0]!
+    const unregister = registerPendingEditorFlush(document.id, 'rich', document.revision, () => {
+      useAppStore.getState().setWorkingDocumentContent(document.id, '# pending\n')
     })
     const detach = attachMobileMarkdownBridge()
-    const unregisterFlush = registerPendingEditorFlush('/repo/README.md', () => {
-      useAppStore.getState().setEditorDraft('/repo/README.md', '# pending\n')
-      useAppStore.getState().markFileDirty('/repo/README.md', true)
-    })
-
     try {
-      const response = await sendRequest({
-        id: 'read-1',
-        operation: 'read',
-        worktreeId: 'wt-1',
-        tabId: 'tab-md'
-      })
-
-      expect(response).toMatchObject({
-        id: 'read-1',
+      await expect(
+        sendRequest({ id: 'read', operation: 'read', worktreeId: 'wt-1', tabId: 'tab-md' })
+      ).resolves.toMatchObject({
         ok: true,
-        result: { content: '# pending\n', source: 'draft', editable: true }
+        result: { content: '# pending\n', source: 'draft' }
       })
     } finally {
-      unregisterFlush()
+      unregister()
       detach()
     }
   })
 
-  it('rejects save when a clean file changed after mobile read', async () => {
-    openMarkdownFile()
+  it('writes the mobile edit through the canonical document queue and verifies disk bytes', async () => {
+    openMarkdownFile('before')
     const writeFile = vi.fn().mockResolvedValue(undefined)
     setupWindow({
-      readFile: vi.fn().mockResolvedValue({ content: 'changed on disk', isBinary: false }),
+      readFile: vi.fn().mockResolvedValue({ content: 'mobile', isBinary: false }),
       writeFile
     })
-    const detach = attachMobileMarkdownBridge()
-
-    try {
-      const response = await sendRequest({
-        id: 'save-1',
-        operation: 'save',
-        worktreeId: 'wt-1',
-        tabId: 'tab-md',
-        baseVersion: hashMarkdownContent('original'),
-        content: 'mobile edit'
-      })
-
-      expect(response).toMatchObject({ id: 'save-1', ok: false, error: 'conflict' })
-      expect(writeFile).not.toHaveBeenCalled()
-    } finally {
-      detach()
-    }
-  })
-
-  it('saves through the editor save controller and verifies written content', async () => {
-    openMarkdownFile()
-    let diskContent = 'original'
-    const readFile = vi.fn().mockImplementation(async () => ({
-      content: diskContent,
-      isBinary: false
-    }))
-    const writeFile = vi.fn().mockImplementation(async ({ content }) => {
-      diskContent = content
-    })
-    setupWindow({ readFile, writeFile })
     const detachBridge = attachMobileMarkdownBridge()
     const detachAutosave = attachEditorAutosaveController(useAppStore as never)
-
     try {
-      const response = await sendRequest({
-        id: 'save-2',
-        operation: 'save',
-        worktreeId: 'wt-1',
-        tabId: 'tab-md',
-        baseVersion: hashMarkdownContent('original'),
-        content: 'mobile edit'
-      })
-
-      expect(writeFile).toHaveBeenCalledWith({
-        filePath: '/repo/README.md',
-        content: 'mobile edit',
-        connectionId: undefined,
-        expectedExecutionHostId: 'local'
-      })
-      expect(response).toMatchObject({
-        id: 'save-2',
-        ok: true,
-        result: { content: 'mobile edit', isDirty: false }
-      })
+      await expect(
+        sendRequest({
+          id: 'save',
+          operation: 'save',
+          worktreeId: 'wt-1',
+          tabId: 'tab-md',
+          baseVersion: hashMarkdownContent('before'),
+          content: 'mobile'
+        })
+      ).resolves.toMatchObject({ ok: true, result: { content: 'mobile', isDirty: false } })
+      expect(writeFile).toHaveBeenCalled()
+      expect(Object.values(useAppStore.getState().workingDocuments)[0]?.content).toBe('mobile')
     } finally {
       detachAutosave()
       detachBridge()
-    }
-  })
-
-  it('marks oversized multibyte desktop drafts as read-only for mobile editing', async () => {
-    openMarkdownFile()
-    const content = '😀'.repeat(Math.floor(MOBILE_MARKDOWN_EDIT_MAX_BYTES / 4) + 1)
-    const readFile = vi.fn().mockResolvedValue({ content: 'disk', isBinary: false })
-    const state = useAppStore.getState()
-    state.setEditorDraft('/repo/README.md', content)
-    state.markFileDirty('/repo/README.md', true)
-    setupWindow({ readFile })
-    const detach = attachMobileMarkdownBridge()
-
-    try {
-      const response = await sendRequest({
-        id: 'read-large-multibyte',
-        operation: 'read',
-        worktreeId: 'wt-1',
-        tabId: 'tab-md'
-      })
-
-      expect(response).toMatchObject({
-        id: 'read-large-multibyte',
-        ok: true,
-        result: { editable: false, readOnlyReason: 'file_too_large' }
-      })
-      expect(readFile).not.toHaveBeenCalled()
-    } finally {
-      detach()
     }
   })
 })

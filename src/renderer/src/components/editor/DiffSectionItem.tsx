@@ -5,6 +5,13 @@ import { monaco } from '@/lib/monaco-setup'
 import { detectLanguage } from '@/lib/language-detect'
 import { useAppStore } from '@/store'
 import {
+  acquireWorkingDocumentModel,
+  attachWorkingDocumentEditor,
+  getWorkingDocumentModelUri
+} from './working-document-model'
+import { loadWorkingDocument } from './working-document-loader'
+import { useLspForEditor } from '@/lib/lsp/use-lsp-for-editor'
+import {
   computeDiffEditorFontSize,
   resolveEditorBaseFontSize,
   resolveEditorFontFamily
@@ -22,11 +29,12 @@ import { isDiffComment } from '@/lib/diff-comment-compat'
 import { installEditorSaveShortcut, installMonacoEditorFindShortcut } from './editor-shortcuts'
 import { DiffSectionBody } from './DiffSectionBody'
 import { useDiffSectionLayoutMetrics } from './useDiffSectionLayoutMetrics'
-import { getLiveDiffSectionRenderLimit } from './diff-section-live-render-limit'
 import { useDiffSectionFallbackCleanup } from './useDiffSectionFallbackCleanup'
+import { getLargeDiffRenderLimit } from './large-diff-render-limit'
 import { submitDiffSectionComment } from './diff-section-comment-submit'
 import type { DiffSectionItemProps } from './diff-section-item-props'
 import { useDiffSectionModelLifecycle } from './use-diff-section-model-lifecycle'
+import { useDiffComparisonFailure } from './use-diff-comparison-failure'
 
 export function DiffSectionItem({
   section,
@@ -50,9 +58,10 @@ export function DiffSectionItem({
   inlineComments,
   getCommentableLineNumbers,
   setSectionHeights,
-  setSections,
   modifiedEditorsRef,
-  handleSectionSaveRef
+  handleSectionSaveRef,
+  workingDocumentId,
+  workingFilePath
 }: DiffSectionItemProps): React.JSX.Element {
   const editorFontZoomLevel = useAppStore((s) => s.editorFontZoomLevel)
   const addDiffComment = useAppStore((s) => s.addDiffComment)
@@ -72,18 +81,40 @@ export function DiffSectionItem({
     [allDiffComments, section.path]
   )
   const language = detectLanguage(section.path)
-  const isEditable = section.area === 'unstaged'
   const modelPathBase = useMemo(
     () =>
-      `diff-section:${encodeURIComponent(worktreeId ?? 'review')}:${encodeURIComponent(section.key)}:${section.contentGeneration ?? 0}`,
+      `combined-diff-snapshot:${encodeURIComponent(worktreeId ?? 'review')}:${encodeURIComponent(section.key)}:${section.contentGeneration ?? 0}`,
     [section.contentGeneration, section.key, worktreeId]
   )
+  const workingDocument = useAppStore((state) =>
+    workingDocumentId ? state.workingDocuments[workingDocumentId] : undefined
+  )
+  const hasWritableWorkingDocument =
+    workingDocument?.loadState === 'ready' &&
+    workingDocument.writable &&
+    workingDocument.content !== undefined
+  const modifiedModelPath = useMemo(() => {
+    if (!workingDocumentId || !hasWritableWorkingDocument) {
+      return undefined
+    }
+    acquireWorkingDocumentModel(workingDocumentId)
+    return getWorkingDocumentModelUri(workingDocumentId)
+  }, [hasWritableWorkingDocument, workingDocumentId])
+  const workingModelReady = modifiedModelPath !== undefined
+  const isEditable = hasWritableWorkingDocument && workingModelReady
+  const workingDocumentError =
+    workingDocument?.loadState === 'error'
+      ? (workingDocument.loadError ?? 'Unable to load the working file.')
+      : undefined
   const diffEditorFontSize = computeDiffEditorFontSize(
     resolveEditorBaseFontSize(settings),
     editorFontZoomLevel
   )
 
-  const [modifiedEditor, setModifiedEditor] = useState<monacoEditor.ICodeEditor | null>(null)
+  const [modifiedEditor, setModifiedEditor] = useState<monacoEditor.IStandaloneCodeEditor | null>(
+    null
+  )
+  const [originalModel, setOriginalModel] = useState<monacoEditor.ITextModel | null>(null)
   const diffEditorRef = useRef<monacoEditor.IStandaloneDiffEditor | null>(null)
   const sectionBodyRef = useRef<HTMLDivElement | null>(null)
   const lineNumberOptionsSubRef = useRef<{ dispose: () => void } | null>(null)
@@ -98,6 +129,7 @@ export function DiffSectionItem({
 
   const { disposeDiffModels, setSectionRootNode } = useDiffSectionModelLifecycle({
     modelPathBase,
+    modifiedModelPath,
     collapsed: section.collapsed
   })
 
@@ -198,11 +230,39 @@ export function DiffSectionItem({
     }
   }
 
+  const displayedSection = useMemo(() => {
+    if (!hasWritableWorkingDocument || workingDocument?.content === undefined) {
+      return section
+    }
+    if (!workingModelReady) {
+      return { ...section, loading: true }
+    }
+    return {
+      ...section,
+      modifiedContent: workingDocument.content,
+      largeDiffRenderLimit: getLargeDiffRenderLimit({
+        originalContent: section.originalContent,
+        modifiedContent: workingDocument.content
+      })
+    }
+  }, [hasWritableWorkingDocument, section, workingDocument?.content, workingModelReady])
   const { lineStats, sectionBodyHeight, useIntrinsicImageHeight, isLargeDiffLimited } =
     useDiffSectionLayoutMetrics({
-      section,
+      section: displayedSection,
       sectionHeight
     })
+  const lspStatus = useLspForEditor({
+    mountedEditor: isEditable ? modifiedEditor : null,
+    filePath: workingFilePath ?? section.path,
+    language,
+    worktreeId,
+    documentId: workingDocumentId
+  })
+  const { error: comparisonError, retry: retryComparison } = useDiffComparisonFailure({
+    original: originalModel,
+    modified: modifiedEditor?.getModel() ?? null,
+    showWhitespace: settings?.diffShowWhitespace === true
+  })
 
   useDiffSectionFallbackCleanup({
     disposeDiffModels,
@@ -216,6 +276,10 @@ export function DiffSectionItem({
     lineNumberOptionsSubRef.current?.dispose()
     lineNumberOptionsSubRef.current = applyDiffEditorLineNumberOptions(editor, sideBySide)
     const modified = editor.getModifiedEditor()
+    const original = editor.getOriginalEditor()
+    original.updateOptions({ 'semanticHighlighting.enabled': true })
+    modified.updateOptions({ 'semanticHighlighting.enabled': true })
+    setOriginalModel(original.getModel())
 
     // Why: measuring before Monaco computes hidden unchanged regions records
     // full-file height, making virtualized combined diffs jump as rows remount.
@@ -269,10 +333,11 @@ export function DiffSectionItem({
       lineNumberOptionsSubRef.current?.dispose()
       lineNumberOptionsSubRef.current = null
       diffEditorRef.current = null
-      if (modifiedEditorsRef.current.get(index) === modified) {
+      if (modifiedEditorsRef?.current.get(index) === modified) {
         modifiedEditorsRef.current.delete(index)
       }
       setModifiedEditor(null)
+      setOriginalModel(null)
       setPopover(null)
     })
 
@@ -280,53 +345,21 @@ export function DiffSectionItem({
       return
     }
 
-    modifiedEditorsRef.current.set(index, modified)
-    const original = editor.getOriginalEditor()
+    const detachWorkingEditor =
+      isEditable && workingDocumentId && workingModelReady
+        ? attachWorkingDocumentEditor(workingDocumentId, `${modelPathBase}:modified`)
+        : undefined
+    modifiedEditorsRef?.current.set(index, modified)
     const cleanupSaveShortcut = installEditorSaveShortcut(modified.getContainerDomNode(), () =>
       handleSectionSaveRef.current(index)
     )
     const cleanupOriginalFindShortcut = installMonacoEditorFindShortcut(original)
     const cleanupModifiedFindShortcut = installMonacoEditorFindShortcut(modified)
-    const modelContentSub = modified.onDidChangeModelContent(() => {
-      const current = modified.getValue()
-      setSections((prev) => {
-        let changed = false
-        const next = prev.map((s, i) => {
-          if (i !== index) {
-            return s
-          }
-
-          const savedModifiedContent =
-            s.diffResult?.kind === 'text' ? s.diffResult.modifiedContent : s.modifiedContent
-          const dirty = current !== savedModifiedContent
-          if (s.modifiedContent === current && s.dirty === dirty) {
-            return s
-          }
-
-          changed = true
-          // Why: virtualized rows unmount when scrolled away, so the draft must
-          // live in section state instead of only in Monaco's mounted model.
-          return {
-            ...s,
-            modifiedContent: current,
-            dirty,
-            largeDiffRenderLimit: getLiveDiffSectionRenderLimit({
-              section: s,
-              modifiedEditor: modified,
-              modifiedContent: current
-            })
-          }
-        })
-        return changed ? next : prev
-      })
-    })
     modified.onDidDispose(() => {
-      // Why: editable diff sections own both panes' shortcut bridges and the
-      // model subscription for the lifetime of this Monaco diff instance.
       cleanupSaveShortcut()
       cleanupOriginalFindShortcut()
       cleanupModifiedFindShortcut()
-      modelContentSub.dispose()
+      detachWorkingEditor?.()
     })
   }
 
@@ -338,7 +371,7 @@ export function DiffSectionItem({
     <div ref={setSectionRootNode} className="border-b border-border">
       <DiffSectionHeader
         path={section.path}
-        dirty={section.dirty}
+        dirty={workingDocument?.isDirty ?? false}
         collapsed={section.collapsed}
         added={lineStats?.added ?? section.added ?? 0}
         removed={lineStats?.removed ?? section.removed ?? 0}
@@ -360,7 +393,7 @@ export function DiffSectionItem({
 
       {!section.collapsed && (
         <DiffSectionBody
-          section={section}
+          section={displayedSection}
           index={index}
           sectionBodyRef={sectionBodyRef}
           sectionBodyHeight={sectionBodyHeight}
@@ -372,6 +405,21 @@ export function DiffSectionItem({
           sideBySide={sideBySide}
           language={language}
           modelPathBase={modelPathBase}
+          modifiedModelPath={modifiedModelPath}
+          lspStatus={isEditable ? lspStatus : undefined}
+          isDirty={workingDocument?.isDirty ?? false}
+          workingDocumentError={workingDocumentError}
+          comparisonError={comparisonError}
+          onRetryComparison={retryComparison}
+          onRetryWorkingDocument={
+            workingDocumentId
+              ? () => {
+                  void loadWorkingDocument(workingDocumentId, { force: true }).catch(
+                    () => undefined
+                  )
+                }
+              : undefined
+          }
           isEditable={isEditable}
           diffEditorFontSize={diffEditorFontSize}
           diffWordWrap={settings?.diffWordWrap}

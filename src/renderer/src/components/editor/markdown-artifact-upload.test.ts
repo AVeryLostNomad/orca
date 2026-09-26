@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import {
   createCurrentMarkdownArtifactRequest,
   createMarkdownArtifactRequest,
@@ -7,19 +8,19 @@ import {
 } from './markdown-artifact-upload'
 
 const mocks = vi.hoisted(() => ({
-  drafts: {} as Record<string, string>,
+  documents: {} as Record<string, { content?: string }>,
   flush: vi.fn()
 }))
 
 vi.mock('@/store', () => ({
-  useAppStore: { getState: () => ({ editorDrafts: mocks.drafts }) }
+  useAppStore: { getState: () => ({ workingDocuments: mocks.documents }) }
 }))
 vi.mock('./editor-pending-flush', () => ({
   flushPendingEditorChange: mocks.flush
 }))
 
 beforeEach(() => {
-  mocks.drafts = {}
+  mocks.documents = {}
   mocks.flush.mockReset()
 })
 
@@ -78,14 +79,15 @@ describe('Markdown artifact upload', () => {
     ).toEqual(['ssh', 'build-box', '/repo/notes.md'])
   })
 
-  it('flushes and reads the latest unsaved editor buffer', () => {
-    mocks.flush.mockImplementation((fileId: string) => {
-      mocks.drafts[fileId] = '# Latest edit'
+  it('flushes and reads the latest canonical document content', () => {
+    const documentId = 'markdown-document' as WorkingDocumentId
+    mocks.flush.mockImplementation((id: WorkingDocumentId) => {
+      mocks.documents[id] = { content: '# Latest edit' }
     })
 
     expect(
-      createCurrentMarkdownArtifactRequest(openFile(), '/repo/notes.md', '# Stale content').content
+      createCurrentMarkdownArtifactRequest(openFile(), documentId, '# Stale content').content
     ).toBe('# Latest edit')
-    expect(mocks.flush).toHaveBeenCalledWith('/repo/notes.md')
+    expect(mocks.flush).toHaveBeenCalledWith(documentId)
   })
 })

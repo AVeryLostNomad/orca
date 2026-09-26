@@ -5,7 +5,8 @@ import type { OpenFile } from '@/store/slices/editor'
 import { createRuntimePath, runtimePathExists } from '@/runtime/runtime-file-client'
 import { executeOpenEditorPathMove } from '@/lib/execute-open-editor-path-move'
 import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner'
-import { requestEditorFileSave, requestEditorSaveQuiesce } from './editor-autosave'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
+import { quiesceDocumentSave, requestEditorDocumentSave } from './editor-autosave'
 import { getUntitledFileRoot } from './untitled-file-rename-path'
 
 type UseUntitledFileRenameParams = {
@@ -45,26 +46,28 @@ export function useUntitledFileRename({
       const oldPath = renameDialogFile.filePath
       const worktreeRoot = getUntitledFileRoot(renameDialogFile)
       const newPath = joinPath(worktreeRoot, newRelPath)
-      const fileContext = getEditorFileOperationContext(
-        useAppStore.getState(),
-        renameDialogFile,
-        worktreeRoot
-      )
+      const state = useAppStore.getState()
+      const document = getWorkingDocumentForFile(state, renameDialogFile.id)
+      if (!document) {
+        setRenameError('File content is still loading')
+        return
+      }
+      const fileContext = getEditorFileOperationContext(state, renameDialogFile, worktreeRoot)
 
       if (newPath !== oldPath && (await runtimePathExists(fileContext, newPath))) {
         setRenameError('A file with that name already exists')
         return
       }
 
-      await requestEditorSaveQuiesce({ fileId: renameDialogFile.id })
-      const draft = useAppStore.getState().editorDrafts[renameDialogFile.id]
-      if (draft !== undefined) {
-        try {
-          await requestEditorFileSave({ fileId: renameDialogFile.id, fallbackContent: draft })
-        } catch {
-          setRenameError('Failed to save file')
-          return
-        }
+      try {
+        await quiesceDocumentSave(document.id)
+        await requestEditorDocumentSave({ documentId: document.id })
+      } catch {
+        setRenameError('Failed to save file')
+        return
+      }
+      if (useAppStore.getState().workingDocuments[document.id]?.target.filePath !== oldPath) {
+        return
       }
 
       if (newPath === oldPath) {

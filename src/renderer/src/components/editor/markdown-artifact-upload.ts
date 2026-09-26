@@ -4,6 +4,7 @@ import { parseExecutionHostId } from '../../../../shared/execution-host'
 import { basename } from '@/lib/path'
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import { flushPendingEditorChange } from './editor-pending-flush'
 
 export function markdownArtifactSourceKey(file: OpenFile): string {
@@ -43,10 +44,10 @@ export function createMarkdownArtifactRequest(
 
 export function createCurrentMarkdownArtifactRequest(
   file: OpenFile,
-  contentFileId: string,
+  documentId: WorkingDocumentId,
   fallbackContent: string
 ): ArtifactWriteRequest {
-  flushPendingEditorChange(contentFileId)
-  const content = useAppStore.getState().editorDrafts[contentFileId] ?? fallbackContent
+  flushPendingEditorChange(documentId)
+  const content = useAppStore.getState().workingDocuments[documentId]?.content ?? fallbackContent
   return createMarkdownArtifactRequest(file, content)
 }

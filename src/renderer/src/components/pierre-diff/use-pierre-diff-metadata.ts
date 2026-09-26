@@ -1,88 +1,112 @@
-import { useEffect, useMemo, useState } from 'react'
-import { parseDiffFromFile } from '@pierre/diffs'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FileContents, FileDiffMetadata } from '@pierre/diffs'
-import PierreDiffParseWorker from './pierre-diff-parse.worker?worker'
+import type { PierreComparisonInput } from '@/lib/diff-comparison/comparison-types'
+import {
+  getComparisonRequestKey,
+  isComparisonCancellationError,
+  requestComparison,
+  retryComparison
+} from '@/lib/diff-comparison/comparison-client'
 
-// Why: jsdiff runs on the caller's thread; past this size a synchronous parse
-// visibly freezes the renderer (Monaco computed diffs in a worker too).
-export const PIERRE_DIFF_WORKER_PARSE_MIN_CHARS = 400_000
-
-let sharedParseWorker: Worker | null = null
-let nextRequestId = 1
-const pendingParses = new Map<
-  number,
-  { resolve: (fileDiff: FileDiffMetadata) => void; reject: (error: Error) => void }
->()
-
-function getParseWorker(): Worker {
-  if (!sharedParseWorker) {
-    sharedParseWorker = new PierreDiffParseWorker()
-    sharedParseWorker.onmessage = (
-      event: MessageEvent<{ id: number; fileDiff?: FileDiffMetadata; error?: string }>
-    ) => {
-      const pending = pendingParses.get(event.data.id)
-      if (!pending) {
-        return
-      }
-      pendingParses.delete(event.data.id)
-      if (event.data.fileDiff) {
-        pending.resolve(event.data.fileDiff)
-      } else {
-        pending.reject(new Error(event.data.error ?? 'Diff parse failed'))
-      }
-    }
-  }
-  return sharedParseWorker
+export type PierreDiffMetadataOptions = {
+  disabled?: boolean
+  language: string
+  showWhitespace: boolean
 }
 
-function parseDiffInWorker(
-  oldFile: FileContents,
-  newFile: FileContents
-): Promise<FileDiffMetadata> {
-  return new Promise((resolve, reject) => {
-    const id = nextRequestId++
-    pendingParses.set(id, { resolve, reject })
-    getParseWorker().postMessage({ id, oldFile, newFile })
-  })
+type MetadataState = {
+  requestKey: string
+  fileDiff: FileDiffMetadata | null
+  error: string | null
+}
+
+function getComparisonVersion(file: FileContents | null): string {
+  if (!file) {
+    return 'absent'
+  }
+  // Why: Pierre's cache key includes the exact content signature at every
+  // caller. Its name remains a separate identity for renamed files.
+  return file.cacheKey ?? `${file.name}\0${file.contents}`
+}
+
+function createComparisonInput(
+  oldFile: FileContents | null,
+  newFile: FileContents | null,
+  options: PierreDiffMetadataOptions
+): PierreComparisonInput {
+  return {
+    output: 'pierre',
+    oldFile,
+    newFile,
+    originalContent: oldFile?.contents ?? '',
+    modifiedContent: newFile?.contents ?? '',
+    originalIdentity: oldFile?.name,
+    modifiedIdentity: newFile?.name,
+    originalVersion: getComparisonVersion(oldFile),
+    modifiedVersion: getComparisonVersion(newFile),
+    language: options.language,
+    showWhitespace: options.showWhitespace
+  }
 }
 
 /**
- * Parse a before/after pair into FileDiffMetadata, off the main thread for
- * large contents. Returns null while an async parse is in flight.
+ * Gets Pierre metadata from the shared semantic comparison worker. Results are
+ * keyed to their exact request, so a completed old request never flashes while
+ * a newer source pair is pending.
  */
 export function usePierreDiffMetadata(
-  oldFile: FileContents,
-  newFile: FileContents,
-  disabled = false
-): FileDiffMetadata | null {
-  const totalChars = oldFile.contents.length + newFile.contents.length
-  const syncFileDiff = useMemo(
-    () =>
-      !disabled && totalChars < PIERRE_DIFF_WORKER_PARSE_MIN_CHARS
-        ? parseDiffFromFile(oldFile, newFile)
-        : null,
-    [oldFile, newFile, totalChars, disabled]
+  oldFile: FileContents | null,
+  newFile: FileContents | null,
+  options: PierreDiffMetadataOptions
+): { fileDiff: FileDiffMetadata | null; error: string | null; retry: () => void } {
+  const disabled = options.disabled === true
+  const { language, showWhitespace } = options
+  const input = useMemo(
+    () => createComparisonInput(oldFile, newFile, { language, showWhitespace }),
+    [oldFile, newFile, language, showWhitespace]
   )
-  const [asyncFileDiff, setAsyncFileDiff] = useState<FileDiffMetadata | null>(null)
+  const requestKey = useMemo(() => getComparisonRequestKey(input), [input])
+  const [retryGeneration, setRetryGeneration] = useState(0)
+  const [state, setState] = useState<MetadataState | null>(null)
 
   useEffect(() => {
-    if (syncFileDiff || disabled) {
+    if (disabled) {
       return
     }
-    let cancelled = false
-    setAsyncFileDiff(null)
-    parseDiffInWorker(oldFile, newFile).then(
-      (fileDiff) => {
-        if (!cancelled) {
-          setAsyncFileDiff(fileDiff)
-        }
-      },
-      (error) => console.error('[pierre-diff] worker parse failed', error)
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [syncFileDiff, oldFile, newFile, disabled])
 
-  return syncFileDiff ?? asyncFileDiff
+    const controller = new AbortController()
+    void requestComparison(input, { signal: controller.signal }).then(
+      (result) => {
+        if (controller.signal.aborted || result.output !== 'pierre') {
+          return
+        }
+        setState({ requestKey, fileDiff: result.fileDiff, error: null })
+      },
+      (error: unknown) => {
+        if (controller.signal.aborted || isComparisonCancellationError(error)) {
+          return
+        }
+        setState({
+          requestKey,
+          fileDiff: null,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    )
+    return () => controller.abort()
+  }, [disabled, input, requestKey, retryGeneration])
+
+  const retry = useCallback(() => {
+    if (disabled) {
+      return
+    }
+    retryComparison(input)
+    setState({ requestKey, fileDiff: null, error: null })
+    setRetryGeneration((generation) => generation + 1)
+  }, [disabled, input, requestKey])
+
+  if (disabled || state?.requestKey !== requestKey) {
+    return { fileDiff: null, error: null, retry }
+  }
+  return { fileDiff: state.fileDiff, error: state.error, retry }
 }

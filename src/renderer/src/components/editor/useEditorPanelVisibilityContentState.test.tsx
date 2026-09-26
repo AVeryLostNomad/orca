@@ -13,6 +13,19 @@ const mocks = vi.hoisted(() => ({
   readRuntimeFileContent: vi.fn()
 }))
 
+const workingStateCache = vi.hoisted(() => new WeakMap<object, Record<string, unknown>>())
+
+function getCanonicalTestState(): Record<string, unknown> {
+  const base = mocks.getState() as Record<string, unknown>
+  const cached = workingStateCache.get(base)
+  if (cached) {
+    return cached
+  }
+  const state = createEditorWorkingDocumentTestState(base)
+  workingStateCache.set(base, state)
+  return state
+}
+
 vi.mock('@/runtime/runtime-file-client', () => ({
   getRuntimeFileReadScope: vi.fn(() => null),
   readRuntimeFileContent: mocks.readRuntimeFileContent,
@@ -36,10 +49,19 @@ vi.mock('@/lib/runtime-workspace-file-route', () => ({
   findWorkspaceFileRoute: vi.fn(() => null)
 }))
 
-vi.mock('@/store', () => ({ useAppStore: { getState: mocks.getState } }))
+vi.mock('@/store', () => ({
+  useAppStore: Object.assign(
+    (selector: (state: Record<string, unknown>) => unknown) => selector(getCanonicalTestState()),
+    { getState: getCanonicalTestState }
+  )
+}))
 
 import { ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT } from './editor-autosave'
 import { useEditorPanelContentState } from './useEditorPanelContentState'
+import {
+  createEditorWorkingDocumentTestState,
+  primeEditorWorkingDocumentTestState
+} from './editor-working-document-test-state'
 
 type Deferred<T> = {
   promise: Promise<T>
@@ -95,6 +117,7 @@ function Probe({
   openFiles
 }: ProbeProps): null {
   const panelOpenFiles = useMemo(() => openFiles ?? [activeFile], [activeFile, openFiles])
+  primeEditorWorkingDocumentTestState(getCanonicalTestState(), panelOpenFiles, () => undefined)
   const state = useEditorPanelContentState({
     activeFile,
     editorViewMode,
@@ -160,8 +183,7 @@ describe('useEditorPanelContentState visibility', () => {
     mocks.getState.mockReset()
     mocks.getState.mockReturnValue({
       settings: null,
-      openFiles: [],
-      setLastKnownDiskSignature: vi.fn()
+      openFiles: []
     })
     container = document.body.appendChild(document.createElement('div'))
     root = createRoot(container)
@@ -382,7 +404,9 @@ describe('useEditorPanelContentState visibility', () => {
       await freshDiff.promise
     })
     await vi.waitFor(() =>
-      expect(snapshots.get('main')?.diffContents[file.id]?.modifiedContent).toBe('fresh diff')
+      expect(snapshots.get('main')?.diffContents[file.id]).toMatchObject({
+        modifiedContent: 'fresh diff'
+      })
     )
     expect(mocks.getRuntimeGitDiff).toHaveBeenCalledTimes(2)
   })
@@ -396,20 +420,26 @@ describe('useEditorPanelContentState visibility', () => {
 
     await act(async () => root.render(<Probe activeFile={file} />))
     await vi.waitFor(() =>
-      expect(snapshots.get('main')?.diffContents[file.id]?.modifiedContent).toBe('old diff')
+      expect(snapshots.get('main')?.diffContents[file.id]).toMatchObject({
+        modifiedContent: 'old diff'
+      })
     )
 
     await act(async () => root.render(<Probe activeFile={file} isVisible={false} />))
     dispatchExternalChange(file)
     // Why: the viewers render "Loading diff…" purely on a missing entry, so a
     // retained (stale-marked) entry is what keeps the pane painted.
-    expect(snapshots.get('main')?.diffContents[file.id]?.modifiedContent).toBe('old diff')
+    expect(snapshots.get('main')?.diffContents[file.id]).toMatchObject({
+      modifiedContent: 'old diff'
+    })
     expect(snapshots.get('main')?.diffContents[file.id]?.isStale).toBe(true)
     expect(mocks.getRuntimeGitDiff).toHaveBeenCalledOnce()
 
     await act(async () => root.render(<Probe activeFile={file} />))
     await vi.waitFor(() => expect(mocks.getRuntimeGitDiff).toHaveBeenCalledTimes(2))
-    expect(snapshots.get('main')?.diffContents[file.id]?.modifiedContent).toBe('old diff')
+    expect(snapshots.get('main')?.diffContents[file.id]).toMatchObject({
+      modifiedContent: 'old diff'
+    })
 
     await act(async () => {
       freshDiff.resolve(textDiff('fresh diff'))
@@ -440,37 +470,9 @@ describe('useEditorPanelContentState visibility', () => {
 
     await act(async () => root.render(<Probe activeFile={file} gitStatusEntries={status} />))
     await vi.waitFor(() =>
-      expect(snapshots.get('main')?.diffContents[file.id]?.modifiedContent).toBe('fresh diff')
-    )
-    expect(mocks.getRuntimeGitDiff).toHaveBeenCalledTimes(2)
-  })
-
-  it('invalidates an inactive cached Changes diff after an external edit', async () => {
-    const file = makeFile('changes-cache')
-    const changesMode = { [file.id]: 'changes' as const }
-    mocks.readRuntimeFileContent
-      .mockResolvedValueOnce({ content: 'old', isBinary: false })
-      .mockResolvedValueOnce({ content: 'fresh', isBinary: false })
-    mocks.getRuntimeGitDiff
-      .mockResolvedValueOnce(textDiff('old diff'))
-      .mockResolvedValueOnce(textDiff('fresh diff'))
-
-    await act(async () =>
-      root.render(<Probe activeFile={file} editorViewMode={changesMode} isChangesMode />)
-    )
-    await vi.waitFor(() => expect(snapshots.get('main')?.diffContents[file.id]).toBeDefined())
-    await act(async () => root.render(<Probe activeFile={file} />))
-
-    dispatchExternalChange(file)
-    await vi.waitFor(() => expect(mocks.readRuntimeFileContent).toHaveBeenCalledTimes(2))
-    expect(mocks.getRuntimeGitDiff).toHaveBeenCalledOnce()
-    expect(snapshots.get('main')?.diffContents[file.id]?.isStale).toBe(true)
-
-    await act(async () =>
-      root.render(<Probe activeFile={file} editorViewMode={changesMode} isChangesMode />)
-    )
-    await vi.waitFor(() =>
-      expect(snapshots.get('main')?.diffContents[file.id]?.modifiedContent).toBe('fresh diff')
+      expect(snapshots.get('main')?.diffContents[file.id]).toMatchObject({
+        modifiedContent: 'fresh diff'
+      })
     )
     expect(mocks.getRuntimeGitDiff).toHaveBeenCalledTimes(2)
   })

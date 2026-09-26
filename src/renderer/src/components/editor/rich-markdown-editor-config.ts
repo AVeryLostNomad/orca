@@ -22,7 +22,6 @@ import {
   type RichMarkdownRuntimeSettings
 } from './rich-markdown-editor-click-routing'
 import { createRichMarkdownKeyHandler } from './rich-markdown-key-handler'
-import { commitRichMarkdownSerialization } from './rich-markdown-serialization-commit'
 import {
   createRichMarkdownImageResolverContext,
   setRichMarkdownImageResolverContext
@@ -55,9 +54,6 @@ export type EditorConfigParams = {
   lastCommittedMarkdownRef: MutableRefObject<string>
   originalSourceRef: MutableRefObject<string>
   baseCanonicalRef: MutableRefObject<string>
-  reconcileRoundTripRef: MutableRefObject<(markdown: string) => string | null>
-  onContentChangeRef: MutableRefObject<(content: string) => void>
-  onDirtyStateHintRef: MutableRefObject<(dirty: boolean) => void>
   onSaveRef: MutableRefObject<(content: string) => void>
   onOpenDocLinkRef: MutableRefObject<((target: string) => void) | undefined>
   isEditingLinkRef: MutableRefObject<boolean>
@@ -109,9 +105,6 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
     lastCommittedMarkdownRef,
     originalSourceRef,
     baseCanonicalRef,
-    reconcileRoundTripRef,
-    onContentChangeRef,
-    onDirtyStateHintRef,
     onOpenDocLinkRef,
     typedEmptyOrderedListMarkerRef,
     cancelAutoFocusRef,
@@ -243,25 +236,11 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
       if (isInitializingRef.current || isApplyingProgrammaticUpdateRef.current) {
         return
       }
-      onDirtyStateHintRef.current(true)
       if (serializeTimerRef.current !== null) {
         window.clearTimeout(serializeTimerRef.current)
       }
       serializeTimerRef.current = window.setTimeout(() => {
-        serializeTimerRef.current = null
-        try {
-          const { markdown, didSerialize } = commitRichMarkdownSerialization(
-            nextEditor,
-            { originalSourceRef, baseCanonicalRef, lastCommittedMarkdownRef },
-            reconcileRoundTripRef.current
-          )
-          if (didSerialize) {
-            onContentChangeRef.current(markdown)
-          }
-        } catch (error) {
-          // Why: teardown and reconcile failures are handled above; other failures must stay observable.
-          console.error('[editor] rich markdown serialize (debounced) failed', error)
-        }
+        params.flushPendingSerialization()
       }, 300)
     },
     onSelectionUpdate: ({ editor: nextEditor }) => {

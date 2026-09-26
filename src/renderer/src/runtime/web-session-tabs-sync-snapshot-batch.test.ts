@@ -3,6 +3,9 @@ import { posix as pathPosix } from 'node:path'
 import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-types'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import type { OpenFile } from '../store/slices/editor'
+import type { AppState } from '../store/types'
+import { getWorkingDocumentForFile } from '../store/slices/editor/working-document-state'
+import type { WorkingDocument, WorkingDocumentId } from '../store/slices/editor/working-document'
 import {
   applyWebSessionTabsSnapshot,
   applyWebSessionTabsSnapshots,
@@ -27,6 +30,45 @@ vi.mock('../store', () => ({
     setState: vi.fn()
   }
 }))
+
+type SnapshotStateWithDocuments = WebSessionTabsSyncState &
+  Pick<AppState, 'workingDocuments' | 'workingDocumentIdsByTab'>
+
+function withDiskBaseline(
+  state: WebSessionTabsSyncState,
+  fileId: string,
+  signature: string
+): SnapshotStateWithDocuments {
+  const documentId = `working-document:${fileId}` as WorkingDocumentId
+  return {
+    ...state,
+    workingDocuments: {
+      [documentId]: {
+        id: documentId,
+        target: {
+          owner: { executionHostId: 'local' as never, runtimeEnvironmentId: null },
+          filePath: fileId,
+          worktreeId: WT,
+          relativePath: fileId.slice('/repo/'.length),
+          language: 'typescript',
+          operationProvenance: {} as WorkingDocument['target']['operationProvenance']
+        },
+        content: 'disk content',
+        revision: 1,
+        lastKnownDiskSignature: signature,
+        isDirty: false,
+        loadState: 'ready',
+        writable: true,
+        alwaysAutoSave: false
+      }
+    },
+    workingDocumentIdsByTab: { [fileId]: [documentId] }
+  }
+}
+
+function diskBaseline(state: SnapshotStateWithDocuments, fileId: string): string | undefined {
+  return getWorkingDocumentForFile(state, fileId)?.lastKnownDiskSignature
+}
 
 describe('applyWebSessionTabsSnapshot', () => {
   beforeEach(resetWebSessionTabsSyncTestState)
@@ -349,9 +391,9 @@ describe('applyWebSessionTabsSnapshot', () => {
   })
 
   it('seeds a mirrored editor file from the first duplicate open file, as find() did', () => {
-    // Why: two entries share (worktree, id) and differ only in a field the mirrored
-    // file inherits, so which duplicate seeds the spread is observable.
-    const duplicate = (signature: string, environmentId: string | null): OpenFile =>
+    // Why: two entries share (worktree, id) and differ in a copied presentation field, so which
+    // duplicate seeds the mirrored spread remains observable while disk state stays canonical.
+    const duplicate = (isPreview: boolean, environmentId: string | null): OpenFile =>
       ({
         id: '/repo/dup.ts',
         filePath: '/repo/dup.ts',
@@ -361,8 +403,8 @@ describe('applyWebSessionTabsSnapshot', () => {
         isDirty: false,
         runtimeEnvironmentId: environmentId,
         mode: 'edit',
-        mirroredFromRuntimeSession: true,
-        lastKnownDiskSignature: signature
+        isPreview,
+        mirroredFromRuntimeSession: true
       }) as OpenFile
     const snapshot = makeSnapshot(
       [
@@ -374,7 +416,7 @@ describe('applyWebSessionTabsSnapshot', () => {
           relativePath: 'dup.ts',
           language: 'typescript',
           // Why: a compared field must differ, or the reconciled array is equal and
-          // the patch is suppressed before the inherited signature is observable.
+          // the patch is suppressed before the inherited preview state is observable.
           isDirty: true,
           isActive: true
         } as RuntimeMobileSessionTabsResult['tabs'][number]
@@ -384,18 +426,22 @@ describe('applyWebSessionTabsSnapshot', () => {
 
     for (const label of ['single', 'batch'] as const) {
       resetWebSessionTabsSnapshotFreshnessForTests()
-      const state = makeState({
-        openFiles: [duplicate('winner', 'other-env'), duplicate('loser', ENV)]
-      })
+      const state = withDiskBaseline(
+        makeState({ openFiles: [duplicate(true, 'other-env'), duplicate(false, ENV)] }),
+        '/repo/dup.ts',
+        'winner'
+      )
       const patch = (
         label === 'single'
           ? applyWebSessionTabsSnapshot(state, snapshot, ENV, NOW)
           : applyWebSessionTabsSnapshots(state, [snapshot], ENV, NOW)
       ) as Partial<WebSessionTabsSyncState>
-      const mirrored = patch.openFiles?.find(
+      const next = { ...state, ...patch }
+      const mirrored = next.openFiles.find(
         (file) => file.id === '/repo/dup.ts' && file.runtimeEnvironmentId === ENV
       )
-      expect(mirrored?.lastKnownDiskSignature, label).toBe('winner')
+      expect(mirrored?.isPreview, label).toBe(true)
+      expect(diskBaseline(next, '/repo/dup.ts'), label).toBe('winner')
     }
   })
 
@@ -464,9 +510,8 @@ describe('applyWebSessionTabsSnapshot', () => {
   })
 
   it('rebuilds an open file the batch closed and reopened, as sequential does', () => {
-    // Why: a batch whose net effect is openFileEqual to its input must still adopt the
-    // rebuilt file. Deferring the equality check to the end of the batch would keep the
-    // pre-batch object and its per-file state (autosave gates, disk signature).
+    // Why: a batch whose net effect is openFileEqual to its input must still adopt the rebuilt
+    // tab. Its disk baseline is a canonical document field, so tab reconstruction must not reset it.
     const beforeBatch = {
       id: '/repo/a.ts',
       filePath: '/repo/a.ts',
@@ -476,8 +521,7 @@ describe('applyWebSessionTabsSnapshot', () => {
       isDirty: false,
       runtimeEnvironmentId: ENV,
       mode: 'edit',
-      mirroredFromRuntimeSession: true,
-      lastKnownDiskSignature: 'stale-signature'
+      mirroredFromRuntimeSession: true
     } as OpenFile
     const editorSnapshot = (path: string, version: number): RuntimeMobileSessionTabsResult =>
       makeSnapshot(
@@ -495,9 +539,12 @@ describe('applyWebSessionTabsSnapshot', () => {
         ],
         { snapshotVersion: version, activeTabId: `host-${path}`, activeTabType: 'file' }
       )
-    // Closes a.ts, then reopens it — net content is equal, but the object is new.
     const snapshots = [editorSnapshot('/repo/b.ts', 1), editorSnapshot('/repo/a.ts', 2)]
-    const state = makeState({ openFiles: [beforeBatch] })
+    const state = withDiskBaseline(
+      makeState({ openFiles: [beforeBatch] }),
+      '/repo/a.ts',
+      'stale-signature'
+    )
 
     resetWebSessionTabsSnapshotFreshnessForTests()
     let sequential = state
@@ -513,14 +560,17 @@ describe('applyWebSessionTabsSnapshot', () => {
 
     expect(batched.openFiles).toEqual(sequential.openFiles)
     expect(batched.openFiles.map((file) => file.id)).toEqual(['/repo/a.ts'])
-    expect(batched.openFiles[0]?.lastKnownDiskSignature).toBeUndefined()
+    expect(diskBaseline(batched, '/repo/a.ts')).toBe('stale-signature')
   })
 
   it('keeps the matching-environment duplicate when a batch rebuild is a no-op', () => {
     // Why: the rebuilt file is seeded from the first (worktree, id) match, which here
     // belongs to another environment. When the rebuild changes nothing, the original
     // must survive rather than be swapped for a clone of the other environment's entry.
-    const duplicate = (environmentId: string, signature: string): OpenFile =>
+    const duplicate = (
+      environmentId: string,
+      operationProvenance: OpenFile['operationProvenance']
+    ): OpenFile =>
       ({
         id: '/repo/b.ts',
         filePath: '/repo/b.ts',
@@ -531,10 +581,12 @@ describe('applyWebSessionTabsSnapshot', () => {
         runtimeEnvironmentId: environmentId,
         mode: 'edit',
         mirroredFromRuntimeSession: true,
-        lastKnownDiskSignature: signature
+        operationProvenance
       }) as OpenFile
+    const otherProvenance = {} as OpenFile['operationProvenance']
+    const currentProvenance = {} as OpenFile['operationProvenance']
     const state = makeState({
-      openFiles: [duplicate('other-env', 'sig-other-env'), duplicate(ENV, 'sig-this-env')]
+      openFiles: [duplicate('other-env', otherProvenance), duplicate(ENV, currentProvenance)]
     })
     const republish = makeSnapshot(
       [
@@ -590,8 +642,8 @@ describe('applyWebSessionTabsSnapshot', () => {
     expect(
       batched.openFiles
         .filter((file) => file.id === '/repo/b.ts')
-        .map((file) => file.lastKnownDiskSignature)
-    ).toEqual(['sig-other-env', 'sig-this-env'])
+        .map((file) => file.operationProvenance)
+    ).toEqual([otherProvenance, currentProvenance])
   })
 
   it('keeps another environment’s duplicate active when this environment culls the id', () => {

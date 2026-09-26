@@ -22,6 +22,7 @@ import {
 // Why: binds a freshly created Monaco instance to the app; reads everything through refs so the callback identity stays stable across renders.
 export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
   const {
+    registryManaged,
     fileId,
     filePath,
     viewStateKey,
@@ -102,11 +103,9 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
       beginProgrammaticContentSync(filePath)
       isApplyingProgrammaticContentRef.current = true
       try {
-        const didSyncOnMount = syncContentOnMount(
-          editorInstance,
-          contentRef.current,
-          contentSyncModeRef.current
-        )
+        const didSyncOnMount =
+          !registryManaged &&
+          syncContentOnMount(editorInstance, contentRef.current, contentSyncModeRef.current)
         if (didSyncOnMount) {
           lastSyncedContentRef.current = contentRef.current
         }
@@ -213,6 +212,7 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
       }
     },
     [
+      registryManaged,
       queueReveal,
       setupCopy,
       fileId,

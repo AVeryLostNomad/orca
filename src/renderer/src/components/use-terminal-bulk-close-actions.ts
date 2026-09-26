@@ -11,15 +11,14 @@ import {
 import type { TerminalCloseController } from './use-terminal-close-actions'
 
 export function useTerminalBulkCloseActions(controller: TerminalCloseController) {
-  const { activeWorktreeId, closeBrowserTab, closeFile, closeTab, queueEditorCloseRequests } =
-    controller
+  const { activeWorktreeId, closeBrowserTab, closeTab, queueEditorCloseRequests } = controller
   const closeTabBarTabs = useCallback(
     (tabIds: string[]) => {
       if (!activeWorktreeId) {
         return
       }
       const state = useAppStore.getState()
-      const dirtyFileIds: string[] = []
+      const editorTabIds: string[] = []
       for (const id of tabIds) {
         const unifiedTab = (state.unifiedTabsByWorktree[activeWorktreeId] ?? []).find(
           (candidate) => candidate.id === id || candidate.entityId === id
@@ -53,17 +52,20 @@ export function useTerminalBulkCloseActions(controller: TerminalCloseController)
           closeTerminalTab(unifiedTab.entityId, { skipRunningProcessConfirm: true })
           continue
         }
+        if (
+          unifiedTab &&
+          ['editor', 'diff', 'conflict-review', 'check-details'].includes(unifiedTab.contentType)
+        ) {
+          editorTabIds.push(unifiedTab.id)
+          continue
+        }
         if ((state.tabsByWorktree[activeWorktreeId] ?? []).some((tab) => tab.id === id)) {
           closeTab(id)
         } else if (
           state.openFiles.some((file) => file.worktreeId === activeWorktreeId && file.id === id)
         ) {
-          const file = state.openFiles.find((candidate) => candidate.id === id)
-          if (file?.isDirty) {
-            dirtyFileIds.push(id)
-            continue
-          }
-          closeFile(id)
+          editorTabIds.push(id)
+          continue
         } else if (
           (state.browserTabsByWorktree[activeWorktreeId] ?? []).some((tab) => tab.id === id)
         ) {
@@ -74,11 +76,11 @@ export function useTerminalBulkCloseActions(controller: TerminalCloseController)
           state.closeUnifiedTab(unifiedTab.id)
         }
       }
-      if (dirtyFileIds.length > 0) {
-        queueEditorCloseRequests(dirtyFileIds)
+      if (editorTabIds.length > 0) {
+        queueEditorCloseRequests(editorTabIds)
       }
     },
-    [activeWorktreeId, closeBrowserTab, closeFile, closeTab, queueEditorCloseRequests]
+    [activeWorktreeId, closeBrowserTab, closeTab, queueEditorCloseRequests]
   )
 
   const handleCloseOthers = useCallback(
@@ -128,16 +130,10 @@ export function useTerminalBulkCloseActions(controller: TerminalCloseController)
     const closableFiles = filesInWorktree.filter(
       (file) => !isPinnedEditorFileTab(state, activeWorktreeId, file.id)
     )
-    const dirtyFileIds = closableFiles.filter((file) => file.isDirty).map((file) => file.id)
-    for (const file of closableFiles) {
-      if (!file.isDirty) {
-        closeFile(file.id)
-      }
+    if (closableFiles.length > 0) {
+      queueEditorCloseRequests(closableFiles.map((file) => file.id))
     }
-    if (dirtyFileIds.length > 0) {
-      queueEditorCloseRequests(dirtyFileIds)
-    }
-  }, [activeWorktreeId, closeFile, queueEditorCloseRequests])
+  }, [activeWorktreeId, queueEditorCloseRequests])
 
   return {
     closeTabBarTabs,

@@ -1,6 +1,7 @@
+import { useMemo } from 'react'
+import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 import type { MarkdownViewMode, OpenFile, PendingEditorReveal } from '@/store/slices/editor'
-import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 import { ChangesModeView } from './ChangesModeView'
 import { ConflictBanner, ConflictPlaceholderView } from './ConflictComponents'
@@ -13,11 +14,14 @@ import {
 } from './editor-lazy-views'
 import type { EditorConflictNavigation } from './useEditorConflictNavigation'
 import { EditorFileLoadErrorView } from './EditorFileLoadErrorView'
-import type { FileContent } from './editor-panel-content-types'
+import type { DiffContent, FileContent } from './editor-panel-content-types'
 import { ExternalFileChangeBanner } from './ExternalFileChangeBanner'
 import type { useMarkdownDocuments } from './useMarkdownDocuments'
 import { EditorMarkdownFileSurface } from './EditorMarkdownFileSurface'
 import type { MarkdownRenderState } from './markdown-render-mode'
+import type { WorkingDocument } from '@/store/slices/editor/working-document'
+import { getEditorGitBaselineScope } from './editor-panel-file-mode'
+import { getTrustedEditorGitBaseline } from './editor-git-baseline'
 
 const noopEditorContentChange = (_content: string): void => {}
 const noopEditorSave = async (_content: string): Promise<boolean> => false
@@ -26,6 +30,7 @@ type MarkdownDocumentsController = ReturnType<typeof useMarkdownDocuments>
 
 export function EditorEditFileSurface({
   activeFile,
+  workingDocument,
   viewStateScopeId,
   editorViewStateKey,
   diffViewStateKey,
@@ -52,17 +57,17 @@ export function EditorEditFileSurface({
   getConflictNavigation,
   getMarkdownSourceLineOffset,
   handleContentChange,
-  handleDirtyStateHint,
   handleSave,
   reloadContent
 }: {
   activeFile: OpenFile
+  workingDocument?: WorkingDocument
   viewStateScopeId: string
   editorViewStateKey: string
   diffViewStateKey: string
   pdfViewStateKey: string
   fileContent: FileContent | undefined
-  diffContent: GitDiffResult | undefined
+  diffContent: Exclude<DiffContent, { kind: 'error' }> | undefined
   editBuffer: string | undefined
   activeConflictEntry: GitStatusEntry | null
   monacoLanguage: string
@@ -83,10 +88,14 @@ export function EditorEditFileSurface({
   getConflictNavigation: (file: OpenFile, content: string) => EditorConflictNavigation | undefined
   getMarkdownSourceLineOffset: (frontMatterRaw: string) => number
   handleContentChange: (content: string) => void
-  handleDirtyStateHint: (dirty: boolean) => void
   handleSave: (content: string) => Promise<boolean>
   reloadContent: (file: OpenFile) => void
 }): React.JSX.Element {
+  const baselineScope = useAppStore((state) => getEditorGitBaselineScope(state, activeFile))
+  const gitBaseline = useMemo(
+    () => getTrustedEditorGitBaseline(diffContent, baselineScope),
+    [diffContent, baselineScope]
+  )
   if (activeFile.conflict?.kind === 'conflict-placeholder') {
     return <ConflictPlaceholderView file={activeFile} />
   }
@@ -126,20 +135,17 @@ export function EditorEditFileSurface({
     )
   }
 
-  const currentContent = editBuffer ?? fileContent.content
+  const currentContent = workingDocument?.content ?? editBuffer ?? fileContent.content
   const externalChangeBanner =
-    activeFile.externalMutation === 'changed' ? (
-      <ExternalFileChangeBanner
-        file={activeFile}
-        currentContent={currentContent}
-        reloadContent={reloadContent}
-      />
+    workingDocument?.externalMutation === 'changed' ? (
+      <ExternalFileChangeBanner document={workingDocument} currentContent={currentContent} />
     ) : null
 
   if (isChangesMode) {
     const changesView = (
       <ChangesModeView
         activeFile={activeFile}
+        workingDocumentId={workingDocument?.id}
         dc={diffContent}
         modifiedContent={currentContent}
         activeConflictEntry={activeConflictEntry}
@@ -147,7 +153,6 @@ export function EditorEditFileSurface({
         sideBySide={sideBySide}
         viewStateScopeId={viewStateScopeId}
         diffViewStateKey={diffViewStateKey}
-        onContentChange={handleContentChange}
         onSave={isMarkdown ? markdownDocuments.mdSave : handleSave}
       />
     )
@@ -167,14 +172,16 @@ export function EditorEditFileSurface({
     <MonacoEditor
       key={`${viewStateScopeId}\u0000${activeFile.filePath}`}
       fileId={activeFile.id}
+      workingDocumentId={workingDocument?.id}
       filePath={activeFile.filePath}
       viewStateKey={editorViewStateKey}
       viewStateId={viewStateScopeId}
       relativePath={activeFile.relativePath}
       content={currentContent}
       language={monacoLanguage}
+      gitBaseline={gitBaseline}
       // Why: read-only tabs no-op the change/save callbacks so no draft, dirty state, or write can occur.
-      readOnly={activeFile.readOnly === true}
+      readOnly={activeFile.readOnly === true || !workingDocument?.writable}
       liveTail={activeFile.liveTail === true}
       onContentChange={activeFile.readOnly === true ? noopEditorContentChange : handleContentChange}
       onSave={
@@ -209,6 +216,8 @@ export function EditorEditFileSurface({
   const editorSurface = isMarkdown ? (
     <EditorMarkdownFileSurface
       activeFile={activeFile}
+      workingDocumentId={workingDocument?.id}
+      documentRevision={workingDocument?.revision}
       viewStateScopeId={viewStateScopeId}
       editorViewStateKey={editorViewStateKey}
       currentContent={currentContent}
@@ -221,7 +230,6 @@ export function EditorEditFileSurface({
       markdownDocuments={markdownDocuments}
       getMarkdownSourceLineOffset={getMarkdownSourceLineOffset}
       handleContentChange={handleContentChange}
-      handleDirtyStateHint={handleDirtyStateHint}
       monacoEditor={monacoEditor}
     />
   ) : isMermaid && mdViewMode === 'rich' ? (
@@ -233,11 +241,12 @@ export function EditorEditFileSurface({
       key={activeFile.id}
       content={currentContent}
       fileId={activeFile.id}
+      workingDocumentId={workingDocument?.id}
+      documentRevision={workingDocument?.revision}
       filePath={activeFile.filePath}
       worktreeId={activeFile.worktreeId}
       scrollCacheKey={`${editorViewStateKey}:notebook`}
       onContentChange={handleContentChange}
-      onDirtyStateHint={handleDirtyStateHint}
       onSave={handleSave}
     />
   ) : (

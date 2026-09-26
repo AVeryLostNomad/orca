@@ -20,7 +20,6 @@ const largeTextSection: DiffSection = {
   modifiedContent: '',
   collapsed: false,
   loading: true,
-  dirty: false,
   diffResult: null,
   largeDiffRenderLimit: null
 }

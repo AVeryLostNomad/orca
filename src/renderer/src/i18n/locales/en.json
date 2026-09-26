@@ -15378,7 +15378,12 @@
           "a95d02c644": "Keep My Edits",
           "5c02de9b31": "Reloaded from disk",
           "d1e830fa22": "Undo",
-          "90b2ce7d43": "Compare"
+          "90b2ce7d43": "Compare",
+          "reload": {
+            "failure": {
+              "2be718a83f": "Could not reload the file from disk. Your edits were kept."
+            }
+          }
         },
         "ExternalFileChangeCompareDialog": {
           "4b8de20a11": "File changed on disk",
@@ -15489,6 +15494,13 @@
           "copy": "Copy into workspace",
           "failed": "Could not copy the file into the workspace.",
           "saveFirst": "Save the file before copying it into the workspace"
+        },
+        "GitHunkPeek": {
+          "position": "Changes since HEAD · {{value0}} of {{value1}}",
+          "revert": "Revert change",
+          "next": "Next change",
+          "previous": "Previous change",
+          "close": "Close"
         }
       },
       "diff": {

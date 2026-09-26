@@ -20,7 +20,11 @@ import type {
   EditorOpenTargetOptions,
   OpenFile
 } from './open-file'
-import type { OpenFilePathRekey, RekeyOpenFilesResult } from './open-file-path-rekey'
+import type {
+  OpenFilePathRekey,
+  RekeyOpenFilesResult,
+  WorkingDocumentPathRekey
+} from './open-file-path-rekey'
 import type {
   RestoredEditorOwnerMigration,
   RestoredEditorOwnerResult
@@ -82,22 +86,17 @@ export type EditorFilesSlice = {
   reopenClosedEditorTab: (worktreeId: string) => boolean
   setActiveFile: (fileId: string) => void
   reorderFiles: (fileIds: string[]) => void
-  markFileDirty: (fileId: string, dirty: boolean) => void
-  setExternalMutation: (fileId: string, mutation: 'deleted' | 'renamed' | 'changed' | null) => void
-  setLastKnownDiskSignature: (fileId: string, signature: string) => void
-  clearPendingDiskBaselineVerification: (fileId: string) => void
-  setPendingDiskBaselineVerification: (fileId: string, value: boolean) => void
-  setPendingLiveDiskVerification: (fileId: string, value: boolean) => void
-  clearSelfMoveEcho: (fileId: string) => void
+  clearUntitled: (fileId: string) => void
   /** Atomically retargets open editor sessions across an Orca-owned move — one commit-only update migrating every path-derived id + all id-keyed state, no close/reopen. Returns collision/stale without mutating. */
   rekeyOpenFilesForPathChange: (args: {
     rekeys: readonly OpenFilePathRekey[]
+    /** Includes retained combined-only documents that have no ordinary OpenFile. */
+    documentRekeys?: readonly WorkingDocumentPathRekey[]
     /** When set, dirty autosave-capable destinations get move-echo provenance + a synchronous autosave gate so the watcher can content-verify the echo. */
     moveOperationId?: string
   }) => RekeyOpenFilesResult
   setRestoredEditorOwnerMigrationPending: (fileId: string, pending: boolean) => boolean
   reparentRestoredEditorFileOwner: (args: RestoredEditorOwnerMigration) => RestoredEditorOwnerResult
-  clearUntitled: (fileId: string) => void
   openDiff: (
     worktreeId: string,
     filePath: string,

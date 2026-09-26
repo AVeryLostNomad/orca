@@ -2,6 +2,64 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useAppStore } from '@/store'
 import { remapOpenEditorTabsForPathChange } from './remap-open-editor-tabs-for-path-change'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
+import type {
+  WorkingDocumentExternalStatePatch,
+  WorkingDocumentId,
+  WorkingDocumentTarget
+} from '@/store/slices/editor/working-document'
+
+function setDirtyDocumentForTab(
+  tabId: string,
+  content: string,
+  patch: WorkingDocumentExternalStatePatch & { lastKnownDiskSignature?: string } = {}
+): WorkingDocumentId {
+  const state = useAppStore.getState()
+  const file = state.openFiles.find((candidate) => candidate.id === tabId)
+  if (!file) {
+    throw new Error(`Missing tab ${tabId}`)
+  }
+  const runtimeEnvironmentId = file.runtimeEnvironmentId ?? null
+  const operationProvenance = {
+    generation: {
+      route: { executionHostId: 'local', runtimeEnvironmentId },
+      runtimeConnectionGeneration: null,
+      runtimePairingRevision: undefined,
+      runtimeSshGeneration: null,
+      nestedSshGeneration: null,
+      directSshGeneration: null
+    },
+    ownershipProjection: 'explicit'
+  } as never
+  useAppStore.setState({
+    openFiles: state.openFiles.map((candidate) =>
+      candidate.id === tabId ? { ...candidate, operationProvenance } : candidate
+    )
+  })
+  const target: WorkingDocumentTarget = {
+    owner: { executionHostId: 'local', runtimeEnvironmentId },
+    filePath: file.filePath,
+    relativePath: file.relativePath,
+    worktreeId: file.worktreeId,
+    language: file.language,
+    operationProvenance
+  }
+  const documentId = state.retainWorkingDocument(tabId, target)
+  state.acceptWorkingDocumentLoad(documentId, 0, '', patch.lastKnownDiskSignature)
+  state.setWorkingDocumentContent(documentId, content)
+  state.setWorkingDocumentExternalState(documentId, patch)
+  return documentId
+}
+
+function contentForTab(tabId: string): string | undefined {
+  const state = useAppStore.getState()
+  const documentId = state.workingDocumentIdsByTab[tabId]?.[0]
+  return documentId ? state.workingDocuments[documentId]?.content : undefined
+}
+function documentForTab(tabId: string) {
+  const state = useAppStore.getState()
+  const documentId = state.workingDocumentIdsByTab[tabId]?.[0]
+  return documentId ? state.workingDocuments[documentId] : undefined
+}
 
 function ownedEditorFileId(
   filePath: string,
@@ -42,8 +100,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
     )
     const localEditId = useAppStore.getState().openFiles[0]?.id
     expect(localEditId).toBeTruthy()
-    state.setEditorDraft(localEditId!, 'local draft')
-    state.markFileDirty(localEditId!, true)
+    setDirtyDocumentForTab(localEditId!, 'local draft')
 
     state.openFile({
       filePath: oldPath,
@@ -57,8 +114,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
       .getState()
       .openFiles.find((file) => file.mode === 'edit' && file.runtimeEnvironmentId === 'env-remote')
     expect(remoteEdit).toBeTruthy()
-    state.setEditorDraft(remoteEdit!.id, 'remote draft')
-    state.markFileDirty(remoteEdit!.id, true)
+    setDirtyDocumentForTab(remoteEdit!.id, 'remote draft')
 
     state.openMarkdownPreview(
       {
@@ -101,10 +157,10 @@ describe('remapOpenEditorTabsForPathChange', () => {
       isDirty: true,
       runtimeEnvironmentId: 'env-remote'
     })
-    expect(nextState.editorDrafts[localRemapped!.id]).toBe('local draft')
-    expect(nextState.editorDrafts[remoteRemapped!.id]).toBe('remote draft')
-    expect(nextState.editorDrafts[localEditId!]).toBeUndefined()
-    expect(nextState.editorDrafts[remoteEdit!.id]).toBeUndefined()
+    expect(contentForTab(localRemapped!.id)).toBe('local draft')
+    expect(contentForTab(remoteRemapped!.id)).toBe('remote draft')
+    expect(contentForTab(localEditId!)).toBeUndefined()
+    expect(contentForTab(remoteEdit!.id)).toBeUndefined()
 
     const remotePreview = nextState.openFiles.find(
       (file) => file.mode === 'markdown-preview' && file.runtimeEnvironmentId === 'env-remote'
@@ -191,9 +247,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
         },
         { suppressActiveRuntimeFallback: true }
       )
-      const id = useAppStore.getState().openFiles.find((f) => f.worktreeId === worktreeId)!.id
-      state.setEditorDraft(id, draft)
-      state.markFileDirty(id, true)
+      const id = useAppStore.getState().openFiles.find((file) => file.worktreeId === worktreeId)!.id
+      setDirtyDocumentForTab(id, draft)
       return id
     }
     openDirtyAt('wt-a', 'draft A')
@@ -208,13 +263,13 @@ describe('remapOpenEditorTabsForPathChange', () => {
     expect(result.ok).toBe(true)
 
     const files = useAppStore.getState().openFiles
-    // connA's tab moved; connB's tab kept its id, path, AND its dirty draft.
+    // connA's tab moved; connB's tab kept its id, path, AND its dirty document.
     expect(files.find((f) => f.worktreeId === 'wt-a')!.filePath).toBe('/repo/b.md')
     const tabB = files.find((f) => f.worktreeId === 'wt-b')!
     expect(tabB.id).toBe(idB)
     expect(tabB.filePath).toBe('/repo/a.md')
     expect(tabB.isDirty).toBe(true)
-    expect(useAppStore.getState().editorDrafts[idB]).toBe('draft B')
+    expect(contentForTab(idB)).toBe('draft B')
   })
 
   it('selects a Windows tab whose path differs only in case from the move root', () => {
@@ -233,8 +288,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
       { suppressActiveRuntimeFallback: true }
     )
     const id = useAppStore.getState().openFiles[0]!.id
-    state.setEditorDraft(id, 'dirty windows work')
-    state.markFileDirty(id, true)
+    setDirtyDocumentForTab(id, 'dirty windows work')
 
     const result = remapOpenEditorTabsForPathChange({
       fromPath: 'c:\\repo\\src',
@@ -247,7 +301,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
     const moved = useAppStore.getState().openFiles[0]!
     expect(moved.filePath).toBe('c:\\repo\\dst\\a.ts')
     expect(moved.isDirty).toBe(true)
-    expect(useAppStore.getState().editorDrafts[moved.id]).toBe('dirty windows work')
+    expect(contentForTab(moved.id)).toBe('dirty windows work')
   })
 
   it('rebuilds the moved path across WSL UNC aliases without fabricating segments', () => {
@@ -266,8 +320,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
       { suppressActiveRuntimeFallback: true }
     )
     const id = useAppStore.getState().openFiles[0]!.id
-    state.setEditorDraft(id, 'wsl draft')
-    state.markFileDirty(id, true)
+    setDirtyDocumentForTab(id, 'wsl draft')
 
     const result = remapOpenEditorTabsForPathChange({
       fromPath: '\\\\wsl$\\Ubuntu\\repo\\src',
@@ -279,7 +332,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
     expect(result.ok).toBe(true)
     const moved = useAppStore.getState().openFiles[0]!
     expect(moved.filePath).toBe('\\\\wsl$\\Ubuntu\\repo\\dst\\a.ts')
-    expect(useAppStore.getState().editorDrafts[moved.id]).toBe('wsl draft')
+    expect(contentForTab(moved.id)).toBe('wsl draft')
   })
 
   it('preserves a legal backslash in a POSIX/SSH filename (no separator invention)', () => {
@@ -468,19 +521,18 @@ describe('remapOpenEditorTabsForPathChange', () => {
       { suppressActiveRuntimeFallback: true }
     )
     const oldId = useAppStore.getState().openFiles[0]!.id
-    state.setEditorDraft(oldId, 'unsaved work')
-    state.markFileDirty(oldId, true)
-    state.setLastKnownDiskSignature(oldId, 'sig-abc')
-    state.setExternalMutation(oldId, 'changed')
+    setDirtyDocumentForTab(oldId, 'unsaved work', {
+      lastKnownDiskSignature: 'sig-abc',
+      externalMutation: 'changed'
+    })
 
     remapOpenEditorTabsForPathChange({ fromPath: oldPath, toPath: newPath, worktreePath: '/repo' })
 
-    const moved = useAppStore.getState().openFiles.find((f) => f.filePath === newPath)
+    const moved = useAppStore.getState().openFiles.find((file) => file.filePath === newPath)
     expect(moved).toBeTruthy()
-    // The re-homed tab must keep the identity that lets the watcher distinguish
-    // the move echo from a real external write, and any pre-existing conflict.
-    expect(moved?.lastKnownDiskSignature).toBe('sig-abc')
-    expect(moved?.externalMutation).toBe('changed')
+    const movedDocument = documentForTab(moved!.id)
+    expect(movedDocument?.lastKnownDiskSignature).toBe('sig-abc')
+    expect(movedDocument?.externalMutation).toBe('changed')
     expect(moved?.isDirty).toBe(true)
   })
 

@@ -25,8 +25,8 @@ vi.mock('@/components/confirmation-dialog-context', () => ({
 }))
 vi.mock('@/hooks/useShortcutLabel', () => ({ useShortcutLabel: () => 'Delete' }))
 vi.mock('@/components/editor/editor-autosave', () => ({
-  requestEditorFileSave: vi.fn().mockResolvedValue(undefined),
-  requestEditorSaveQuiesce: vi.fn().mockResolvedValue(undefined)
+  requestEditorDocumentSave: vi.fn().mockResolvedValue(undefined),
+  quiesceDocumentSave: vi.fn().mockResolvedValue(undefined)
 }))
 vi.mock('@/components/right-sidebar/fileExplorerUndoRedo', () => ({
   commitFileExplorerOp: vi.fn()

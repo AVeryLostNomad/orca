@@ -152,8 +152,8 @@ export function buildMobileSessionWorktreeInputs(
     }),
     agentStatusByPaneKey:
       publication.agentStatusByWorktreeId.get(worktreeId) ?? EMPTY_NARROWED_BY_KEY,
-    editorDraftVersionByFileId: narrowMapByKeys(
-      publication.editorDraftVersionByFileId,
+    workingDocumentVersionByFileId: narrowMapByKeys(
+      publication.workingDocumentVersionByFileId,
       openFileIds
     ),
     pagesByBrowserWorkspaceId,

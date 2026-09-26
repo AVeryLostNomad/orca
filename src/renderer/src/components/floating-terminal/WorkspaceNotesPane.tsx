@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
-import { ORCA_EDITOR_SAVE_AND_CLOSE_EVENT } from '@/components/editor/editor-autosave'
+import { requestEditorTabClose } from '@/components/editor/editor-autosave'
 import { resolveWorkspaceDisplayName } from '@/lib/floating-workspace-notes-tab'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
@@ -8,9 +8,9 @@ import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 
 const EditorPanel = lazy(() => import('@/components/editor/EditorPanel'))
 
-/** Save-then-close through the app-wide autosave controller so a still-debounced draft is flushed, not dropped. */
+/** Route stale notes through the canonical document close queue so its save awaits the real write. */
 function requestNotesFileSaveAndClose(fileId: string): void {
-  window.dispatchEvent(new CustomEvent(ORCA_EDITOR_SAVE_AND_CLOSE_EVENT, { detail: { fileId } }))
+  requestEditorTabClose(fileId)
 }
 
 /** Permanent scratchpad surface: renders the selected workspace's notes file, or a

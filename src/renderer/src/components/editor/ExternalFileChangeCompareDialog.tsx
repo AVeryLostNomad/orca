@@ -15,7 +15,7 @@ import { detectLanguage } from '@/lib/language-detect'
 import { readRuntimeFileContent } from '@/runtime/runtime-file-client'
 import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import { useAppStore } from '@/store'
-import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocument } from '@/store/slices/editor/working-document'
 import { translate } from '@/i18n/i18n'
 
 const DiffViewer = lazy(() => import('./DiffViewer'))
@@ -26,19 +26,17 @@ type DiskReadState =
   | { kind: 'binary' }
   | { kind: 'ready'; content: string }
 
-// Why: choosing between "Reload from Disk" and "Keep My Edits" blind is the
-// sharpest edge of the changed-on-disk banner — this dialog shows exactly
-// what each choice discards before the user commits (issue #7265 follow-up).
+// The disk side is a private immutable snapshot. It never joins the working
+// document model registry, so comparing a conflict cannot mutate the draft.
 export function ExternalFileChangeCompareDialog({
-  file,
+  document,
   currentContent,
   open,
   onOpenChange,
   onReload,
   onKeepEdits
 }: {
-  file: OpenFile
-  /** The tab's live buffer — the unsaved edits the user would keep. */
+  document: WorkingDocument
   currentContent: string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -46,6 +44,7 @@ export function ExternalFileChangeCompareDialog({
   onKeepEdits: () => void
 }): React.JSX.Element {
   const [diskState, setDiskState] = useState<DiskReadState>({ kind: 'loading' })
+  const { target } = document
 
   useEffect(() => {
     if (!open) {
@@ -53,46 +52,38 @@ export function ExternalFileChangeCompareDialog({
     }
     let cancelled = false
     setDiskState({ kind: 'loading' })
-    // Why: read at open time — the banner can be minutes old and the agent
-    // may have written again since; the comparison must show current disk.
     void readRuntimeFileContent({
-      settings: settingsForRuntimeOwner(useAppStore.getState().settings, file.runtimeEnvironmentId),
-      filePath: file.filePath,
-      relativePath: file.relativePath,
-      worktreeId: file.worktreeId,
-      connectionId: getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined,
-      expectedExternalSshTargetId: file.externalSshTargetId
+      settings: settingsForRuntimeOwner(
+        useAppStore.getState().settings,
+        target.owner.runtimeEnvironmentId
+      ),
+      filePath: target.filePath,
+      relativePath: target.relativePath,
+      worktreeId: target.worktreeId,
+      connectionId: getConnectionIdForFile(target.worktreeId, target.filePath) ?? undefined,
+      expectedExternalSshTargetId: target.externalSshTargetId
     })
       .then((result) => {
-        if (cancelled) {
-          return
+        if (!cancelled) {
+          setDiskState(
+            result.isBinary ? { kind: 'binary' } : { kind: 'ready', content: result.content }
+          )
         }
-        setDiskState(
-          result.isBinary ? { kind: 'binary' } : { kind: 'ready', content: result.content }
-        )
       })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDiskState({
+            kind: 'error',
+            message: error instanceof Error ? error.message : String(error)
+          })
         }
-        setDiskState({
-          kind: 'error',
-          message: err instanceof Error ? err.message : String(err)
-        })
       })
     return () => {
       cancelled = true
     }
-  }, [
-    open,
-    file.filePath,
-    file.relativePath,
-    file.worktreeId,
-    file.runtimeEnvironmentId,
-    file.externalSshTargetId
-  ])
+  }, [open, target])
 
-  const language = detectLanguage(file.relativePath)
+  const language = detectLanguage(target.relativePath)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -137,8 +128,6 @@ export function ExternalFileChangeCompareDialog({
             </div>
           ) : (
             <Suspense
-              // Why: the DiffViewer chunk loads lazily after the disk read —
-              // without a fallback the 80vh body flashes blank in between.
               fallback={
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   <Loader2 className="mr-2 size-4 animate-spin" />
@@ -151,12 +140,12 @@ export function ExternalFileChangeCompareDialog({
             >
               <div className="flex h-full min-h-0 flex-col">
                 <DiffViewer
-                  modelKey={`external-change-compare:${file.id}`}
+                  modelKey={`external-change-compare:${document.id}`}
                   originalContent={diskState.content}
                   modifiedContent={currentContent}
                   language={language}
-                  filePath={file.filePath}
-                  relativePath={file.relativePath}
+                  filePath={target.filePath}
+                  relativePath={target.relativePath}
                   sideBySide
                 />
               </div>

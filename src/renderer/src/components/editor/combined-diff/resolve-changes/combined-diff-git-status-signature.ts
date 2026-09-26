@@ -13,6 +13,8 @@ export function buildCombinedGitStatusSignature(
       oldPath: entry.oldPath ?? null,
       area: entry.area,
       status: entry.status,
+      submodule: entry.submodule ?? null,
+      submoduleRoot: entry.submoduleRoot ?? null,
       added: entry.added ?? null,
       removed: entry.removed ?? null
     }))
@@ -31,6 +33,8 @@ export function getRetainedResolvedSnapshotEntries(
             status: section.status as GitStatusEntry['status'],
             area: section.area,
             oldPath: section.oldPath,
+            submodule: section.submodule,
+            submoduleRoot: section.submoduleRoot,
             added: section.added,
             removed: section.removed
           }

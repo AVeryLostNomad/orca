@@ -49,6 +49,8 @@ export type GitDiffTextResult = {
   kind: 'text'
   originalContent: string
   modifiedContent: string
+  originalReadState?: 'present' | 'absent' | 'unavailable'
+  modifiedReadState?: 'present' | 'absent' | 'unavailable'
   originalIsBinary: false
   modifiedIsBinary: false
   largeDiffRenderLimit?: LargeDiffRenderLimit
@@ -58,6 +60,8 @@ export type GitDiffBinaryResult = {
   kind: 'binary'
   originalContent: string
   modifiedContent: string
+  originalReadState?: 'present' | 'absent' | 'unavailable'
+  modifiedReadState?: 'present' | 'absent' | 'unavailable'
   /** Legacy flag used by the renderer for any binary format it can preview, including PDFs. */
   isImage?: boolean
   /** MIME type for binary preview rendering, e.g. "image/png" or "application/pdf" */

@@ -1,10 +1,30 @@
-import { renderToStaticMarkup } from 'react-dom/server'
+// @vitest-environment happy-dom
+import { cleanup, render } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { OpenFile } from '@/store/slices/editor'
+import { useAppStore } from '@/store'
+import { getDiskBaselineSignature } from './diff-content-signature'
 
-// Why: EditorContent's mode renderers (Monaco, DiffViewer, ...) are lazy();
-// renderToStaticMarkup cannot resolve them. Stubbing them keeps the banner
-// branch structure renderable so its placement is pinned by tests.
+const initialState = useAppStore.getInitialState()
+
+function renderHtml(element: ReactElement): string {
+  return render(element).container.innerHTML
+}
+
+function markChangedDocument(file: OpenFile): void {
+  const state = useAppStore.getState()
+  const id = state.retainWorkingDocument(file.id, {
+    ...file,
+    owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+    operationProvenance: {} as never
+  })
+  state.acceptWorkingDocumentLoad(id, 0, 'saved text', getDiskBaselineSignature('saved text'))
+  state.setWorkingDocumentContent(id, 'saved text plus edits')
+  state.setWorkingDocumentExternalState(id, { externalMutation: 'changed' })
+}
+
+// Keep the banner tests independent of lazy editor initialization.
 vi.mock('@/lib/lazy-with-retry', () => ({
   lazyWithRetry: () => () => null
 }))
@@ -25,7 +45,9 @@ function createOpenFile(overrides: Partial<OpenFile> = {}): OpenFile {
 }
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
+  useAppStore.setState(initialState, true)
 })
 
 describe('EditorContent', () => {
@@ -46,7 +68,7 @@ describe('EditorContent', () => {
 
   it('surfaces file load errors before notebook content is parsed', () => {
     const activeFile = createOpenFile()
-    const html = renderToStaticMarkup(
+    const html = renderHtml(
       <EditorContent
         activeFile={activeFile}
         viewStateScopeId={activeFile.id}
@@ -73,9 +95,8 @@ describe('EditorContent', () => {
         pendingEditorReveal={null}
         handleContentChange={vi.fn()}
         handleContentChangeForFile={vi.fn()}
-        handleDirtyStateHint={vi.fn()}
         handleSave={vi.fn()}
-        handleSaveForFile={vi.fn()}
+        handleSaveForDocument={vi.fn()}
         reloadContent={vi.fn()}
       />
     )
@@ -91,10 +112,10 @@ describe('EditorContent', () => {
       filePath: '/repo/file.ts',
       relativePath: 'file.ts',
       language: 'typescript',
-      isDirty: true,
-      externalMutation: 'changed'
+      isDirty: true
     })
-    const html = renderToStaticMarkup(
+    markChangedDocument(activeFile)
+    const html = renderHtml(
       <EditorContent
         activeFile={activeFile}
         viewStateScopeId={activeFile.id}
@@ -115,9 +136,8 @@ describe('EditorContent', () => {
         pendingEditorReveal={null}
         handleContentChange={vi.fn()}
         handleContentChangeForFile={vi.fn()}
-        handleDirtyStateHint={vi.fn()}
         handleSave={vi.fn()}
-        handleSaveForFile={vi.fn()}
+        handleSaveForDocument={vi.fn()}
         reloadContent={vi.fn()}
       />
     )
@@ -135,10 +155,10 @@ describe('EditorContent', () => {
       language: 'typescript',
       mode: 'diff',
       diffSource: 'unstaged',
-      isDirty: true,
-      externalMutation: 'changed'
+      isDirty: true
     })
-    const html = renderToStaticMarkup(
+    markChangedDocument(activeFile)
+    const html = renderHtml(
       <EditorContent
         activeFile={activeFile}
         viewStateScopeId={activeFile.id}
@@ -161,9 +181,8 @@ describe('EditorContent', () => {
         pendingEditorReveal={null}
         handleContentChange={vi.fn()}
         handleContentChangeForFile={vi.fn()}
-        handleDirtyStateHint={vi.fn()}
         handleSave={vi.fn()}
-        handleSaveForFile={vi.fn()}
+        handleSaveForDocument={vi.fn()}
         reloadContent={vi.fn()}
       />
     )
@@ -183,10 +202,10 @@ describe('EditorContent', () => {
       language: 'markdown',
       mode: 'diff',
       diffSource: 'unstaged',
-      isDirty: true,
-      externalMutation: 'changed'
+      isDirty: true
     })
-    const html = renderToStaticMarkup(
+    markChangedDocument(activeFile)
+    const html = renderHtml(
       <EditorContent
         activeFile={activeFile}
         viewStateScopeId={activeFile.id}
@@ -209,9 +228,8 @@ describe('EditorContent', () => {
         pendingEditorReveal={null}
         handleContentChange={vi.fn()}
         handleContentChangeForFile={vi.fn()}
-        handleDirtyStateHint={vi.fn()}
         handleSave={vi.fn()}
-        handleSaveForFile={vi.fn()}
+        handleSaveForDocument={vi.fn()}
         reloadContent={vi.fn()}
       />
     )

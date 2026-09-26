@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
-import { ORCA_EDITOR_SAVE_AND_CLOSE_EVENT } from '@/components/editor/editor-autosave'
+import { ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT } from '@/components/editor/editor-autosave'
 
 const hookRuntime = vi.hoisted(() => ({
   effects: [] as (() => void)[],
@@ -211,10 +211,10 @@ describe('WorkspaceNotesPane', () => {
     ]
     await renderAndRunEffects()
 
-    const saveAndCloseIds = dispatchedEvents
-      .filter((event) => event.type === ORCA_EDITOR_SAVE_AND_CLOSE_EVENT)
-      .map((event) => (event.detail as { fileId: string }).fileId)
-    expect(saveAndCloseIds).toEqual(['stale-notes'])
+    const closeTabIds = dispatchedEvents
+      .filter((event) => event.type === ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT)
+      .map((event) => (event.detail as { tabId: string }).tabId)
+    expect(closeTabIds).toEqual(['stale-notes'])
   })
 
   it('shows the unavailable message when the ensure API is missing (web client)', async () => {

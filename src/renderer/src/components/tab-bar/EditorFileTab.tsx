@@ -14,6 +14,7 @@ import { useAppStore } from '@/store'
 import { STATUS_COLORS, STATUS_LABELS } from '../right-sidebar/status-display'
 import type { GitFileStatus } from '../../../../shared/git-status-types'
 import type { OpenFile } from '../../store/slices/editor'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 import { getUntitledFileRoot } from '@/components/editor/untitled-file-rename-path'
 import { preventMiddleButtonDefault } from './middle-button-default-guard'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from './SortableTab'
@@ -84,15 +85,18 @@ export default function EditorFileTab({
     data: dragData
   })
 
-  const isDiff = file.mode === 'diff'
+  const documentExternalMutation = useAppStore(
+    (state) => getWorkingDocumentForFile(state, file.id)?.externalMutation
+  )
   const isConflictReview = file.mode === 'conflict-review'
   const isCheckDetails = file.mode === 'check-details'
+  const isDiff = file.mode === 'diff'
   const isMarkdownPreviewTab = file.mode === 'markdown-preview'
   // Why: only deleted/renamed mean the file is gone from its path, which is
   // what strikethrough conveys. 'changed' keeps a normal label — its surface
   // is the changed-on-disk banner inside the editor.
   const isMissingFileMutation =
-    file.externalMutation === 'deleted' || file.externalMutation === 'renamed'
+    documentExternalMutation === 'deleted' || documentExternalMutation === 'renamed'
   const resolvedLanguage =
     file.mode === 'diff'
       ? detectLanguage(file.relativePath)
@@ -349,7 +353,7 @@ export default function EditorFileTab({
         )}
         {isMissingFileMutation && !isRenaming && (
           <span className="shrink-0 text-[10px] leading-none font-semibold tracking-wide text-muted-foreground">
-            {file.externalMutation}
+            {documentExternalMutation}
           </span>
         )}
         {tabStatus && !isRenaming && !isMissingFileMutation && (

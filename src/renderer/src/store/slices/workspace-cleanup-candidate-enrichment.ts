@@ -40,6 +40,22 @@ type WorkspaceCleanupEnrichmentProjection = {
 
 export const WORKSPACE_CLEANUP_ENRICHMENT_CONCURRENCY = 8
 const RECENT_VISIBLE_CONTEXT_MS = 24 * 60 * 60 * 1000
+function hasDirtyWorkingDocumentForFile(state: AppState, fileId: string): boolean {
+  const tabIds = [
+    fileId,
+    ...Object.values(state.unifiedTabsByWorktree)
+      .flat()
+      .filter((tab) => tab.entityId === fileId)
+      .map((tab) => tab.id)
+  ]
+  return tabIds.some((tabId) =>
+    (state.workingDocumentIdsByTab[tabId] ?? []).some(
+      (documentId) =>
+        state.workingDocuments[documentId]?.isDirty === true &&
+        state.workingDocuments[documentId]?.content !== undefined
+    )
+  )
+}
 
 export async function enrichWorkspaceCleanupCandidates(
   candidates: readonly WorkspaceCleanupCandidate[],
@@ -159,7 +175,7 @@ function getWorkspaceCleanupLocalStateSignature(
   const openFiles = (projection.openFilesByWorktreeId.get(worktreeId) ?? []).map((file) => ({
     id: file.id,
     isDirty: file.isDirty,
-    hasDraft: state.editorDrafts[file.id] !== undefined
+    hasDraft: hasDirtyWorkingDocumentForFile(state, file.id)
   }))
   const retainedDoneAgentPaneKeys = [
     ...(projection.retainedDoneAgentPaneKeysByWorktreeId.get(worktreeId) ?? [])
@@ -216,7 +232,7 @@ async function enrichWorkspaceCleanupCandidate(
   const tabIds = new Set(tabs.map((tab) => tab.id))
   const openFiles = projection.openFilesByWorktreeId.get(candidate.worktreeId) ?? []
   const dirtyEditorBuffers = openFiles.filter(
-    (file) => file.isDirty || state.editorDrafts[file.id] !== undefined
+    (file) => file.isDirty || hasDirtyWorkingDocumentForFile(state, file.id)
   )
   const cleanEditorTabCount = openFiles.length - dirtyEditorBuffers.length
   const browserTabCount = (state.browserTabsByWorktree[candidate.worktreeId] ?? []).length

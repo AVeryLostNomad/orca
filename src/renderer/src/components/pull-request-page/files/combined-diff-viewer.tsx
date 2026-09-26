@@ -157,7 +157,6 @@ export function PRFilesCombinedDiffViewer({
         collapsed: false,
         loading: true,
         error: undefined,
-        dirty: false,
         diffResult: null,
         largeDiffRenderLimit: null
       }))
@@ -362,7 +361,6 @@ export function PRFilesCombinedDiffViewer({
                     addLineCommentPlaceholder="Add a review comment"
                     getCommentableLineNumbers={getCommentableLineNumbers}
                     setSectionHeights={setSectionHeights}
-                    setSections={setSections}
                     modifiedEditorsRef={modifiedEditorsRef}
                     handleSectionSaveRef={handleSectionSaveRef}
                   />

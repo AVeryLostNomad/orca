@@ -53,7 +53,6 @@ export type FloatingTerminalPanelMocks = {
   isWebRuntimeSessionActive: Mock<
     (activeRuntimeEnvironmentId: string | null | undefined) => boolean
   >
-  markFileDirty: Mock<FloatingPanelStoreState['markFileDirty']>
   makePreviewFilePermanent: Mock<FloatingPanelStoreState['makePreviewFilePermanent']>
   openFile: Mock<FloatingPanelStoreState['openFile']>
   pickFloatingMarkdownDocument: Mock<() => Promise<MarkdownDocument | null>>
@@ -102,7 +101,6 @@ export const mocks: FloatingTerminalPanelMocks = {
   getInstallStatus: vi.fn(),
   isTerminalImeInputContextRefreshing: vi.fn(),
   isWebRuntimeSessionActive: vi.fn(),
-  markFileDirty: vi.fn(),
   makePreviewFilePermanent: vi.fn(),
   openFile: vi.fn(),
   pickFloatingMarkdownDocument: vi.fn(),
@@ -114,10 +112,6 @@ export const mocks: FloatingTerminalPanelMocks = {
   setTabPaneExpanded: vi.fn(),
   shouldDeferParkedPtyExitTabClose: vi.fn(),
   useContextualTour: vi.fn()
-}
-
-export const saveDialogBox = {
-  fileId: null as string | null
 }
 
 export const parkingBox = {
@@ -143,7 +137,6 @@ function resetStore(tabs: TerminalTab[] = []): void {
     createTab: mocks.createTab,
     createBrowserTab: mocks.createBrowserTab,
     closeTab: mocks.closeTab,
-    markFileDirty: mocks.markFileDirty,
     makePreviewFilePermanent: mocks.makePreviewFilePermanent,
     openFile: mocks.openFile,
     pinFile: mocks.pinFile,
@@ -166,7 +159,6 @@ export async function setupFloatingTerminalPanelTest(): Promise<void> {
   hookRuntime.layoutEffects = []
   hookRuntime.index = 0
   hookRuntime.values = []
-  saveDialogBox.fileId = null
   parkingBox.parkedTabIds = new Set()
   resetStore()
   // Why: the open-maximized intent is a module singleton; drain any leftover

@@ -1,46 +1,58 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppState } from '../store/types'
+import type { WorkingDocument, WorkingDocumentId } from '../store/slices/editor/working-document'
 import { makeAgentStatusEntry, makeState } from './sync-runtime-graph-test-harness'
 import type * as EditorDraftHashModule from './sync-runtime-graph/editor-draft-hash'
 
-// Why the mock: the draft hash is the only per-keystroke cost that scales with file size, so the
+// Why the mock: content hashing is the only per-keystroke cost that scales with file size, so the
 // regression this file guards is "how many characters were hashed", not "how long did it take".
 // Instrumenting the real function through its own module keeps the counter out of shipped code.
-const draftHashCounter = { calls: 0, chars: 0 }
+const contentHashCounter = vi.hoisted(() => ({ calls: 0, chars: 0 }))
 vi.mock('./sync-runtime-graph/editor-draft-hash', async (importOriginal) => {
+  // The hoisted mock must load the unmocked implementation through its factory.
   const actual = await importOriginal<typeof EditorDraftHashModule>()
   return {
     stableHashString: (value: string): string => {
-      draftHashCounter.calls += 1
-      draftHashCounter.chars += value.length
+      contentHashCounter.calls += 1
+      contentHashCounter.chars += value.length
       return actual.stableHashString(value)
     }
   }
 })
 
-const { stableHashString } = await import('./sync-runtime-graph/editor-draft-hash')
-const {
+import { stableHashString } from './sync-runtime-graph/editor-draft-hash'
+import {
   buildRuntimeMobileAgentStatusProjectionForTests,
   getRuntimeMobileSessionSyncKey,
   resetRuntimeMobileAgentStatusProjectionCacheForTests,
   resetRuntimeMobileSyncProjectionCachesForTests,
   runtimeMobileSessionSyncKeysEqual
-} = await import('./sync-runtime-graph')
-const {
+} from './sync-runtime-graph'
+import {
   buildRuntimeMobileBrowserProjection,
-  buildRuntimeMobileEditorDraftsProjection,
-  buildRuntimeMobileOpenFilesProjection
-} = await import('./sync-runtime-graph/sync-projections')
-const { AGENT_STATUS_SYNC_UPDATED_AT_BUCKET_MS } = await import('./sync-runtime-graph/graph-state')
+  buildRuntimeMobileOpenFilesProjection,
+  buildRuntimeMobileWorkingDocumentsProjection
+} from './sync-runtime-graph/sync-projections'
+import { AGENT_STATUS_SYNC_UPDATED_AT_BUCKET_MS } from './sync-runtime-graph/graph-state'
 
 // ── Reference implementations: the pre-change bodies, kept verbatim ────────────────────
 
-function referenceEditorDraftsProjection(editorDrafts: AppState['editorDrafts']): string {
-  return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(editorDrafts).map(([fileId, content]) => [fileId, stableHashString(content)])
-    )
-  )
+function referenceWorkingDocumentsProjection(
+  state: Pick<AppState, 'workingDocuments' | 'workingDocumentIdsByTab'>
+): string {
+  return JSON.stringify({
+    documents: Object.fromEntries(
+      Object.values(state.workingDocuments).map((document) => [
+        document.id,
+        {
+          revision: document.revision,
+          content: document.content === undefined ? undefined : stableHashString(document.content),
+          isDirty: document.isDirty
+        }
+      ])
+    ),
+    memberships: state.workingDocumentIdsByTab
+  })
 }
 
 function referenceOpenFilesProjection(openFiles: AppState['openFiles']): string {
@@ -135,15 +147,43 @@ function sortedProjectionEntries(projection: string): unknown[] {
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────────────
 
-const DRAFT_FILE_COUNT = 5
-const DRAFT_CHARS_PER_FILE = 40_000
+const WORKING_DOCUMENT_COUNT = 5
+const WORKING_DOCUMENT_CHARS = 40_000
 
-function makeDrafts(): Record<string, string> {
-  const drafts: Record<string, string> = {}
-  for (let index = 0; index < DRAFT_FILE_COUNT; index += 1) {
-    drafts[`file-${index}`] = 'x'.repeat(DRAFT_CHARS_PER_FILE)
+function makeWorkingDocuments(contents: Record<string, string>): AppState['workingDocuments'] {
+  const documents: Record<WorkingDocumentId, WorkingDocument> = {}
+  for (const [fileId, content] of Object.entries(contents)) {
+    const id = `working-document:${fileId}` as WorkingDocumentId
+    documents[id] = {
+      id,
+      target: {
+        owner: { executionHostId: 'local' as never, runtimeEnvironmentId: null },
+        filePath: `/repo/${fileId}`,
+        worktreeId: 'wt-1',
+        relativePath: fileId,
+        language: 'typescript',
+        operationProvenance: {} as WorkingDocument['target']['operationProvenance']
+      },
+      content,
+      revision: 1,
+      isDirty: true,
+      loadState: 'ready',
+      writable: true,
+      alwaysAutoSave: false
+    }
   }
-  return drafts
+  return documents
+}
+
+function makeWorkingDocumentState(
+  contents: Record<string, string>
+): Pick<AppState, 'workingDocuments' | 'workingDocumentIdsByTab'> {
+  const workingDocuments = makeWorkingDocuments(contents)
+  const workingDocumentIdsByTab: AppState['workingDocumentIdsByTab'] = {}
+  for (const fileId of Object.keys(contents)) {
+    workingDocumentIdsByTab[fileId] = [`working-document:${fileId}` as WorkingDocumentId]
+  }
+  return { workingDocuments, workingDocumentIdsByTab }
 }
 
 function makeOpenFile(index: number, overrides: Record<string, unknown> = {}): never {
@@ -207,55 +247,80 @@ function countSerializedChars(run: () => void): number {
 }
 
 beforeEach(() => {
-  draftHashCounter.calls = 0
-  draftHashCounter.chars = 0
+  contentHashCounter.calls = 0
+  contentHashCounter.chars = 0
   resetRuntimeMobileSyncProjectionCachesForTests()
   resetRuntimeMobileAgentStatusProjectionCacheForTests()
 })
 
-describe('editor draft projection on the typing path', () => {
-  it('hashes only the edited file per keystroke, not every open dirty file', () => {
+describe('working-document projection on the typing path', () => {
+  it('hashes only the changed canonical document per keystroke', () => {
     const typedCharacters = 100
-    const totalDraftChars = DRAFT_FILE_COUNT * DRAFT_CHARS_PER_FILE
+    const totalDocumentChars = WORKING_DOCUMENT_COUNT * WORKING_DOCUMENT_CHARS
+    const initialContent = Object.fromEntries(
+      Array.from({ length: WORKING_DOCUMENT_COUNT }, (_value, index) => [
+        `file-${index}`,
+        'x'.repeat(WORKING_DOCUMENT_CHARS)
+      ])
+    ) as Record<string, string>
+    const changedDocumentId = 'working-document:file-0' as WorkingDocumentId
 
-    // Baseline: the pre-change uncached projection, driven by the same counter.
-    let drafts = makeDrafts()
-    referenceEditorDraftsProjection(drafts)
-    draftHashCounter.calls = 0
-    draftHashCounter.chars = 0
+    let uncachedState = makeWorkingDocumentState(initialContent)
+    referenceWorkingDocumentsProjection(uncachedState)
+    contentHashCounter.calls = 0
+    contentHashCounter.chars = 0
     for (let keystroke = 0; keystroke < typedCharacters; keystroke += 1) {
-      drafts = { ...drafts, 'file-0': `${drafts['file-0']}a` }
-      referenceEditorDraftsProjection(drafts)
+      const document = uncachedState.workingDocuments[changedDocumentId]!
+      uncachedState = {
+        ...uncachedState,
+        workingDocuments: {
+          ...uncachedState.workingDocuments,
+          [changedDocumentId]: {
+            ...document,
+            content: `${document.content}a`,
+            revision: document.revision + 1
+          }
+        }
+      }
+      referenceWorkingDocumentsProjection(uncachedState)
     }
-    const before = { calls: draftHashCounter.calls, chars: draftHashCounter.chars }
+    const before = { calls: contentHashCounter.calls, chars: contentHashCounter.chars }
 
     resetRuntimeMobileSyncProjectionCachesForTests()
-    let memoDrafts = makeDrafts()
-    buildRuntimeMobileEditorDraftsProjection(memoDrafts)
-    draftHashCounter.calls = 0
-    draftHashCounter.chars = 0
+    let memoizedState = makeWorkingDocumentState(initialContent)
+    buildRuntimeMobileWorkingDocumentsProjection(memoizedState)
+    contentHashCounter.calls = 0
+    contentHashCounter.chars = 0
     for (let keystroke = 0; keystroke < typedCharacters; keystroke += 1) {
-      memoDrafts = { ...memoDrafts, 'file-0': `${memoDrafts['file-0']}a` }
-      buildRuntimeMobileEditorDraftsProjection(memoDrafts)
+      const document = memoizedState.workingDocuments[changedDocumentId]!
+      memoizedState = {
+        ...memoizedState,
+        workingDocuments: {
+          ...memoizedState.workingDocuments,
+          [changedDocumentId]: {
+            ...document,
+            content: `${document.content}a`,
+            revision: document.revision + 1
+          }
+        }
+      }
+      buildRuntimeMobileWorkingDocumentsProjection(memoizedState)
     }
-    const after = { calls: draftHashCounter.calls, chars: draftHashCounter.chars }
+    const after = { calls: contentHashCounter.calls, chars: contentHashCounter.chars }
 
-    // Keystroke k has grown file-0 by k characters, so the exact totals are closed form.
     const growth = (typedCharacters * (typedCharacters + 1)) / 2
-    // Before: every keystroke rehashes all five drafts.
     expect(before).toEqual({
-      calls: typedCharacters * DRAFT_FILE_COUNT,
-      chars: typedCharacters * totalDraftChars + growth
+      calls: typedCharacters * WORKING_DOCUMENT_COUNT,
+      chars: typedCharacters * totalDocumentChars + growth
     })
-    // After: one hash of one draft per keystroke.
     expect(after).toEqual({
       calls: typedCharacters,
-      chars: typedCharacters * DRAFT_CHARS_PER_FILE + growth
+      chars: typedCharacters * WORKING_DOCUMENT_CHARS + growth
     })
-    expect(before.chars / after.chars).toBeGreaterThan(DRAFT_FILE_COUNT - 0.1)
+    expect(before.chars / after.chars).toBeGreaterThan(WORKING_DOCUMENT_COUNT - 0.1)
   })
 
-  it('matches the uncached projection byte for byte across draft shapes', () => {
+  it('matches the uncached projection byte for byte across document shapes', () => {
     const shapes: Record<string, string>[] = [
       {},
       { 'file-a': '' },
@@ -268,11 +333,28 @@ describe('editor draft projection on the typing path', () => {
       { 'file-a': 'HELLO', 'file-c': 'third' }
     ]
     for (const [index, shape] of shapes.entries()) {
-      expect({ index, projection: buildRuntimeMobileEditorDraftsProjection(shape) }).toEqual({
+      const state = makeWorkingDocumentState(shape)
+      expect({
         index,
-        projection: referenceEditorDraftsProjection(shape)
+        projection: buildRuntimeMobileWorkingDocumentsProjection(state as AppState)
+      }).toEqual({
+        index,
+        projection: referenceWorkingDocumentsProjection(state)
       })
     }
+  })
+
+  it('invalidates the internal key when a document moves to a unified tab view state', () => {
+    const state = makeWorkingDocumentState({ 'file-a': 'content' })
+    const projection = buildRuntimeMobileWorkingDocumentsProjection(state)
+    const moved = {
+      ...state,
+      workingDocumentIdsByTab: {
+        'unified-view-state': ['working-document:file-a' as WorkingDocumentId]
+      }
+    }
+
+    expect(buildRuntimeMobileWorkingDocumentsProjection(moved)).not.toBe(projection)
   })
 })
 
@@ -448,7 +530,7 @@ describe('open-files and browser projections', () => {
 
 describe('sync key transitions', () => {
   it('fires on exactly the transitions the uncached projections would have fired on', () => {
-    const drafts = { 'file-0': 'aaa', 'file-1': 'bbb' }
+    const documents = { 'file-0': 'aaa', 'file-1': 'bbb' }
     const files = [makeOpenFile(0), makeOpenFile(1)] as unknown as AppState['openFiles']
     const workspaces = [makeBrowserWorkspace(0)] as never
     const status = {
@@ -456,29 +538,51 @@ describe('sync key transitions', () => {
     } as AppState['agentStatusByPaneKey']
 
     const base = makeState({
-      editorDrafts: drafts,
+      ...makeWorkingDocumentState(documents),
       openFiles: files,
       browserTabsByWorktree: { 'wt-1': workspaces } as never,
       browserPagesByWorkspace: { 'ws-0': [makeBrowserPage(0)] } as never,
       agentStatusByPaneKey: status
     })
 
+    const documentId = 'working-document:file-0' as WorkingDocumentId
+    const updateDocumentContent = (
+      from: AppState,
+      content: string,
+      advanceRevision: boolean
+    ): AppState => {
+      const document = from.workingDocuments[documentId]!
+      return makeState({
+        ...from,
+        workingDocuments: {
+          ...from.workingDocuments,
+          [documentId]: {
+            ...document,
+            content,
+            revision: advanceRevision ? document.revision + 1 : document.revision
+          }
+        }
+      })
+    }
+
     // Each step returns the next state; the flag is whether a mobile-visible input really moved.
     const steps: { name: string; next: (from: AppState) => AppState }[] = [
       { name: 'no-op re-spread', next: (from) => makeState({ ...from }) },
       {
-        name: 'keystroke in one draft',
-        next: (from) =>
-          makeState({ ...from, editorDrafts: { ...from.editorDrafts, 'file-0': 'aaab' } })
+        name: 'keystroke in one document',
+        next: (from) => updateDocumentContent(from, 'aaab', true)
       },
       {
-        name: 'draft reverted to the same text',
-        next: (from) =>
-          makeState({ ...from, editorDrafts: { ...from.editorDrafts, 'file-0': 'aaab' } })
+        name: 'document re-spread with the same content',
+        next: (from) => updateDocumentContent(from, 'aaab', false)
       },
       {
-        name: 'draft removed',
-        next: (from) => makeState({ ...from, editorDrafts: { 'file-1': 'bbb' } })
+        name: 'document removed',
+        next: (from) => {
+          const { [documentId]: _removed, ...workingDocuments } = from.workingDocuments
+          const { 'file-0': _membership, ...workingDocumentIdsByTab } = from.workingDocumentIdsByTab
+          return makeState({ ...from, workingDocuments, workingDocumentIdsByTab })
+        }
       },
       {
         name: 'isDirty flip',
@@ -546,7 +650,7 @@ describe('sync key transitions', () => {
     ]
 
     const referenceTuple = (state: AppState): string[] => [
-      referenceEditorDraftsProjection(state.editorDrafts),
+      referenceWorkingDocumentsProjection(state),
       referenceOpenFilesProjection(state.openFiles),
       referenceBrowserProjection(state),
       referenceAgentStatusProjection(state.agentStatusByPaneKey ?? {})

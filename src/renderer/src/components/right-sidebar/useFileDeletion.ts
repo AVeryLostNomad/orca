@@ -13,10 +13,7 @@ import {
   isLocalDeleteNode,
   needsRemoteDeleteConfirmation
 } from './file-explorer-delete-classification'
-import {
-  requestEditorFileSave,
-  requestEditorSaveQuiesce
-} from '@/components/editor/editor-autosave'
+import { quiesceDocumentSave, requestEditorDocumentSave } from '@/components/editor/editor-autosave'
 import { commitFileExplorerOp } from './fileExplorerUndoRedo'
 import {
   deleteRuntimePath,
@@ -106,23 +103,27 @@ export function useFileDeletion({
           }
         }
 
+        const operationRoute = operationGuard.assertCurrent()
         const filesToClose = openFiles.filter((file) =>
           isPathEqualOrDescendant(file.filePath, node.path)
         )
-        // Why: force-save any dirty buffers before trashing so the undo snapshot
-        // reads the user's latest edits from disk — not an older version that
-        // predates debounced autosave or a buffer with autosave disabled.
-        // Quiesce-only would cancel pending timers and discard those edits.
-        // If a save fails, surface the error and abort the delete instead of
-        // silently trashing the stale on-disk content.
-        const dirtyFiles = filesToClose.filter((file) => file.isDirty)
-        await Promise.all(dirtyFiles.map((file) => requestEditorFileSave({ fileId: file.id })))
-        // After saving, quiesce any remaining scheduled autosaves so trailing
-        // writes cannot recreate the file after it's been trashed.
-        await Promise.all(filesToClose.map((file) => requestEditorSaveQuiesce({ fileId: file.id })))
+        const documentsToQuiesce = Object.values(useAppStore.getState().workingDocuments).filter(
+          (document) =>
+            document.target.worktreeId === activeWorktreeId &&
+            document.target.owner.runtimeEnvironmentId ===
+              (operationRoute.settings.activeRuntimeEnvironmentId?.trim() || null) &&
+            isPathEqualOrDescendant(document.target.filePath, node.path)
+        )
+        // Why: a document can be retained solely by a collapsed combined diff,
+        // so tab membership cannot identify every writer that could recreate a
+        // deleted path after this operation.
+        await Promise.all(
+          documentsToQuiesce
+            .filter((document) => document.isDirty)
+            .map((document) => requestEditorDocumentSave({ documentId: document.id }))
+        )
+        await Promise.all(documentsToQuiesce.map((document) => quiesceDocumentSave(document.id)))
 
-        // Why: confirmation and autosave can outlive a reconnect or graph replacement; mutations require the owner generation that produced the row.
-        const operationRoute = operationGuard.assertCurrent()
         const state = useAppStore.getState()
         const worktree = activeWorktreeId ? state.getKnownWorktreeById(activeWorktreeId) : null
         const fileContext = {

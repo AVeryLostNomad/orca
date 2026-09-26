@@ -6,6 +6,7 @@ import {
   takeNextEditorFocusRequestToken
 } from '../focus/editor-focus-reveal'
 import { applyOpenFileToState } from './open-file-apply'
+import { buildWorkingDocumentTarget, isWorkingDocumentFile } from '../working-document'
 
 export function createOpenFileAction(
   set: EditorSet,
@@ -40,6 +41,27 @@ export function createOpenFileAction(
             options?.preview ?? false,
             scratch.editorItemTargetGroupId
           )
+      const openedFile = get().openFiles.find(
+        (candidate) => candidate.id === scratch.editorItemFileId
+      )
+      const workingFile =
+        openedFile && isWorkingDocumentFile(openedFile)
+          ? openedFile
+          : openedFile?.mode === 'markdown-preview' && openedFile.markdownPreviewSourceFileId
+            ? get().openFiles.find(
+                (candidate) => candidate.id === openedFile.markdownPreviewSourceFileId
+              )
+            : undefined
+      if (workingFile && isWorkingDocumentFile(workingFile)) {
+        try {
+          get().retainWorkingDocument(
+            editorItemViewStateId,
+            buildWorkingDocumentTarget(get(), workingFile)
+          )
+        } catch {
+          // Owner resolution failed closed; the normal file loader exposes the existing retry error.
+        }
+      }
       if (options?.focusEditor) {
         set({
           pendingEditorFocusRequest: {

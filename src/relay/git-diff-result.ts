@@ -1,13 +1,20 @@
 import * as path from 'node:path'
 import { getLargeDiffRenderLimit } from '../shared/large-diff-render-limit'
+import type { GitDiffReadState } from './git-blob-read-state'
 import { PREVIEWABLE_MIME } from './git-handler-utils'
+
+type GitDiffReadStates = {
+  originalReadState?: GitDiffReadState
+  modifiedReadState?: GitDiffReadState
+}
 
 export function buildDiffResult(
   originalContent: string,
   modifiedContent: string,
   originalIsBinary: boolean,
   modifiedIsBinary: boolean,
-  filePath?: string
+  filePath?: string,
+  readStates?: GitDiffReadStates
 ) {
   if (originalIsBinary || modifiedIsBinary) {
     const ext = filePath ? path.extname(filePath).toLowerCase() : ''
@@ -18,6 +25,7 @@ export function buildDiffResult(
       modifiedContent,
       originalIsBinary,
       modifiedIsBinary,
+      ...readStates,
       ...(mimeType ? { isImage: true, mimeType } : {})
     }
   }
@@ -30,6 +38,7 @@ export function buildDiffResult(
       modifiedContent: '',
       originalIsBinary: false,
       modifiedIsBinary: false,
+      ...readStates,
       largeDiffRenderLimit
     }
   }
@@ -39,6 +48,7 @@ export function buildDiffResult(
     originalContent,
     modifiedContent,
     originalIsBinary: false,
-    modifiedIsBinary: false
+    modifiedIsBinary: false,
+    ...readStates
   }
 }

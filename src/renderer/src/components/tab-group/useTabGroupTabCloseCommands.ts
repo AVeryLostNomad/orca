@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import type { Tab } from '../../../../shared/tab-types'
 import { useAppStore } from '../../store'
 import { destroyWorkspaceWebviews } from '../../store/slices/browser-webview-cleanup'
-import { requestEditorFileClose } from '../editor/editor-autosave'
+import { requestEditorTabClose } from '../editor/editor-autosave'
 import { isWebRuntimeSessionActive } from '../../runtime/web-runtime-session'
 import { closeTerminalTab } from '../terminal/terminal-tab-actions'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
@@ -52,8 +52,7 @@ export function useTabGroupTabCloseCommands({
       if (!otherReference) {
         const file = useAppStore.getState().openFiles.find((candidate) => candidate.id === entityId)
         if (file?.isDirty) {
-          // Why: route through Terminal.tsx so the unsaved-confirmation save/discard queue stays centralized across all close paths.
-          requestEditorFileClose(entityId)
+          requestEditorTabClose(closingTabId)
           return false
         }
         closeFile(entityId)

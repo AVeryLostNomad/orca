@@ -7,7 +7,11 @@ import { translate } from '@/i18n/i18n'
 import type { GitBranchChangeEntry } from '../../../../../../shared/git-diff-compare-types'
 import { DiffLineCounts } from './diff-line-counts'
 import { SourceControlEntryContextMenu } from './entry-context-menu'
-import { toPermanentSourceControlRowOpenEvent, type SourceControlRowOpenEvent } from './split-open'
+import {
+  toSourceControlRowOpenEvent,
+  toWorkingFileSourceControlRowOpenEvent,
+  type SourceControlRowOpenEvent
+} from './split-open'
 import { SOURCE_CONTROL_TREE_FILE_PADDING_PX, SOURCE_CONTROL_TREE_INDENT_PX } from './row-layout'
 import { STATUS_COLORS, STATUS_LABELS } from '../../status-display'
 
@@ -57,8 +61,13 @@ export function BranchEntryRow({
           e.dataTransfer.setData(WORKSPACE_FILE_PATH_MIME, absolutePath)
           e.dataTransfer.effectAllowed = 'copy'
         }}
-        onClick={(e) => onOpen(e)}
-        onDoubleClick={(e) => onOpen(toPermanentSourceControlRowOpenEvent(e))}
+        onClick={(e) => {
+          if (e.detail > 1) {
+            return
+          }
+          onOpen(toSourceControlRowOpenEvent(e))
+        }}
+        onDoubleClick={(e) => onOpen(toWorkingFileSourceControlRowOpenEvent(e))}
       >
         {React.createElement(FileIcon, {
           className: 'size-3.5 shrink-0',

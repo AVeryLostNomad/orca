@@ -2,6 +2,7 @@
  * workspace-session-schema.ts to keep that file inside its line budget, the
  * same way the browser slice already is; the schema itself is unchanged. */
 import { z } from 'zod'
+import { executionHostIdSchema } from './execution-host-schema'
 
 export const persistedOpenFileSchema = z.object({
   filePath: z.string(),
@@ -9,6 +10,8 @@ export const persistedOpenFileSchema = z.object({
   worktreeId: z.string(),
   language: z.string(),
   isPreview: z.boolean().optional(),
+  // Optional for sessions written before document ownership was explicit.
+  executionHostId: executionHostIdSchema.optional(),
   runtimeEnvironmentId: z.string().nullable().optional(),
   externalSshTargetId: z.string().trim().min(1).optional(),
   dirtyDraftContent: z.string().optional(),

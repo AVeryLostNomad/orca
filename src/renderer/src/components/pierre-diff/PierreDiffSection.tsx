@@ -3,6 +3,8 @@ import { AlertCircle, Plus, RefreshCw } from 'lucide-react'
 import { FileDiff } from '@pierre/diffs/react'
 import type { FileDiffOptions } from '@pierre/diffs'
 import { usePierreDiffMetadata } from './use-pierre-diff-metadata'
+import { detectLanguage } from '@/lib/language-detect'
+import { EditorFileLoadErrorView } from '../editor/EditorFileLoadErrorView'
 import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { useAppStore } from '@/store'
 import { selectWorktreeDiffComments } from '@/store/worktree-diff-comments-selector'
@@ -59,6 +61,7 @@ export function PierreDiffSection({
   renderHeaderTrailingContent
 }: PierreDiffSectionProps): React.JSX.Element {
   const diffWordWrap = useAppStore((s) => s.settings?.diffWordWrap)
+  const showWhitespace = useAppStore((s) => s.settings?.diffShowWhitespace === true)
   const addDiffComment = useAppStore((s) => s.addDiffComment)
   const deleteDiffComment = useAppStore((s) => s.deleteDiffComment)
   const updateDiffComment = useAppStore((s) => s.updateDiffComment)
@@ -79,6 +82,7 @@ export function PierreDiffSection({
 
   const [draft, setDraft] = useState<PierreDiffDraft | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const language = detectLanguage(section.path)
 
   useEffect(() => {
     loadSection(index)
@@ -89,6 +93,8 @@ export function PierreDiffSection({
       buildPierreDiffFileInput({
         originalContent: section.originalContent,
         modifiedContent: section.modifiedContent,
+        originalReadState: section.diffResult?.originalReadState,
+        modifiedReadState: section.diffResult?.modifiedReadState,
         relativePath: section.path,
         oldRelativePath: section.oldPath,
         cacheScope: `${section.key}:${section.contentGeneration ?? 0}`
@@ -96,6 +102,8 @@ export function PierreDiffSection({
     [
       section.originalContent,
       section.modifiedContent,
+      section.diffResult?.originalReadState,
+      section.diffResult?.modifiedReadState,
       section.path,
       section.oldPath,
       section.key,
@@ -110,13 +118,14 @@ export function PierreDiffSection({
       themeType,
       theme: syntaxTheme,
       overflow: diffWordWrap === true ? 'wrap' : 'scroll',
+      lineDiffType: showWhitespace ? 'word-alt' : 'none',
       // Why: the Orca DiffSectionHeader above is the sticky per-file header.
       disableFileHeader: true,
       // Why: click handling lives on the renderGutterUtility slot node — the
       // library forbids combining renderGutterUtility with onGutterUtilityClick.
       enableGutterUtility: canComment
     }),
-    [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment]
+    [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment, showWhitespace]
   )
 
   const lineAnnotations = useMemo(
@@ -124,17 +133,22 @@ export function PierreDiffSection({
     [canComment, diffComments, draft]
   )
 
-  // Why: large diffs parse in a worker so scrolling sections into view never
-  // blocks the renderer; the body waits until metadata arrives.
-  const fileDiff = usePierreDiffMetadata(
-    files.oldFile,
-    files.newFile,
-    section.loading ||
+  // Why: the shared worker keeps semantic comparison off the renderer while
+  // preserving the original source coordinates Pierre uses for comments.
+  const {
+    fileDiff,
+    error: comparisonError,
+    retry: retryComparison
+  } = usePierreDiffMetadata(files.oldFile, files.newFile, {
+    disabled:
+      section.loading ||
       section.error != null ||
       section.diffResult?.kind === 'binary' ||
       section.largeDiffRenderLimit?.limited === true ||
-      section.collapsed === true
-  )
+      section.collapsed === true,
+    language,
+    showWhitespace
+  })
 
   const handleSubmitDraft = useCallback(
     async (pendingDraft: PierreDiffDraft, body: string): Promise<void> => {
@@ -181,7 +195,7 @@ export function PierreDiffSection({
     <div className="border-b border-border">
       <DiffSectionHeader
         path={section.path}
-        dirty={section.dirty}
+        dirty={false}
         collapsed={section.collapsed}
         added={section.added ?? 0}
         removed={section.removed ?? 0}
@@ -261,6 +275,8 @@ export function PierreDiffSection({
           )
         ) : section.largeDiffRenderLimit?.limited ? (
           <LargeDiffFallback filePath={section.path} renderLimit={section.largeDiffRenderLimit} />
+        ) : comparisonError ? (
+          <EditorFileLoadErrorView message={comparisonError} onRetry={retryComparison} />
         ) : !fileDiff ? (
           <div className="flex h-10 items-center gap-2 bg-muted/10 px-3 text-[11px] text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />

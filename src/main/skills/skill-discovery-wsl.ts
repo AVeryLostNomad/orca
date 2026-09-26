@@ -24,6 +24,8 @@ const MAX_MARKDOWN_BYTES = 256 * 1024
 const WSL_SCAN_TIMEOUT_MS = 10_000
 const WSL_SCAN_MAX_OUTPUT_BYTES = 128 * 1024 * 1024
 
+const BASE_SENSITIVITY_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' })
+
 export function buildWslSkillDiscoveryCommand(roots: readonly SkillScanRoot[]): string {
   const lines = [
     'set -u',
@@ -163,9 +165,7 @@ export function parseWslSkillDiscoveryOutput(
   })
   return {
     skills: [...skillsByCanonicalPath.values()].sort(compareSkills),
-    sources: sources.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
-    ),
+    sources: sources.sort((a, b) => BASE_SENSITIVITY_COLLATOR.compare(a.label, b.label)),
     scannedAt
   }
 }

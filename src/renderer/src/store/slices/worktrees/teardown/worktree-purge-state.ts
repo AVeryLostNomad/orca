@@ -39,6 +39,16 @@ export function buildWorktreePurgeState(
   const nextOpenFiles = s.openFiles.some((f) => worktreeIdSet.has(f.worktreeId))
     ? s.openFiles.filter((f) => !worktreeIdSet.has(f.worktreeId))
     : s.openFiles
+  const workingDocuments = Object.fromEntries(
+    Object.entries(s.workingDocuments).filter(
+      ([, document]) => !worktreeIdSet.has(document.target.worktreeId) || document.isDirty
+    )
+  ) as typeof s.workingDocuments
+  const workingDocumentIdsByTab = Object.fromEntries(
+    Object.entries(s.workingDocumentIdsByTab).filter(
+      ([tabId]) => !doomed.doomedTabIds.has(tabId) && !doomed.removedFileIds.has(tabId)
+    )
+  ) as typeof s.workingDocumentIdsByTab
 
   const removedActive = s.activeWorktreeId != null && worktreeIdSet.has(s.activeWorktreeId)
   const activeFileCleared = s.activeFileId != null && doomed.removedFileIds.has(s.activeFileId)
@@ -172,7 +182,8 @@ export function buildWorktreePurgeState(
     showDotfilesByWorktree: omitByWorktree(s.showDotfilesByWorktree),
     expandedDirs: omitByWorktree(s.expandedDirs),
     // Per-file editor state for removed files
-    editorDrafts: omitByFileId(s.editorDrafts),
+    workingDocuments,
+    workingDocumentIdsByTab,
     markdownViewMode: omitByFileId(s.markdownViewMode),
     markdownRichModeSizeOverride: omitByFileId(s.markdownRichModeSizeOverride),
     markdownFrontmatterVisible: omitByFileId(s.markdownFrontmatterVisible),

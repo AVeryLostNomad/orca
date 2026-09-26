@@ -1,7 +1,8 @@
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../../types'
 import type { EditorSlice } from './types/editor-slice'
-import { createEditorDraftState } from './actions/editor-draft-state'
+import { createEditorViewState } from './actions/editor-view-state'
+import { createWorkingDocumentState } from './actions/working-document-actions'
 import { createRightSidebarState } from './actions/right-sidebar-state'
 import { createExplorerDirState } from './actions/explorer-dir-state'
 import { createOpenFileState } from './actions/open-file-state'
@@ -31,7 +32,8 @@ import { createMarkdownLinkAction } from './actions/markdown-link-action'
 import { createHydrateEditorSession } from './actions/hydrate-editor-session'
 
 export const createEditorSlice: StateCreator<AppState, [], [], EditorSlice> = (set, get) => ({
-  ...createEditorDraftState(set, get),
+  ...createEditorViewState(set, get),
+  ...createWorkingDocumentState(set, get),
   ...createRightSidebarState(set, get),
   ...createExplorerDirState(set, get),
   ...createOpenFileState(set, get),

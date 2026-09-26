@@ -46,7 +46,6 @@ export type FloatingPanelStoreState = {
       recordInteraction?: boolean
     }
   ) => Tab
-  markFileDirty: (fileId: string, dirty: boolean) => void
   activateTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
   setTabCustomTitle: (tabId: string, title: string | null) => void

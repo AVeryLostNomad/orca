@@ -2,11 +2,12 @@ import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '../store'
 import {
-  ORCA_EDITOR_REQUEST_FILE_CLOSE_EVENT,
-  ORCA_EDITOR_SAVE_AND_CLOSE_EVENT,
-  type EditorRequestFileCloseDetail,
-  requestEditorSaveQuiesce
+  ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT,
+  type EditorRequestTabCloseDetail,
+  quiesceDocumentSave,
+  requestEditorDocumentSave
 } from './editor/editor-autosave'
+import { getEditorClosePlan } from '@renderer/store/slices/editor/working-document-state'
 import { translate } from '@/i18n/i18n'
 import type { TerminalEditorCloseQueueController } from './use-terminal-editor-close-queue'
 
@@ -14,104 +15,111 @@ export function useTerminalEditorCloseDialogActions(
   controller: TerminalEditorCloseQueueController
 ) {
   const {
-    advanceEditorCloseQueue,
-    closeFile,
-    inFlightSaveFileIdRef,
+    cancelEditorCloseQueue,
+    completeEditorCloseForDocument,
+    discardWorkingDocument,
+    inFlightSaveDocumentIdRef,
     isClosingRef,
-    markFileDirty,
-    pendingEditorCloseQueueRef,
+    pendingEditorCloseState,
     queueEditorCloseRequests,
-    releaseCloseDialogGuardAfterDebounce,
-    saveDialogFileId,
-    setSaveDialogFileId,
-    waitForFileClosed,
-    windowCloseAfterDirtyRef
+    releaseCloseDialogGuardAfterDebounce
   } = controller
+
   const handleSaveDialogSave = useCallback(async () => {
-    if (isClosingRef.current || !saveDialogFileId) {
+    const documentId = pendingEditorCloseState?.currentDocumentId
+    if (isClosingRef.current || !documentId) {
       return
     }
-    isClosingRef.current = true
-    const fileId = saveDialogFileId
-    const file = useAppStore.getState().openFiles.find((candidate) => candidate.id === fileId)
-    if (!file) {
-      pendingEditorCloseQueueRef.current = pendingEditorCloseQueueRef.current.filter(
-        (id) => id !== fileId
-      )
-      advanceEditorCloseQueue()
-      releaseCloseDialogGuardAfterDebounce()
+    const document = useAppStore.getState().workingDocuments[documentId]
+    if (!document) {
+      completeEditorCloseForDocument(documentId)
       return
     }
 
-    setSaveDialogFileId(null)
-    window.dispatchEvent(new CustomEvent(ORCA_EDITOR_SAVE_AND_CLOSE_EVENT, { detail: { fileId } }))
-    inFlightSaveFileIdRef.current = fileId
-    let closed = false
+    isClosingRef.current = true
+    inFlightSaveDocumentIdRef.current = documentId
     try {
-      closed = await waitForFileClosed(fileId, 10_000)
-    } finally {
-      if (inFlightSaveFileIdRef.current === fileId) {
-        inFlightSaveFileIdRef.current = null
-      }
-    }
-    if (!closed) {
-      if (!useAppStore.getState().openFiles.some((candidate) => candidate.id === fileId)) {
-        pendingEditorCloseQueueRef.current = pendingEditorCloseQueueRef.current.filter(
-          (id) => id !== fileId
-        )
-        advanceEditorCloseQueue()
-        releaseCloseDialogGuardAfterDebounce()
-        return
-      }
+      await requestEditorDocumentSave({ documentId })
+    } catch (error) {
       toast.error(
-        translate(
-          'auto.components.Terminal.a2a279b32a',
-          'Save timed out or failed. Fix errors before closing.'
-        )
+        error instanceof Error
+          ? error.message
+          : translate(
+              'auto.components.Terminal.a2a279b32a',
+              'Save timed out or failed. Fix errors before closing.'
+            )
       )
-      setSaveDialogFileId(fileId)
       isClosingRef.current = false
       return
+    } finally {
+      if (inFlightSaveDocumentIdRef.current === documentId) {
+        inFlightSaveDocumentIdRef.current = null
+      }
     }
-    pendingEditorCloseQueueRef.current = pendingEditorCloseQueueRef.current.filter(
-      (id) => id !== fileId
-    )
-    advanceEditorCloseQueue()
+
+    const state = useAppStore.getState()
+    const plan = getEditorClosePlan(state, pendingEditorCloseState.tabIds)
+    if (!plan.dirtyDocumentIds.includes(documentId)) {
+      completeEditorCloseForDocument(documentId)
+    }
+    // A new edit during the write stays dirty and leaves the dialog open. The user must make a
+    // fresh choice for the canonical revision rather than silently closing it after its save.
     releaseCloseDialogGuardAfterDebounce()
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- controller refs and setters preserve their original stable identities.
   }, [
-    advanceEditorCloseQueue,
-    releaseCloseDialogGuardAfterDebounce,
-    saveDialogFileId,
-    waitForFileClosed
+    completeEditorCloseForDocument,
+    inFlightSaveDocumentIdRef,
+    isClosingRef,
+    pendingEditorCloseState,
+    releaseCloseDialogGuardAfterDebounce
   ])
 
   const handleSaveDialogDiscard = useCallback(async () => {
-    if (isClosingRef.current || !saveDialogFileId) {
+    const documentId = pendingEditorCloseState?.currentDocumentId
+    if (isClosingRef.current || !documentId) {
       return
     }
-    isClosingRef.current = true
-    const fileId = saveDialogFileId
-    setSaveDialogFileId(null)
-    try {
-      await requestEditorSaveQuiesce({ fileId })
-    } catch (error) {
-      console.warn('Autosave quiesce failed before discard', error)
+    const document = useAppStore.getState().workingDocuments[documentId]
+    if (!document) {
+      completeEditorCloseForDocument(documentId)
+      return
     }
-    markFileDirty(fileId, false)
-    closeFile(fileId)
-    pendingEditorCloseQueueRef.current = pendingEditorCloseQueueRef.current.filter(
-      (id) => id !== fileId
-    )
-    advanceEditorCloseQueue()
-    releaseCloseDialogGuardAfterDebounce()
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- controller refs and setters preserve their original stable identities.
+
+    isClosingRef.current = true
+    const revision = document.revision
+    try {
+      await quiesceDocumentSave(documentId)
+      const state = useAppStore.getState()
+      const currentDocument = state.workingDocuments[documentId]
+      const plan = getEditorClosePlan(state, pendingEditorCloseState.tabIds)
+      if (!plan.dirtyDocumentIds.includes(documentId)) {
+        completeEditorCloseForDocument(documentId)
+        return
+      }
+      if (!currentDocument || currentDocument.revision !== revision) {
+        // A serializer/editor accepted a newer revision while quiescing. Keep both the text and
+        // the views so "Don't Save" cannot discard a change the user did not review.
+        return
+      }
+      discardWorkingDocument(documentId)
+      completeEditorCloseForDocument(documentId)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : translate(
+              'auto.components.Terminal.a2a279b32a',
+              'Save timed out or failed. Fix errors before closing.'
+            )
+      )
+    } finally {
+      releaseCloseDialogGuardAfterDebounce()
+    }
   }, [
-    advanceEditorCloseQueue,
-    closeFile,
-    markFileDirty,
-    releaseCloseDialogGuardAfterDebounce,
-    saveDialogFileId
+    completeEditorCloseForDocument,
+    discardWorkingDocument,
+    isClosingRef,
+    pendingEditorCloseState,
+    releaseCloseDialogGuardAfterDebounce
   ])
 
   const handleSaveDialogCancel = useCallback(() => {
@@ -119,29 +127,24 @@ export function useTerminalEditorCloseDialogActions(
       return
     }
     isClosingRef.current = true
-    pendingEditorCloseQueueRef.current = []
-    windowCloseAfterDirtyRef.current = null
-    setSaveDialogFileId(null)
+    cancelEditorCloseQueue()
     releaseCloseDialogGuardAfterDebounce()
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- controller refs and setters preserve their original stable identities.
-  }, [releaseCloseDialogGuardAfterDebounce])
+  }, [cancelEditorCloseQueue, isClosingRef, releaseCloseDialogGuardAfterDebounce])
 
   useEffect(() => {
     const onRequestEditorClose = (event: Event): void => {
-      const customEvent = event as CustomEvent<EditorRequestFileCloseDetail>
-      const fileId = customEvent.detail?.fileId
-      if (!fileId) {
-        return
+      const tabId = (event as CustomEvent<EditorRequestTabCloseDetail>).detail?.tabId
+      if (tabId) {
+        queueEditorCloseRequests([tabId])
       }
-      queueEditorCloseRequests([fileId])
     }
     window.addEventListener(
-      ORCA_EDITOR_REQUEST_FILE_CLOSE_EVENT,
+      ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT,
       onRequestEditorClose as EventListener
     )
     return () =>
       window.removeEventListener(
-        ORCA_EDITOR_REQUEST_FILE_CLOSE_EVENT,
+        ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT,
         onRequestEditorClose as EventListener
       )
   }, [queueEditorCloseRequests])

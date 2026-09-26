@@ -11,7 +11,7 @@ import { useEditorScrollRestore } from './useEditorScrollRestore'
 import { useModifierHeldClass } from './useModifierHeldClass'
 import { registerPendingEditorFlush } from './editor-pending-flush'
 import { useRichMarkdownTableOfContents } from './use-rich-markdown-table-of-contents'
-import { RichMarkdownEditorSurface } from './RichMarkdownEditorSurface'
+import { RichMarkdownEditorPresentation } from './RichMarkdownEditorPresentation'
 import { useRichMarkdownEditorInstance } from './useRichMarkdownEditorInstance'
 import { useRichMarkdownMenuController } from './useRichMarkdownMenuController'
 import { useRichMarkdownProgrammaticSync } from './useRichMarkdownProgrammaticSync'
@@ -35,6 +35,8 @@ import type { RichMarkdownEditorProps } from './rich-markdown-editor-props'
 
 export default function RichMarkdownEditor({
   fileId,
+  documentId,
+  documentRevision,
   viewStateId,
   content,
   filePath,
@@ -43,7 +45,6 @@ export default function RichMarkdownEditor({
   runtimeEnvironmentId,
   scrollCacheKey,
   onContentChange,
-  onDirtyStateHint,
   onSave,
   onOpenDocLink,
   markdownDocuments,
@@ -82,7 +83,6 @@ export default function RichMarkdownEditor({
   const originalSourceRef = useRef(content)
   const baseCanonicalRef = useRef('')
   const onContentChangeRef = useRef(onContentChange)
-  const onDirtyStateHintRef = useRef(onDirtyStateHint)
   const onSaveRef = useRef(onSave)
   const onOpenDocLinkRef = useRef(onOpenDocLink)
   const handleLocalImagePickRef = useRef<() => void>(() => {})
@@ -91,6 +91,8 @@ export default function RichMarkdownEditor({
   // Why: ProseMirror keeps the initial handleKeyDown closure, so `editor` stays
   // stuck at the first-render null value unless we read the live instance here.
   const editorRef = useRef<Editor | null>(null)
+  const synchronizedDocumentRevisionRef = useRef(documentRevision)
+  const [synchronizedDocumentRevision, setSynchronizedDocumentRevision] = useState(documentRevision)
   const cancelAutoFocusRef = useRef<(() => void) | null>(null)
   const serializeTimerRef = useRef<number | null>(null)
   // Why: empty-list repair dispatches a ProseMirror transaction inside onCreate
@@ -131,7 +133,6 @@ export default function RichMarkdownEditor({
   // ProseMirror handler reads them, avoiding the one-render stale window that
   // useEffect would introduce. Refs are mutable and never trigger re-renders.
   onContentChangeRef.current = onContentChange
-  onDirtyStateHintRef.current = onDirtyStateHint
   onSaveRef.current = onSave
   onOpenDocLinkRef.current = onOpenDocLink
   isEditingLinkRef.current = isEditingLink
@@ -144,6 +145,12 @@ export default function RichMarkdownEditor({
     worktreeId,
     worktreeRoot
   })
+  const markDocumentSynchronized = useCallback(() => {
+    synchronizedDocumentRevisionRef.current = documentRevision
+    setSynchronizedDocumentRevision((current) =>
+      current === documentRevision ? current : documentRevision
+    )
+  }, [documentRevision])
 
   const flushPendingSerialization = useCallback(() => {
     if (serializeTimerRef.current === null) {
@@ -151,6 +158,12 @@ export default function RichMarkdownEditor({
     }
     window.clearTimeout(serializeTimerRef.current)
     serializeTimerRef.current = null
+    if (
+      useAppStore.getState().workingDocuments[documentId]?.revision !==
+      synchronizedDocumentRevisionRef.current
+    ) {
+      return
+    }
     try {
       const { markdown, didSerialize } = commitRichMarkdownSerialization(
         editorRef.current,
@@ -164,14 +177,19 @@ export default function RichMarkdownEditor({
       // Why: teardown and reconcile failures are handled above; other failures must stay observable.
       console.error('[editor] rich markdown serialize (flush) failed', error)
     }
-  }, [reconcileRoundTripRef])
+  }, [documentId, reconcileRoundTripRef])
 
   useEffect(() => {
-    // Why: autosave/restart paths live outside the editor component tree, so a
-    // mounted rich editor must expose a synchronous "flush now" hook to avoid
-    // a dirty-without-draft window during the debounce period.
-    return registerPendingEditorFlush(fileId, flushPendingSerialization)
-  }, [fileId, flushPendingSerialization])
+    // A serialized rich editor is a producer for this canonical document, not a
+    // tab-local draft. Its registration stays on the source revision that its
+    // ProseMirror document has actually synchronized.
+    return registerPendingEditorFlush(
+      documentId,
+      `rich-markdown:${viewStateId}`,
+      synchronizedDocumentRevision,
+      flushPendingSerialization
+    )
+  }, [documentId, flushPendingSerialization, synchronizedDocumentRevision, viewStateId])
 
   const { clearTransientReviewState } = review
   const setRootElement = useCallback(
@@ -207,9 +225,6 @@ export default function RichMarkdownEditor({
     lastCommittedMarkdownRef,
     originalSourceRef,
     baseCanonicalRef,
-    reconcileRoundTripRef,
-    onContentChangeRef,
-    onDirtyStateHintRef,
     onSaveRef,
     onOpenDocLinkRef,
     isEditingLinkRef,
@@ -295,6 +310,7 @@ export default function RichMarkdownEditor({
     originalSourceRef,
     baseCanonicalRef,
     markdownDocuments,
+    onContentSynchronized: markDocumentSynchronized,
     rootRef,
     runtimeEnvironmentId,
     settings,
@@ -306,20 +322,20 @@ export default function RichMarkdownEditor({
   const handleLocalImagePick = useLocalImagePick(editor, filePath, worktreeId, runtimeEnvironmentId)
   handleLocalImagePickRef.current = handleLocalImagePick
 
-  const {
-    handleLinkSave,
-    handleLinkRemove,
-    handleLinkEditCancel,
-    handleLinkOpen,
-    handleLinkCopy,
-    toggleLinkFromToolbar
-  } = useLinkBubble(editor, rootRef, linkBubble, setLinkBubble, setIsEditingLink, {
-    sourceFilePath: filePath,
-    worktreeId,
-    worktreeRoot,
-    runtimeEnvironmentId,
-    htmlSuperscriptLinkContext
-  })
+  const linkBubbleController = useLinkBubble(
+    editor,
+    rootRef,
+    linkBubble,
+    setLinkBubble,
+    setIsEditingLink,
+    {
+      sourceFilePath: filePath,
+      worktreeId,
+      worktreeRoot,
+      runtimeEnvironmentId,
+      htmlSuperscriptLinkContext
+    }
+  )
 
   useEffect(() => {
     return window.api.ui.onRichMarkdownContextCommand((payload) => {
@@ -335,11 +351,11 @@ export default function RichMarkdownEditor({
       runRichMarkdownContextCommand({
         payload,
         editor: ed,
-        toggleLink: toggleLinkFromToolbar,
+        toggleLink: linkBubbleController.toggleLinkFromToolbar,
         pickImage: handleLocalImagePick
       })
     })
-  }, [handleLocalImagePick, toggleLinkFromToolbar])
+  }, [handleLocalImagePick, linkBubbleController.toggleLinkFromToolbar])
 
   const { openSearch, searchState, searchActions } = useRichMarkdownSearch({
     editor,
@@ -349,38 +365,18 @@ export default function RichMarkdownEditor({
   openSearchRef.current = openSearch
 
   return (
-    <RichMarkdownEditorSurface
+    <RichMarkdownEditorPresentation
       editor={editor}
       editorFontZoomLevel={editorFontZoomLevel}
       rootElement={rootRef.current}
       rootRef={setRootElement}
       scrollContainerRef={scrollContainerRef}
       headerSlot={headerSlot}
-      reviewRailExpanded={review.reviewRailExpanded}
-      reviewRailVisible={review.reviewRailVisible}
-      notePositions={review.notePositions}
-      activeReviewCommentId={review.activeReviewCommentId}
-      attentionReviewCommentId={review.attentionReviewCommentId}
-      copiedReviewNoteId={review.copiedReviewNoteId}
+      review={review}
       markdownReviewContent={markdownReviewContent}
       worktreeId={worktreeId}
       filePath={filePath}
-      markdownCommentsCount={review.markdownComments.length}
-      reviewRailOpen={review.reviewRailOpen}
-      reviewNotesCopied={review.reviewNotesCopied}
-      unsentMarkdownReviewScope={review.unsentMarkdownReviewScope}
-      linkBubble={linkBubble}
-      isEditingLink={isEditingLink}
-      slashMenu={menu.slashMenu}
-      filteredSlashCommands={menu.filteredSlashCommands}
-      selectedCommandIndex={menu.selectedCommandIndex}
-      emojiMenu={menu.emojiMenu}
-      docLinkMenu={menu.docLinkMenu}
-      docLinkRows={menu.docLinkRows}
-      docLinkTotalMatches={menu.docLinkTotalMatches}
-      selectedDocLinkIndex={menu.selectedDocLinkIndex}
-      annotationTarget={review.annotationTarget}
-      annotationPopover={review.annotationPopover}
+      menu={menu}
       markdownSourceLineOffset={markdownSourceLineOffset}
       tableOfContentsItems={tableOfContentsItems}
       showTableOfContents={showTableOfContents}
@@ -392,39 +388,16 @@ export default function RichMarkdownEditor({
           : ''
       }
       linkBubbleOwnerId={codec.transport.key}
-      linkBubbleActions={{
-        dismissLinkBubble: () => {
-          setLinkBubble(null)
-          setIsEditingLink(false)
-        },
-        handleLinkSave,
-        handleLinkRemove,
-        handleLinkEditCancel,
-        handleLinkOpen,
-        handleLinkCopy,
-        setIsEditingLink
-      }}
-      onToggleLink={toggleLinkFromToolbar}
-      onImagePick={handleLocalImagePick}
-      onEmojiPick={menu.openEmojiMenu}
-      onCloseEmojiMenu={() => menu.setEmojiMenu(null)}
-      onOpenAnnotationPopover={review.openAnnotationPopover}
-      onCancelAnnotationPopover={() => {
-        review.setAnnotationPopover(null)
-        review.clearAnnotationHighlight()
-      }}
-      onSubmitAnnotation={review.submitAnnotation}
-      onCopyReviewNotes={() => void review.handleCopyMarkdownReviewNotes()}
-      onCopyReviewNote={(note) => void review.handleCopyMarkdownReviewNote(note)}
-      onToggleReviewRail={() => review.setReviewRailOpen((open) => !open)}
-      onReviewNotesDelivered={(notes) => void clearDeliveredDiffComments(worktreeId, notes)}
-      onReviewNoteSourceClick={review.scrollRichMarkdownReviewNoteSourceIntoView}
-      onDeleteReviewComment={(commentId) => void deleteDiffComment(worktreeId, commentId)}
-      onSubmitReviewCommentEdit={(commentId, body) =>
-        updateDiffComment(worktreeId, commentId, body)
-      }
-      onReviewNoteContentResize={review.syncNotePositions}
-      onNavigateTableOfContentsItem={navigateToTableOfContentsItem}
+      linkBubble={linkBubble}
+      isEditingLink={isEditingLink}
+      handleLocalImagePick={handleLocalImagePick}
+      linkBubbleController={linkBubbleController}
+      setLinkBubble={setLinkBubble}
+      setIsEditingLink={setIsEditingLink}
+      clearDeliveredDiffComments={clearDeliveredDiffComments}
+      deleteDiffComment={deleteDiffComment}
+      updateDiffComment={updateDiffComment}
+      navigateToTableOfContentsItem={navigateToTableOfContentsItem}
       onCloseTableOfContents={onCloseTableOfContents}
     />
   )

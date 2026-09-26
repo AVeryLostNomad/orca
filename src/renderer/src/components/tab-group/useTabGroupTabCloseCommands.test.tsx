@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   isWebRuntimeSessionActive: vi.fn(() => true),
   closeTerminalTab: vi.fn(),
   destroyWorkspaceWebviews: vi.fn(),
-  requestEditorFileClose: vi.fn(),
+  requestEditorTabClose: vi.fn(),
   getRuntimeEnvironmentIdForWorktree: vi.fn(() => null as string | null)
 }))
 
@@ -21,7 +21,7 @@ vi.mock('../../store/slices/browser-webview-cleanup', () => ({
   destroyWorkspaceWebviews: mocks.destroyWorkspaceWebviews
 }))
 vi.mock('../editor/editor-autosave', () => ({
-  requestEditorFileClose: mocks.requestEditorFileClose
+  requestEditorTabClose: mocks.requestEditorTabClose
 }))
 vi.mock('@/lib/worktree-runtime-owner', () => ({
   getRuntimeEnvironmentIdForWorktree: mocks.getRuntimeEnvironmentIdForWorktree

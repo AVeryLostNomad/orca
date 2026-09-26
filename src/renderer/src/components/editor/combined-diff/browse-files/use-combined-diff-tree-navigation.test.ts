@@ -16,7 +16,6 @@ function makeSection(key: string, viewed: boolean): DiffSection {
     collapsed: false,
     loading: !viewed,
     loadOnDemand: !viewed,
-    dirty: false,
     diffResult: null,
     largeDiffRenderLimit: null
   }

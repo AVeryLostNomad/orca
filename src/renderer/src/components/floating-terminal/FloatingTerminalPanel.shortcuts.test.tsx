@@ -97,12 +97,6 @@ vi.mock('@/components/ui/dialog', async () => {
   return (await import('./floating-terminal-panel-component-stubs')).createDialogModule()
 })
 
-vi.mock('@/components/terminal/useTerminalSaveDialog', async () => {
-  return (
-    await import('./floating-terminal-panel-test-module-mocks')
-  ).createTerminalSaveDialogModule()
-})
-
 vi.mock('@/runtime/web-runtime-session', async () => {
   return (
     await import('./floating-terminal-panel-test-module-mocks')

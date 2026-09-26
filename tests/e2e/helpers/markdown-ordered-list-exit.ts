@@ -72,7 +72,12 @@ export async function expectSerializedDraftOutsideOrderedList(
       async () =>
         page.evaluate(
           ({ draftKey, sentinel }) => {
-            const draft = window.__store?.getState().editorDrafts[draftKey]
+            const state = window.__store?.getState()
+            const tab = Object.values(state?.unifiedTabsByWorktree ?? {})
+              .flat()
+              .find((entry) => entry.id === draftKey || entry.entityId === draftKey)
+            const documentId = state?.workingDocumentIdsByTab[tab?.id ?? draftKey]?.[0]
+            const draft = documentId ? state?.workingDocuments[documentId]?.content : undefined
             if (typeof draft !== 'string') {
               return false
             }
@@ -89,7 +94,7 @@ export async function expectSerializedDraftOutsideOrderedList(
         ),
       {
         timeout: DRAFT_SERIALIZATION_TIMEOUT_MS,
-        message: `${sentinel} did not serialize as a plain paragraph in editorDrafts[${draftKey}]`
+        message: `${sentinel} did not serialize as a plain paragraph in the document for ${draftKey}`
       }
     )
     .toEqual({ hasPlainLine: true, appearsOnNumberedLine: false })

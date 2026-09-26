@@ -1,15 +1,17 @@
 import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
-import type { useAppStore } from '@/store'
+import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import {
-  getOpenFilesForExternalFileChange,
+  getWorkingDocumentsForExternalFileChange,
   ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT,
-  ORCA_EDITOR_FILE_SAVED_EVENT,
-  type EditorFileSavedDetail,
+  ORCA_EDITOR_DOCUMENT_SAVED_EVENT,
+  type EditorDocumentSavedDetail,
   type EditorPathMutationTarget
 } from './editor-autosave'
 import type { DiffContent, FileContent } from './editor-panel-content-types'
 import { isReloadableSingleFileDiffTab } from './editor-panel-diff-reload'
+import { getEditorGitBaselineScope } from './editor-panel-file-mode'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 
 type EditorViewModeByFile = ReturnType<typeof useAppStore.getState>['editorViewMode']
 
@@ -59,8 +61,7 @@ export function useEditorPanelExternalContentEvents({
   loadFileContent,
   openFilesRef,
   editorViewModeRef,
-  setFileContents,
-  setDiffContents
+  setFileContents
 }: UseEditorPanelExternalContentEventsParams): void {
   useEffect(() => {
     const handler = (event: Event): void => {
@@ -71,7 +72,25 @@ export function useEditorPanelExternalContentEvents({
       const eventGeneration = getExternalEventGeneration(event)
       const invalidatedDiffFileIds: string[] = []
       const invalidatedFileIds: string[] = []
-      for (const file of getOpenFilesForExternalFileChange(openFilesRef.current, detail)) {
+      const state = useAppStore.getState()
+      const documentIds = new Set(
+        getWorkingDocumentsForExternalFileChange(state.workingDocuments, detail).map(
+          (document) => document.id
+        )
+      )
+      const files = openFilesRef.current.filter((file) => {
+        const document = getWorkingDocumentForFile(state, file.id)
+        return document && documentIds.has(document.id)
+      })
+      for (const file of files) {
+        const hasBaseline = getEditorGitBaselineScope(state, file) !== null
+        if (hasBaseline) {
+          if (isVisibleRef.current && file.id === activeContentFileIdRef.current) {
+            void loadDiffContent(file, { force: true, externalEventGeneration: eventGeneration })
+          } else {
+            invalidatedDiffFileIds.push(file.id)
+          }
+        }
         // Why: a dirty file keeps its unsaved buffer (issue #7265) — it is
         // marked changed-on-disk upstream and resolves via the editor banner,
         // a save, or a later clean reload. Reloading here would clobber it.
@@ -89,12 +108,12 @@ export function useEditorPanelExternalContentEvents({
             force: true,
             externalEventGeneration: eventGeneration
           })
-          if (editorViewModeRef.current[file.id] === 'changes') {
+          if (!hasBaseline && editorViewModeRef.current[file.id] === 'changes') {
             void loadDiffContent(file, {
               force: true,
               externalEventGeneration: eventGeneration
             })
-          } else {
+          } else if (!hasBaseline) {
             invalidatedDiffFileIds.push(file.id)
           }
         } else if (isReloadableSingleFileDiffTab(file)) {
@@ -127,56 +146,41 @@ export function useEditorPanelExternalContentEvents({
 
   useEffect(() => {
     const handler = (event: Event): void => {
-      const detail = (event as CustomEvent<EditorFileSavedDetail>).detail
+      const detail = (event as CustomEvent<EditorDocumentSavedDetail>).detail
       if (!detail) {
         return
       }
-      const file = openFilesRef.current.find((openFile) => openFile.id === detail.fileId)
-      if (!file) {
+      const state = useAppStore.getState()
+      const files = openFilesRef.current.filter(
+        (file) => getWorkingDocumentForFile(state, file.id)?.id === detail.documentId
+      )
+      if (!files.length) {
         return
       }
-      if (file.mode === 'edit' || file.mode === 'markdown-preview') {
-        setFileContents((prev) => ({
-          ...prev,
-          [file.id]: { content: detail.content, isBinary: false }
-        }))
-      }
-      updateSavedPreviewTabs(openFilesRef.current, detail, setFileContents)
-      if (file.mode === 'edit' || file.mode === 'markdown-preview') {
-        return
-      }
-      setDiffContents((prev) => {
-        const existing = prev[file.id]
-        if (!existing || existing.kind !== 'text') {
-          return prev
+      setFileContents((previous) => {
+        const next = { ...previous }
+        for (const file of files) {
+          next[file.id] = { content: detail.content, isBinary: false }
         }
-        return { ...prev, [file.id]: { ...existing, modifiedContent: detail.content } }
+        return next
       })
+      invalidateDiffContent(files.map((file) => file.id))
+      const active = files.find((file) => file.id === activeContentFileIdRef.current)
+      if (active && isVisibleRef.current) {
+        void loadDiffContent(active, { force: true })
+      }
     }
-    window.addEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, handler as EventListener)
-    return () => window.removeEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, handler as EventListener)
-  }, [openFilesRef, setDiffContents, setFileContents])
-}
-
-function updateSavedPreviewTabs(
-  openFiles: OpenFile[],
-  detail: EditorFileSavedDetail,
-  setFileContents: Dispatch<SetStateAction<Record<string, FileContent>>>
-): void {
-  const previewTabs = openFiles.filter(
-    (openFile) =>
-      openFile.mode === 'markdown-preview' && openFile.markdownPreviewSourceFileId === detail.fileId
-  )
-  if (previewTabs.length === 0) {
-    return
-  }
-  setFileContents((prev) => {
-    const next = { ...prev }
-    for (const previewTab of previewTabs) {
-      next[previewTab.id] = { content: detail.content, isBinary: false }
-    }
-    return next
-  })
+    window.addEventListener(ORCA_EDITOR_DOCUMENT_SAVED_EVENT, handler as EventListener)
+    return () =>
+      window.removeEventListener(ORCA_EDITOR_DOCUMENT_SAVED_EVENT, handler as EventListener)
+  }, [
+    openFilesRef,
+    setFileContents,
+    invalidateDiffContent,
+    activeContentFileIdRef,
+    isVisibleRef,
+    loadDiffContent
+  ])
 }
 
 export function usePruneClosedEditorContent(

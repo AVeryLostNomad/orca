@@ -21,8 +21,8 @@ export function TerminalWorkspaceDialogs({
     handleSaveDialogCancel,
     handleSaveDialogDiscard,
     handleSaveDialogSave,
-    saveDialogFile,
-    saveDialogFileId,
+    pendingEditorCloseState,
+    saveDialogDocument,
     setWindowCloseDialogOpen,
     windowCloseDialogKind,
     windowCloseDialogOpen
@@ -30,7 +30,7 @@ export function TerminalWorkspaceDialogs({
   return (
     <>
       <Dialog
-        open={saveDialogFileId !== null}
+        open={Boolean(pendingEditorCloseState?.currentDocumentId)}
         onOpenChange={(open) => {
           if (!open) {
             handleSaveDialogCancel()
@@ -43,11 +43,11 @@ export function TerminalWorkspaceDialogs({
               {translate('auto.components.Terminal.21295c6b8c', 'Unsaved Changes')}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {saveDialogFile
+              {saveDialogDocument
                 ? translate(
                     'auto.components.Terminal.61ed600d29',
                     '"{{value0}}" has unsaved changes. Do you want to save before closing?',
-                    { value0: basename(saveDialogFile.relativePath) }
+                    { value0: basename(saveDialogDocument.target.relativePath) }
                   )
                 : translate(
                     'auto.components.Terminal.46e08bc5c8',

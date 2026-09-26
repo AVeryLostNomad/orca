@@ -87,7 +87,6 @@ describe('ChangesModeView', () => {
             sideBySide={false}
             viewStateScopeId="file-1"
             diffViewStateKey="file-1:changes"
-            onContentChange={vi.fn()}
             onSave={vi.fn()}
           />
         </Suspense>

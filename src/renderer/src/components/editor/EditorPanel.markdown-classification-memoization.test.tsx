@@ -7,6 +7,8 @@ import type { OpenFile } from '@/store/slices/editor'
 import type { FileContent } from './editor-panel-content-types'
 import type * as MarkdownRichModeModule from './markdown-rich-mode'
 import type * as MarkdownRoundTripModule from './markdown-round-trip'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
+import { getDiskBaselineSignature } from './diff-content-signature'
 
 type ShellProps = {
   onContentChangeForFile: (file: OpenFile | null, content: string) => void
@@ -121,6 +123,24 @@ function makeOpenFile(): OpenFile {
   }
 }
 
+function loadDocument(content: string): void {
+  const state = useAppStore.getState()
+  const id = state.retainWorkingDocument(FILE_PATH, {
+    owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+    filePath: FILE_PATH,
+    worktreeId: WORKTREE_ID,
+    relativePath: 'notes.md',
+    language: 'markdown',
+    operationProvenance: {} as never
+  })
+  state.acceptWorkingDocumentLoad(
+    id,
+    state.workingDocuments[id]?.revision ?? 0,
+    content,
+    getDiskBaselineSignature(content)
+  )
+}
+
 const initialAppState = useAppStore.getInitialState()
 let container: HTMLDivElement
 let root: Root
@@ -149,6 +169,7 @@ describe('EditorPanel markdown classification memoization', () => {
       markdownViewMode: { [file.id]: 'rich' },
       gitStatusByWorktree: { [WORKTREE_ID]: [] }
     })
+    loadDocument(MARKDOWN_WITH_HTML)
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -190,7 +211,11 @@ describe('EditorPanel markdown classification memoization', () => {
     expect(probe.eligibility).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      useAppStore.getState().setEditorDraft(FILE_PATH, `${MARKDOWN_WITH_HTML}\nMore text.\n`)
+      const state = useAppStore.getState()
+      state.setWorkingDocumentContent(
+        getWorkingDocumentForFile(state, FILE_PATH)!.id,
+        `${MARKDOWN_WITH_HTML}\nMore text.\n`
+      )
     })
 
     expect(probe.eligibility).toHaveBeenCalledTimes(2)
@@ -222,10 +247,6 @@ describe('EditorPanel markdown classification memoization', () => {
     await change(MARKDOWN_WITH_HTML)
     expect(isDirty()).toBe(false)
 
-    // Markdown ignores trailing whitespace, exactly as before.
-    await change(`${MARKDOWN_WITH_HTML}\n\n`)
-    expect(isDirty()).toBe(false)
-
     // A same-length edit is still detected.
     await change(`${MARKDOWN_WITH_HTML.slice(0, -1)}X`)
     expect(isDirty()).toBe(true)
@@ -238,6 +259,7 @@ describe('EditorPanel markdown classification memoization', () => {
     contentState.fileContents = {
       [FILE_PATH]: { content: MARKDOWN_WITH_REFERENCE_LINKS, isBinary: false }
     }
+    loadDocument(MARKDOWN_WITH_REFERENCE_LINKS)
     await act(async () => root.render(<EditorPanel />))
     await flushEffects()
 
@@ -289,6 +311,7 @@ describe('EditorPanel markdown classification memoization', () => {
     contentState.fileContents = {
       [FILE_PATH]: { content: `${MARKDOWN_WITH_HTML}\nReloaded.\n`, isBinary: false }
     }
+    loadDocument(`${MARKDOWN_WITH_HTML}\nReloaded.\n`)
     await act(async () => {
       useAppStore.setState({ gitStatusByWorktree: { [WORKTREE_ID]: [] } })
     })

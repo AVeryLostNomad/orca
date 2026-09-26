@@ -10,9 +10,9 @@ import {
 import type {
   BrowserPagesProjectionCacheEntry,
   BrowserWorkspacesProjectionCacheEntry,
-  EditorDraftHashCache,
-  EditorDraftHashCacheEntry,
-  OpenFilesProjectionCacheEntry
+  OpenFilesProjectionCacheEntry,
+  WorkingDocumentsProjectionCacheEntry,
+  WorkingDocumentVersionCacheEntry
 } from './types'
 
 export function getBrowserTabsByWorktree(state: AppState): AppState['browserTabsByWorktree'] {
@@ -215,55 +215,99 @@ export function buildRuntimeMobileBrowserProjection(state: AppState): string {
 }
 
 /**
- * Why memoized per file id: `setEditorDraft` fires on every Monaco keystroke and re-spreads
- * `editorDrafts`, so an unmemoized rebuild re-hashed every open dirty file's full text on the
- * input path. Only the typed file's draft string changes identity, so only it needs rehashing.
+ * This key is internal only: the mobile payload remains tab-oriented. It captures both document
+ * revisions and their tab memberships so changing a retained document cannot be skipped merely
+ * because its presentation tab did not move.
  */
-function getEditorDraftHashCache(editorDrafts: AppState['editorDrafts']): EditorDraftHashCache {
-  const cached = graphState.cachedEditorDraftHashes
-  if (cached?.source === editorDrafts) {
-    return cached
-  }
-
-  const previousEntries = cached?.entries
-  const entries = new Map<string, EditorDraftHashCacheEntry>()
-  const hashByFileId = new Map<string, string>()
-  const parts: string[] = []
-  for (const [fileId, content] of Object.entries(editorDrafts)) {
-    const previous = previousEntries?.get(fileId)
-    let entry: EditorDraftHashCacheEntry
-    if (previous?.content === content) {
-      entry = previous
-    } else {
-      const fileIdJson = previous?.fileIdJson ?? JSON.stringify(fileId)
-      const hash = stableHashString(content)
-      entry = { content, hash, fileIdJson, projection: `${fileIdJson}:${JSON.stringify(hash)}` }
-    }
-    entries.set(fileId, entry)
-    hashByFileId.set(fileId, entry.hash)
-    parts.push(entry.projection)
-  }
-  const next: EditorDraftHashCache = {
-    source: editorDrafts,
-    entries,
-    hashByFileId,
-    projection: `{${parts.join(',')}}`
-  }
-  graphState.cachedEditorDraftHashes = next
-  return next
-}
-
-export function buildRuntimeMobileEditorDraftsProjection(
-  editorDrafts: AppState['editorDrafts']
+export function buildRuntimeMobileWorkingDocumentsProjection(
+  state: Pick<AppState, 'workingDocuments' | 'workingDocumentIdsByTab'>
 ): string {
-  return getEditorDraftHashCache(editorDrafts).projection
+  const cached = graphState.cachedWorkingDocumentsProjection
+  if (
+    cached?.documentsSource === state.workingDocuments &&
+    cached.membershipsSource === state.workingDocumentIdsByTab
+  ) {
+    return cached.projection
+  }
+
+  const entries = new Map<string, WorkingDocumentsProjectionCacheEntry>()
+  const documentParts: string[] = []
+  for (const [documentId, document] of Object.entries(state.workingDocuments)) {
+    const previous = cached?.entries.get(documentId)
+    const entry =
+      previous?.document === document
+        ? previous
+        : {
+            document,
+            documentIdJson: previous?.documentIdJson ?? JSON.stringify(documentId),
+            projection: JSON.stringify({
+              revision: document.revision,
+              content:
+                document.content === undefined ? undefined : stableHashString(document.content),
+              isDirty: document.isDirty
+            })
+          }
+    entries.set(documentId, entry)
+    documentParts.push(`${entry.documentIdJson}:${entry.projection}`)
+  }
+  const projection = `{"documents":{${documentParts.join(',')}},"memberships":${JSON.stringify(
+    state.workingDocumentIdsByTab
+  )}}`
+  graphState.cachedWorkingDocumentsProjection = {
+    documentsSource: state.workingDocuments,
+    membershipsSource: state.workingDocumentIdsByTab,
+    entries,
+    projection
+  }
+  return projection
 }
 
-/** Per-file draft version stamps for the mobile session snapshot; shares the keystroke memo. */
-export function getEditorDraftVersionByFileId(
-  editorDrafts: AppState['editorDrafts']
-): ReadonlyMap<string, string> {
-  return getEditorDraftHashCache(editorDrafts).hashByFileId
+/** Projects canonical document revisions onto the existing tab-oriented mobile contract. */
+export function getWorkingDocumentVersionByFileId(state: AppState): ReadonlyMap<string, string> {
+  const cached = graphState.cachedWorkingDocumentVersions
+  if (
+    cached?.documentsSource === state.workingDocuments &&
+    cached.membershipsSource === state.workingDocumentIdsByTab &&
+    cached.openFilesSource === state.openFiles &&
+    cached.unifiedTabsSource === state.unifiedTabsByWorktree
+  ) {
+    return cached.versions
+  }
+
+  const entries = new Map<string, WorkingDocumentVersionCacheEntry>()
+  const versions = new Map<string, string>()
+  for (const file of state.openFiles) {
+    const tabIds = [
+      file.id,
+      ...Object.values(state.unifiedTabsByWorktree ?? {})
+        .flat()
+        .filter((tab) => tab.entityId === file.id)
+        .map((tab) => tab.id)
+    ]
+    const documentId = tabIds
+      .flatMap((tabId) => state.workingDocumentIdsByTab[tabId] ?? [])
+      .find((id) => state.workingDocuments[id] !== undefined)
+    const document = documentId ? state.workingDocuments[documentId] : undefined
+    if (!document) {
+      continue
+    }
+    const cachedEntry = cached?.entries.get(document.id)
+    const entry =
+      cachedEntry?.document === document
+        ? cachedEntry
+        : { document, version: `${document.revision}:${stableHashString(document.content ?? '')}` }
+    entries.set(document.id, entry)
+    versions.set(file.id, entry.version)
+  }
+  graphState.cachedWorkingDocumentVersions = {
+    documentsSource: state.workingDocuments,
+    membershipsSource: state.workingDocumentIdsByTab,
+    openFilesSource: state.openFiles,
+    unifiedTabsSource: state.unifiedTabsByWorktree,
+    entries,
+    versions
+  }
+  return versions
 }
 
 export function resetRuntimeMobileSyncProjectionCachesForTests(): void {
@@ -271,5 +315,6 @@ export function resetRuntimeMobileSyncProjectionCachesForTests(): void {
   graphState.cachedOpenFilesProjection = null
   graphState.cachedBrowserWorkspacesProjection = null
   graphState.cachedBrowserPagesProjection = null
-  graphState.cachedEditorDraftHashes = null
+  graphState.cachedWorkingDocumentsProjection = null
+  graphState.cachedWorkingDocumentVersions = null
 }

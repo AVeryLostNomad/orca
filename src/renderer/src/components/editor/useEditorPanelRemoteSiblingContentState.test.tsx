@@ -13,6 +13,19 @@ const mocks = vi.hoisted(() => ({
   getState: vi.fn()
 }))
 
+const workingStateCache = vi.hoisted(() => new WeakMap<object, Record<string, unknown>>())
+
+function getCanonicalTestState(): Record<string, unknown> {
+  const base = mocks.getState() as Record<string, unknown>
+  const cached = workingStateCache.get(base)
+  if (cached) {
+    return cached
+  }
+  const state = createEditorWorkingDocumentTestState(base)
+  workingStateCache.set(base, state)
+  return state
+}
+
 vi.mock('@/runtime/runtime-file-client', () => ({
   getRuntimeFileReadScope: vi.fn(
     (
@@ -49,7 +62,12 @@ vi.mock('@/lib/worktree-runtime-owner', () => ({
   getExecutionHostIdForWorktree: vi.fn(() => 'local')
 }))
 
-vi.mock('@/store', () => ({ useAppStore: { getState: mocks.getState } }))
+vi.mock('@/store', () => ({
+  useAppStore: Object.assign(
+    (selector: (state: Record<string, unknown>) => unknown) => selector(getCanonicalTestState()),
+    { getState: getCanonicalTestState }
+  )
+}))
 
 vi.mock('./useEditorPanelExternalContentEvents', () => ({
   useEditorPanelExternalContentEvents: vi.fn(),
@@ -60,6 +78,10 @@ vi.mock('./useEditorPanelFileLoadRetry', () => ({ useEditorPanelFileLoadRetry: v
 vi.mock('./useLocalLogTail', () => ({ useLocalLogTail: vi.fn() }))
 
 import { useEditorPanelContentState } from './useEditorPanelContentState'
+import {
+  createEditorWorkingDocumentTestState,
+  primeEditorWorkingDocumentTestState
+} from './editor-working-document-test-state'
 
 const authorizeExternalPath = vi.fn()
 let latestFileContents: Record<string, FileContent> = {}
@@ -78,6 +100,7 @@ function createOpenFile(overrides: Partial<OpenFile>): OpenFile {
 }
 
 function HookProbe({ activeFile }: { activeFile: OpenFile }): null {
+  primeEditorWorkingDocumentTestState(getCanonicalTestState(), [activeFile], () => undefined)
   latestFileContents = useEditorPanelContentState({
     activeFile,
     isChangesMode: false,
@@ -94,19 +117,17 @@ describe('remote sibling editor content routing', () => {
 
   beforeEach(() => {
     latestFileContents = {}
+    mocks.readRuntimeFileContent.mockReset()
+    mocks.findWorkspaceFileRoute.mockReset()
+    mocks.migrateRestoredEditorFileOwner.mockReset()
     authorizeExternalPath.mockReset()
     authorizeExternalPath.mockResolvedValue(undefined)
     ;(window as unknown as { api: unknown }).api = { fs: { authorizeExternalPath } }
-    mocks.readRuntimeFileContent.mockReset()
-    mocks.findWorkspaceFileRoute.mockReset()
-    mocks.findWorkspaceFileRoute.mockReturnValue(null)
-    mocks.migrateRestoredEditorFileOwner.mockReset()
     mocks.migrateRestoredEditorFileOwner.mockResolvedValue({ ok: true, fileId: 'owned-file' })
     mocks.getState.mockReset()
     mocks.getState.mockReturnValue({
       settings: { activeRuntimeEnvironmentId: 'runtime-1' },
-      openFiles: [],
-      setLastKnownDiskSignature: vi.fn()
+      openFiles: []
     })
     container = document.body.appendChild(document.createElement('div'))
     root = createRoot(container)

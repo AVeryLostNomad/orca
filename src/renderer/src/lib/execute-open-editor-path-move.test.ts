@@ -9,7 +9,7 @@ vi.mock('@/runtime/runtime-file-client', async (importOriginal) => {
 })
 vi.mock('@/components/editor/editor-autosave', async (importOriginal) => {
   const actual = await importOriginal<typeof EditorAutosave>()
-  return { ...actual, requestEditorSaveQuiesce: vi.fn().mockResolvedValue(undefined) }
+  return { ...actual, quiesceDocumentSave: vi.fn().mockResolvedValue(undefined) }
 })
 
 import { useAppStore } from '@/store'
@@ -17,6 +17,10 @@ import { executeOpenEditorPathMove } from './execute-open-editor-path-move'
 import { __activeEditorPathMoveCountForTests } from '@/components/editor/editor-path-move-inflight'
 import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
 import { createExternalWatchEventHandler } from '@/hooks/useEditorExternalWatch'
+import type {
+  WorkingDocumentId,
+  WorkingDocumentTarget
+} from '@/store/slices/editor/working-document'
 
 const CONTEXT = {
   settings: null,
@@ -38,11 +42,60 @@ function openDirtyTab(): string {
     },
     { suppressActiveRuntimeFallback: true }
   )
-  const id = useAppStore.getState().openFiles[0]!.id
-  state.setEditorDraft(id, 'unsaved work')
-  state.markFileDirty(id, true)
-  state.setLastKnownDiskSignature(id, 'sig-a')
+  const file = useAppStore.getState().openFiles[0]!
+  const id = file.id
+  const operationProvenance = {
+    generation: {
+      route: { executionHostId: 'local', runtimeEnvironmentId: null },
+      runtimeConnectionGeneration: null,
+      runtimePairingRevision: undefined,
+      runtimeSshGeneration: null,
+      nestedSshGeneration: null,
+      directSshGeneration: null
+    },
+    ownershipProjection: 'explicit'
+  } as never
+  useAppStore.setState({
+    openFiles: useAppStore
+      .getState()
+      .openFiles.map((candidate) =>
+        candidate.id === id ? { ...candidate, operationProvenance } : candidate
+      )
+  })
+  const target: WorkingDocumentTarget = {
+    owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+    filePath: file.filePath,
+    relativePath: file.relativePath,
+    worktreeId: file.worktreeId,
+    language: file.language,
+    operationProvenance
+  }
+  const documentId = state.retainWorkingDocument(id, target)
+  state.acceptWorkingDocumentLoad(documentId, 0, 'saved content', 'sig-a')
+  state.setWorkingDocumentContent(documentId, 'unsaved work')
   return id
+}
+
+function documentIdForTab(tabId: string): WorkingDocumentId {
+  const state = useAppStore.getState()
+  const documentId = state.workingDocumentIdsByTab[tabId]?.[0]
+  if (!documentId) {
+    throw new Error(`Missing document for ${tabId}`)
+  }
+  return documentId
+}
+function documentForTab(tabId: string) {
+  const state = useAppStore.getState()
+  const documentId = state.workingDocumentIdsByTab[tabId]?.[0]
+  return documentId ? state.workingDocuments[documentId] : undefined
+}
+
+function setDocumentDiskSignature(tabId: string, diskContent: string): void {
+  const state = useAppStore.getState()
+  const documentId = documentIdForTab(tabId)
+  const document = state.workingDocuments[documentId]!
+  state.commitWorkingDocumentSave(documentId, diskContent, getDiskBaselineSignature(diskContent))
+  state.setWorkingDocumentContent(documentId, document.content!)
 }
 
 describe('executeOpenEditorPathMove', () => {
@@ -70,11 +123,12 @@ describe('executeOpenEditorPathMove', () => {
     const moved = useAppStore.getState().openFiles[0]!
     expect(moved.filePath).toBe('/repo/sub/a.md')
     expect(moved.isDirty).toBe(true)
-    expect(moved.lastKnownDiskSignature).toBe('sig-a')
-    expect(useAppStore.getState().editorDrafts['/repo/sub/a.md']).toBe('unsaved work')
-    // Dirty destination gets the content-verify gate + provenance.
-    expect(moved.pendingLiveDiskVerification).toBe(true)
-    expect(moved.pendingSelfMoveEcho?.targetPath).toBe('/repo/sub/a.md')
+    const movedDocument = documentForTab(moved.id)
+    expect(movedDocument?.lastKnownDiskSignature).toBe('sig-a')
+    expect(movedDocument?.content).toBe('unsaved work')
+    // Dirty destination gets the move-echo verification gate on its document.
+    expect(movedDocument?.pendingLiveDiskVerification).toBe(true)
+    expect(movedDocument?.pendingSelfMoveEcho?.targetPath).toBe('/repo/sub/a.md')
     // The in-flight transaction is settled (no leak).
     expect(__activeEditorPathMoveCountForTests()).toBe(0)
   })
@@ -82,7 +136,7 @@ describe('executeOpenEditorPathMove', () => {
   it('resolves the verify gate proactively when no destination watcher event arrives', async () => {
     const DISK_CONTENT = 'the file as it exists on disk\n'
     const id = openDirtyTab()
-    useAppStore.getState().setLastKnownDiskSignature(id, getDiskBaselineSignature(DISK_CONTENT))
+    setDocumentDiskSignature(id, DISK_CONTENT)
     vi.stubGlobal('window', {
       api: {
         fs: { readFile: vi.fn().mockResolvedValue({ isBinary: false, content: DISK_CONTENT }) }
@@ -99,13 +153,14 @@ describe('executeOpenEditorPathMove', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     const moved = useAppStore.getState().openFiles[0]!
+    const movedDocument = documentForTab(moved.id)
     // Disk matched the carried baseline: gate released, no false conflict banner.
-    expect(moved.pendingLiveDiskVerification).toBeFalsy()
-    expect(moved.externalMutation).toBeUndefined()
+    expect(movedDocument?.pendingLiveDiskVerification).toBeFalsy()
+    expect(movedDocument?.externalMutation).toBeUndefined()
     expect(moved.isDirty).toBe(true)
     // Safety-net verify LEAVES the provenance so a destination watcher event
     // arriving after this read is still recognized as the move's own echo.
-    expect(moved.pendingSelfMoveEcho?.targetPath).toBe('/repo/sub/a.md')
+    expect(movedDocument?.pendingSelfMoveEcho?.targetPath).toBe('/repo/sub/a.md')
   })
 
   it('does not raise a false banner when the destination watcher event lands after the move', async () => {
@@ -114,7 +169,7 @@ describe('executeOpenEditorPathMove', () => {
     // local read) would fall through to the immediate changed-on-disk mark.
     const DISK_CONTENT = 'the file as it exists on disk\n'
     const id = openDirtyTab()
-    useAppStore.getState().setLastKnownDiskSignature(id, getDiskBaselineSignature(DISK_CONTENT))
+    setDocumentDiskSignature(id, DISK_CONTENT)
     vi.stubGlobal('window', {
       api: {
         fs: { readFile: vi.fn().mockResolvedValue({ isBinary: false, content: DISK_CONTENT }) }
@@ -148,7 +203,7 @@ describe('executeOpenEditorPathMove', () => {
     await new Promise((resolve) => setTimeout(resolve, 120))
 
     const moved = useAppStore.getState().openFiles[0]!
-    expect(moved.externalMutation).toBeUndefined()
+    expect(documentForTab(moved.id)?.externalMutation).toBeUndefined()
     expect(moved.isDirty).toBe(true)
     dispose()
   })

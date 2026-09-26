@@ -9,6 +9,8 @@ import {
   type ThemeFileCandidate
 } from './theme-file-scanner'
 
+const BASE_SENSITIVITY_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' })
+
 export function createManualWarpThemeFileCandidates(filePaths: string[]): ThemeFileCandidate[] {
   return filePaths
     .map((filePath) => ({
@@ -23,7 +25,7 @@ export function createManualWarpThemeFileCandidates(filePaths: string[]): ThemeF
       }
       // Why: manual dialogs can return selections in click order. Sort only in
       // main so duplicate basenames get deterministic IDs without persisting paths.
-      return left.path.localeCompare(right.path, undefined, { sensitivity: 'base' })
+      return BASE_SENSITIVITY_COLLATOR.compare(left.path, right.path)
     })
 }
 

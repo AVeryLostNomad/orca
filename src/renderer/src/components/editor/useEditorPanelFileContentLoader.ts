@@ -2,7 +2,7 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import type { OpenFile } from '@/store/slices/editor'
 import { getConnectionIdForFile, isWorktreeConnectionResolved } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
-import { getDiskBaselineSignature } from './diff-content-signature'
+import { buildWorkingDocumentTarget } from '@/store/slices/editor/working-document'
 import { getRuntimeFileReadScope, readRuntimeFileContent } from '@/runtime/runtime-file-client'
 import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import { findWorkspaceFileRoute } from '@/lib/runtime-workspace-file-route'
@@ -18,6 +18,7 @@ import {
 } from './editor-panel-content-types'
 import type { EditorPanelContentLoadOptions } from './useEditorPanelExternalContentEvents'
 import { migrateRestoredEditorFileOwner } from './migrate-restored-editor-file-owner'
+import { loadWorkingDocument } from './working-document-loader'
 
 const inFlightFileReads = new Map<string, InFlightContentRead<FileContent>>()
 
@@ -36,25 +37,6 @@ type UseEditorPanelFileContentLoaderParams = {
   openFilesRef: MutableRefObject<OpenFile[]>
   outstandingFileReadsRef: MutableRefObject<Record<string, number>>
   setFileContents: Dispatch<SetStateAction<Record<string, FileContent>>>
-}
-
-// Why: a clean load re-baselines what this tab's future edits are based on; a
-// dirty tab keeps its baseline (its draft still derives from the older content
-// the signature was taken over). Best-effort metadata — a failure here must
-// not convert an already-delivered load into an error view, hence the guard.
-function stampCleanTabDiskBaseline(id: string, result: FileContent): void {
-  if (result.isBinary || result.loadError) {
-    return
-  }
-  try {
-    const state = useAppStore.getState()
-    const loadedFile = state.openFiles.find((file) => file.id === id)
-    if (loadedFile && !loadedFile.isDirty) {
-      state.setLastKnownDiskSignature(id, getDiskBaselineSignature(result.content))
-    }
-  } catch (err) {
-    console.warn('[editor] failed to stamp disk baseline', err)
-  }
 }
 
 function inFlightReadKey(connectionId: string | undefined, filePath: string): string {
@@ -85,6 +67,13 @@ export function useEditorPanelFileContentLoader({
         const resolvedConnectionId = getConnectionIdForFile(worktreeId ?? null, filePath)
         const connectionId = resolvedConnectionId ?? undefined
         const restoredOpenFile = openFilesRef.current.find((file) => file.id === id)
+        if (
+          restoredOpenFile?.externalSshTargetId &&
+          connectionId &&
+          connectionId !== restoredOpenFile.externalSshTargetId
+        ) {
+          throw new Error('External SSH files are not available after the workspace host changes.')
+        }
         const activeSettings = useAppStore.getState().settings
         const readSettings = settingsForRuntimeOwner(
           activeSettings,
@@ -162,6 +151,19 @@ export function useEditorPanelFileContentLoader({
             }
           }
         }
+        const state = useAppStore.getState()
+        const memberTabIds = Object.values(state.unifiedTabsByWorktree).flatMap((tabs) =>
+          tabs.filter((tab) => tab.entityId === id).map((tab) => tab.id)
+        )
+        const documentId =
+          restoredOpenFile && !restoredOpenFile.readOnly && !isLiveTailLogTab
+            ? (memberTabIds.length ? memberTabIds : [id]).map((tabId) =>
+                state.retainWorkingDocument(
+                  tabId,
+                  buildWorkingDocumentTarget(state, restoredOpenFile)
+                )
+              )[0]
+            : undefined
         const readScope = getRuntimeFileReadScope(readSettings, readConnectionId)
         const key = inFlightReadKey(readScope, filePath)
         const registeredRead = inFlightFileReads.get(key)
@@ -176,15 +178,17 @@ export function useEditorPanelFileContentLoader({
         }
         let pending = inFlightFileReads.get(key)
         if (!pending) {
-          const promise = readRuntimeFileContent({
-            settings: readSettings,
-            filePath,
-            relativePath: readRelativePath,
-            worktreeId: readWorktreeId,
-            connectionId: readConnectionId,
-            expectedExternalSshTargetId: restoredOpenFile?.externalSshTargetId,
-            includeLocalLogMetadata: isLiveTailLogTab
-          }) as Promise<FileContent>
+          const promise = documentId
+            ? loadWorkingDocument(documentId, { force: options?.force })
+            : (readRuntimeFileContent({
+                settings: readSettings,
+                filePath,
+                relativePath: readRelativePath,
+                worktreeId: readWorktreeId,
+                connectionId: readConnectionId,
+                expectedExternalSshTargetId: restoredOpenFile?.externalSshTargetId,
+                includeLocalLogMetadata: isLiveTailLogTab
+              }) as Promise<FileContent>)
           pending = { externalEventGeneration: options?.externalEventGeneration, promise }
           inFlightFileReads.set(key, pending)
           queueMicrotask(() => {
@@ -199,7 +203,6 @@ export function useEditorPanelFileContentLoader({
         }
         delete fileLoadRetryAttemptsRef.current[id]
         setFileContents((prev) => ({ ...prev, [id]: result }))
-        stampCleanTabDiskBaseline(id, result)
       } catch (err) {
         if (fileReadGenerationRef.current[id] !== generation) {
           return

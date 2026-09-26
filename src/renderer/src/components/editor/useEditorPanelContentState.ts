@@ -42,6 +42,7 @@ export function useEditorPanelContentState({
   const [fileContents, setFileContents] = useState<Record<string, FileContent>>({})
   const [diffContents, setDiffContents] = useState<Record<string, DiffContent>>({})
   const diffContentsRef = useRef(diffContents)
+  const fileContentsRef = useRef(fileContents)
   const fileLoadRetryAttemptsRef = useRef<Record<string, number>>({})
   // Why: per-tab read generations let a forced/external reload supersede an
   // older in-flight read so a slower stale promise cannot overwrite fresh state.
@@ -64,11 +65,12 @@ export function useEditorPanelContentState({
   useLayoutEffect(() => {
     // Why: event-driven readers must only observe state from committed renders.
     diffContentsRef.current = diffContents
+    fileContentsRef.current = fileContents
     openFilesRef.current = openFiles
     editorViewModeRef.current = editorViewMode
     isVisibleRef.current = isVisible
     activeContentFileIdRef.current = activeContentFileId
-  }, [activeContentFileId, diffContents, editorViewMode, isVisible, openFiles])
+  }, [activeContentFileId, diffContents, fileContents, editorViewMode, isVisible, openFiles])
 
   const invalidateFileContent = useCallback((fileIds: string[]): void => {
     const uniqueIds = new Set(fileIds)
@@ -131,6 +133,7 @@ export function useEditorPanelContentState({
   })
 
   const loadDiffContent = useEditorPanelDiffContentLoader({
+    fileContentsRef,
     diffReadGenerationCounterRef,
     diffReadGenerationRef,
     outstandingDiffReadsRef,
@@ -153,6 +156,9 @@ export function useEditorPanelContentState({
         })
         void loadDiffContent(file, { force: true })
         return
+      }
+      if (diffContentsRef.current[file.id]?.kind === 'error') {
+        void loadDiffContent(file, { force: true })
       }
       delete fileLoadRetryAttemptsRef.current[file.id]
       setFileContents((prev) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import type { Tab } from '../../../../shared/tab-types'
-import { getEditorCmdSaveFileId } from './editor-cmd-save-target'
+import { getEditorCmdSaveTabId } from './editor-cmd-save-target'
 
 function makeTab(contentType: Tab['contentType'], entityId: string): Tab {
   return {
@@ -18,22 +18,22 @@ function makeTab(contentType: Tab['contentType'], entityId: string): Tab {
   }
 }
 
-describe('getEditorCmdSaveFileId', () => {
-  it('targets the main active editor when the floating panel does not own the event', () => {
-    const getActiveTab = vi.fn(() => makeTab('editor', 'floating-file'))
+describe('getEditorCmdSaveTabId', () => {
+  it('targets the main active editor surface when the floating panel does not own the event', () => {
+    const getActiveTab = vi.fn(() => makeTab('editor', 'main-file'))
 
     expect(
-      getEditorCmdSaveFileId(
+      getEditorCmdSaveTabId(
         {
-          activeFileId: 'main-file',
           activeTabType: 'editor',
           activeView: 'terminal',
+          activeWorktreeId: 'repo-1::/repo/worktree',
           getActiveTab
         },
         false
       )
-    ).toBe('main-file')
-    expect(getActiveTab).not.toHaveBeenCalled()
+    ).toBe('tab-main-file')
+    expect(getActiveTab).toHaveBeenCalledWith('repo-1::/repo/worktree')
   })
 
   it('claims nothing on a non-workspace view so the shortcut is not swallowed', () => {
@@ -41,8 +41,13 @@ describe('getEditorCmdSaveFileId', () => {
 
     for (const activeView of ['tasks', 'automations', 'activity'] as const) {
       expect(
-        getEditorCmdSaveFileId(
-          { activeFileId: 'main-file', activeTabType: 'editor', activeView, getActiveTab },
+        getEditorCmdSaveTabId(
+          {
+            activeTabType: 'editor',
+            activeView,
+            activeWorktreeId: 'repo-1::/repo/worktree',
+            getActiveTab
+          },
           false
         )
       ).toBeNull()
@@ -55,14 +60,14 @@ describe('getEditorCmdSaveFileId', () => {
       .mockReturnValueOnce(makeTab('editor', 'floating-file'))
       .mockReturnValueOnce(makeTab('browser', 'floating-browser'))
     const state = {
-      activeFileId: 'main-file',
       activeTabType: 'editor',
       activeView: 'terminal' as const,
+      activeWorktreeId: 'repo-1::/repo/worktree',
       getActiveTab
     }
 
-    expect(getEditorCmdSaveFileId(state, true)).toBe('floating-file')
-    expect(getEditorCmdSaveFileId(state, true)).toBeNull()
+    expect(getEditorCmdSaveTabId(state, true)).toBe('tab-floating-file')
+    expect(getEditorCmdSaveTabId(state, true)).toBeNull()
     expect(getActiveTab).toHaveBeenNthCalledWith(1, FLOATING_TERMINAL_WORKTREE_ID)
     expect(getActiveTab).toHaveBeenNthCalledWith(2, FLOATING_TERMINAL_WORKTREE_ID)
   })
@@ -71,10 +76,15 @@ describe('getEditorCmdSaveFileId', () => {
     const getActiveTab = vi.fn(() => makeTab('editor', 'floating-file'))
 
     expect(
-      getEditorCmdSaveFileId(
-        { activeFileId: 'main-file', activeTabType: 'editor', activeView: 'tasks', getActiveTab },
+      getEditorCmdSaveTabId(
+        {
+          activeTabType: 'editor',
+          activeView: 'tasks',
+          activeWorktreeId: 'repo-1::/repo/worktree',
+          getActiveTab
+        },
         true
       )
-    ).toBe('floating-file')
+    ).toBe('tab-floating-file')
   })
 })

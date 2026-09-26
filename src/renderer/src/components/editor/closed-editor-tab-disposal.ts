@@ -39,9 +39,14 @@ export function disposeClosedEditorTabs(
   for (const closedFile of closedFiles) {
     switch (closedFile.mode) {
       case 'edit':
-        // Why: the edit model URI is constructed via monaco.Uri.parse(filePath)
-        // to match @monaco-editor/react's `path` prop convention.
-        monacoRegistry.editor.getModel(monacoRegistry.Uri.parse(closedFile.filePath))?.dispose()
+        if (closedFile.readOnly) {
+          const model = monacoRegistry.editor.getModel(
+            monacoRegistry.Uri.parse(closedFile.filePath)
+          )
+          if (model && !model.isAttachedToEditor()) {
+            model.dispose()
+          }
+        }
         scrollTopCache.delete(closedFile.filePath)
         // Why: markdown and mermaid surfaces keep mode-scoped scroll positions.
         scrollTopCache.delete(`${closedFile.filePath}:rich`)

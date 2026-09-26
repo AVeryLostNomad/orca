@@ -30,9 +30,19 @@ import { snapshotMonacoViewState } from './monaco-view-state-persistence'
 import { MonacoMarkdownAnnotationOverlay } from './MonacoMarkdownAnnotationOverlay'
 import { AskAgentSelectionPopover } from './AskAgentSelectionPopover'
 import type { MonacoMarkdownSelectionAnnotationTarget } from './monaco-markdown-selection-annotation'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import {
+  acquireWorkingDocumentModel,
+  attachWorkingDocumentEditor,
+  getWorkingDocumentModelUri
+} from './working-document-model'
+import { flushPendingEditorChange } from './editor-pending-flush'
+import { useMonacoGitGutter } from './use-monaco-git-gutter'
+import type { EditorGitBaseline } from './editor-git-baseline'
 
 type MonacoEditorProps = {
   fileId: string
+  workingDocumentId?: WorkingDocumentId
   filePath: string
   viewStateKey: string
   // Why: identifies the pane for explicit open focus handoffs; omit on surfaces that never receive one.
@@ -40,6 +50,7 @@ type MonacoEditorProps = {
   relativePath: string
   content: string
   language: string
+  gitBaseline?: EditorGitBaseline | null
   onContentChange: (content: string) => void
   onSave: (content: string) => void
   revealLine?: number
@@ -56,12 +67,14 @@ type MonacoEditorProps = {
 
 export default function MonacoEditor({
   fileId,
+  workingDocumentId,
   filePath,
   viewStateKey,
   viewStateId,
   relativePath,
   content,
   language,
+  gitBaseline = null,
   onContentChange,
   onSave,
   revealLine,
@@ -92,6 +105,28 @@ export default function MonacoEditor({
   readOnlyRef.current = readOnly
   const contentSyncModeRef = useRef<MonacoContentSyncMode>('undoable')
   contentSyncModeRef.current = readOnly && liveTail ? 'read-only-live-tail' : 'undoable'
+  const modelUri = useMemo(() => {
+    if (!workingDocumentId) {
+      return filePath
+    }
+    acquireWorkingDocumentModel(workingDocumentId)
+    return getWorkingDocumentModelUri(workingDocumentId)
+  }, [workingDocumentId, filePath])
+  useLayoutEffect(() => {
+    if (!workingDocumentId || !mountedEditor) {
+      return
+    }
+    const detach = attachWorkingDocumentEditor(workingDocumentId, viewStateKey)
+    const flush = (): void => flushPendingEditorChange(workingDocumentId, viewStateKey)
+    const focus = mountedEditor.onDidFocusEditorText(flush)
+    if (mountedEditor.hasTextFocus()) {
+      flush()
+    }
+    return () => {
+      focus.dispose()
+      detach()
+    }
+  }, [workingDocumentId, mountedEditor, viewStateKey])
 
   const settings = useAppStore((s) => s.settings)
   const editorFontZoomLevel = useAppStore((s) => s.editorFontZoomLevel)
@@ -130,6 +165,7 @@ export default function MonacoEditor({
   const { queueReveal, cancelScheduledReveal, clearTransientRevealHighlight } =
     useMonacoRevealScheduler()
   const contentSync = useMonacoContentSyncBridge({
+    registryManaged: workingDocumentId !== undefined,
     editorRef,
     content,
     contentRef,
@@ -137,7 +173,20 @@ export default function MonacoEditor({
     filePath,
     onContentChange
   })
-  const lspStatus = useLspForEditor({ mountedEditor, filePath, language, worktreeId })
+  const lspStatus = useLspForEditor({
+    mountedEditor: readOnly ? null : mountedEditor,
+    filePath,
+    language,
+    worktreeId,
+    documentId: workingDocumentId
+  })
+  useMonacoGitGutter({
+    mountedEditor,
+    baseline: gitBaseline,
+    language,
+    showWhitespace: settings?.diffShowWhitespace === true,
+    filePath
+  })
   const annotations = useMonacoMarkdownAnnotations({
     mountedEditor,
     editorContainerRef,
@@ -186,6 +235,7 @@ export default function MonacoEditor({
   })
 
   const handleMount = useMonacoEditorMount({
+    registryManaged: workingDocumentId !== undefined,
     fileId,
     filePath,
     viewStateKey,
@@ -252,7 +302,7 @@ export default function MonacoEditor({
         // Why: defaultValue, not controlled value — Orca owns post-mount content sync; a controlled path would double setValue.
         defaultValue={content}
         theme={monacoThemeName}
-        onChange={contentSync.handleChange}
+        onChange={workingDocumentId ? undefined : contentSync.handleChange}
         onMount={handleMount}
         options={{
           // Why: only the file editor honors this; Monaco 0.55 DiffEditor hard-overrides minimap.enabled=false on sub-editors (see diffEditorEditors._adjustOptionsForSubEditor).
@@ -262,6 +312,8 @@ export default function MonacoEditor({
           fontSize: editorFontSize,
           fontFamily: editorFontFamily,
           lineNumbers: 'on',
+          // Why: room for the Git change bar between line numbers and folding chevrons.
+          lineDecorationsWidth: 14,
           renderLineHighlight: 'line',
           automaticLayout: true,
           tabSize: 2,
@@ -282,7 +334,7 @@ export default function MonacoEditor({
           // Why: Monaco owns its rendered line surface, so align its selection-clipboard with the app opt-out (the global DOM hook can't).
           selectionClipboard: settings?.primarySelectionMiddleClickPaste ?? isLinuxUserAgent()
         }}
-        path={filePath}
+        path={modelUri}
         // Why: Orca owns cursor/scroll restoration, so disable @monaco-editor/react's competing view-state Map.
         saveViewState={false}
         keepCurrentModel

@@ -5580,9 +5580,9 @@
       "coverageNotes": "Focused tests and real-Monaco 9/50 MiB performance and undo-retention benchmarks are platform-independent. Local macOS Electron evidence opens a synthetic 9 MiB transcript through Agent Session History at fixed 900x720 viewport, 13px font, 1x zoom, and asserts the full 9 MiB model length loaded as a font-metric-independent containment check (word-wrap pixel geometry varies ~10% across runners, so a generous content-height floor is only a collapsed/truncated-render smoke check), then verifies three five-second-cadence watcher appends with Find open and closed. Live Windows/Linux evidence remains uncollected.",
       "motivatingLinks": ["https://github.com/stablyai/orca/pull/8432"],
       "invariant": "Append-only external file growth changes only Monaco's model suffix, retaining the viewport, selection, Find state, and renderer liveness above the append point; read-only live tails do not create undo history, while editable external updates remain undoable and arbitrary rewrites continue to replace the model content.",
-      "oracle": "Focused tests assert one post-mount content owner, actual outer lifecycle remount ordering across retained path models, exact end-of-model suffix edits with one model read, no-op equality, full replacement for non-appends, and real-Monaco undo behavior for read-only live tails versus editable files. With Node forced GC, real-Monaco benchmarks alternate 30 suffix and 30 replacement samples after five warmups on fresh equivalent models at 9 and 50 MiB, then compare exact Monaco undo-service and ArrayBuffer retention after five 10 MiB appends. The Electron scenario alternates an e2e-only legacy setValue red control and the fixed watcher append from restored equivalent model/geometry at the measured legacy-failure cadence, asserting that the control disrupts anchor state while the fixed path preserves visible ranges, selection, complete Find state, scroll offset, non-undoability, renderer survival, and forced-GC heap/native-memory budgets.",
+      "oracle": "Focused tests assert one post-mount content owner, exact end-of-model suffix edits with one model read, no-op equality, full replacement for non-appends, and real-Monaco undo behavior for read-only live tails versus editable files. With Node forced GC, real-Monaco benchmarks alternate 30 suffix and 30 replacement samples after five warmups on fresh equivalent models at 9 and 50 MiB, then compare exact Monaco undo-service and ArrayBuffer retention after five 10 MiB appends. The Electron scenario alternates an e2e-only legacy setValue red control and the fixed watcher append from restored equivalent model/geometry at the measured legacy-failure cadence, asserting that the control disrupts anchor state while the fixed path preserves visible ranges, selection, complete Find state, scroll offset, non-undoability, renderer survival, and forced-GC heap/native-memory budgets.",
       "commands": [
-        "pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/components/editor/monaco-content-sync.test.ts src/renderer/src/components/editor/MonacoEditor.content-owner.test.tsx src/renderer/src/components/editor/EditorContent.monaco-lifecycle.test.tsx",
+        "pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/components/editor/monaco-content-sync.test.ts src/renderer/src/components/editor/MonacoEditor.content-owner.test.tsx",
         "pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/components/editor/monaco-content-sync.undo-history.test.ts",
         "node --expose-gc ./node_modules/vitest/vitest.mjs bench src/renderer/src/components/editor/monaco-content-sync.bench.ts --pool=threads",
         "node --expose-gc ./node_modules/vitest/vitest.mjs bench src/renderer/src/components/editor/monaco-content-sync.undo-retention.bench.ts --pool=threads",
@@ -5592,7 +5592,6 @@
         "src/renderer/src/components/editor/monaco-content-sync.test.ts",
         "src/renderer/src/components/editor/monaco-content-sync.undo-history.test.ts",
         "src/renderer/src/components/editor/MonacoEditor.content-owner.test.tsx",
-        "src/renderer/src/components/editor/EditorContent.monaco-lifecycle.test.tsx",
         "src/renderer/src/components/editor/monaco-content-sync.bench.ts",
         "src/renderer/src/components/editor/monaco-content-sync.undo-retention.bench.ts",
         "tests/e2e/agent-session-log-tail-stability.spec.ts"
@@ -5618,12 +5617,6 @@
           "assertions": ["the Monaco wrapper receives defaultValue and no controlled value prop"]
         },
         {
-          "file": "src/renderer/src/components/editor/EditorContent.monaco-lifecycle.test.tsx",
-          "assertions": [
-            "a same-pane path switch unmounts the prior outer Monaco before real mount reconciliation refreshes the stale target; the prior retained model content and undo sentinel remain untouched"
-          ]
-        },
-        {
           "file": "src/renderer/src/components/editor/monaco-content-sync.bench.ts",
           "assertions": [
             "with forced GC and deterministic settlement between every arm, fresh real-Monaco 9 MiB and 50 MiB models alternate 30 append and 30 replacement samples after five warmups; append p95 stays below 50/100ms and at least 2x faster"
@@ -5647,15 +5640,6 @@
         }
       ],
       "evidenceRuns": [
-        {
-          "date": "2026-07-12",
-          "runner": "local",
-          "platform": "macos",
-          "command": "pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/components/editor/monaco-content-sync.test.ts src/renderer/src/components/editor/MonacoEditor.content-owner.test.tsx src/renderer/src/components/editor/EditorContent.monaco-lifecycle.test.tsx",
-          "result": "passed",
-          "durationSeconds": 5,
-          "summary": "Focused editor ownership, edit-shape, mount reconciliation, lifecycle-key, and actual same-pane retained-model remount tests passed."
-        },
         {
           "date": "2026-07-12",
           "runner": "local",
@@ -5722,7 +5706,10 @@
         "Collect stable soak history on macOS, Linux, and Windows.",
         "Accumulate 100 consecutive deterministic gate passes or 14 days without unexplained flakes."
       ],
-      "knownGaps": ["No live Windows or Linux View Log evidence yet."],
+      "knownGaps": [
+        "No live Windows or Linux View Log evidence yet.",
+        "The former EditorContent.monaco-lifecycle.test.tsx is no longer present; its historical same-pane remount evidence is not current coverage."
+      ],
       "demotionRule": "Quarantine the Electron scenario if it flakes without a product or harness bug; demote if viewport/Find drift, renderer loss, p95 regression, or memory retention exceeds the registered budgets."
     },
     {

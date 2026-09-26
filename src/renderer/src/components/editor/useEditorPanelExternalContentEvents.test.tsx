@@ -3,7 +3,9 @@
 import { act, useLayoutEffect, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocumentTarget } from '@/store/slices/editor/working-document'
 import { ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT } from './editor-autosave'
 import type { DiffContent, FileContent } from './editor-panel-content-types'
 import { useEditorPanelExternalContentEvents } from './useEditorPanelExternalContentEvents'
@@ -22,6 +24,30 @@ type ProbeProps = {
   openFiles: OpenFile[]
 }
 
+function retainOpenFiles(files: readonly OpenFile[]): void {
+  const state = useAppStore.getState()
+  for (const file of files) {
+    const target = {
+      owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+      filePath: file.filePath,
+      worktreeId: file.worktreeId,
+      relativePath: file.relativePath,
+      language: file.language,
+      operationProvenance: {} as never
+    } satisfies WorkingDocumentTarget
+    const documentId = state.retainWorkingDocument(file.id, target)
+    if (file.isDirty) {
+      const document = useAppStore.getState().workingDocuments[documentId]
+      useAppStore.setState({
+        workingDocuments: {
+          ...useAppStore.getState().workingDocuments,
+          [documentId]: { ...document, isDirty: true }
+        }
+      })
+    }
+  }
+}
+
 function ExternalContentProbe({ activeFileId, calls, isVisible, openFiles }: ProbeProps): null {
   const activeContentFileIdRef = useRef(activeFileId)
   const isVisibleRef = useRef(isVisible)
@@ -31,6 +57,7 @@ function ExternalContentProbe({ activeFileId, calls, isVisible, openFiles }: Pro
   const [, setDiffContents] = useState<Record<string, DiffContent>>({})
 
   useLayoutEffect(() => {
+    retainOpenFiles(openFiles)
     activeContentFileIdRef.current = activeFileId
     isVisibleRef.current = isVisible
     openFilesRef.current = openFiles
@@ -91,15 +118,26 @@ describe('useEditorPanelExternalContentEvents', () => {
   let container: HTMLDivElement
   let root: Root
 
+  let originalWorkingDocuments: ReturnType<typeof useAppStore.getState>['workingDocuments']
+  let originalWorkingDocumentIdsByTab: ReturnType<
+    typeof useAppStore.getState
+  >['workingDocumentIdsByTab']
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     container = document.body.appendChild(document.createElement('div'))
     root = createRoot(container)
+    originalWorkingDocuments = useAppStore.getState().workingDocuments
+    originalWorkingDocumentIdsByTab = useAppStore.getState().workingDocumentIdsByTab
+    useAppStore.setState({ workingDocuments: {}, workingDocumentIdsByTab: {} })
   })
 
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    useAppStore.setState({
+      workingDocuments: originalWorkingDocuments,
+      workingDocumentIdsByTab: originalWorkingDocumentIdsByTab
+    })
   })
 
   it('routes one remote change to one visible owner instead of every retained panel', () => {

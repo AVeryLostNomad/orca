@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { editor } from 'monaco-editor'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import { useAppStore } from '@/store'
 import { monaco } from '@/lib/monaco-setup'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
-import { ensureLspSession } from './lsp-client'
-import { getLspIpcTransport } from './lsp-ipc-transport'
+import { acquireLspSession, type LspSessionLease } from './lsp-client'
 import { ensureLspDocumentBinding } from './lsp-document-binding'
 import { ensureLspDiagnosticsSubscription } from './lsp-diagnostics-markers'
 import { ensureLspProvidersForLanguage } from './lsp-monaco-providers'
@@ -42,9 +42,10 @@ export function useLspForEditor(args: {
   mountedEditor: editor.IStandaloneCodeEditor | null
   filePath: string
   language: string
+  documentId?: WorkingDocumentId
   worktreeId: string | undefined
 }): EditorLspStatus {
-  const { mountedEditor, filePath, language, worktreeId } = args
+  const { mountedEditor, filePath, language, worktreeId, documentId } = args
   const settings = useAppStore((s) => s.settings)
   const serverId = lspServerForLanguageIfEnabled(settings, language)
   const [status, setStatus] = useState<EditorLspStatus>({ phase: 'idle' })
@@ -65,7 +66,6 @@ export function useLspForEditor(args: {
       return
     }
     let cancelled = false
-    let ensuredSessionId: string | null = null
     // May be swapped for a project-conditional server (e.g. Angular for .html).
     let activeServerId = serverId
     const unsubscribeInstallState = window.api?.lsp?.onServerStateChanged?.(
@@ -80,51 +80,54 @@ export function useLspForEditor(args: {
     )
     setStatus({ phase: 'starting', serverId })
     void (async () => {
-      activeServerId = await resolveLspProjectServerOverride(
-        useAppStore.getState().settings,
-        serverId,
-        rootPath
-      )
-      if (cancelled) {
-        return
-      }
-      const session = await ensureLspSession(activeServerId, rootPath)
-      if (!session) {
-        if (!cancelled) {
-          setStatus({
-            phase: 'error',
-            serverId: activeServerId,
-            message: 'Language server unavailable'
-          })
+      let lease: LspSessionLease | null = null
+      try {
+        activeServerId = await resolveLspProjectServerOverride(
+          useAppStore.getState().settings,
+          serverId,
+          rootPath
+        )
+        if (cancelled) {
+          return
         }
-        return
-      }
-      ensuredSessionId = session.sessionId
-      if (cancelled) {
-        return
-      }
-      const model = mountedEditor.getModel()
-      if (!model || model.isDisposed()) {
+        lease = await acquireLspSession(activeServerId, rootPath)
+        if (!lease) {
+          if (!cancelled) {
+            setStatus({
+              phase: 'error',
+              serverId: activeServerId,
+              message: 'Language server unavailable'
+            })
+          }
+          return
+        }
+        if (cancelled) {
+          return
+        }
+        const model = mountedEditor.getModel()
+        if (!model || model.isDisposed()) {
+          setStatus({ phase: 'idle' })
+          return
+        }
+        installLspEditorOpener(monaco)
+        ensureLspDiagnosticsSubscription(monaco, lease.session)
+        ensureLspProvidersForLanguage(monaco, language, lease.session)
+        disableBuiltInFeaturesForLspServer(activeServerId)
+        ensureLspDocumentBinding(model, lease, filePath, language, worktreeId, documentId)
+        lease = null
         setStatus({ phase: 'idle' })
-        return
+      } catch (error) {
+        if (!cancelled) {
+          setStatus({ phase: 'error', serverId: activeServerId, message: String(error) })
+        }
+      } finally {
+        lease?.release()
       }
-      installLspEditorOpener(monaco)
-      ensureLspDiagnosticsSubscription(monaco, session)
-      ensureLspProvidersForLanguage(monaco, language, session)
-      disableBuiltInFeaturesForLspServer(activeServerId)
-      ensureLspDocumentBinding(model, session, filePath, language, worktreeId)
-      setStatus({ phase: 'idle' })
     })()
     return () => {
       cancelled = true
       unsubscribeInstallState?.()
-      // Ref-count release only — the document binding stays with the retained
-      // model so tab switches keep the server context warm.
-      if (ensuredSessionId) {
-        void getLspIpcTransport()?.releaseSession(ensuredSessionId)
-      }
     }
-  }, [mountedEditor, filePath, language, worktreeId, serverId])
-
+  }, [mountedEditor, filePath, language, worktreeId, documentId, serverId])
   return status
 }

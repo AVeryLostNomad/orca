@@ -18,7 +18,7 @@ import type { FloatingTerminalPanelStoreState } from './use-floating-terminal-pa
 
 type FloatingTerminalCloseActionsInput = Pick<
   FloatingTerminalPanelStoreState,
-  'closeTab' | 'closeBrowserTab' | 'closeFile' | 'closeUnifiedTab'
+  'closeTab' | 'closeBrowserTab' | 'closeUnifiedTab'
 > &
   Pick<FloatingTerminalPanelItems, 'activeGroup' | 'groupTabs'> &
   Pick<FloatingTerminalPanelLocalState, 'pendingReclaimArmByFileIdRef'> &
@@ -27,7 +27,6 @@ type FloatingTerminalCloseActionsInput = Pick<
 export function useFloatingTerminalCloseActions({
   closeTab,
   closeBrowserTab,
-  closeFile,
   closeUnifiedTab,
   activeGroup,
   groupTabs,
@@ -51,7 +50,7 @@ export function useFloatingTerminalCloseActions({
       if (items.length === 0) {
         return
       }
-      const dirtyEditorFileIds: string[] = []
+      const editorTabIds: string[] = []
       for (const item of items) {
         if (item.contentType === 'terminal') {
           closeTab(item.entityId, { reason: 'cleanup' })
@@ -61,19 +60,14 @@ export function useFloatingTerminalCloseActions({
         } else if (item.contentType === 'simulator') {
           closeUnifiedTab(item.id)
         } else {
-          const file = state.openFiles.find((candidate) => candidate.id === item.entityId)
-          if (file?.isDirty) {
-            dirtyEditorFileIds.push(item.entityId)
-            continue
-          }
-          closeFile(item.entityId)
+          editorTabIds.push(item.id)
         }
       }
-      if (dirtyEditorFileIds.length > 0) {
-        queueEditorCloseRequests(dirtyEditorFileIds)
+      if (editorTabIds.length > 0) {
+        queueEditorCloseRequests(editorTabIds)
       }
     },
-    [activeGroup, closeBrowserTab, closeFile, closeTab, closeUnifiedTab, queueEditorCloseRequests]
+    [activeGroup, closeBrowserTab, closeTab, closeUnifiedTab, queueEditorCloseRequests]
   )
 
   const closeFloatingItemConfirmed = useCallback(
@@ -112,13 +106,9 @@ export function useFloatingTerminalCloseActions({
           } else if (item.contentType === 'simulator') {
             closeUnifiedTab(item.id)
           } else {
-            const file = latest.openFiles.find((candidate) => candidate.id === item.entityId)
-            if (file?.isDirty) {
-              pendingReclaimArmByFileIdRef.current.set(item.entityId, armIfEmptying)
-              queueEditorCloseRequests([item.entityId])
-              return
-            }
-            closeFile(item.entityId)
+            pendingReclaimArmByFileIdRef.current.set(item.id, armIfEmptying)
+            queueEditorCloseRequests([item.id])
+            return
           }
           armIfEmptying()
         }
@@ -126,7 +116,6 @@ export function useFloatingTerminalCloseActions({
     },
     [
       closeBrowserTab,
-      closeFile,
       closeUnifiedTab,
       groupTabs,
       pendingReclaimArmByFileIdRef,

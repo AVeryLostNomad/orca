@@ -69,6 +69,7 @@ describe('useRichMarkdownProgrammaticSync external-reload baseline adoption (#60
           originalSourceRef,
           baseCanonicalRef,
           markdownDocuments: undefined,
+          onContentSynchronized: vi.fn(),
           rootRef: { current: null },
           runtimeEnvironmentId: null,
           settings: null,

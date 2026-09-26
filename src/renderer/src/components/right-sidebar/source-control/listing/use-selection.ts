@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
-import type { SourceControlRowOpenEvent } from './split-open'
+import { toSourceControlRowOpenEvent, type SourceControlRowOpenEvent } from './split-open'
 
 function isMacPlatform(): boolean {
   return typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac')
@@ -131,10 +131,11 @@ export function useSourceControlSelection({
   }
 
   const handleSelect = useCallback((e: React.MouseEvent, key: string, entry: GitStatusEntry) => {
-    if (shouldOpenAsSplitRef.current?.(e)) {
+    const openEvent = toSourceControlRowOpenEvent(e)
+    if (shouldOpenAsSplitRef.current?.(openEvent)) {
       setSelectedKeys((prev) => (prev.size > 0 ? new Set() : prev))
       setAnchorKey(null)
-      onOpenDiffRef.current(entry, e)
+      onOpenDiffRef.current(entry, openEvent)
       return
     }
 

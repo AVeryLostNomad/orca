@@ -11,6 +11,27 @@ import {
   deleteUntouchedUntitledFile,
   shouldDeleteUntouchedUntitledFile
 } from '../tabs/untitled-file-cleanup'
+import { getWorkingDocumentIdsForTab } from '../working-document-state'
+
+function hasWorkingDocumentDraft(
+  state: Pick<EditorSlice, 'workingDocuments' | 'workingDocumentIdsByTab'> & {
+    unifiedTabsByWorktree: Record<string, { id: string; entityId: string }[]>
+  },
+  fileId: string
+): boolean {
+  const tabIds = [
+    fileId,
+    ...Object.values(state.unifiedTabsByWorktree)
+      .flat()
+      .filter((tab) => tab.entityId === fileId)
+      .map((tab) => tab.id)
+  ]
+  return tabIds.some((tabId) =>
+    getWorkingDocumentIdsForTab(state, tabId).some(
+      (documentId) => state.workingDocuments[documentId]?.isDirty === true
+    )
+  )
+}
 
 export function createRecentlyClosedEditorTabs(
   set: EditorSet,
@@ -44,9 +65,9 @@ export function createRecentlyClosedEditorTabs(
 
       // Why: like closeFile — untitled unedited files are empty placeholders that shouldn't survive close-all.
       const untitledToDelete = state.openFiles.filter(
-        (f) =>
-          shouldDeleteUntouchedUntitledFile(f, !!state.editorDrafts[f.id]) &&
-          (!activeWorktreeId || f.worktreeId === activeWorktreeId)
+        (file) =>
+          shouldDeleteUntouchedUntitledFile(file, hasWorkingDocumentDraft(state, file.id)) &&
+          (!activeWorktreeId || file.worktreeId === activeWorktreeId)
       )
       const closingFiles = state.openFiles.filter(
         (file) => !activeWorktreeId || file.worktreeId === activeWorktreeId
@@ -67,12 +88,14 @@ export function createRecentlyClosedEditorTabs(
             (!activeWorktreeId || item.worktreeId === activeWorktreeId)
         )
         .map((item) => item.id)
+      const closingMembershipTabIds = [
+        ...new Set([...closingItemIds, ...closingFiles.map((file) => file.id)])
+      ]
       set((s) => {
         const activeWorktreeId = s.activeWorktreeId
         if (!activeWorktreeId) {
           return {
             openFiles: [],
-            editorDrafts: {},
             editorCursorLine: {},
             activeFileId: null,
             activeTabType: 'terminal',
@@ -88,9 +111,6 @@ export function createRecentlyClosedEditorTabs(
         // Only close files for the current worktree
         const newFiles = s.openFiles.filter((f) => f.worktreeId !== activeWorktreeId)
         const remainingFileIds = new Set(newFiles.map((f) => f.id))
-        const newEditorDrafts = Object.fromEntries(
-          Object.entries(s.editorDrafts).filter(([fileId]) => remainingFileIds.has(fileId))
-        )
         const newMarkdownViewMode = Object.fromEntries(
           Object.entries(s.markdownViewMode).filter(([fileId]) => remainingFileIds.has(fileId))
         )
@@ -147,7 +167,7 @@ export function createRecentlyClosedEditorTabs(
         for (const f of [...closingFiles].toReversed()) {
           // Why: skip untitled non-dirty files (deleted from disk after close) and ephemeral preview tabs so the reopen stack has no vanished/junk paths.
           if (
-            shouldDeleteUntouchedUntitledFile(f, !!s.editorDrafts[f.id]) ||
+            shouldDeleteUntouchedUntitledFile(f, hasWorkingDocumentDraft(s, f.id)) ||
             f.mode === 'markdown-preview'
           ) {
             continue
@@ -167,7 +187,6 @@ export function createRecentlyClosedEditorTabs(
 
         return {
           openFiles: newFiles,
-          editorDrafts: newEditorDrafts,
           editorCursorLine: newEditorCursorLine,
           activeFileId: null,
           // Why: closing every editor can leave no renderable surface; clear the active worktree so the renderer shows the landing page, not a blank workspace.
@@ -206,6 +225,9 @@ export function createRecentlyClosedEditorTabs(
           )
         }
       })
+      for (const tabId of closingMembershipTabIds) {
+        get().releaseWorkingDocumentsForTab(tabId)
+      }
       if (typeof window !== 'undefined') {
         const postCloseState = get()
         for (const f of untitledToDelete) {

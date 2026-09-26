@@ -1,42 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requestEditorFileSave, toastError } = vi.hoisted(() => ({
-  requestEditorFileSave: vi.fn(),
+const { requestEditorDocumentSave, toastError } = vi.hoisted(() => ({
+  requestEditorDocumentSave: vi.fn(),
   toastError: vi.fn()
 }))
-vi.mock('./editor-autosave', () => ({ requestEditorFileSave }))
+vi.mock('./editor-autosave', () => ({ requestEditorDocumentSave }))
 vi.mock('sonner', () => ({ toast: { error: toastError } }))
-// Return the English fallback so the assertion is stable without initializing i18n.
 vi.mock('@/i18n/i18n', () => ({ translate: (_key: string, fallback: string) => fallback }))
 
-import { attemptEditorFileSave } from './editor-file-save-attempt'
+import { attemptEditorDocumentSave } from './editor-file-save-attempt'
 
-describe('attemptEditorFileSave', () => {
+describe('attemptEditorDocumentSave', () => {
   beforeEach(() => {
-    requestEditorFileSave.mockReset()
+    requestEditorDocumentSave.mockReset()
     toastError.mockClear()
   })
-  afterEach(() => {
-    vi.restoreAllMocks()
+  afterEach(() => vi.restoreAllMocks())
+
+  it('reports success only after the canonical document save resolves', async () => {
+    requestEditorDocumentSave.mockResolvedValue(undefined)
+    await expect(attemptEditorDocumentSave({ documentId: 'document-1' as never })).resolves.toBe(
+      true
+    )
+    expect(requestEditorDocumentSave).toHaveBeenCalledWith({ documentId: 'document-1' })
   })
 
-  it('reports success only after the save request resolves', async () => {
-    requestEditorFileSave.mockResolvedValue(undefined)
-
-    await expect(attemptEditorFileSave({ fileId: 'file-1' })).resolves.toBe(true)
-
-    expect(toastError).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a failed save and reports failure to dependent actions (STA-2027)', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const cause = new Error('disk full')
-    requestEditorFileSave.mockRejectedValue(cause)
-
-    await expect(attemptEditorFileSave({ fileId: 'file-1' })).resolves.toBe(false)
-
-    expect(toastError).toHaveBeenCalledTimes(1)
-    expect(toastError).toHaveBeenCalledWith('Failed to save the file. Please try again.')
-    expect(consoleError).toHaveBeenCalledWith('[editor] file save failed', cause)
+  it('keeps shortcut handlers non-throwing when the document write fails', async () => {
+    requestEditorDocumentSave.mockRejectedValue(new Error('disk full'))
+    await expect(attemptEditorDocumentSave({ documentId: 'document-1' as never })).resolves.toBe(
+      false
+    )
+    expect(toastError).toHaveBeenCalledOnce()
   })
 })

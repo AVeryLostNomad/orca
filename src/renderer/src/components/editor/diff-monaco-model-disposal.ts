@@ -145,7 +145,11 @@ function isOwnedByPathPrefix(
 }
 
 function disposeUnattachedMonacoModel(model: DisposableMonacoModel | null): void {
-  if (!model || model.isAttachedToEditor()) {
+  if (
+    !model ||
+    model.uri.toString().startsWith('orca-working-document:') ||
+    model.isAttachedToEditor()
+  ) {
     return
   }
 

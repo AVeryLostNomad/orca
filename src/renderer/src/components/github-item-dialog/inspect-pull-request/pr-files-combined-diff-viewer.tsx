@@ -110,7 +110,6 @@ function PRFilesCombinedDiffSections({
       collapsed: false,
       loading: true,
       error: undefined,
-      dirty: false,
       diffResult: null,
       largeDiffRenderLimit: null
     }))
@@ -360,7 +359,6 @@ function PRFilesCombinedDiffSections({
       handleAddLineComment={handleAddLineComment}
       getCommentableLineNumbers={getCommentableLineNumbers}
       setSectionHeights={setSectionHeights}
-      setSections={setSections}
       modifiedEditorsRef={modifiedEditorsRef}
       handleSectionSaveRef={handleSectionSaveRef}
     />

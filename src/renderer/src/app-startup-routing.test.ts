@@ -593,9 +593,6 @@ describe('renderer startup runtime routing', () => {
       'isIntentionalAppRestartInProgress() || isWindowCloseCheckpointInProgress()'
     )
     expect(checkpointBlock).toContain(
-      'useAppStore.getState().openFiles.some((file) => file.isDirty)'
-    )
-    expect(checkpointBlock).toContain(
       'stageBeforeUnloadSync: (args) => window.api.app.stageBeforeUnloadSync(args)'
     )
     expect(checkpointBlock).toContain('shutdownCheckpointPersist.run')

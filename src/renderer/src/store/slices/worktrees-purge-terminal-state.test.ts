@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppState } from '../types'
+import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
+import type { WorkingDocumentTarget } from './editor/working-document'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import { makeLineage } from './worktrees-slice-test-fixtures'
 import {
@@ -78,7 +80,6 @@ describe('purgeWorktreeTerminalState direct (design §4.4)', () => {
           mode: 'edit' as const
         }
       ],
-      editorDrafts: { 'file-1': 'draft', 'file-99': 'other' },
       markdownFrontmatterVisible: { 'source-1': true, 'file-99': true },
       gitIgnoredPathsByWorktree: {
         'repoA::/a/wt1': ['dist/'],
@@ -109,6 +110,25 @@ describe('purgeWorktreeTerminalState direct (design §4.4)', () => {
       activeTabId: 'tab-1',
       activeTabType: 'editor' as const
     } as unknown as Partial<AppState>)
+    const documentTarget = {
+      owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+      filePath: '/a/wt1/a.ts',
+      worktreeId: 'repoA::/a/wt1',
+      relativePath: 'a.ts',
+      language: 'typescript',
+      operationProvenance: {
+        generation: { route: { executionHostId: 'local', runtimeEnvironmentId: null } }
+      }
+    } as WorkingDocumentTarget
+    const documentId = store.getState().retainWorkingDocument('file-1', documentTarget)
+    store
+      .getState()
+      .acceptWorkingDocumentLoad(
+        documentId,
+        0,
+        'saved copy',
+        getDiskBaselineSignature('saved copy')
+      )
 
     store.getState().purgeWorktreeTerminalState(['repoA::/a/wt1'])
 
@@ -132,7 +152,8 @@ describe('purgeWorktreeTerminalState direct (design §4.4)', () => {
       }
     })
     expect(s.openFiles).toEqual([])
-    expect(s.editorDrafts).toEqual({ 'file-99': 'other' })
+    expect(s.workingDocuments).toEqual({})
+    expect(s.workingDocumentIdsByTab).toEqual({})
     expect(s.markdownFrontmatterVisible).toEqual({ 'file-99': true })
     expect(s.gitStatusHeadByWorktree).toEqual({ 'repoA::/a/wt2': 'head-2' })
     expect(s.gitBranchLineTotalByWorktree).toEqual({

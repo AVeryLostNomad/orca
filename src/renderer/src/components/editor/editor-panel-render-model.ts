@@ -20,7 +20,7 @@ type StoreState = ReturnType<typeof useAppStore.getState>
 type EditorPanelRenderModelParams = {
   activeFile: OpenFile
   fileContents: Record<string, FileContent>
-  editorDrafts: StoreState['editorDrafts']
+  documentContentByTab: Record<string, string>
   gitStatusEntries: StoreState['gitStatusByWorktree'][string] | undefined
   gitBranchEntries: StoreState['gitBranchChangesByWorktree'][string] | undefined
   markdownViewMode: StoreState['markdownViewMode']
@@ -32,7 +32,7 @@ type EditorPanelRenderModelParams = {
 export function getEditorPanelRenderModel({
   activeFile,
   fileContents,
-  editorDrafts,
+  documentContentByTab,
   gitStatusEntries,
   gitBranchEntries,
   markdownViewMode,
@@ -123,7 +123,7 @@ export function getEditorPanelRenderModel({
       : 'edit'
   const inlineMarkdownContent =
     activeFile.mode === 'edit'
-      ? (editorDrafts[activeFile.id] ?? fileContents[activeFile.id]?.content ?? null)
+      ? (documentContentByTab[activeFile.id] ?? fileContents[activeFile.id]?.content ?? null)
       : null
   const shouldShowMarkdownExportAction =
     viewerLanguage === 'markdown' &&

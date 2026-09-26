@@ -12,8 +12,8 @@ import type { AppState } from '../store/types'
 // Why: the comparator at `runtimeMobileSessionSyncKeysEqual` checks
 // `terminalLayoutsByTabId`, `runtimePaneTitlesByTabId`, `groupsByWorktree`,
 // `activeGroupIdByWorktree`, `unifiedTabsByWorktree`, `tabBarOrderByWorktree`,
-// `activeFileIdByWorktree`, `openFiles`, and `editorDrafts` by reference, and
-// checks `activeTabId` by scalar equality. `makeState`'s defaults allocate
+// `activeFileIdByWorktree`, `openFiles`, canonical document records, and their memberships by
+// reference, and checks `activeTabId` by scalar equality. `makeState`'s defaults allocate
 // fresh `{}`/`[]` for each collection, so two unrelated `makeState({...})`
 // calls trivially diverge. Tests that want to isolate a single field must
 // share every other reference-checked collection between the two states; this
@@ -36,7 +36,8 @@ function makeSharedOverrides(): Partial<AppState> {
     browserPagesByWorkspace: {},
     browserCertificateFailuresByPageId: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     agentStatusByPaneKey: {},
     agentStatusEpoch: 0
   }
@@ -77,7 +78,28 @@ describe('getRuntimeMobileSessionSyncKey', () => {
       makeState({
         ...base,
         openFiles: [{ ...base.openFiles[0]!, isDirty: true }],
-        editorDrafts: { '/repo/README.md': '# draft' }
+        workingDocuments: {
+          'document:readme': {
+            id: 'document:readme' as never,
+            target: {
+              owner: { executionHostId: 'local' as never, runtimeEnvironmentId: null },
+              filePath: '/repo/README.md',
+              worktreeId: 'wt-1',
+              relativePath: 'README.md',
+              language: 'markdown',
+              operationProvenance: {} as never
+            },
+            content: '# draft',
+            revision: 1,
+            isDirty: true,
+            loadState: 'ready',
+            writable: true,
+            alwaysAutoSave: false
+          }
+        } as unknown as AppState['workingDocuments'],
+        workingDocumentIdsByTab: {
+          '/repo/README.md': ['document:readme']
+        } as unknown as AppState['workingDocumentIdsByTab']
       })
     )
     const activatedKey = getRuntimeMobileSessionSyncKey(

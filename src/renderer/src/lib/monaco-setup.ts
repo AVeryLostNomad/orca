@@ -7,6 +7,7 @@ import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+import { installMonacoDiffProviderFactory } from './diff-comparison/monaco-diff-provider'
 import { registerAstroLanguage } from './monaco-languages/register-astro'
 import { registerJsonlLanguage } from './monaco-languages/register-jsonl'
 import { registerNimLanguage } from './monaco-languages/register-nim'
@@ -17,6 +18,8 @@ import { installMonacoDelayerCancellationGuard } from './monaco-delayer-cancella
 import { installMonacoDiffEditorDisposalGuard } from './monaco-diff-editor-disposal'
 import { installMonacoPeekReferencesPreviewOptions } from './monaco-peek-preview-options'
 import { installMonacoContextMenuPaste } from '@/components/editor/install-monaco-context-menu-paste'
+
+installMonacoDiffProviderFactory()
 
 globalThis.MonacoEnvironment = {
   getWorker(_workerId, label) {
@@ -40,18 +43,7 @@ globalThis.MonacoEnvironment = {
   }
 }
 
-// Why: Monaco here is a viewer/diff surface, not a type checker — users edit
-// real code in their own IDE. The sandboxed TS worker cannot resolve imports
-// to project files, so semantic validation produces a long tail of false
-// positives (unresolved modules 2307/2792, unused-import fades 6133/6138/
-// 6192/6196/6198/6205, missing names 2304/2305, bogus type mismatches 2322/
-// 2339/2345/2571/2724, implicit-any 7006/7016/7026/7031/7053/18046/18048).
-// Syntax validation is also noisy in the diff viewer: with `renderSideBySide`
-// off (or during partial hunks), Monaco feeds the worker concatenated
-// original+modified text that isn't a valid TS program, producing fake
-// parse errors like "',' expected (1005)". Disable all three categories —
-// we keep tokenization (colorization) which is what actually gives useful
-// reading affordance here.
+// Built-in diagnostics cannot resolve workspace imports; project diagnostics come from LSP.
 const diagnosticsOptions = {
   noSemanticValidation: true,
   noSuggestionDiagnostics: true,
@@ -60,12 +52,7 @@ const diagnosticsOptions = {
 monacoTS.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions)
 monacoTS.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions)
 
-// Why: .tsx/.jsx files share the base 'typescript'/'javascript' language ids
-// in Monaco's registry (there is no separate 'typescriptreact' id), so the
-// compiler options on those defaults apply to both. Without jsx enabled, the
-// worker raises TS17004 "Cannot use JSX unless the '--jsx' flag is provided"
-// on every JSX tag. Preserve mode is enough to allow parsing without forcing
-// an emit transform (we never emit — this is a read-only language service).
+// TSX/JSX share Monaco's base language IDs.
 monacoTS.typescriptDefaults.setCompilerOptions({
   ...monacoTS.typescriptDefaults.getCompilerOptions(),
   jsx: monacoTS.JsxEmit.Preserve

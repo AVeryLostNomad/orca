@@ -1,13 +1,15 @@
 import { getActiveTabNavOrder } from '@/components/tab-bar/group-tab-order'
 import {
-  ORCA_EDITOR_FILE_SAVED_EVENT,
-  requestEditorFileSave,
-  requestEditorSaveQuiesce,
-  type EditorFileSavedDetail
+  ORCA_EDITOR_DOCUMENT_SAVED_EVENT,
+  quiesceDocumentSave,
+  requestEditorDocumentSave,
+  type EditorDocumentSavedDetail
 } from '@/components/editor/editor-autosave'
 import { flushPendingEditorChange } from '@/components/editor/editor-pending-flush'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 import type { OpenFile } from '@/store/slices/editor'
 import { readRuntimeFileContent } from './runtime-file-client'
 import { settingsForRuntimeOwner } from './runtime-rpc-client'
@@ -22,7 +24,7 @@ import {
 } from '../../../shared/mobile-markdown-document'
 
 const MOBILE_MARKDOWN_READ_MAX_BYTES = 512 * 1024
-const saveQueues = new Map<string, Promise<void>>()
+const saveQueues = new Map<WorkingDocumentId, Promise<void>>()
 
 type FileContent = {
   content: string
@@ -64,8 +66,8 @@ async function readMobileMarkdownTab(
   tabId: string
 ): Promise<RuntimeMarkdownReadTabResult> {
   const target = resolveMarkdownTarget(worktreeId, tabId)
-  flushEditorState(target.sourceFile.id)
-  const { content, source } = await readCurrentContent(target.sourceFile)
+  flushPendingEditorChange(target.documentId)
+  const { content, source } = await readCurrentContent(target.sourceFile, target.documentId)
   const readOnlyReason = getReadOnlyReason(target.tab, target.sourceFile, content)
   return {
     tabId,
@@ -90,15 +92,15 @@ async function saveMobileMarkdownTab(
     throw new Error('file_too_large')
   }
   const target = resolveMarkdownTarget(worktreeId, tabId)
-  return await enqueueMarkdownSave(target.sourceFile.id, async () => {
+  return await enqueueMarkdownSave(target.documentId, async () => {
     const freshTarget = resolveMarkdownTarget(worktreeId, tabId)
     const readOnlyReason = getReadOnlyReason(freshTarget.tab, freshTarget.sourceFile, content)
     if (readOnlyReason) {
       throw new Error(readOnlyReason)
     }
 
-    flushEditorState(freshTarget.sourceFile.id)
-    const current = await readCurrentContent(freshTarget.sourceFile)
+    flushPendingEditorChange(freshTarget.documentId)
+    const current = await readCurrentContent(freshTarget.sourceFile, freshTarget.documentId)
     const currentVersion = hashMarkdownContent(current.content)
     if (currentVersion !== baseVersion) {
       if (current.content === content) {
@@ -115,20 +117,11 @@ async function saveMobileMarkdownTab(
     }
 
     const state = useAppStore.getState()
-    const previousDraft = state.editorDrafts[freshTarget.sourceFile.id]
-    const previousDirty = freshTarget.sourceFile.isDirty
-    state.setEditorDraft(freshTarget.sourceFile.id, content)
-    state.markFileDirty(freshTarget.sourceFile.id, true)
-    let verified: string
-    try {
-      await waitForPositiveSave(freshTarget.sourceFile, content)
-      verified = await readFileContent(freshTarget.sourceFile)
-      if (verified !== content) {
-        throw new Error('save_verification_failed')
-      }
-    } catch (error) {
-      restoreFailedMobileSaveDraft(freshTarget.sourceFile.id, content, previousDraft, previousDirty)
-      throw error
+    state.setWorkingDocumentContent(freshTarget.documentId, content)
+    await waitForPositiveSave(freshTarget.documentId, content)
+    const verified = await readFileContent(freshTarget.sourceFile)
+    if (verified !== content) {
+      throw new Error('save_verification_failed')
     }
 
     return {
@@ -140,50 +133,32 @@ async function saveMobileMarkdownTab(
   })
 }
 
-function restoreFailedMobileSaveDraft(
-  fileId: string,
-  injectedContent: string,
-  previousDraft: string | undefined,
-  previousDirty: boolean
-): void {
-  const state = useAppStore.getState()
-  const currentDraft = state.editorDrafts[fileId]
-  if (currentDraft !== undefined && currentDraft !== injectedContent) {
-    return
-  }
-  // Why: mobile save injects a desktop draft only to reuse the editor save path.
-  // If save or verification fails, put the desktop editor back exactly as it was before.
-  if (previousDraft === undefined) {
-    state.clearEditorDraft(fileId)
-  } else {
-    state.setEditorDraft(fileId, previousDraft)
-  }
-  state.markFileDirty(fileId, previousDirty)
-}
-
-async function enqueueMarkdownSave<T>(fileId: string, save: () => Promise<T>): Promise<T> {
-  const previous = saveQueues.get(fileId) ?? Promise.resolve()
+function enqueueMarkdownSave<T>(documentId: WorkingDocumentId, save: () => Promise<T>): Promise<T> {
+  const previous = saveQueues.get(documentId) ?? Promise.resolve()
   let releaseQueue: () => void = () => {}
   const current = new Promise<void>((resolve) => {
     releaseQueue = resolve
   })
   const queued = previous.catch(() => undefined).then(() => current)
-  saveQueues.set(fileId, queued)
-  await previous.catch(() => undefined)
-  try {
-    return await save()
-  } finally {
-    releaseQueue()
-    if (saveQueues.get(fileId) === queued) {
-      saveQueues.delete(fileId)
-    }
-  }
+  saveQueues.set(documentId, queued)
+  return previous
+    .catch(() => undefined)
+    .then(save)
+    .finally(() => {
+      releaseQueue()
+      if (saveQueues.get(documentId) === queued) {
+        saveQueues.delete(documentId)
+      }
+    })
 }
+
+// Mobile writes are serialized independently so duplicate mobile requests do
+// not race their optimistic version checks before they join the document queue.
 
 function resolveMarkdownTarget(
   worktreeId: string,
   tabId: string
-): { tab: OpenFile; sourceFile: OpenFile } {
+): { tab: OpenFile; sourceFile: OpenFile; documentId: WorkingDocumentId } {
   const state = useAppStore.getState()
   const orderItem = getActiveTabNavOrder(state, worktreeId).find(
     (item) => item.type === 'editor' && (item.tabId === tabId || item.id === tabId)
@@ -201,7 +176,11 @@ function resolveMarkdownTarget(
           (file) => file.worktreeId === worktreeId && file.id === tab.markdownPreviewSourceFileId
         ) ?? tab)
       : tab
-  return { tab, sourceFile }
+  const document = getWorkingDocumentForFile(state, sourceFile.id)
+  if (!document) {
+    throw new Error('document_not_ready')
+  }
+  return { tab, sourceFile, documentId: document.id }
 }
 
 function isMarkdownTab(file: OpenFile): boolean {
@@ -229,11 +208,12 @@ function getReadOnlyReason(
 }
 
 async function readCurrentContent(
-  file: OpenFile
+  file: OpenFile,
+  documentId: WorkingDocumentId
 ): Promise<{ content: string; source: 'draft' | 'file' }> {
-  const draft = useAppStore.getState().editorDrafts[file.id]
-  if (draft !== undefined) {
-    return { content: draft, source: 'draft' }
+  const document = useAppStore.getState().workingDocuments[documentId]
+  if (document?.content !== undefined) {
+    return { content: document.content, source: document.isDirty ? 'draft' : 'file' }
   }
   return { content: await readFileContent(file), source: 'file' }
 }
@@ -258,13 +238,7 @@ async function readFileContent(file: OpenFile): Promise<string> {
   return result.content
 }
 
-function flushEditorState(fileId: string): void {
-  // Why: rich markdown serializes through a debounce. Mobile reads/saves must
-  // observe desktop-visible text, not a stale draft from before that debounce.
-  flushPendingEditorChange(fileId)
-}
-
-async function waitForPositiveSave(file: OpenFile, content: string): Promise<void> {
+async function waitForPositiveSave(documentId: WorkingDocumentId, content: string): Promise<void> {
   let timeout: number | null = null
   let onSaved: ((event: Event) => void) | null = null
   const cleanup = (): void => {
@@ -273,7 +247,7 @@ async function waitForPositiveSave(file: OpenFile, content: string): Promise<voi
       timeout = null
     }
     if (onSaved) {
-      window.removeEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, onSaved as EventListener)
+      window.removeEventListener(ORCA_EDITOR_DOCUMENT_SAVED_EVENT, onSaved as EventListener)
       onSaved = null
     }
   }
@@ -283,23 +257,19 @@ async function waitForPositiveSave(file: OpenFile, content: string): Promise<voi
       reject(new Error('save_timeout'))
     }, 20_000)
     onSaved = (event: Event): void => {
-      const detail = (event as CustomEvent<EditorFileSavedDetail>).detail
-      if (detail?.fileId !== file.id || detail.content !== content) {
+      const detail = (event as CustomEvent<EditorDocumentSavedDetail>).detail
+      if (detail?.documentId !== documentId || detail.content !== content) {
         return
       }
       cleanup()
       resolve()
     }
-    window.addEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, onSaved as EventListener)
+    window.addEventListener(ORCA_EDITOR_DOCUMENT_SAVED_EVENT, onSaved as EventListener)
   })
 
   try {
-    await requestEditorSaveQuiesce({ fileId: file.id })
-    const liveFile = useAppStore.getState().openFiles.find((openFile) => openFile.id === file.id)
-    if (!liveFile) {
-      throw new Error('tab_not_found')
-    }
-    await requestEditorFileSave({ fileId: file.id, fallbackContent: content })
+    await quiesceDocumentSave(documentId)
+    await requestEditorDocumentSave({ documentId })
     await saved
   } catch (error) {
     cleanup()

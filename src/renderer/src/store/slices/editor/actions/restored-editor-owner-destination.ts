@@ -46,11 +46,7 @@ export function resolveRestoredEditorOwnerDestination(
     return {
       ok: false,
       reason: 'owner-changed',
-      patch: {
-        openFiles: s.openFiles.map((file) =>
-          file.id === args.fileId ? { ...file, pendingOwnerMigration: undefined } : file
-        )
-      }
+      patch: { openFiles: s.openFiles }
     }
   }
   const operationProvenance = args.targetOperationProvenance
@@ -84,11 +80,7 @@ export function resolveRestoredEditorOwnerDestination(
     return {
       ok: false,
       reason: 'collision',
-      patch: {
-        openFiles: s.openFiles.map((file) =>
-          file.id === args.fileId ? { ...file, pendingOwnerMigration: undefined } : file
-        )
-      }
+      patch: { openFiles: s.openFiles }
     }
   }
 

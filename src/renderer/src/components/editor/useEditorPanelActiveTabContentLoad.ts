@@ -1,11 +1,12 @@
 import { useEffect, type MutableRefObject } from 'react'
 import type { OpenFile } from '@/store/slices/editor'
 import { joinPath } from '@/lib/path'
-import type { useAppStore } from '@/store'
+import { useAppStore } from '@/store'
 import type { DiffContent, FileContent } from './editor-panel-content-types'
 import { isReloadableSingleFileDiffTab } from './editor-panel-diff-reload'
 import type { EditorPanelDiffContentLoader } from './useEditorPanelDiffContentLoader'
 import type { EditorPanelFileContentLoader } from './useEditorPanelFileContentLoader'
+import { getEditorGitBaselineScope } from './editor-panel-file-mode'
 
 type GitStatusByWorktree = ReturnType<typeof useAppStore.getState>['gitStatusByWorktree']
 
@@ -52,6 +53,20 @@ export function useEditorPanelActiveTabContentLoad({
   loadFileContent,
   loadDiffContent
 }: UseEditorPanelActiveTabContentLoadParams): void {
+  const baselineScope = useAppStore((state) =>
+    activeFile ? getEditorGitBaselineScope(state, activeFile) : null
+  )
+  const baselineFileReady = activeFile
+    ? fileContents[activeFile.id]?.isBinary === false && !fileContents[activeFile.id]?.loadError
+    : false
+  const activeDiff = activeFile ? diffContents[activeFile.id] : undefined
+  const needsWorkingDiffDocument =
+    activeFile?.mode === 'diff' &&
+    activeFile.diffSource === 'unstaged' &&
+    !activeFile.readOnly &&
+    activeDiff?.kind === 'text' &&
+    !activeDiff.largeDiffRenderLimit?.limited &&
+    activeDiff.modifiedReadState !== 'absent'
   const needsFileRead = (fileId: string): boolean => {
     const cached = fileContents[fileId]
     return (
@@ -59,6 +74,11 @@ export function useEditorPanelActiveTabContentLoad({
       !hasLiveRead(fileReadGenerationRef.current, outstandingFileReadsRef.current, fileId)
     )
   }
+  const shouldForceFileRead = (fileId: string): boolean =>
+    fileContents[fileId]?.isStale === true ||
+    (fileReadGenerationRef.current[fileId] ?? 0) > 1 ||
+    (outstandingFileReadsRef.current[fileId] !== undefined &&
+      outstandingFileReadsRef.current[fileId] !== fileReadGenerationRef.current[fileId])
   const needsDiffRead = (fileId: string): boolean => {
     const cached = diffContents[fileId]
     return (
@@ -110,14 +130,26 @@ export function useEditorPanelActiveTabContentLoad({
           fileToLoad.filePath,
           fileToLoad.id,
           fileToLoad.worktreeId,
-          fileToLoad.relativePath
+          fileToLoad.relativePath,
+          shouldForceFileRead(fileToLoad.id) ? { force: true } : undefined
         )
       }
-      if (isChangesMode && needsDiffRead(fileToLoad.id)) {
+      if (
+        (isChangesMode || (baselineScope !== null && baselineFileReady)) &&
+        needsDiffRead(fileToLoad.id)
+      ) {
         void loadDiffContent(fileToLoad)
       }
     } else if (isReloadableSingleFileDiffTab(fileToLoad) && needsDiffRead(fileToLoad.id)) {
       void loadDiffContent(fileToLoad)
+    }
+    if (needsWorkingDiffDocument && needsFileRead(fileToLoad.id)) {
+      void loadFileContent(
+        fileToLoad.filePath,
+        fileToLoad.id,
+        fileToLoad.worktreeId,
+        fileToLoad.relativePath
+      )
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -127,6 +159,11 @@ export function useEditorPanelActiveTabContentLoad({
     activeFile?.conflictReview?.snapshotTimestamp,
     selectedConflictReviewFile?.id,
     isChangesMode,
+    baselineScope,
+    baselineFileReady,
+    needsWorkingDiffDocument,
+    activeFile?.filePath,
+    activeFile?.runtimeEnvironmentId,
     isVisible,
     gitStatusEntries
   ])

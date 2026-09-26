@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { detectLanguage } from '@/lib/language-detect'
 import { joinPath } from '@/lib/path'
 import { useAppStore } from '@/store'
+import { openReviewWorkingFile } from '@/lib/review-working-file'
 import type {
   GitBranchChangeEntry,
   GitBranchCompareSummary
@@ -28,14 +29,9 @@ export function useSourceControlRowOpening({
   visibleSelectionEntries: FlatEntry[]
   branchSummary: GitBranchCompareSummary | null
 }) {
-  const activeGroupIdByWorktree = useAppStore((s) => s.activeGroupIdByWorktree)
-  const groupsByWorktree = useAppStore((s) => s.groupsByWorktree)
-  const createEmptySplitGroup = useAppStore((s) => s.createEmptySplitGroup)
   const trackConflictPath = useAppStore((s) => s.trackConflictPath)
   const openConflictFile = useAppStore((s) => s.openConflictFile)
   const openDiff = useAppStore((s) => s.openDiff)
-  const openFile = useAppStore((s) => s.openFile)
-  const setEditorViewMode = useAppStore((s) => s.setEditorViewMode)
   const openBranchDiff = useAppStore((s) => s.openBranchDiff)
 
   // Why: modifier-click keeps the current pane intact by opening the file in a fresh split to the right.
@@ -44,14 +40,19 @@ export function useSourceControlRowOpening({
       if (!event || !activeWorktreeId || !isSourceControlSplitOpenModifier(event, isMac)) {
         return undefined
       }
+      const state = useAppStore.getState()
       const sourceGroupId =
-        activeGroupIdByWorktree[activeWorktreeId] ?? groupsByWorktree[activeWorktreeId]?.[0]?.id
+        state.activeGroupIdByWorktree[activeWorktreeId] ??
+        state.groupsByWorktree[activeWorktreeId]?.[0]?.id
       if (!sourceGroupId) {
         return undefined
       }
-      return createEmptySplitGroup(activeWorktreeId, sourceGroupId, 'right') ?? undefined
+      if (event.target === 'file') {
+        return sourceGroupId
+      }
+      return state.createEmptySplitGroup(activeWorktreeId, sourceGroupId, 'right') ?? undefined
     },
-    [activeGroupIdByWorktree, activeWorktreeId, createEmptySplitGroup, groupsByWorktree, isMac]
+    [activeWorktreeId, isMac]
   )
 
   // Why: a stable string signature keeps this selector referentially stable so the panel re-renders only when the active editor file changes; null when the tab isn't an editor.
@@ -99,23 +100,18 @@ export function useSourceControlRowOpening({
         })
         return
       }
-      const language = detectLanguage(entry.path)
-      const filePath = joinPath(worktreePath, entry.path)
-      // Why: unstaged markdown diffs open as an edit tab in Changes view (one tab per file); staged diffs still get a separate diff tab since that isn't what the editor edits.
-      if (language === 'markdown' && entry.area === 'unstaged') {
-        openFile(
-          {
-            filePath,
-            relativePath: entry.path,
-            worktreeId: activeWorktreeId,
-            language,
-            mode: 'edit'
-          },
-          { targetGroupId, preview: openAsPreview }
-        )
-        setEditorViewMode(filePath, 'changes')
+      if (event?.target === 'file') {
+        void openReviewWorkingFile({
+          worktreeId: activeWorktreeId,
+          worktreePath,
+          relativePath: entry.path,
+          targetGroupId,
+          preview: openAsPreview
+        })
         return
       }
+      const language = detectLanguage(entry.path)
+      const filePath = joinPath(worktreePath, entry.path)
       openDiff(activeWorktreeId, filePath, entry.path, language, entry.area === 'staged', {
         targetGroupId,
         preview: openAsPreview
@@ -127,20 +123,27 @@ export function useSourceControlRowOpening({
       resolveSplitTargetGroupId,
       trackConflictPath,
       openConflictFile,
-      openDiff,
-      openFile,
-      setEditorViewMode
+      openDiff
     ]
   )
 
   const openCommittedDiff = useCallback(
     (entry: GitBranchChangeEntry, event?: SourceControlRowOpenEvent) => {
-      if (
-        !activeWorktreeId ||
-        !worktreePath ||
-        !branchSummary ||
-        branchSummary.status !== 'ready'
-      ) {
+      if (!activeWorktreeId || !worktreePath) {
+        return
+      }
+      if (event?.target === 'file') {
+        const targetGroupId = resolveSplitTargetGroupId(event)
+        void openReviewWorkingFile({
+          worktreeId: activeWorktreeId,
+          worktreePath,
+          relativePath: entry.path,
+          targetGroupId,
+          preview: shouldOpenSourceControlRowAsPreview(event, targetGroupId)
+        })
+        return
+      }
+      if (!branchSummary || branchSummary.status !== 'ready') {
         return
       }
       const targetGroupId = resolveSplitTargetGroupId(event)

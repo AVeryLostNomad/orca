@@ -127,9 +127,57 @@ describe('hydrateEditorSession', () => {
         isDirty: true
       })
     ])
-    expect(s.editorDrafts).toEqual({ [fileId]: '' })
+    expect(
+      Object.values(s.workingDocuments).find((document) => document.target.filePath === filePath)
+    ).toMatchObject({
+      content: '',
+      isDirty: true,
+      pendingDiskBaselineVerification: true
+    })
     expect(s.markdownFrontmatterVisible).toEqual({})
     expect(s.activeFileIdByWorktree[FLOATING_TERMINAL_WORKTREE_ID]).toBe(fileId)
+  })
+
+  it('retains an unresolved owner-qualified dirty recovery document without rerouting it locally', () => {
+    const store = createTestStore()
+    const filePath = '/orca/userData/floating-workspace/remote-note.md'
+
+    store.setState({ activeWorktreeId: FLOATING_TERMINAL_WORKTREE_ID })
+    store.getState().hydrateEditorSession({
+      activeRepoId: null,
+      activeWorktreeId: FLOATING_TERMINAL_WORKTREE_ID,
+      activeTabId: null,
+      tabsByWorktree: {},
+      terminalLayoutsByTabId: {},
+      openFilesByWorktree: {
+        [FLOATING_TERMINAL_WORKTREE_ID]: [
+          {
+            filePath,
+            relativePath: 'remote-note.md',
+            worktreeId: FLOATING_TERMINAL_WORKTREE_ID,
+            language: 'markdown',
+            runtimeEnvironmentId: null,
+            executionHostId: 'ssh:offline-host',
+            dirtyDraftContent: 'recovery text'
+          }
+        ]
+      },
+      activeFileIdByWorktree: {},
+      activeTabTypeByWorktree: {}
+    })
+
+    const state = store.getState()
+    const document = Object.values(state.workingDocuments).find(
+      (candidate) => candidate.target.filePath === filePath
+    )
+    expect(document).toMatchObject({
+      content: 'recovery text',
+      isDirty: true,
+      pendingDiskBaselineVerification: true,
+      pendingOwnerMigration: true,
+      target: { owner: { executionHostId: 'ssh:offline-host' } }
+    })
+    expect(state.openFiles[0]?.operationProvenance).toBeUndefined()
   })
 
   it('migrates hydrated front-matter visibility to owner-qualified editor file ids', () => {

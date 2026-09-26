@@ -40,7 +40,8 @@ export const CombinedDiffFileTreeRow = memo(function CombinedDiffFileTreeRow({
   isCollapsed,
   visibleFileCount,
   onToggleDirectory,
-  onNavigate
+  onNavigate,
+  onOpenWorkingFile
 }: {
   node: CombinedDiffTreeNode
   mode: CombinedDiffFileTreeMode
@@ -51,6 +52,7 @@ export const CombinedDiffFileTreeRow = memo(function CombinedDiffFileTreeRow({
   visibleFileCount?: number
   onToggleDirectory: (key: string) => void
   onNavigate: (entry: CombinedDiffFileTreeEntry) => void
+  onOpenWorkingFile?: (entry: CombinedDiffFileTreeEntry) => void
 }): React.JSX.Element {
   if (node.type === 'directory') {
     return (
@@ -99,6 +101,7 @@ export const CombinedDiffFileTreeRow = memo(function CombinedDiffFileTreeRow({
   return (
     <button
       type="button"
+      data-combined-diff-tree-path={node.entry.path}
       className={cn(
         'group flex w-full min-w-0 cursor-pointer items-center gap-1 py-1 pr-3 text-left text-xs transition-colors hover:bg-accent/40 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent',
         activeSectionKey === sectionKey && 'bg-accent/60'
@@ -119,7 +122,13 @@ export const CombinedDiffFileTreeRow = memo(function CombinedDiffFileTreeRow({
         )
         event.dataTransfer.effectAllowed = 'copy'
       }}
-      onClick={() => onNavigate(node.entry)}
+      onClick={(event) => {
+        if (event.detail > 1) {
+          return
+        }
+        onNavigate(node.entry)
+      }}
+      onDoubleClick={onOpenWorkingFile ? () => onOpenWorkingFile(node.entry) : undefined}
     >
       {createElement(FileIcon, {
         className: 'size-3.5 shrink-0',

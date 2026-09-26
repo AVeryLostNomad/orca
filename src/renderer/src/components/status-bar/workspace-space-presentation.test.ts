@@ -143,7 +143,7 @@ function decisionInputs(
     runtimePaneTitlesByTabId: {},
     retainedAgentsByPaneKey: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
     browserTabsByWorktree: {},
     gitStatusByWorktree: {},
     remoteStatusesByWorktree: {},

@@ -1,6 +1,5 @@
 import { useAppStore } from '@/store'
 import type { MarkdownViewMode, OpenFile, PendingEditorReveal } from '@/store/slices/editor'
-import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 
 import { CheckRunDetailsPanel } from './CheckRunDetailsPanel'
@@ -9,11 +8,13 @@ import { EditorConflictReviewSurface } from './EditorConflictReviewSurface'
 import { EditorDiffFileSurface } from './EditorDiffFileSurface'
 import { EditorEditFileSurface } from './EditorEditFileSurface'
 import { EditorFileLoadErrorView } from './EditorFileLoadErrorView'
-import type { FileContent } from './editor-panel-content-types'
+import type { DiffContent, FileContent } from './editor-panel-content-types'
 import { translate } from '@/i18n/i18n'
 import { useEditorConflictNavigation } from './useEditorConflictNavigation'
 import { useMarkdownDocuments } from './useMarkdownDocuments'
 import type { MarkdownRenderState } from './markdown-render-mode'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 
 const noopCloseMarkdownTableOfContents = (): void => {}
 
@@ -59,15 +60,14 @@ export function EditorContent({
   pendingEditorReveal,
   handleContentChange,
   handleContentChangeForFile,
-  handleDirtyStateHint,
   handleSave,
-  handleSaveForFile,
+  handleSaveForDocument,
   reloadContent
 }: {
   activeFile: OpenFile
   viewStateScopeId: string
   fileContents: Record<string, FileContent>
-  diffContents: Record<string, GitDiffResult>
+  diffContents: Record<string, DiffContent>
   editBuffers: Record<string, string>
   openFiles: OpenFile[]
   worktreeEntries: GitStatusEntry[]
@@ -87,11 +87,11 @@ export function EditorContent({
   pendingEditorReveal: PendingEditorReveal | null
   handleContentChange: (content: string) => void
   handleContentChangeForFile: (file: OpenFile, content: string) => void
-  handleDirtyStateHint: (dirty: boolean) => void
-  handleSave: (content: string) => Promise<boolean>
-  handleSaveForFile: (file: OpenFile, content: string) => Promise<boolean>
+  handleSave: () => Promise<boolean>
+  handleSaveForDocument: (documentId: WorkingDocumentId | null) => Promise<boolean>
   reloadContent: (file: OpenFile) => void
 }): React.JSX.Element {
+  const workingDocument = useAppStore((state) => getWorkingDocumentForFile(state, activeFile.id))
   const editorViewStateKey =
     viewStateScopeId === activeFile.id
       ? activeFile.filePath
@@ -154,13 +154,13 @@ export function EditorContent({
         activeFile={activeFile}
         viewStateScopeId={viewStateScopeId}
         fileContents={fileContents}
-        editBuffers={editBuffers}
+        documentContentByTab={editBuffers}
         openFiles={openFiles}
         worktreeEntries={worktreeEntries}
         pendingEditorReveal={pendingEditorReveal}
         getConflictNavigation={getConflictNavigation}
         handleContentChangeForFile={handleContentChangeForFile}
-        handleSaveForFile={handleSaveForFile}
+        handleSaveForDocument={handleSaveForDocument}
         reloadContent={reloadContent}
       />
     )
@@ -172,6 +172,7 @@ export function EditorContent({
         key={viewStateScopeId}
         file={activeFile}
         viewStateKey={diffViewStateKey}
+        tabId={viewStateScopeId}
       />
     )
   }
@@ -223,17 +224,28 @@ export function EditorContent({
       </div>
     )
   }
+  const loadedDiff = diffContents[activeFile.id]
+  if (loadedDiff?.kind === 'error' && (activeFile.mode !== 'edit' || isChangesMode)) {
+    return (
+      <EditorFileLoadErrorView
+        message={loadedDiff.message}
+        onRetry={() => reloadContent(activeFile)}
+      />
+    )
+  }
+  const diffContent = loadedDiff?.kind === 'error' ? undefined : loadedDiff
 
   if (activeFile.mode === 'edit') {
     return (
       <EditorEditFileSurface
         activeFile={activeFile}
+        workingDocument={workingDocument}
         viewStateScopeId={viewStateScopeId}
         editorViewStateKey={editorViewStateKey}
         diffViewStateKey={diffViewStateKey}
         pdfViewStateKey={pdfViewStateKey}
         fileContent={fileContents[activeFile.id]}
-        diffContent={diffContents[activeFile.id]}
+        diffContent={diffContent}
         editBuffer={editBuffers[activeFile.id]}
         activeConflictEntry={activeConflictEntry}
         monacoLanguage={monacoLanguage}
@@ -254,7 +266,6 @@ export function EditorContent({
         getConflictNavigation={getConflictNavigation}
         getMarkdownSourceLineOffset={getMarkdownSourceLineOffset}
         handleContentChange={handleContentChange}
-        handleDirtyStateHint={handleDirtyStateHint}
         handleSave={handleSave}
         reloadContent={reloadContent}
       />
@@ -264,7 +275,10 @@ export function EditorContent({
   return (
     <EditorDiffFileSurface
       activeFile={activeFile}
-      diffContent={diffContents[activeFile.id]}
+      workingDocument={workingDocument}
+      fileContent={fileContents[activeFile.id]}
+      onSave={handleSave}
+      diffContent={diffContent}
       editBuffer={editBuffers[activeFile.id]}
       sideBySide={sideBySide}
       viewStateScopeId={viewStateScopeId}

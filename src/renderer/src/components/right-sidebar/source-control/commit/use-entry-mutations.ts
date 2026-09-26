@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import {
   notifyEditorExternalFileChange,
-  requestEditorSaveQuiesce
+  quiesceDocumentSave
 } from '@/components/editor/editor-autosave'
 import { getConnectionId } from '@/lib/connection-context'
 import {
@@ -12,6 +12,22 @@ import {
   type RuntimeGitContext
 } from '@/runtime/runtime-git-client'
 import { useAppStore } from '@/store'
+
+function quiesceDocumentsForPath(
+  worktreeId: string,
+  relativePath: string,
+  runtimeEnvironmentId: string | null
+): Promise<void[]> {
+  const documentIds = Object.values(useAppStore.getState().workingDocuments)
+    .filter(
+      (document) =>
+        document.target.worktreeId === worktreeId &&
+        document.target.relativePath === relativePath &&
+        document.target.owner.runtimeEnvironmentId === runtimeEnvironmentId
+    )
+    .map((document) => document.id)
+  return Promise.all(documentIds.map((documentId) => quiesceDocumentSave(documentId)))
+}
 
 export function useSourceControlEntryMutations({
   activeRepoSettings,
@@ -83,12 +99,7 @@ export function useSourceControlEntryMutations({
       const runtimeEnvironmentId =
         useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() || null
       // Why: quiesce pending editor autosaves first so a delayed save can't recreate the discarded edits after git restores the file.
-      await requestEditorSaveQuiesce({
-        worktreeId: activeWorktreeId,
-        worktreePath,
-        relativePath: filePath,
-        runtimeEnvironmentId
-      })
+      await quiesceDocumentsForPath(activeWorktreeId, filePath, runtimeEnvironmentId)
       const connectionId = getConnectionId(activeWorktreeId) ?? undefined
       await discardRuntimeGitPath(
         {
@@ -120,12 +131,7 @@ export function useSourceControlEntryMutations({
       // Why: quiesce matching editor autosaves first so a delayed save can't recreate edits after git mutates the files.
       await Promise.all(
         filePaths.map((relativePath) =>
-          requestEditorSaveQuiesce({
-            worktreeId: activeWorktreeId,
-            worktreePath,
-            relativePath,
-            runtimeEnvironmentId
-          })
+          quiesceDocumentsForPath(activeWorktreeId, relativePath, runtimeEnvironmentId)
         )
       )
       const connectionId = getConnectionId(activeWorktreeId) ?? undefined

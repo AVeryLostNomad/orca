@@ -155,6 +155,8 @@ async function loadDiff(
   let modifiedContent = ''
   let originalIsBinary = false
   let modifiedIsBinary = false
+  let originalReadState: GitDiffReadState = 'unavailable'
+  let modifiedReadState: GitDiffReadState = 'unavailable'
   let modifiedDeleted = false
   let readFailed = false
 
@@ -168,9 +170,11 @@ async function loadDiff(
       ])
       originalContent = leftBlob.content
       originalIsBinary = leftBlob.isBinary
+      originalReadState = readStateForBlob(leftBlob)
       modifiedContent = rightBlob.content
       modifiedIsBinary = rightBlob.isBinary
-      modifiedDeleted = !rightBlob.exists
+      modifiedReadState = readStateForBlob(rightBlob)
+      modifiedDeleted = !rightBlob.exists && rightBlob.failed !== true
       readFailed = leftBlob.failed === true || rightBlob.failed === true
     } else {
       // The left chain (index→HEAD) is sequential within itself, but the working
@@ -187,9 +191,11 @@ async function loadDiff(
       ])
       originalContent = leftBlob.content
       originalIsBinary = leftBlob.isBinary
+      originalReadState = readStateForBlob(leftBlob)
       modifiedContent = workingTreeBlob.content
       modifiedIsBinary = workingTreeBlob.isBinary
-      modifiedDeleted = !workingTreeBlob.exists
+      modifiedReadState = readStateForBlob(workingTreeBlob)
+      modifiedDeleted = !workingTreeBlob.exists && workingTreeBlob.failed !== true
       readFailed = leftBlob.failed === true || workingTreeBlob.failed === true
     }
   } catch {
@@ -197,13 +203,17 @@ async function loadDiff(
     readFailed = true
   }
 
-  const result = buildDiffResult(
-    originalContent,
-    modifiedContent,
-    originalIsBinary,
-    modifiedIsBinary,
-    filePath
-  )
+  const result = {
+    ...buildDiffResult(
+      originalContent,
+      modifiedContent,
+      originalIsBinary,
+      modifiedIsBinary,
+      filePath
+    ),
+    originalReadState,
+    modifiedReadState
+  }
   // Why: mark a proven deletion so previewers don't mistake a read failure's empty side for one.
   if (result.kind === 'binary' && modifiedDeleted) {
     return { result: { ...result, modifiedDeleted: true }, reusable: !readFailed }
@@ -217,6 +227,15 @@ const UNSPELLABLE_WORKING_TREE_READ: GitBlobReadResult = {
   isBinary: false,
   exists: true,
   failed: true
+}
+
+type GitDiffReadState = NonNullable<GitDiffResult['originalReadState']>
+
+function readStateForBlob(blob: GitBlobReadResult): GitDiffReadState {
+  if (blob.failed) {
+    return 'unavailable'
+  }
+  return blob.exists ? 'present' : 'absent'
 }
 
 function notReusable(result: GitDiffResult): LoadedDiff {

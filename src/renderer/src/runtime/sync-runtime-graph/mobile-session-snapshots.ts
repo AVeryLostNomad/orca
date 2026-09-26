@@ -16,7 +16,7 @@ import {
   buildMobileSessionWorktreeInputs,
   getOpenFileIndexes
 } from './mobile-session-inputs'
-import { getEditorDraftVersionByFileId } from './sync-projections'
+import { getWorkingDocumentVersionByFileId } from './sync-projections'
 import { getMobileTerminalTheme } from './mobile-terminal-theme'
 import {
   isMobilePublishableBrowserWorkspace,
@@ -46,7 +46,7 @@ export function buildMobileSessionTabSnapshots(
   const publicationInputs: MobileSessionPublicationInputs = {
     browserTabsByWorktree,
     openFileIndexes,
-    editorDraftVersionByFileId: getEditorDraftVersionByFileId(state.editorDrafts),
+    workingDocumentVersionByFileId: getWorkingDocumentVersionByFileId(state),
     agentStatusByWorktreeId: buildMobileSessionAgentStatusByWorktree(
       state.agentStatusByPaneKey ?? {},
       state.tabsByWorktree

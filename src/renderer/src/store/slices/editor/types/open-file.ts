@@ -122,18 +122,7 @@ export type OpenFile = {
   deleteUntouchedOnClose?: boolean
   /** Scratch tab: lives in the local app-owned scratch dir, deleted from disk unconditionally on close, and content-based language detection renames its extension. */
   isScratch?: boolean
-  // Why: external delete/rename of an open file keeps the tab (strikethrough label); 'changed' = rewritten on disk under unsaved edits → changed-on-disk banner (#7265).
-  externalMutation?: 'deleted' | 'renamed' | 'changed'
-  /** Signature of the disk content this tab's edits are based on; persisted so a restore detects a changed-on-disk conflict before autosave clobbers an agent write. */
-  lastKnownDiskSignature?: string
-  /** Why: gates autosave for restored dirty tabs until the conflict scan compares disk vs baseline, else a slow SSH read loses the race. Not persisted. */
-  pendingDiskBaselineVerification?: boolean
-  /** Why: gates autosave during a live self-move echo's disk verification; separate flag from the restored scan's so the two can't clear each other's gate. Not persisted. */
-  pendingLiveDiskVerification?: boolean
-  /** Blocks saves while a restored tab's filesystem authority is being replaced. */
-  pendingOwnerMigration?: boolean
-  /** Why: routes an Orca-owned move's destination-watcher echo into content verification. On the tab so it survives the atomic rekey; operationId supersedes a stale verification on re-move. Not persisted. */
-  pendingSelfMoveEcho?: { operationId: string; targetPath: string }
+  // Why: diff bodies are cached in EditorPanel; bump this on re-select so the panel refetches instead of reusing a stale snapshot.
   /** Why: diff bodies are cached in EditorPanel; bump this on re-select so the panel refetches instead of reusing a stale snapshot. */
   diffContentReloadNonce?: number
   /** Why: bumping refetches clean tabs — the user's manual recovery when a remote watcher misses an external write. */

@@ -61,6 +61,10 @@ For diff status, file-tree decorations, and the changes view, use the git decora
 
 Use these _only_ for git status. Don't reuse them for unrelated state colors — that breaks the convention.
 
+Ordinary editor line gutters use `--editor-git-gutter-modified` for replacements (blue-600 light, blue-400 dark). Keep the amber `--git-decoration-modified` token for file status; additions and deletion divots retain the existing added/deleted tokens.
+
+Inline gutter diff peeks inherit Monaco's active editor background, foreground, line-number colors, and inserted/removed line tints. Keep them distinct with a foreground-mixed header and hairline frame, rather than switching back to the app chrome palette.
+
 ### List rows: hover, selected, current
 
 A common point of drift. Use these conventions for any list-style row (worktrees, command palette items, settings nav):

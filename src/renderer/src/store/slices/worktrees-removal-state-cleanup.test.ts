@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { StoreApi } from 'zustand/vanilla'
 import type { AppState } from '../types'
+import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
+import type { WorkingDocumentId, WorkingDocumentTarget } from './editor/working-document'
 import {
   beginHugeRepoWarningProbe,
   clearHugeRepoWarningDismissalsForTests,
@@ -14,6 +17,31 @@ import {
   resetRemoteRuntimeMocks,
   resetWorktreeSliceModuleMemory
 } from './worktrees-slice-test-harness'
+
+function retainDirtyDocument(
+  store: StoreApi<AppState>,
+  tabId: string,
+  filePath: string,
+  worktreeId: string
+): WorkingDocumentId {
+  const target = {
+    owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+    filePath,
+    worktreeId,
+    relativePath: filePath.split('/').at(-1) ?? filePath,
+    language: 'typescript',
+    operationProvenance: {
+      generation: { route: { executionHostId: 'local', runtimeEnvironmentId: null } }
+    }
+  } as WorkingDocumentTarget
+  const documentId = store.getState().retainWorkingDocument(tabId, target)
+  const diskContent = 'saved copy'
+  store
+    .getState()
+    .acceptWorkingDocumentLoad(documentId, 0, diskContent, getDiskBaselineSignature(diskContent))
+  store.getState().setWorkingDocumentContent(documentId, `draft content for ${filePath}`)
+  return documentId
+}
 
 const requestWorktreeBaseFallbackNotice = vi.hoisted(() => vi.fn())
 
@@ -204,7 +232,7 @@ describe('removeWorktree state cleanup', () => {
     expect(deleteProjectHostSetup).toHaveBeenCalledWith({ setupId: 'setup-runtime-ssh' })
   })
 
-  it('cleans up editorDrafts for files in the removed worktree', async () => {
+  it('keeps dirty working documents for recovery after removing their worktree', async () => {
     const store = createTestStore()
     const wt = makeWorktree({ id: 'repo1::/path/wt1', repoId: 'repo1', path: '/path/wt1' })
 
@@ -217,26 +245,40 @@ describe('removeWorktree state cleanup', () => {
           filePath: '/path/wt1/file.ts',
           relativePath: 'file.ts',
           language: 'typescript',
-          isDirty: true,
           isPreview: false,
           mode: 'edit' as const
         }
-      ],
-      editorDrafts: {
-        'file-1': 'draft content for wt1',
-        'file-2': 'draft content for another worktree'
-      }
+      ]
     } as unknown as Partial<AppState>)
+    const removedDocumentId = retainDirtyDocument(
+      store,
+      'file-1',
+      '/path/wt1/file.ts',
+      'repo1::/path/wt1'
+    )
+    const remainingDocumentId = retainDirtyDocument(
+      store,
+      'file-2',
+      '/path/wt2/file.ts',
+      'repo1::/path/wt2'
+    )
 
     const result = await store
       .getState()
       .removeWorktree({ id: 'repo1::/path/wt1', executionHostId: null })
 
     expect(result).toEqual({ ok: true })
-    // Draft for file-1 should be removed, draft for file-2 should remain
-    expect(store.getState().editorDrafts).toEqual({
-      'file-2': 'draft content for another worktree'
+    expect(store.getState().openFiles).toEqual([])
+    expect(store.getState().workingDocuments[removedDocumentId]).toMatchObject({
+      content: 'draft content for /path/wt1/file.ts',
+      isDirty: true
     })
+    expect(store.getState().workingDocuments[remainingDocumentId]).toMatchObject({
+      content: 'draft content for /path/wt2/file.ts',
+      isDirty: true
+    })
+    expect(store.getState().workingDocumentIdsByTab['file-1']).toBeUndefined()
+    expect(store.getState().workingDocumentIdsByTab['file-2']).toEqual([remainingDocumentId])
   })
 
   it('cleans up the removed worktree lineage entry', async () => {
@@ -634,22 +676,5 @@ describe('removeWorktree state cleanup', () => {
     expect(store.getState().recentlyClosedBrowserTabsByWorktree).toEqual({
       'repo1::/path/wt2': [{ workspace: { id: 'workspace-2' }, pages: [] }]
     })
-  })
-
-  it('skips editorDrafts shallow copy when no files belong to the removed worktree', async () => {
-    const store = createTestStore()
-    const wt = makeWorktree({ id: 'repo1::/path/wt1', repoId: 'repo1', path: '/path/wt1' })
-
-    const drafts = { 'file-2': 'some content' }
-    store.setState({
-      worktreesByRepo: { repo1: [wt] },
-      openFiles: [],
-      editorDrafts: drafts
-    } as Partial<AppState>)
-
-    await store.getState().removeWorktree({ id: 'repo1::/path/wt1', executionHostId: null })
-
-    // The same reference should be returned (no unnecessary shallow copy)
-    expect(store.getState().editorDrafts).toBe(drafts)
   })
 })

@@ -167,11 +167,10 @@ export function applyOpenFileToState(
   if (isPreview) {
     const replaceablePreviewId = getReplaceablePreviewFileId(s, worktreeId, targetGroupId)
     const existingPreviewIdx = s.openFiles.findIndex((f) => f.id === replaceablePreviewId)
-    if (existingPreviewIdx !== -1) {
-      const replacedPreview = s.openFiles[existingPreviewIdx]
+    const replacedPreview = s.openFiles[existingPreviewIdx]
+    if (replacedPreview && !replacedPreview.isDirty) {
       // Why: reuse the shared eviction helper so per-file cursor/draft/visibility cleanup stays in one place.
       const {
-        editorDrafts: nextEditorDrafts,
         editorCursorLine: nextEditorCursorLine,
         markdownViewMode: nextMarkdownViewMode,
         markdownRichModeSizeOverride: nextMarkdownRichModeSizeOverride,
@@ -233,7 +232,6 @@ export function applyOpenFileToState(
       }
       return {
         openFiles: newFiles,
-        editorDrafts: nextEditorDrafts,
         editorCursorLine: nextEditorCursorLine,
         markdownViewMode: nextMarkdownViewMode,
         markdownRichModeSizeOverride: nextMarkdownRichModeSizeOverride,

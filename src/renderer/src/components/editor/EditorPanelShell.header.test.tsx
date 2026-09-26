@@ -73,7 +73,7 @@ function renderShell(file: OpenFile, isCombinedDiff = false): string {
       openFiles={[file]}
       fileContents={{}}
       diffContents={{}}
-      editorDrafts={{}}
+      documentContentByTab={{}}
       pendingEditorReveal={null}
       renameDialogFile={null}
       renameError={null}
@@ -90,9 +90,8 @@ function renderShell(file: OpenFile, isCombinedDiff = false): string {
       onExportMarkdownToPdf={noop}
       onContentChange={noop}
       onContentChangeForFile={noop}
-      onDirtyStateHint={noop}
       onSave={async () => true}
-      onSaveForFile={async () => true}
+      onSaveForDocument={async () => true}
       onReloadContent={noop}
       onCloseMarkdownTableOfContents={noop}
       onCloseRenameDialog={noop}

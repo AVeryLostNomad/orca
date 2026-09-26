@@ -16,10 +16,12 @@ const WARP_CHANNELS = [
   }
 ]
 
+const BASE_SENSITIVITY_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' })
+
 function readDirectoryEntries(directoryPath: string): Dirent[] {
   try {
     return readdirSync(directoryPath, { withFileTypes: true }).sort((left, right) =>
-      left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+      BASE_SENSITIVITY_COLLATOR.compare(left.name, right.name)
     )
   } catch {
     return []

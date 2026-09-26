@@ -2,9 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { Repo } from '../../../shared/repo-types'
 import type { WorkspaceSessionSnapshot } from './workspace-session'
 import { buildWorkspaceSessionPatch } from './workspace-session-patch'
+import type { WorkingDocument } from '../store/slices/editor/working-document'
 
 function createSnapshot(
-  overrides: Partial<WorkspaceSessionSnapshot> = {}
+  overrides: Omit<
+    Partial<WorkspaceSessionSnapshot>,
+    'workingDocuments' | 'workingDocumentIdsByTab'
+  > & {
+    workingDocuments?: Record<string, WorkingDocument>
+    workingDocumentIdsByTab?: Record<string, readonly string[]>
+  } = {}
 ): WorkspaceSessionSnapshot {
   return {
     activeRepoId: 'repo-1',
@@ -22,8 +29,8 @@ function createSnapshot(
       'tab-1': { root: null, activeLeafId: null, expandedLeafId: null }
     },
     activeTabIdByWorktree: { 'wt-1': 'tab-1', 'wt-2': 'tab-2' },
-    editorDrafts: {},
-    markdownFrontmatterVisible: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     openFiles: [
       {
         id: '/tmp/demo.ts',
@@ -67,7 +74,7 @@ function createSnapshot(
     lastKnownRelayPtyIdByTabId: {},
     lastVisitedAtByWorktreeId: {},
     ...overrides
-  } as WorkspaceSessionSnapshot
+  } as unknown as WorkspaceSessionSnapshot
 }
 
 function createRepo(id: string, connectionId: string | null): Repo {
@@ -114,7 +121,7 @@ describe('buildWorkspaceSessionPatch', () => {
     })
   })
 
-  it('derives editor session keys when only editor drafts change', () => {
+  it('derives editor session keys when canonical document content changes', () => {
     const patch = buildWorkspaceSessionPatch(
       createSnapshot({
         openFiles: [
@@ -128,9 +135,28 @@ describe('buildWorkspaceSessionPatch', () => {
             isDirty: true
           } as never
         ],
-        editorDrafts: { '/tmp/demo.ts': 'edited' }
+        workingDocuments: {
+          doc: {
+            id: 'doc',
+            target: {
+              owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+              filePath: '/tmp/demo.ts',
+              relativePath: 'demo.ts',
+              worktreeId: 'wt-1',
+              language: 'typescript',
+              operationProvenance: {}
+            },
+            content: 'edited',
+            revision: 1,
+            isDirty: true,
+            loadState: 'ready',
+            writable: true,
+            alwaysAutoSave: false
+          } as never
+        },
+        workingDocumentIdsByTab: { '/tmp/demo.ts': ['doc'] as never }
       }),
-      ['editorDrafts']
+      ['workingDocuments']
     )
 
     expect(Object.keys(patch).sort()).toEqual(

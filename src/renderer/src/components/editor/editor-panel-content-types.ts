@@ -29,7 +29,9 @@ export type FileContent = {
   isStale?: boolean
 }
 
-export type DiffContent = GitDiffResult & {
+export type DiffContent = (GitDiffResult | { kind: 'error'; message: string }) & {
+  /** Execution owner, path and HEAD revision that produced this ordinary-editor baseline. */
+  gitBaselineScope?: string
   /** Superseded by an external change; still rendered until the lazy reload lands. */
   isStale?: boolean
 }

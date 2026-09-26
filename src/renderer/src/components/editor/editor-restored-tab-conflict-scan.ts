@@ -1,127 +1,129 @@
-// Why: a restored dirty tab's changed-on-disk mark doesn't survive restarts (issue #7265), so re-derive the conflict from disk — else a resumed autosave silently overwrites newer content; autosave stays suspended (pendingDiskBaselineVerification) until verification resolves.
 import type { StoreApi } from 'zustand'
 import type { AppState } from '@/store'
-import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocument, WorkingDocumentId } from '@/store/slices/editor/working-document'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { readRuntimeFileContent } from '@/runtime/runtime-file-client'
 import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import { canAutoSaveOpenFile } from './editor-autosave'
+import { canAutoSaveWorkingDocument } from './editor-autosave'
 import { getDiskBaselineSignature } from './diff-content-signature'
-import { markFileChangedOnDisk } from './editor-changed-on-disk-mark'
+import { markWorkingDocumentChangedOnDisk } from './editor-changed-on-disk-mark'
 
 type AppStoreApi = Pick<StoreApi<AppState>, 'getState' | 'subscribe'>
 
-// Retry fast then slow: reads fail while SSH/runtime transport is still coming up; giving up would strand autosave suspension.
 const VERIFY_RETRY_MS = 2_000
 const VERIFY_SLOW_RETRY_MS = 15_000
 const VERIFY_FAST_ATTEMPTS = 30
-// Cap concurrent reads: many restored dirty tabs would otherwise fire N concurrent 15s RPCs competing with startup connection recovery.
 const MAX_CONCURRENT_VERIFY_READS = 3
 
 export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
-  // Dedupes queued + in-flight verifications; the store's pending flag is the durable "needs verification" signal.
-  const inFlightFileIds = new Set<string>()
-  const attemptsByFileId = new Map<string, number>()
+  const inFlightDocumentIds = new Set<WorkingDocumentId>()
+  const attemptsByDocumentId = new Map<WorkingDocumentId, number>()
   const retryTimers = new Set<ReturnType<typeof setTimeout>>()
-  // Queue ids, not OpenFile snapshots: a snapshot can go stale (close/reopen or same-path save) while it waits for a slot.
-  const verifyQueue: string[] = []
+  const verifyQueue: WorkingDocumentId[] = []
   let activeVerifyReads = 0
   let disposed = false
 
-  const getFileConnectionId = (file: OpenFile): string | undefined => {
-    const connectionId = getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined
-    const externalSshTargetId = file.externalSshTargetId?.trim()
-    if (externalSshTargetId && connectionId !== externalSshTargetId) {
+  const connectionIdForDocument = (document: WorkingDocument): string | undefined => {
+    const connectionId =
+      getConnectionIdForFile(document.target.worktreeId, document.target.filePath) ?? undefined
+    const expected = document.target.externalSshTargetId?.trim()
+    if (expected && connectionId !== expected) {
       throw new Error('External SSH file owner changed')
     }
     return connectionId
   }
 
-  // Only local/SSH paths can be probed: for runtime-owned files window.api.fs would stat the client path and misreport it as gone.
-  const probeFileMissing = async (file: OpenFile): Promise<boolean> => {
-    const settings = settingsForRuntimeOwner(store.getState().settings, file.runtimeEnvironmentId)
+  const probeDocumentMissing = async (document: WorkingDocument): Promise<boolean> => {
+    const settings = settingsForRuntimeOwner(
+      store.getState().settings,
+      document.target.owner.runtimeEnvironmentId
+    )
     if (settings?.activeRuntimeEnvironmentId?.trim()) {
       return false
     }
     try {
-      const exists = await globalThis.window?.api?.fs?.pathExists?.({
-        filePath: file.filePath,
-        connectionId: getFileConnectionId(file)
-      })
-      return exists === false
+      return (
+        (await globalThis.window?.api?.fs?.pathExists?.({
+          filePath: document.target.filePath,
+          connectionId: connectionIdForDocument(document)
+        })) === false
+      )
     } catch {
-      // Why: a failed probe can't disprove existence — keep retrying.
       return false
     }
   }
 
-  const verify = async (file: OpenFile): Promise<void> => {
-    // ids are file paths: a stray leftover marker would skip a reopened same-path tab, so only a scheduled retry keeps it set.
+  const verify = async (document: WorkingDocument): Promise<void> => {
     let retryScheduled = false
     try {
       const state = store.getState()
       const result = await readRuntimeFileContent({
-        settings: settingsForRuntimeOwner(state.settings, file.runtimeEnvironmentId),
-        filePath: file.filePath,
-        relativePath: file.relativePath,
-        worktreeId: file.worktreeId,
-        connectionId: getFileConnectionId(file),
-        expectedExternalSshTargetId: file.externalSshTargetId
+        settings: settingsForRuntimeOwner(
+          state.settings,
+          document.target.owner.runtimeEnvironmentId
+        ),
+        filePath: document.target.filePath,
+        relativePath: document.target.relativePath,
+        worktreeId: document.target.worktreeId,
+        connectionId: connectionIdForDocument(document),
+        expectedExternalSshTargetId: document.target.externalSshTargetId
       })
       if (disposed) {
         return
       }
-      const liveFile = store.getState().openFiles.find((f) => f.id === file.id)
-      if (!liveFile) {
+      const liveDocument = store.getState().workingDocuments[document.id]
+      if (!liveDocument) {
         return
       }
-      // Verification resolved: lift autosave suspension regardless of outcome; wasPending flags a save that already re-baselined.
-      const wasPending = liveFile.pendingDiskBaselineVerification === true
-      store.getState().clearPendingDiskBaselineVerification(file.id)
+      const wasPending = liveDocument.pendingDiskBaselineVerification === true
+      store
+        .getState()
+        .setWorkingDocumentExternalState(document.id, {
+          pendingDiskBaselineVerification: undefined
+        })
       if (
         !wasPending ||
         result.isBinary ||
-        !liveFile.isDirty ||
-        liveFile.externalMutation === 'changed'
+        !liveDocument.isDirty ||
+        liveDocument.externalMutation === 'changed'
       ) {
         return
       }
-      if (getDiskBaselineSignature(result.content) !== file.lastKnownDiskSignature) {
-        markFileChangedOnDisk(store.getState(), liveFile, {
-          connectionId: getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined,
-          origin: 'restore'
-        })
+      if (getDiskBaselineSignature(result.content) !== liveDocument.lastKnownDiskSignature) {
+        markWorkingDocumentChangedOnDisk(store.getState(), liveDocument, { origin: 'restore' })
       }
     } catch {
       if (disposed) {
         return
       }
-      if (await probeFileMissing(file)) {
+      if (await probeDocumentMissing(document)) {
         if (disposed) {
           return
         }
-        // Definitive not-found = resolved: no newer disk content for a save to clobber, so mark deleted instead of retrying forever.
-        const liveFile = store.getState().openFiles.find((f) => f.id === file.id)
-        if (!liveFile) {
+        const liveDocument = store.getState().workingDocuments[document.id]
+        if (!liveDocument) {
           return
         }
-        const wasPending = liveFile.pendingDiskBaselineVerification === true
-        store.getState().clearPendingDiskBaselineVerification(file.id)
-        if (wasPending && liveFile.isDirty && liveFile.externalMutation !== 'changed') {
-          store.getState().setExternalMutation(file.id, 'deleted')
+        const wasPending = liveDocument.pendingDiskBaselineVerification === true
+        store
+          .getState()
+          .setWorkingDocumentExternalState(document.id, {
+            pendingDiskBaselineVerification: undefined
+          })
+        if (wasPending && liveDocument.isDirty && liveDocument.externalMutation !== 'changed') {
+          store
+            .getState()
+            .setWorkingDocumentExternalState(document.id, { externalMutation: 'deleted' })
         }
         return
       }
-      if (disposed) {
-        return
-      }
-      const attempts = (attemptsByFileId.get(file.id) ?? 0) + 1
-      attemptsByFileId.set(file.id, attempts)
+      const attempts = (attemptsByDocumentId.get(document.id) ?? 0) + 1
+      attemptsByDocumentId.set(document.id, attempts)
       retryScheduled = true
       const timer = setTimeout(
         () => {
           retryTimers.delete(timer)
-          inFlightFileIds.delete(file.id)
+          inFlightDocumentIds.delete(document.id)
           scan()
         },
         attempts < VERIFY_FAST_ATTEMPTS ? VERIFY_RETRY_MS : VERIFY_SLOW_RETRY_MS
@@ -129,25 +131,24 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
       retryTimers.add(timer)
     } finally {
       if (!retryScheduled) {
-        inFlightFileIds.delete(file.id)
+        inFlightDocumentIds.delete(document.id)
       }
     }
   }
 
   const pumpVerifyQueue = (): void => {
     while (!disposed && activeVerifyReads < MAX_CONCURRENT_VERIFY_READS && verifyQueue.length > 0) {
-      const fileId = verifyQueue.shift()!
-      // Re-read live file: a queued id may now be a reopened/saved same-path tab; re-validate before a disk read, and skipping frees the dedupe marker so a later scan can re-queue it.
-      const file = store.getState().openFiles.find((f) => f.id === fileId)
+      const documentId = verifyQueue.shift()!
+      const document = store.getState().workingDocuments[documentId]
       if (
-        !file ||
-        !file.pendingDiskBaselineVerification ||
-        !file.isDirty ||
-        !file.lastKnownDiskSignature ||
-        file.externalMutation === 'changed' ||
-        !canAutoSaveOpenFile(file)
+        !document ||
+        !document.pendingDiskBaselineVerification ||
+        !document.isDirty ||
+        !document.lastKnownDiskSignature ||
+        document.externalMutation === 'changed' ||
+        !canAutoSaveWorkingDocument(document)
       ) {
-        inFlightFileIds.delete(fileId)
+        inFlightDocumentIds.delete(documentId)
         continue
       }
       activeVerifyReads += 1
@@ -155,8 +156,7 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
         activeVerifyReads -= 1
         pumpVerifyQueue()
       }
-      // verify() never rejects, but a stray rejection must still free the slot or the queue stalls.
-      void verify(file).then(onSettled, onSettled)
+      void verify(document).then(onSettled, onSettled)
     }
   }
 
@@ -164,30 +164,30 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
     if (disposed) {
       return
     }
-    for (const file of store.getState().openFiles) {
+    for (const document of Object.values(store.getState().workingDocuments)) {
       if (
-        !file.pendingDiskBaselineVerification ||
-        !file.isDirty ||
-        !file.lastKnownDiskSignature ||
-        file.externalMutation === 'changed' ||
-        !canAutoSaveOpenFile(file) ||
-        inFlightFileIds.has(file.id)
+        !document.pendingDiskBaselineVerification ||
+        !document.isDirty ||
+        !document.lastKnownDiskSignature ||
+        document.externalMutation === 'changed' ||
+        !canAutoSaveWorkingDocument(document) ||
+        inFlightDocumentIds.has(document.id)
       ) {
         continue
       }
-      inFlightFileIds.add(file.id)
-      verifyQueue.push(file.id)
+      inFlightDocumentIds.add(document.id)
+      verifyQueue.push(document.id)
     }
     pumpVerifyQueue()
   }
 
-  let previousOpenFiles = store.getState().openFiles
+  let previousDocuments = store.getState().workingDocuments
   const unsubscribe = store.subscribe(() => {
-    const nextOpenFiles = store.getState().openFiles
-    if (nextOpenFiles === previousOpenFiles) {
+    const nextDocuments = store.getState().workingDocuments
+    if (nextDocuments === previousDocuments) {
       return
     }
-    previousOpenFiles = nextOpenFiles
+    previousDocuments = nextDocuments
     scan()
   })
   scan()

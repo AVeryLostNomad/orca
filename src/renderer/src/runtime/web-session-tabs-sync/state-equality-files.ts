@@ -17,7 +17,6 @@ export function openFileEqual(a: OpenFile, b: OpenFile): boolean {
     a.isPreview === b.isPreview &&
     a.isUntitled === b.isUntitled &&
     a.deleteUntouchedOnClose === b.deleteUntouchedOnClose &&
-    a.externalMutation === b.externalMutation &&
     a.mirroredFromRuntimeSession === b.mirroredFromRuntimeSession &&
     a.mode === b.mode
   )

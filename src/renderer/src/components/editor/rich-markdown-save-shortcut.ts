@@ -1,10 +1,10 @@
 import type { KeyHandlerContext } from './rich-markdown-key-handler'
 import { editorShortcutMatches } from './editor-shortcuts'
-import { commitRichMarkdownSerialization } from './rich-markdown-serialization-commit'
 
 /**
- * Cmd/Ctrl+S: flush the debounced serialization, then reconcile toward the
- * original source style before saving so untouched regions keep their bytes.
+ * Cmd/Ctrl+S first flushes the pending rich serialization. The actual save is
+ * document-owned; it must not run a second stale serialization after another
+ * surface has advanced the canonical document.
  */
 export function handleRichMarkdownSaveShortcut(
   ctx: KeyHandlerContext,
@@ -17,15 +17,6 @@ export function handleRichMarkdownSaveShortcut(
   // Why: flush pending debounced serialization so the save captures the very
   // latest editor content, not a stale snapshot.
   ctx.flushPendingSerialization()
-  // Why: the flush already reconciled + updated refs, so this re-serialize is
-  // idempotent (edited === baseCanonical → returns the reconciled bytes). On a
-  // torn-down editor it falls back to the last committed bytes without patching.
-  const { markdown } = commitRichMarkdownSerialization(
-    ctx.editorRef.current,
-    ctx,
-    ctx.reconcileRoundTripRef.current
-  )
-  ctx.onContentChangeRef.current(markdown)
-  ctx.onSaveRef.current(markdown)
+  ctx.onSaveRef.current(ctx.lastCommittedMarkdownRef.current)
   return true
 }

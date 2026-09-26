@@ -23,6 +23,8 @@ export function combinedDiffSectionsMatchEntryMetadata({
         return false
       }
       const entryArea = 'area' in entry ? entry.area : undefined
+      const entrySubmodule = 'submodule' in entry ? entry.submodule : undefined
+      const entrySubmoduleRoot = 'submoduleRoot' in entry ? entry.submoduleRoot : undefined
       const entryAdded = 'added' in entry ? entry.added : undefined
       const entryRemoved = 'removed' in entry ? entry.removed : undefined
       return (
@@ -30,6 +32,8 @@ export function combinedDiffSectionsMatchEntryMetadata({
         section.status === entry.status &&
         section.area === entryArea &&
         section.oldPath === entry.oldPath &&
+        section.submodule === entrySubmodule &&
+        section.submoduleRoot === entrySubmoduleRoot &&
         section.added === entryAdded &&
         section.removed === entryRemoved
       )

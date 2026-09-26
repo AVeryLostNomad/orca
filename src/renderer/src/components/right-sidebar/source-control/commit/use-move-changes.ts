@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import {
   notifyEditorExternalFileChange,
-  requestEditorSaveQuiesce
+  quiesceDocumentSave
 } from '@/components/editor/editor-autosave'
 import { getConnectionId } from '@/lib/connection-context'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
@@ -13,6 +13,23 @@ import {
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
+
+function quiesceDocumentsForPaths(
+  worktreeId: string,
+  relativePaths: readonly string[],
+  runtimeEnvironmentId: string | null
+): Promise<void[]> {
+  const pathSet = new Set(relativePaths)
+  const documentIds = Object.values(useAppStore.getState().workingDocuments)
+    .filter(
+      (document) =>
+        document.target.worktreeId === worktreeId &&
+        document.target.owner.runtimeEnvironmentId === runtimeEnvironmentId &&
+        pathSet.has(document.target.relativePath)
+    )
+    .map((document) => document.id)
+  return Promise.all(documentIds.map((documentId) => quiesceDocumentSave(documentId)))
+}
 
 export type MoveChangesTarget = {
   worktreeId: string
@@ -79,17 +96,7 @@ export function useSourceControlMoveChanges({
       try {
         const runtimeEnvironmentId =
           useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() || null
-        // Why: quiesce pending editor autosaves first so a delayed save can't recreate the moved edits after git clears the source.
-        await Promise.all(
-          paths.map((relativePath) =>
-            requestEditorSaveQuiesce({
-              worktreeId: activeWorktreeId,
-              worktreePath,
-              relativePath,
-              runtimeEnvironmentId
-            })
-          )
-        )
+        await quiesceDocumentsForPaths(activeWorktreeId, paths, runtimeEnvironmentId)
         const connectionId = getConnectionId(activeWorktreeId) ?? undefined
         const result = await moveRuntimeGitChangesToWorktree(
           {

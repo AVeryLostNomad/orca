@@ -99,7 +99,6 @@ describe('useCombinedDiffViewRestore deferral', () => {
         modifiedContent: 'after',
         collapsed: false,
         loading: false,
-        dirty: false,
         diffResult: null,
         largeDiffRenderLimit: null
       }

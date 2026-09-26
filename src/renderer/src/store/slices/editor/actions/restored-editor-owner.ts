@@ -2,6 +2,7 @@ import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import type { EditorSlice } from '../types/editor-slice'
 import type { RestoredEditorOwnerResult } from '../types/restored-editor-owner'
 import { buildRestoredEditorOwnerTransition } from './restored-editor-owner-transition'
+import { getWorkingDocumentId, getWorkingDocumentTarget } from '../working-document'
 
 export function createRestoredEditorOwner(
   set: EditorSet,
@@ -12,15 +13,19 @@ export function createRestoredEditorOwner(
       let changed = false
       set((s) => {
         const file = s.openFiles.find((candidate) => candidate.id === fileId)
+        const target = file && getWorkingDocumentTarget(file)
+        const documentId = target && getWorkingDocumentId(target.owner, target.filePath)
+        const document = documentId && s.workingDocuments[documentId]
         const next = pending || undefined
-        if (!file || file.pendingOwnerMigration === next) {
+        if (!document || document.pendingOwnerMigration === next) {
           return s
         }
         changed = true
         return {
-          openFiles: s.openFiles.map((candidate) =>
-            candidate.id === fileId ? { ...candidate, pendingOwnerMigration: next } : candidate
-          )
+          workingDocuments: {
+            ...s.workingDocuments,
+            [documentId]: { ...document, pendingOwnerMigration: next }
+          }
         }
       })
       return changed

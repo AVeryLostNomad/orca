@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { StoreApi } from 'zustand/vanilla'
+import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
+import { getWorkingDocumentForFile } from './editor/working-document-state'
 import { createEditorStore, createEditorTabsStore } from './editor-slice-test-harness'
 import type { AppState } from '../types'
 
@@ -17,6 +20,23 @@ vi.mock('@/runtime/close-mirrored-editor-tab', () => ({
   notifyHostOfMirroredEditorClose: (...args: unknown[]) =>
     notifyHostOfMirroredEditorCloseMock(...args)
 }))
+
+function makeOpenFileDirty(store: StoreApi<AppState>, fileId: string): void {
+  const document = getWorkingDocumentForFile(store.getState(), fileId)
+  if (!document) {
+    throw new Error(`Expected a working document for ${fileId}`)
+  }
+  const diskContent = 'on disk'
+  store
+    .getState()
+    .acceptWorkingDocumentLoad(
+      document.id,
+      document.revision,
+      diskContent,
+      getDiskBaselineSignature(diskContent)
+    )
+  store.getState().setWorkingDocumentContent(document.id, 'edited')
+}
 
 describe('createEditorSlice openDiff', () => {
   it('keeps staged and unstaged diffs in separate tabs', () => {
@@ -412,7 +432,7 @@ describe('createEditorSlice openDiff', () => {
       language: 'typescript',
       mode: 'edit'
     })
-    store.getState().markFileDirty('/repo/file.ts', true)
+    makeOpenFileDirty(store, '/repo/file.ts')
 
     store.getState().openFile(
       {
@@ -697,7 +717,8 @@ describe('createEditorSlice openDiff', () => {
       },
       { preview: true }
     )
-    store.getState().markFileDirty('/repo/a.ts', true)
+    makeOpenFileDirty(store, '/repo/a.ts')
+    expect(store.getState().openFiles[0]?.isDirty).toBe(true)
 
     store.getState().openDiff('wt-1', '/repo/b.ts', 'b.ts', 'typescript', false, { preview: true })
 

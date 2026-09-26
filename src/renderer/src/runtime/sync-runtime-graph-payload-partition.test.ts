@@ -38,7 +38,8 @@ function makeState(prefix: string, worktreeCount: number, titles: string[] = [])
     activeFileId: null,
     activeFileIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     agentStatusByPaneKey: {},
     browserTabsByWorktree: {}

@@ -372,7 +372,8 @@
         },
         "EditorContent": {
           "d07e4b8553": "branch",
-          "d16e037f40": "rich"
+          "d16e037f40": "rich",
+          "d6aa8b56a3": "Edit file"
         },
         "IpynbViewer": {
           "59b6cd874b": "code",

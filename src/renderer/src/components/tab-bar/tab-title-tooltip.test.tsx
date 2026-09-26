@@ -355,7 +355,7 @@ describe('tab title tooltips', () => {
   it('uses the editor display label while leaving adjacent adornments outside the label', () => {
     const markup = renderToStaticMarkup(
       <EditorFileTab
-        file={makeEditorFile({ externalMutation: 'renamed', isPreview: true })}
+        file={makeEditorFile({ isPreview: true })}
         isActive={false}
         isPinned={false}
         hasTabsToRight={false}

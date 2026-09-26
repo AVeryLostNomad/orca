@@ -94,8 +94,8 @@ export function renderFloatingTerminalPanelSurface({
   previewUserBounds,
   orchestrationDialogOpen,
   refreshOrchestrationSetupVisibility,
-  saveDialogFileId,
-  saveDialogFile,
+  pendingEditorCloseState,
+  saveDialogDocument,
   handleFloatingSaveDialogCancel,
   handleFloatingSaveDialogDiscard,
   handleFloatingSaveDialogSave
@@ -350,8 +350,8 @@ export function renderFloatingTerminalPanelSurface({
         onSetupStateChange={() => void refreshOrchestrationSetupVisibility()}
       />
       {renderFloatingTerminalSaveDialog({
-        saveDialogFileId,
-        saveDialogFile,
+        pendingEditorCloseState,
+        saveDialogDocument,
         handleFloatingSaveDialogCancel,
         handleFloatingSaveDialogDiscard,
         handleFloatingSaveDialogSave

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   isSourceControlSplitOpenModifier,
   shouldOpenSourceControlRowAsPreview,
-  toPermanentSourceControlRowOpenEvent,
   type SourceControlRowOpenEvent
 } from './source-control/listing/split-open'
 
@@ -49,24 +48,5 @@ describe('shouldOpenSourceControlRowAsPreview', () => {
     expect(shouldOpenSourceControlRowAsPreview(event({ openAsPermanent: true }), undefined)).toBe(
       false
     )
-  })
-})
-
-describe('toPermanentSourceControlRowOpenEvent', () => {
-  it('preserves modifier keys and marks the row open as permanent', () => {
-    expect(
-      toPermanentSourceControlRowOpenEvent(
-        event({
-          altKey: true,
-          metaKey: true
-        })
-      )
-    ).toEqual({
-      altKey: true,
-      ctrlKey: false,
-      metaKey: true,
-      shiftKey: false,
-      openAsPermanent: true
-    })
   })
 })

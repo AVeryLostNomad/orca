@@ -6,8 +6,17 @@ import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../../../shared/constant
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import type { WorkspaceVisibleTabType } from '../../../../../../shared/tab-types'
 import type { OpenFile } from '../types/open-file'
+import type { EditorFileOperationProvenance } from '@/lib/editor-file-operation-owner'
+import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { buildValidWorktreeIdsForSessionHydration } from '../../degraded-repo-worktree-validity'
 import { buildOwnedEditorFileId, isSameEditorOwner } from '../file-ids/editor-file-ids'
+import {
+  buildWorkingDocumentTarget,
+  getWorkingDocumentId,
+  type WorkingDocument,
+  type WorkingDocumentId,
+  type WorkingDocumentTarget
+} from '../working-document'
 import {
   addEditorFileIdMigration,
   migrateEditorFileId,
@@ -17,9 +26,42 @@ import {
   type LegacyHydratedEditorFile
 } from '../file-ids/hydrated-editor-file-ids'
 
+function unresolvedHydratedDocumentTarget(
+  file: OpenFile,
+  persisted: { executionHostId?: ExecutionHostId; runtimeEnvironmentId?: string | null }
+): WorkingDocumentTarget {
+  const persistedRuntimeEnvironmentId = persisted.runtimeEnvironmentId?.trim() || null
+  const runtimeEnvironmentId =
+    persistedRuntimeEnvironmentId ??
+    (persisted.executionHostId === undefined ? 'unresolved-editor-session-owner' : null)
+  const executionHostId =
+    persisted.executionHostId ??
+    (`runtime:${encodeURIComponent(runtimeEnvironmentId!)}` as ExecutionHostId)
+  const operationProvenance: EditorFileOperationProvenance = {
+    generation: {
+      route: { executionHostId, runtimeEnvironmentId },
+      runtimeConnectionGeneration: null,
+      runtimePairingRevision: undefined,
+      runtimeSshGeneration: null,
+      nestedSshGeneration: null,
+      directSshGeneration: null
+    },
+    ownershipProjection: 'legacy'
+  }
+  return {
+    owner: { executionHostId, runtimeEnvironmentId },
+    filePath: file.filePath,
+    relativePath: file.relativePath,
+    worktreeId: file.worktreeId,
+    language: file.language,
+    ...(file.externalSshTargetId ? { externalSshTargetId: file.externalSshTargetId } : {}),
+    operationProvenance
+  }
+}
+
 export function createHydrateEditorSession(
   set: EditorSet,
-  _get: EditorGet
+  get: EditorGet
 ): Pick<EditorSlice, 'hydrateEditorSession'> {
   return {
     hydrateEditorSession: (session, options) => {
@@ -40,7 +82,8 @@ export function createHydrateEditorSession(
         addAdditionalValidWorkspaceKeys(validWorktreeIds, options)
 
         const openFiles: OpenFile[] = []
-        const editorDrafts: Record<string, string> = {}
+        const workingDocuments: Record<WorkingDocumentId, WorkingDocument> = {}
+        const workingDocumentIdsByTab: Record<string, readonly WorkingDocumentId[]> = {}
         const usedOpenFileIds = new Set<string>()
         const legacyHydratedOpenFiles: LegacyHydratedEditorFile[] = []
         const editorFileIdMigrationsByWorktree: Record<string, Map<string, string>> = {}
@@ -86,17 +129,15 @@ export function createHydrateEditorSession(
             })
             // Why: read-only tabs (AI Vault View Log) must restore clean — ignore any persisted dirty draft/baseline so they can't come back writable.
             const isReadOnly = pf.readOnly === true
-            if (!isReadOnly && pf.dirtyDraftContent !== undefined) {
-              editorDrafts[id] = pf.dirtyDraftContent
-            }
-            openFiles.push({
+            const isDirty = !isReadOnly && pf.dirtyDraftContent !== undefined
+            const openFile: OpenFile = {
               id,
               filePath: pf.filePath,
               relativePath: pf.relativePath,
               worktreeId,
               // Why: re-detect language on hydrate — older sessions stored ids from before extensions like .ipynb were supported.
               language: detectLanguage(pf.relativePath || pf.filePath),
-              isDirty: !isReadOnly && pf.dirtyDraftContent !== undefined,
+              isDirty: false,
               isPreview: pf.isPreview,
               runtimeEnvironmentId: pf.runtimeEnvironmentId,
               externalSshTargetId: pf.externalSshTargetId,
@@ -107,16 +148,53 @@ export function createHydrateEditorSession(
                 ? { workspaceNotesOwnerId: pf.workspaceNotesOwnerId }
                 : {}),
               ...(pf.isScratch === true ? { isScratch: true } : {}),
-              lastKnownDiskSignature: isReadOnly ? undefined : pf.lastKnownDiskSignature,
-              // Why: suspend autosave until the conflict scan verifies disk vs baseline, else a slow remote read clobbers an offline write.
-              pendingDiskBaselineVerification:
-                !isReadOnly &&
-                pf.dirtyDraftContent !== undefined &&
-                pf.lastKnownDiskSignature !== undefined
-                  ? true
-                  : undefined,
               mode: 'edit'
-            })
+            }
+            if (isDirty) {
+              let target: WorkingDocumentTarget
+              let ownerNeedsResolution = false
+              try {
+                target = buildWorkingDocumentTarget(s, openFile)
+                if (
+                  pf.executionHostId !== undefined &&
+                  target.owner.executionHostId !== pf.executionHostId
+                ) {
+                  target = unresolvedHydratedDocumentTarget(openFile, pf)
+                  ownerNeedsResolution = true
+                }
+              } catch {
+                // Retain the recovery text under its persisted owner identity, but block every
+                // operation until a current route can validate that identity.
+                target = unresolvedHydratedDocumentTarget(openFile, pf)
+                ownerNeedsResolution = true
+              }
+              const documentId = getWorkingDocumentId(target.owner, target.filePath)
+              if (!workingDocuments[documentId]) {
+                workingDocuments[documentId] = {
+                  id: documentId,
+                  target,
+                  content: pf.dirtyDraftContent!,
+                  revision: 1,
+                  ...(pf.lastKnownDiskSignature === undefined
+                    ? {}
+                    : { lastKnownDiskSignature: pf.lastKnownDiskSignature }),
+                  isDirty: true,
+                  loadState: 'ready',
+                  writable: true,
+                  // A restored dirty document never autosaves before disk review; a missing
+                  // signature is itself a review condition, not permission to overwrite.
+                  pendingDiskBaselineVerification: true,
+                  ...(ownerNeedsResolution ? { pendingOwnerMigration: true } : {}),
+                  alwaysAutoSave: pf.alwaysAutoSave === true
+                }
+              }
+              workingDocumentIdsByTab[id] = [documentId]
+              openFile.isDirty = true
+              if (!ownerNeedsResolution) {
+                openFile.operationProvenance = target.operationProvenance
+              }
+            }
+            openFiles.push(openFile)
           }
         }
 
@@ -202,7 +280,8 @@ export function createHydrateEditorSession(
 
         return {
           openFiles,
-          editorDrafts,
+          workingDocuments,
+          workingDocumentIdsByTab,
           markdownFrontmatterVisible,
           activeFileId: nextActiveFileId,
           activeFileIdByWorktree: filteredActiveFileIdByWorktree,
@@ -211,6 +290,38 @@ export function createHydrateEditorSession(
           ...migrateHydratedEditorTabsAndGroups(s, editorFileIdMigrationsByWorktree)
         }
       })
+      const memberships = { ...get().workingDocumentIdsByTab }
+      let recoveredMemberships = false
+      for (const file of get().openFiles) {
+        const documentIds = memberships[file.id]
+        if (!file.isDirty || !documentIds?.length) {
+          continue
+        }
+        let tabs = (get().unifiedTabsByWorktree[file.worktreeId] ?? []).filter(
+          (tab) => tab.contentType === 'editor' && tab.entityId === file.id
+        )
+        if (tabs.length === 0) {
+          tabs = [
+            get().createUnifiedTab(file.worktreeId, 'editor', {
+              entityId: file.id,
+              label: file.relativePath,
+              isPreview: false,
+              activate: false,
+              recordInteraction: false
+            })
+          ]
+        }
+        for (const tab of tabs) {
+          memberships[tab.id] = documentIds
+        }
+        if (!tabs.some((tab) => tab.id === file.id)) {
+          delete memberships[file.id]
+        }
+        recoveredMemberships = true
+      }
+      if (recoveredMemberships) {
+        set({ workingDocumentIdsByTab: memberships })
+      }
     }
   }
 }

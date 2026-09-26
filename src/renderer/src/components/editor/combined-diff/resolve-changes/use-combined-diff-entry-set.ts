@@ -130,6 +130,8 @@ export function useCombinedDiffEntrySet({
           status: entry.status,
           oldPath: entry.oldPath ?? null,
           area: 'area' in entry ? entry.area : null,
+          submodule: 'submodule' in entry ? (entry.submodule ?? null) : null,
+          submoduleRoot: 'submoduleRoot' in entry ? (entry.submoduleRoot ?? null) : null,
           added: 'added' in entry ? (entry.added ?? null) : null,
           removed: 'removed' in entry ? (entry.removed ?? null) : null
         }))

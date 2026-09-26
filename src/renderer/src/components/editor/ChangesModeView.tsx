@@ -6,16 +6,16 @@ import type { GitStatusEntry } from '../../../../shared/git-status-types'
 import { ConflictBanner } from './ConflictComponents'
 import { getDiffContentSignature } from './diff-content-signature'
 import { translate } from '@/i18n/i18n'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 
 const DiffViewer = lazy(() => import('./DiffViewer'))
 
 // Why: Changes view mode renders an edit-mode tab as a HEAD-vs-working-tree
-// diff without creating a separate diff-tab object. The draft is the live
-// source on the modified side; onContentChange is the same callback as normal
-// edit mode so dirty tracking, autosave, and close-prompt plumbing all continue
-// to work unchanged. See reviews/changes-view-mode-plan.md.
+// diff without creating a separate diff-tab object. The modified side is the
+// canonical working-document model, so dirty tracking and autosave stay shared.
 export function ChangesModeView({
   activeFile,
+  workingDocumentId,
   dc,
   modifiedContent,
   activeConflictEntry,
@@ -23,10 +23,10 @@ export function ChangesModeView({
   sideBySide,
   viewStateScopeId,
   diffViewStateKey,
-  onContentChange,
   onSave
 }: {
   activeFile: OpenFile
+  workingDocumentId?: WorkingDocumentId
   dc: GitDiffResult | undefined
   modifiedContent: string
   activeConflictEntry: GitStatusEntry | null
@@ -34,7 +34,6 @@ export function ChangesModeView({
   sideBySide: boolean
   viewStateScopeId: string
   diffViewStateKey: string
-  onContentChange: (content: string) => void
   onSave: (content: string) => Promise<boolean>
 }): React.JSX.Element {
   if (!dc) {
@@ -88,6 +87,7 @@ export function ChangesModeView({
         <DiffViewer
           key={viewStateScopeId}
           modelKey={diffViewStateKey}
+          workingDocumentId={workingDocumentId}
           originalModelKey={originalModelKey}
           originalContent={dc.originalContent}
           modifiedContent={modifiedContent}
@@ -96,9 +96,7 @@ export function ChangesModeView({
           filePath={activeFile.filePath}
           relativePath={activeFile.relativePath}
           sideBySide={sideBySide}
-          editable={true}
           worktreeId={activeFile.worktreeId}
-          onContentChange={onContentChange}
           onSave={onSave}
         />
       </div>

@@ -158,6 +158,7 @@ export function createTabsCloseActions(
             : {})
         }
       })
+      get().releaseWorkingDocumentsForTab(tabId)
 
       if (opts?.recordInteraction !== false) {
         get().recordFeatureInteraction?.('terminal-tabs')

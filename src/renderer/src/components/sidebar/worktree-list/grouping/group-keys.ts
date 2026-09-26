@@ -5,7 +5,8 @@ import type { Repo } from '../../../../../../shared/repo-types'
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import {
   getProjectGroupExecutionHostId,
-  getProjectGroupHostIdentity
+  getProjectGroupHostIdentity,
+  UNGROUPED_PROJECT_GROUP_KEY
 } from '../../../../../../shared/project-groups'
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { branchName } from '../../../../lib/git-utils'
@@ -14,7 +15,6 @@ import {
   ConductorProgressIcon,
   ConductorReviewIcon
 } from '../../workspace-status-icons'
-import { UNGROUPED_PROJECT_GROUP_KEY } from '../../../../../../shared/project-groups'
 import type { AppState } from '../../../../store/types'
 import {
   getGitHubPRCacheKey,

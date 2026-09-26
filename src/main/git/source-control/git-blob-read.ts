@@ -3,6 +3,7 @@ import * as path from 'node:path'
 import { isBinaryBuffer } from '../../../shared/binary-buffer'
 import type { GitRuntimeOptions } from '../git-runtime-options'
 import { gitReadOptionsForWorktree } from '../git-runtime-options'
+import { extractExecError } from '../exec-error'
 import { gitExecFileAsyncBuffer } from '../runner'
 import { isMaxBufferOverflowError } from '../max-buffer-overflow'
 import { MAX_GIT_SHOW_BYTES } from './git-show-max-bytes'
@@ -20,13 +21,29 @@ export type GitBlobReadResult = {
   failed?: boolean
 }
 
-/**
- * Tell "Git ran and said the path is not there" apart from "the read never got
- * an answer". Git exits 128 for a missing path in a tree or the index; a WSL
- * relay that never reached Git exits with anything else, or with a spawn errno.
- */
-function isProvenAbsentError(error: unknown): boolean {
-  return (error as { code?: unknown } | null)?.code === 128
+function isProvenIndexPathAbsentError(error: unknown, gitPath: string): boolean {
+  if ((error as { code?: unknown } | null)?.code !== 128) {
+    return false
+  }
+  const stderr = extractExecError(error).stderr
+  return (
+    stderr.includes(`path '${gitPath}'`) &&
+    (stderr.includes('does not exist (neither on disk nor in the index)') ||
+      stderr.includes('exists on disk, but not in the index') ||
+      stderr.includes('does not exist in the index'))
+  )
+}
+
+function isProvenOidPathAbsentError(error: unknown, oid: string, gitPath: string): boolean {
+  if ((error as { code?: unknown } | null)?.code !== 128) {
+    return false
+  }
+  const stderr = extractExecError(error).stderr
+  return (
+    stderr.includes(`path '${gitPath}'`) &&
+    stderr.includes(`in '${oid}'`) &&
+    (stderr.includes('does not exist') || stderr.includes('exists on disk, but not'))
+  )
 }
 
 export async function readUnstagedLeftBlob(
@@ -62,7 +79,12 @@ export async function readGitBlobAtIndexPath(
     if (isMaxBufferOverflowError(error)) {
       return { content: '', isBinary: true, exists: true }
     }
-    return { content: '', isBinary: false, exists: false, failed: !isProvenAbsentError(error) }
+    return {
+      content: '',
+      isBinary: false,
+      exists: false,
+      failed: !isProvenIndexPathAbsentError(error, gitPath)
+    }
   }
 }
 
@@ -88,7 +110,12 @@ export async function readGitBlobAtOidPath(
     if (isMaxBufferOverflowError(error)) {
       return { content: '', isBinary: true, exists: true }
     }
-    return { content: '', isBinary: false, exists: false, failed: !isProvenAbsentError(error) }
+    return {
+      content: '',
+      isBinary: false,
+      exists: false,
+      failed: !isProvenOidPathAbsentError(error, oid, gitPath)
+    }
   }
 }
 

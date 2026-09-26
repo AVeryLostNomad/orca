@@ -26,6 +26,7 @@ import {
 import { useIpynbCellExecution } from './useIpynbCellExecution'
 import { useIpynbScrollRestoration } from './useIpynbScrollRestoration'
 
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 type IpynbViewerProps = {
   content: string
   fileId: string
@@ -33,20 +34,44 @@ type IpynbViewerProps = {
   worktreeId: string
   scrollCacheKey: string
   onContentChange: (content: string) => void
-  onDirtyStateHint: (dirty: boolean) => void
   onSave: (content: string) => Promise<boolean>
+  workingDocumentId?: WorkingDocumentId
+  documentRevision?: number
 }
 
-export default function IpynbViewer({
+export default function IpynbViewer(props: IpynbViewerProps): React.JSX.Element {
+  if (props.workingDocumentId === undefined || props.documentRevision === undefined) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        {translate('auto.components.editor.EditorContent.b2735221f5', 'Loading...')}
+      </div>
+    )
+  }
+  return (
+    <IpynbDocumentViewer
+      {...props}
+      workingDocumentId={props.workingDocumentId}
+      documentRevision={props.documentRevision}
+    />
+  )
+}
+
+type IpynbDocumentViewerProps = Omit<IpynbViewerProps, 'workingDocumentId' | 'documentRevision'> & {
+  workingDocumentId: WorkingDocumentId
+  documentRevision: number
+}
+
+function IpynbDocumentViewer({
   content,
   fileId,
   filePath,
   worktreeId,
   scrollCacheKey,
   onContentChange,
-  onDirtyStateHint,
-  onSave
-}: IpynbViewerProps): React.JSX.Element {
+  onSave,
+  workingDocumentId,
+  documentRevision
+}: IpynbDocumentViewerProps): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const editorFontZoomLevel = useAppStore((s) => s.editorFontZoomLevel)
   const [editingCellKey, setEditingCellKey] = useState<string | null>(null)
@@ -75,9 +100,10 @@ export default function IpynbViewer({
   } = useIpynbDocumentEditing({
     content,
     fileId,
+    documentId: workingDocumentId,
+    documentRevision,
     notebook: parsed.notebook,
     onContentChange,
-    onDirtyStateHint,
     onDeactivateEditor: deactivateEditor
   })
   const execution = useIpynbCellExecution({

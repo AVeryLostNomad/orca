@@ -3,6 +3,8 @@ import { detectLanguage } from '@/lib/language-detect'
 import { joinPath } from '@/lib/path'
 import { useAppStore } from '@/store'
 import type { OpenFile, PendingEditorReveal } from '@/store/slices/editor'
+import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 import { ConflictBanner, ConflictPlaceholderView, ConflictReviewPanel } from './ConflictComponents'
 import { ImageViewer, MonacoEditor } from './editor-lazy-views'
@@ -15,25 +17,25 @@ export function EditorConflictReviewSurface({
   activeFile,
   viewStateScopeId,
   fileContents,
-  editBuffers,
+  documentContentByTab,
   openFiles,
   worktreeEntries,
   pendingEditorReveal,
   getConflictNavigation,
   handleContentChangeForFile,
-  handleSaveForFile,
+  handleSaveForDocument,
   reloadContent
 }: {
   activeFile: OpenFile
   viewStateScopeId: string
   fileContents: Record<string, FileContent>
-  editBuffers: Record<string, string>
+  documentContentByTab: Record<string, string>
   openFiles: OpenFile[]
   worktreeEntries: GitStatusEntry[]
   pendingEditorReveal: PendingEditorReveal | null
   getConflictNavigation: (file: OpenFile, content: string) => EditorConflictNavigation | undefined
   handleContentChangeForFile: (file: OpenFile, content: string) => void
-  handleSaveForFile: (file: OpenFile, content: string) => Promise<boolean>
+  handleSaveForDocument: (documentId: WorkingDocumentId) => Promise<boolean>
   reloadContent: (file: OpenFile) => void
 }): React.JSX.Element {
   const openConflictReviewFile = useAppStore((s) => s.openConflictReviewFile)
@@ -43,6 +45,11 @@ export function EditorConflictReviewSurface({
   const selectedConflictReviewFile = activeFile.conflictReview?.selectedFileId
     ? (openFiles.find((file) => file.id === activeFile.conflictReview?.selectedFileId) ?? null)
     : null
+  const selectedConflictWorkingDocumentId = useAppStore((state) =>
+    selectedConflictReviewFile
+      ? getWorkingDocumentForFile(state, selectedConflictReviewFile.id)?.id
+      : undefined
+  )
 
   const openConflictEntry = React.useCallback(
     (entry: GitStatusEntry) => {
@@ -163,7 +170,7 @@ export function EditorConflictReviewSurface({
     const selectedLanguage = detectLanguage(contentFile.relativePath)
     const monacoLanguage = selectedLanguage === 'notebook' ? 'json' : selectedLanguage
     const selectedViewStateKey = `${contentFile.filePath}::${viewStateScopeId}:${viewStateKeySuffix}`
-    const selectedContent = editBuffers[contentFile.id] ?? fileContent.content
+    const selectedContent = documentContentByTab[contentFile.id] ?? fileContent.content
 
     return (
       <div className={className}>
@@ -178,6 +185,11 @@ export function EditorConflictReviewSurface({
           <MonacoEditor
             key={`${viewStateScopeId}:${contentFile.id}:${viewStateKeySuffix}`}
             fileId={contentFile.id}
+            workingDocumentId={
+              contentFile.id === selectedConflictReviewFile?.id
+                ? selectedConflictWorkingDocumentId
+                : undefined
+            }
             filePath={contentFile.filePath}
             viewStateKey={selectedViewStateKey}
             relativePath={contentFile.relativePath}
@@ -186,7 +198,11 @@ export function EditorConflictReviewSurface({
             onContentChange={
               readOnly ? () => {} : (content) => handleContentChangeForFile(contentFile, content)
             }
-            onSave={readOnly ? () => {} : (content) => handleSaveForFile(contentFile, content)}
+            onSave={
+              readOnly || !selectedConflictWorkingDocumentId
+                ? () => false
+                : () => handleSaveForDocument(selectedConflictWorkingDocumentId)
+            }
             worktreeId={contentFile.worktreeId}
             markdownAnnotationsEnabled={false}
             conflictDecorationsEnabled={contentFile.conflict?.conflictStatus === 'unresolved'}

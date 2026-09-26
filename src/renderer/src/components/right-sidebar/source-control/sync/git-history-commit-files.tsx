@@ -3,7 +3,7 @@ import type React from 'react'
 import { ArrowUpRight, RefreshCw } from 'lucide-react'
 import { STATUS_COLORS, STATUS_LABELS } from '../../status-display'
 import {
-  toPermanentSourceControlRowOpenEvent,
+  toWorkingFileSourceControlRowOpenEvent,
   toSourceControlRowOpenEvent,
   type SourceControlRowOpenEvent
 } from '../listing/split-open'
@@ -70,8 +70,13 @@ function CommitFileRow({
       className="group flex w-full min-w-0 cursor-pointer items-center gap-1 py-1 pl-9 pr-3 text-left text-xs transition-colors hover:bg-accent/40"
       title={entry.path}
       data-testid="git-history-commit-file"
-      onClick={(event) => onOpen(entry, toSourceControlRowOpenEvent(event))}
-      onDoubleClick={(event) => onOpen(entry, toPermanentSourceControlRowOpenEvent(event))}
+      onClick={(event) => {
+        if (event.detail > 1) {
+          return
+        }
+        onOpen(entry, toSourceControlRowOpenEvent(event))
+      }}
+      onDoubleClick={(event) => onOpen(entry, toWorkingFileSourceControlRowOpenEvent(event))}
     >
       {content}
     </button>

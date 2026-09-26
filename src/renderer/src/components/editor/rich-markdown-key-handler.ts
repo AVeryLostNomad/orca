@@ -40,10 +40,6 @@ export type KeyHandlerContext = {
   editorRef: MutableRefObject<Editor | null>
   rootRef: MutableRefObject<HTMLDivElement | null>
   lastCommittedMarkdownRef: MutableRefObject<string>
-  originalSourceRef: MutableRefObject<string>
-  baseCanonicalRef: MutableRefObject<string>
-  reconcileRoundTripRef: MutableRefObject<(markdown: string) => string | null>
-  onContentChangeRef: MutableRefObject<(content: string) => void>
   onSaveRef: MutableRefObject<(content: string) => void>
   isEditingLinkRef: MutableRefObject<boolean>
   slashMenuRef: MutableRefObject<SlashMenuState | null>

@@ -18,7 +18,8 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     browserPagesByWorkspace: {},
     browserCertificateFailuresByPageId: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     ...overrides
   } as AppState

@@ -33,7 +33,6 @@ function makeCountingSection(
     modifiedContent: '',
     collapsed: false,
     loading: true,
-    dirty: false,
     diffResult: null,
     largeDiffRenderLimit: null,
     ...overrides

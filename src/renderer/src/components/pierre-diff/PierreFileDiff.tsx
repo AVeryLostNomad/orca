@@ -14,7 +14,9 @@ import {
   type LargeDiffRenderLimit
 } from '../editor/large-diff-render-limit'
 import { buildPierreDiffFileInput } from './pierre-diff-file-input'
+import { EditorFileLoadErrorView } from '../editor/EditorFileLoadErrorView'
 import { PierreDiffProvider } from './pierre-diff-worker-pool'
+import type { PierreDiffFileSource } from './pierre-diff-file-input'
 import {
   usePierreDiffStyleVars,
   usePierreDiffThemeType,
@@ -32,6 +34,9 @@ export type PierreFileDiffProps = {
   scrollKey: string
   originalContent: string
   modifiedContent: string
+  originalReadState?: PierreDiffFileSource['originalReadState']
+  modifiedReadState?: PierreDiffFileSource['modifiedReadState']
+  language: string
   relativePath: string
   oldRelativePath?: string
   sideBySide: boolean
@@ -45,8 +50,11 @@ export default function PierreFileDiff({
   scrollKey,
   originalContent,
   modifiedContent,
+  originalReadState,
+  modifiedReadState,
   relativePath,
   oldRelativePath,
+  language,
   sideBySide,
   worktreeId,
   largeDiffRenderLimit,
@@ -61,6 +69,7 @@ export default function PierreFileDiff({
   const themeType = usePierreDiffThemeType()
   const syntaxTheme = usePierreSyntaxTheme()
   const styleVars = usePierreDiffStyleVars()
+  const showWhitespace = useAppStore((s) => s.settings?.diffShowWhitespace === true)
   const allDiffComments = useAppStore((s): DiffComment[] | undefined =>
     selectWorktreeDiffComments(s, worktreeId)
   )
@@ -82,11 +91,21 @@ export default function PierreFileDiff({
       buildPierreDiffFileInput({
         originalContent,
         modifiedContent,
+        originalReadState,
+        modifiedReadState,
         relativePath,
         oldRelativePath,
         cacheScope: scrollKey
       }),
-    [originalContent, modifiedContent, relativePath, oldRelativePath, scrollKey]
+    [
+      originalContent,
+      modifiedContent,
+      originalReadState,
+      modifiedReadState,
+      relativePath,
+      oldRelativePath,
+      scrollKey
+    ]
   )
 
   const canComment = Boolean(worktreeId)
@@ -96,12 +115,13 @@ export default function PierreFileDiff({
       themeType,
       theme: syntaxTheme,
       overflow: diffWordWrap === true ? 'wrap' : 'scroll',
+      lineDiffType: showWhitespace ? 'word-alt' : 'none',
       stickyHeader: true,
       // Why: click handling lives on the renderGutterUtility slot node — the
       // library forbids combining renderGutterUtility with onGutterUtilityClick.
       enableGutterUtility: canComment
     }),
-    [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment]
+    [sideBySide, themeType, syntaxTheme, diffWordWrap, canComment, showWhitespace]
   )
 
   const lineAnnotations = useMemo(
@@ -164,12 +184,19 @@ export default function PierreFileDiff({
     }
   }, [scrollCacheKey])
 
-  // Why: hook order — the parse hook must run every render; the fallback
-  // branch below returns early only after all hooks.
-  const fileDiff = usePierreDiffMetadata(files.oldFile, files.newFile, renderLimit.limited)
+  // Why: hook order — comparison still needs to settle before the fallback
+  // branch below returns early.
+  const { fileDiff, error, retry } = usePierreDiffMetadata(files.oldFile, files.newFile, {
+    disabled: renderLimit.limited,
+    language,
+    showWhitespace
+  })
 
   if (renderLimit.limited) {
     return <LargeDiffFallback filePath={relativePath} renderLimit={renderLimit} />
+  }
+  if (error) {
+    return <EditorFileLoadErrorView message={error} onRetry={retry} />
   }
   if (!fileDiff) {
     return (

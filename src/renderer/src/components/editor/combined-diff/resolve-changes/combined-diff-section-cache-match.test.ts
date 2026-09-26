@@ -14,7 +14,6 @@ function section(overrides: Partial<DiffSection>): DiffSection {
     modifiedContent: '',
     collapsed: false,
     loading: false,
-    dirty: false,
     diffResult: null,
     largeDiffRenderLimit: null,
     ...overrides

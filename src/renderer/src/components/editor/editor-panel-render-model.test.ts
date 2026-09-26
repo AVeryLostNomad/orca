@@ -29,7 +29,7 @@ function textContent(overrides: Partial<FileContent> = {}): FileContent {
 function renderModel(args: {
   activeFile?: OpenFile
   fileContents?: Record<string, FileContent>
-  editorDrafts?: Record<string, string>
+  documentContentByTab?: Record<string, string>
   markdownViewMode?: Record<string, 'source' | 'rich' | 'preview'>
   markdownRichModeSizeOverridden?: boolean
   isChangesMode?: boolean
@@ -39,7 +39,7 @@ function renderModel(args: {
   return getEditorPanelRenderModel({
     activeFile,
     fileContents: args.fileContents ?? { '/repo/README.md': textContent() },
-    editorDrafts: args.editorDrafts ?? {},
+    documentContentByTab: args.documentContentByTab ?? {},
     gitStatusEntries: args.gitStatusByWorktree?.[activeFile.worktreeId],
     gitBranchEntries: undefined,
     markdownViewMode: args.markdownViewMode ?? {},
@@ -74,7 +74,7 @@ describe('getEditorPanelRenderModel HTML preview affordance', () => {
     const model = getEditorPanelRenderModel({
       activeFile,
       fileContents: {},
-      editorDrafts: {},
+      documentContentByTab: {},
       gitStatusEntries: undefined,
       gitBranchEntries: undefined,
       markdownViewMode: {},
@@ -162,7 +162,7 @@ describe('getEditorPanelRenderModel markdown export affordance', () => {
   it('uses unsaved drafts when resolving rich markdown fallback', () => {
     const model = renderModel({
       markdownViewMode: { '/repo/README.md': 'rich' },
-      editorDrafts: { '/repo/README.md': '[example]: https://example.com' }
+      documentContentByTab: { '/repo/README.md': '[example]: https://example.com' }
     })
 
     expect(model.canExportMarkdownToPdf).toBe(false)
@@ -171,7 +171,7 @@ describe('getEditorPanelRenderModel markdown export affordance', () => {
   it('disables rich export when a multibyte character crosses the byte limit', () => {
     const model = renderModel({
       markdownViewMode: { '/repo/README.md': 'rich' },
-      editorDrafts: {
+      documentContentByTab: {
         '/repo/README.md': `${'a'.repeat(RICH_MARKDOWN_MAX_SIZE_BYTES)}\u00e9`
       }
     })
@@ -183,7 +183,7 @@ describe('getEditorPanelRenderModel markdown export affordance', () => {
   it('keeps rich mode for an oversized file the user chose to open anyway', () => {
     const model = renderModel({
       markdownViewMode: { '/repo/README.md': 'rich' },
-      editorDrafts: { '/repo/README.md': 'a'.repeat(RICH_MARKDOWN_MAX_SIZE_BYTES + 1) },
+      documentContentByTab: { '/repo/README.md': 'a'.repeat(RICH_MARKDOWN_MAX_SIZE_BYTES + 1) },
       markdownRichModeSizeOverridden: true
     })
 
@@ -193,7 +193,7 @@ describe('getEditorPanelRenderModel markdown export affordance', () => {
   it('scopes the open-anyway override to its own file', () => {
     const model = renderModel({
       markdownViewMode: { '/repo/README.md': 'rich' },
-      editorDrafts: { '/repo/README.md': 'a'.repeat(RICH_MARKDOWN_MAX_SIZE_BYTES + 1) },
+      documentContentByTab: { '/repo/README.md': 'a'.repeat(RICH_MARKDOWN_MAX_SIZE_BYTES + 1) },
       markdownRichModeSizeOverridden: false
     })
 
@@ -203,7 +203,7 @@ describe('getEditorPanelRenderModel markdown export affordance', () => {
   it('disables edit export while content is still loading, even with a draft', () => {
     const model = renderModel({
       fileContents: {},
-      editorDrafts: { '/repo/README.md': '# Draft' }
+      documentContentByTab: { '/repo/README.md': '# Draft' }
     })
 
     expect(model.shouldShowMarkdownExportAction).toBe(true)

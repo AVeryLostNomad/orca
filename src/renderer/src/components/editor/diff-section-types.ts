@@ -8,6 +8,8 @@ export type DiffSection = {
   status: string
   area?: GitStatusEntry['area']
   oldPath?: string
+  submodule?: GitStatusEntry['submodule']
+  submoduleRoot?: GitStatusEntry['submoduleRoot']
   added?: number
   removed?: number
   originalContent: string
@@ -16,7 +18,6 @@ export type DiffSection = {
   loading: boolean
   loadOnDemand?: boolean
   error?: string
-  dirty: boolean
   diffResult: GitDiffResult | null
   largeDiffRenderLimit: LargeDiffRenderLimit | null
   // Why: combined sections keep Monaco models by path; bump on reload so

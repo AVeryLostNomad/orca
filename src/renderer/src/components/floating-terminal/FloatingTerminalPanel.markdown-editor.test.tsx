@@ -7,12 +7,7 @@ import {
   setFloatingEditorTabs,
   setFloatingTabs
 } from './floating-terminal-panel-test-fixtures'
-import {
-  hookRuntime,
-  mocks,
-  saveDialogBox,
-  setupFloatingTerminalPanelTest
-} from './floating-terminal-panel-test-harness'
+import { mocks, setupFloatingTerminalPanelTest } from './floating-terminal-panel-test-harness'
 import {
   findByProp,
   findByTypeName,
@@ -89,12 +84,6 @@ vi.mock('@/components/contextual-tours/use-contextual-tour', async () => {
 
 vi.mock('@/components/ui/dialog', async () => {
   return (await import('./floating-terminal-panel-component-stubs')).createDialogModule()
-})
-
-vi.mock('@/components/terminal/useTerminalSaveDialog', async () => {
-  return (
-    await import('./floating-terminal-panel-test-module-mocks')
-  ).createTerminalSaveDialogModule()
 })
 
 vi.mock('@/runtime/web-runtime-session', async () => {
@@ -238,42 +227,5 @@ describe('FloatingTerminalPanel close behavior', () => {
     const editorPanel = findByProp(element, 'activeFileId')
 
     expect(editorPanel.props.isVisible).toBe(false)
-  })
-
-  it('queues dirty editor closes from close-all-files instead of overwriting the dialog id', async () => {
-    setFloatingEditorTabs([
-      makeFile({ id: 'file-a', isDirty: true }),
-      makeFile({ id: 'file-b', isDirty: true })
-    ])
-
-    const element = await renderPanel(true)
-    const tabBar = findByTypeName(element, 'TabBar')
-    ;(tabBar.props.onCloseAllFiles as () => void)()
-
-    expect(saveDialogBox.fileId).toBe('file-a')
-    expect(mocks.closeFile).not.toHaveBeenCalledWith('file-a')
-    expect(mocks.closeFile).not.toHaveBeenCalledWith('file-b')
-  })
-
-  it('queues dirty editor closes from close-others and close-to-right one file at a time', async () => {
-    setFloatingEditorTabs([
-      makeFile({ id: 'file-a', isDirty: true }),
-      makeFile({ id: 'file-b', isDirty: true }),
-      makeFile({ id: 'file-c', isDirty: true })
-    ])
-
-    const element = await renderPanel(true)
-    const tabBar = findByTypeName(element, 'TabBar')
-    ;(tabBar.props.onCloseOthers as (tabId: string) => void)('tab-file-b')
-    expect(saveDialogBox.fileId).toBe('file-a')
-
-    saveDialogBox.fileId = null
-    mocks.closeFile.mockClear()
-    hookRuntime.values = []
-    const nextElement = await renderPanel(true)
-    const nextTabBar = findByTypeName(nextElement, 'TabBar')
-    ;(nextTabBar.props.onCloseToRight as (tabId: string) => void)('tab-file-a')
-    expect(saveDialogBox.fileId).toBe('file-b')
-    expect(mocks.closeFile).not.toHaveBeenCalledWith('file-c')
   })
 })

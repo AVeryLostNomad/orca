@@ -26,6 +26,7 @@ type RichMarkdownProgrammaticSyncOptions = {
   originalSourceRef: MutableRefObject<string>
   baseCanonicalRef: MutableRefObject<string>
   markdownDocuments?: MarkdownDocument[]
+  onContentSynchronized: () => void
   rootRef: MutableRefObject<HTMLDivElement | null>
   runtimeEnvironmentId?: string | null
   settings: RichMarkdownImageResolverSettings
@@ -53,6 +54,7 @@ export function useRichMarkdownProgrammaticSync({
   originalSourceRef,
   baseCanonicalRef,
   markdownDocuments,
+  onContentSynchronized,
   rootRef,
   runtimeEnvironmentId,
   settings,
@@ -110,16 +112,17 @@ export function useRichMarkdownProgrammaticSync({
       return
     }
     if (content === lastCommittedMarkdownRef.current) {
+      onContentSynchronized()
       return
     }
     if (editor.getMarkdown() === content) {
       // Why: disk bytes changed but already render-equal to the current doc (e.g.
-      // an external tool canonicalized byte-level style). Skip the disruptive
-      // reload, but adopt the new bytes as the reconciliation baseline so the next
-      // edit patches onto the fresh source, not the stale pre-change source.
+      // an external tool canonicalized byte-level style). Adopt the new bytes as
+      // the reconciliation baseline so the next edit patches onto fresh source.
       lastCommittedMarkdownRef.current = content
       originalSourceRef.current = content
       baseCanonicalRef.current = content
+      onContentSynchronized()
       return
     }
     isApplyingProgrammaticUpdateRef.current = true
@@ -137,6 +140,7 @@ export function useRichMarkdownProgrammaticSync({
     }
     syncSlashMenu(editor, rootRef.current, slashMenuSetter)
     syncDocLinkMenu(editor, rootRef.current, docLinkMenuSetter)
+    onContentSynchronized()
   }, [
     content,
     codec,
@@ -147,6 +151,7 @@ export function useRichMarkdownProgrammaticSync({
     lastCommittedMarkdownRef,
     originalSourceRef,
     baseCanonicalRef,
+    onContentSynchronized,
     rootRef,
     slashMenuSetter
   ])

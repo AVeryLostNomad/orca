@@ -1,7 +1,7 @@
 import type * as Monaco from 'monaco-editor'
 import type { Range, TextEdit, WorkspaceEdit } from 'vscode-languageserver-protocol'
 import { requestLsp } from './lsp-client'
-import type { LspDocumentBinding } from './lsp-document-binding'
+import { getLspBindingForUri, type LspDocumentBinding } from './lsp-document-binding'
 import { toMonacoRange } from './lsp-monaco-converters'
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
 
@@ -67,9 +67,7 @@ export function registerLspRenameProvider(monaco: MonacoModule, languageId: stri
   })
 }
 
-// Rename edits limited to open models: standalone Monaco's bulk-edit service
-// can only touch models that exist. Cross-file edits through Orca's draft/save
-// pipeline are the follow-up phase.
+// Standalone Monaco can apply rename edits only to models already open.
 function toMonacoWorkspaceEdit(
   monaco: MonacoModule,
   binding: LspDocumentBinding,
@@ -89,8 +87,12 @@ function toMonacoWorkspaceEdit(
     }
   }
   for (const [uri, textEdits] of editsByUri) {
-    const resource = monaco.Uri.parse(uri)
-    if (!monaco.editor.getModel(resource) && uri !== binding.uri) {
+    const model =
+      uri === binding.uri
+        ? binding.model
+        : (getLspBindingForUri(binding.session.sessionId, uri)?.model ??
+          monaco.editor.getModel(monaco.Uri.parse(uri)))
+    if (!model || model.isDisposed()) {
       return {
         edits: [],
         rejectReason: 'Rename touches files that are not open in the editor yet'
@@ -98,7 +100,7 @@ function toMonacoWorkspaceEdit(
     }
     for (const edit of textEdits) {
       edits.push({
-        resource,
+        resource: model.uri,
         versionId: undefined,
         textEdit: { range: toMonacoRange(edit.range), text: edit.newText }
       })

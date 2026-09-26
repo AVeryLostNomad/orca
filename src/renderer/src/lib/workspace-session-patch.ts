@@ -102,7 +102,8 @@ export function buildWorkspaceSessionPatch(
   if (
     hasAnyChangedField(changed, [
       'openFiles',
-      'editorDrafts',
+      'workingDocuments',
+      'workingDocumentIdsByTab',
       'markdownFrontmatterVisible',
       'activeFileIdByWorktree',
       'activeTabTypeByWorktree'
@@ -112,7 +113,11 @@ export function buildWorkspaceSessionPatch(
       patch,
       buildEditorSessionData(
         snapshot.openFiles,
-        snapshot.editorDrafts,
+        {
+          workingDocuments: snapshot.workingDocuments,
+          workingDocumentIdsByTab: snapshot.workingDocumentIdsByTab,
+          unifiedTabsByWorktree: snapshot.unifiedTabsByWorktree
+        },
         snapshot.markdownFrontmatterVisible,
         snapshot.activeFileIdByWorktree,
         snapshot.activeTabTypeByWorktree

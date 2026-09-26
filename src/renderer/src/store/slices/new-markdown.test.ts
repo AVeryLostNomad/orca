@@ -444,26 +444,6 @@ describe('New Markdown — rename flow store operations', () => {
     expect(store.getState().activeFileId).toBe('/repo/notes.md')
   })
 
-  it('closeFile clears editor draft for the old path', () => {
-    const store = createEditorStore({
-      tabBarOrderByWorktree: { 'wt-1': [] }
-    })
-
-    store.getState().openFile({
-      filePath: '/repo/untitled.md',
-      relativePath: 'untitled.md',
-      worktreeId: 'wt-1',
-      language: 'markdown',
-      isUntitled: true,
-      mode: 'edit'
-    })
-    store.getState().setEditorDraft('/repo/untitled.md', '# My notes')
-    expect(store.getState().editorDrafts['/repo/untitled.md']).toBe('# My notes')
-
-    store.getState().closeFile('/repo/untitled.md')
-    expect(store.getState().editorDrafts['/repo/untitled.md']).toBeUndefined()
-  })
-
   it('same-name save clears isUntitled via clearUntitled', () => {
     const store = createEditorStore({
       tabBarOrderByWorktree: { 'wt-1': [] }
@@ -484,39 +464,6 @@ describe('New Markdown — rename flow store operations', () => {
     // File should still exist
     expect(store.getState().openFiles).toHaveLength(1)
     expect(store.getState().openFiles[0].id).toBe('/repo/untitled.md')
-  })
-})
-
-describe('New Markdown — markFileDirty interaction', () => {
-  it('new untitled file starts not dirty', () => {
-    const store = createEditorStore()
-    store.getState().openFile({
-      filePath: '/repo/untitled.md',
-      relativePath: 'untitled.md',
-      worktreeId: 'wt-1',
-      language: 'markdown',
-      isUntitled: true,
-      mode: 'edit'
-    })
-    expect(store.getState().openFiles[0].isDirty).toBe(false)
-  })
-
-  it('markFileDirty works on untitled files', () => {
-    const store = createEditorStore()
-    store.getState().openFile({
-      filePath: '/repo/untitled.md',
-      relativePath: 'untitled.md',
-      worktreeId: 'wt-1',
-      language: 'markdown',
-      isUntitled: true,
-      mode: 'edit'
-    })
-
-    store.getState().markFileDirty('/repo/untitled.md', true)
-    expect(store.getState().openFiles[0].isDirty).toBe(true)
-
-    store.getState().markFileDirty('/repo/untitled.md', false)
-    expect(store.getState().openFiles[0].isDirty).toBe(false)
   })
 })
 

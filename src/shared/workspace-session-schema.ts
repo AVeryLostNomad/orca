@@ -19,7 +19,7 @@ import type { TuiAgent } from './tui-agent'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
 import { terminalTabIdSchema } from './terminal-tab-id-schema'
 import { terminalSurfaceTombstoneSchema } from './terminal-surface-tombstone-schema'
-import { parseExecutionHostId, type ExecutionHostId } from './execution-host'
+import { executionHostIdSchema } from './execution-host-schema'
 import { isTuiAgent } from './tui-agent-config'
 import { isWorkspaceKey } from './workspace-scope'
 import {
@@ -115,11 +115,6 @@ const terminalTabSchema = z.object({
 })
 
 // ─── Unified tab model ──────────────────────────────────────────────
-
-const executionHostIdSchema = z.custom<ExecutionHostId>(
-  (value) => typeof value === 'string' && Boolean(parseExecutionHostId(value))
-)
-
 const tabSchema = z.object({
   id: z.string(),
   entityId: z.string(),

@@ -26,9 +26,21 @@ import type { DiffViewerProps } from './diff-viewer-props'
 import { buildDiffViewerEditorOptions } from './diff-viewer-editor-options'
 import { useDiffEditorRegistration } from './diff-navigation-context'
 import { preserveDiffViewStateAcrossModelSwaps } from './diff-model-swap-view-state'
+import {
+  acquireWorkingDocumentModel,
+  attachWorkingDocumentEditor,
+  getWorkingDocumentModelUri
+} from './working-document-model'
+import { flushPendingEditorChange } from './editor-pending-flush'
+import { useLspForEditor } from '@/lib/lsp/use-lsp-for-editor'
+import { EditorLspStatusChip } from './EditorLspStatusChip'
+import { EditorFileLoadErrorView } from './EditorFileLoadErrorView'
+import { useDiffComparisonFailure } from './use-diff-comparison-failure'
+import { useDiffFirstChangeAutoScroll } from './use-diff-first-change-auto-scroll'
 
 export default function DiffViewer({
   modelKey,
+  workingDocumentId,
   originalModelKey,
   modifiedModelKey,
   originalContent,
@@ -37,17 +49,16 @@ export default function DiffViewer({
   filePath,
   relativePath,
   sideBySide,
-  editable,
   worktreeId,
   onAddLineComment,
   commentableLineNumbers,
   addLineCommentLabel,
   addLineCommentPlaceholder,
-  onContentChange,
   onSave,
   largeDiffRenderLimit,
   largeDiffSaveContentAvailable
 }: DiffViewerProps): React.JSX.Element {
+  const editable = workingDocumentId !== undefined
   const settings = useAppStore((s) => s.settings)
   const editorFontZoomLevel = useAppStore((s) => s.editorFontZoomLevel)
   const addDiffComment = useAppStore((s) => s.addDiffComment)
@@ -71,7 +82,8 @@ export default function DiffViewer({
   const { registerDiffEditor, unregisterDiffEditor } = useDiffEditorRegistration()
   const diffBodyRef = useRef<HTMLDivElement | null>(null)
   const lineNumberOptionsSubRef = useRef<{ dispose: () => void } | null>(null)
-  const [modifiedEditor, setModifiedEditor] = useState<editor.ICodeEditor | null>(null)
+  const [modifiedEditor, setModifiedEditor] = useState<editor.IStandaloneCodeEditor | null>(null)
+  const [originalModel, setOriginalModel] = useState<editor.ITextModel | null>(null)
   const [popover, setPopover] = useState<{
     lineNumber: number
     startLine?: number
@@ -84,6 +96,40 @@ export default function DiffViewer({
     () => largeDiffRenderLimit ?? getLargeDiffRenderLimit({ originalContent, modifiedContent }),
     [largeDiffRenderLimit, originalContent, modifiedContent]
   )
+  const workingModelUri = useMemo(() => {
+    if (!workingDocumentId || renderLimit.limited) {
+      return undefined
+    }
+    acquireWorkingDocumentModel(workingDocumentId)
+    return getWorkingDocumentModelUri(workingDocumentId)
+  }, [workingDocumentId, renderLimit.limited])
+  const lspStatus = useLspForEditor({
+    mountedEditor: editable ? modifiedEditor : null,
+    filePath,
+    language,
+    worktreeId,
+    documentId: workingDocumentId
+  })
+  const { error: comparisonError, retry: retryComparison } = useDiffComparisonFailure({
+    original: originalModel,
+    modified: modifiedEditor?.getModel() ?? null,
+    showWhitespace: settings?.diffShowWhitespace === true
+  })
+  useLayoutEffect(() => {
+    if (!workingDocumentId || !modifiedEditor) {
+      return
+    }
+    const detach = attachWorkingDocumentEditor(workingDocumentId, modelKey)
+    const flush = (): void => flushPendingEditorChange(workingDocumentId, modelKey)
+    const focus = modifiedEditor.onDidFocusEditorText(flush)
+    if (modifiedEditor.hasTextFocus()) {
+      flush()
+    }
+    return () => {
+      focus.dispose()
+      detach()
+    }
+  }, [workingDocumentId, modifiedEditor, modelKey])
   const hasLineCommentAction = Boolean(worktreeId || onAddLineComment)
 
   // Why: only forward the pending scroll id when this viewer owns the comment, else unrelated viewers race to ack it.
@@ -151,68 +197,13 @@ export default function DiffViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modifiedEditor, popover?.lineNumber])
 
-  // Why: center the first diff from a dedicated effect (not handleMount) so it runs after the decorator's view zones, which would otherwise shift content downward.
-  const didAutoScrollFirstDiffRef = useRef(false)
-  const didAutoScrollModelKeyRef = useRef(modelKey)
-  useEffect(() => {
-    if (didAutoScrollModelKeyRef.current !== modelKey) {
-      didAutoScrollModelKeyRef.current = modelKey
-      // Why: reset the per-modelKey one-shot here before the first-diff guard runs for the new file.
-      didAutoScrollFirstDiffRef.current = false
-    }
-    const diffEditor = diffEditorRef.current
-    if (!diffEditor || !modifiedEditor) {
-      return
-    }
-    if (didAutoScrollFirstDiffRef.current) {
-      return
-    }
-    if (diffViewStateCache.get(modelKey)) {
-      return
-    }
-    if (pendingScrollForThisViewer) {
-      // Why: decorator owns this scroll, so set the one-shot flag; else we'd re-run and overwrite it when pendingScroll flips back to null.
-      didAutoScrollFirstDiffRef.current = true
-      return
-    }
-    let rafId: number | null = null
-    const run = (): void => {
-      if (didAutoScrollFirstDiffRef.current) {
-        return
-      }
-      const changes = diffEditor.getLineChanges()
-      if (!changes || changes.length === 0) {
-        return
-      }
-      const line = Math.max(1, changes[0].modifiedStartLineNumber)
-      // Defer one frame so view zones are laid out before measuring; cancel any earlier rAF to avoid a redundant scroll.
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-      }
-      rafId = requestAnimationFrame(() => {
-        rafId = null
-        if (didAutoScrollFirstDiffRef.current || !modifiedEditor.getModel()) {
-          return
-        }
-        const top = modifiedEditor.getTopForLineNumber(line, true)
-        const editorHeight = modifiedEditor.getLayoutInfo().height
-        modifiedEditor.setPosition({ lineNumber: line, column: 1 })
-        modifiedEditor.setScrollTop(Math.max(0, top - editorHeight / 2))
-        didAutoScrollFirstDiffRef.current = true
-      })
-    }
-    // Run now if the diff is ready; otherwise onDidUpdateDiff fires once the computation lands.
-    if (diffEditor.getLineChanges()) {
-      run()
-    }
-    const sub = diffEditor.onDidUpdateDiff(() => run())
-    return () => {
-      sub.dispose()
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-      }
-    }
-  }, [modifiedEditor, modelKey, pendingScrollForThisViewer])
+  // Why: center the first diff after the decorator's view zones, which would otherwise shift content downward.
+  useDiffFirstChangeAutoScroll({
+    diffEditorRef,
+    modifiedEditor,
+    modelKey,
+    pendingScrollCommentId: pendingScrollForThisViewer
+  })
 
   const handleEnterLargeDiffFallback = useCallback(() => {
     // Why: on fallback transition, drop stale Monaco refs so decorators/save handlers don't talk to disposed UI.
@@ -266,8 +257,6 @@ export default function DiffViewer({
   // Keep refs to latest callbacks so the mounted editor always calls current versions
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
-  const onContentChangeRef = useRef(onContentChange)
-  onContentChangeRef.current = onContentChange
 
   const { setupCopy, toastNode } = useContextualCopySetup()
 
@@ -291,10 +280,13 @@ export default function DiffViewer({
 
       const originalEditor = diffEditor.getOriginalEditor()
       const modifiedEditor = diffEditor.getModifiedEditor()
+      originalEditor.updateOptions({ 'semanticHighlighting.enabled': true })
+      modifiedEditor.updateOptions({ 'semanticHighlighting.enabled': true })
       diffEditor.onDidDispose(preserveDiffViewStateAcrossModelSwaps(diffEditor).dispose)
 
       setupCopy(originalEditor, monaco, filePath, propsRef)
       setupCopy(modifiedEditor, monaco, filePath, propsRef)
+      setOriginalModel(originalEditor.getModel())
       setModifiedEditor(modifiedEditor)
 
       // Why: restore full diff view state (not just scrollTop) so cursor/selection stay consistent across both panes.
@@ -314,15 +306,11 @@ export default function DiffViewer({
         const cleanupOriginalFindShortcut = installMonacoEditorFindShortcut(originalEditor)
         const cleanupModifiedFindShortcut = installMonacoEditorFindShortcut(modifiedEditor)
 
-        const modelContentSub = modifiedEditor.onDidChangeModelContent(() => {
-          onContentChangeRef.current?.(modifiedEditor.getValue())
-        })
         modifiedEditor.onDidDispose(() => {
-          // Why: this diff instance owns both panes' shortcut bridges + the model sub, so dispose them with it.
+          // Why: this diff instance owns both panes' shortcut bridges, so dispose them with it.
           cleanupSaveShortcut()
           cleanupOriginalFindShortcut()
           cleanupModifiedFindShortcut()
-          modelContentSub.dispose()
         })
 
         modifiedEditor.focus()
@@ -337,6 +325,7 @@ export default function DiffViewer({
         diffEditorRef.current = null
         unregisterDiffEditor(diffEditor)
         setModifiedEditor(null)
+        setOriginalModel(null)
         setPopover(null)
       })
     },
@@ -400,28 +389,35 @@ export default function DiffViewer({
           />
         ) : (
           <DiffEditor
+            key={workingDocumentId ?? modelKey}
             height="100%"
             language={language}
             original={originalContent}
-            modified={modifiedContent}
+            modified={workingDocumentId ? undefined : modifiedContent}
             theme={monacoThemeName}
             onMount={handleMount}
             // Why: a file can have multiple live diff tabs, so key models off tab identity (not file path) to avoid cross-tab reuse.
             // Why: Changes mode rotates only the original-side model after HEAD moves, preserving the modified side's undo stack.
             originalModelPath={currentDiffModelPaths.originalModelPath}
-            modifiedModelPath={currentDiffModelPaths.modifiedModelPath}
+            modifiedModelPath={workingModelUri ?? currentDiffModelPaths.modifiedModelPath}
             keepCurrentOriginalModel
             keepCurrentModifiedModel
             options={buildDiffViewerEditorOptions({
-              editable: Boolean(editable),
+              editable,
               sideBySide,
               diffEditorFontSize,
               settings
             })}
           />
         )}
+        {comparisonError ? (
+          <div className="absolute inset-0 z-10">
+            <EditorFileLoadErrorView message={comparisonError} onRetry={retryComparison} />
+          </div>
+        ) : null}
       </div>
       {toastNode}
+      <EditorLspStatusChip status={lspStatus} />
     </div>
   )
 }

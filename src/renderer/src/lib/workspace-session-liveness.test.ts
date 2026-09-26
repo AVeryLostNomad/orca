@@ -14,8 +14,8 @@ function createSnapshot(
     terminalLayoutsByTabId: {},
     activeTabIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
-    markdownFrontmatterVisible: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeFileIdByWorktree: {},
     activeTabTypeByWorktree: {},
     browserTabsByWorktree: {},
@@ -39,7 +39,8 @@ function createSnapshot(
     lastVisitedAtByWorktreeId: {},
     defaultTerminalTabsAppliedByWorktreeId: {},
     closedTerminalTabTombstonesByTabId: {},
-    ...overrides
+    ...overrides,
+    markdownFrontmatterVisible: overrides.markdownFrontmatterVisible ?? {}
   }
 }
 

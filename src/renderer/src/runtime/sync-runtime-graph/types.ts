@@ -1,5 +1,6 @@
 import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import type { AppState } from '@/store/types'
+import type { WorkingDocument } from '@/store/slices/editor/working-document'
 import type { RuntimeMobileTerminalTheme } from '../../../../shared/runtime-types'
 import type { TabGroupLayoutNode } from '../../../../shared/tab-types'
 import type { TerminalPaneLayoutNode } from '../../../../shared/terminal-tab-types'
@@ -29,7 +30,7 @@ export type RuntimeMobileSessionSyncKey = {
   tabsProjection: string
   openFilesProjection: string
   browserProjection: string
-  editorDraftsProjection: string
+  workingDocumentsProjection: string
 }
 
 export type RegisteredTerminalTab = {
@@ -69,6 +70,29 @@ export type OpenFilesProjectionCache = {
   entries: Map<string, OpenFilesProjectionCacheEntry>
   projection: string
 }
+export type WorkingDocumentsProjectionCacheEntry = {
+  document: WorkingDocument
+  documentIdJson: string
+  projection: string
+}
+export type WorkingDocumentsProjectionCache = {
+  documentsSource: AppState['workingDocuments']
+  membershipsSource: AppState['workingDocumentIdsByTab']
+  entries: Map<string, WorkingDocumentsProjectionCacheEntry>
+  projection: string
+}
+export type WorkingDocumentVersionCacheEntry = {
+  document: WorkingDocument
+  version: string
+}
+export type WorkingDocumentVersionsCache = {
+  documentsSource: AppState['workingDocuments']
+  membershipsSource: AppState['workingDocumentIdsByTab']
+  openFilesSource: AppState['openFiles']
+  unifiedTabsSource: AppState['unifiedTabsByWorktree']
+  entries: Map<string, WorkingDocumentVersionCacheEntry>
+  versions: ReadonlyMap<string, string>
+}
 export type BrowserWorkspacesProjectionCacheEntry = {
   workspaces: NonNullable<AppState['browserTabsByWorktree'][string]>
   keyJson: string
@@ -89,19 +113,6 @@ export type BrowserPagesProjectionCache = {
   entries: Map<string, BrowserPagesProjectionCacheEntry>
   projection: string
 }
-/** One dirty file's FNV draft stamp plus its pre-serialized projection fragment. */
-export type EditorDraftHashCacheEntry = {
-  content: string
-  hash: string
-  fileIdJson: string
-  projection: string
-}
-export type EditorDraftHashCache = {
-  source: AppState['editorDrafts']
-  entries: Map<string, EditorDraftHashCacheEntry>
-  hashByFileId: Map<string, string>
-  projection: string
-}
 export type AgentStatusProjectionCacheEntry = {
   entry: AppState['agentStatusByPaneKey'][string]
   projection: string
@@ -119,7 +130,7 @@ export type MobileSessionAgentStatusByWorktree = ReadonlyMap<
 export type MobileSessionPublicationInputs = {
   browserTabsByWorktree: AppState['browserTabsByWorktree']
   openFileIndexes: OpenFileIndexes
-  editorDraftVersionByFileId: ReadonlyMap<string, string>
+  workingDocumentVersionByFileId: ReadonlyMap<string, string>
   agentStatusByWorktreeId: MobileSessionAgentStatusByWorktree
   generatedTitlesEnabled: boolean
   terminalTheme: RuntimeMobileTerminalTheme | undefined
@@ -166,7 +177,7 @@ export type MobileSessionWorktreeInputs = {
     NonNullable<AppState['nativeChatLaunchDraftByTabId']>[string]
   >
   agentStatusByPaneKey: ReadonlyMap<string, AppState['agentStatusByPaneKey'][string]>
-  editorDraftVersionByFileId: ReadonlyMap<string, string>
+  workingDocumentVersionByFileId: ReadonlyMap<string, string>
   pagesByBrowserWorkspaceId: ReadonlyMap<
     string,
     NonNullable<AppState['browserPagesByWorkspace']>[string]

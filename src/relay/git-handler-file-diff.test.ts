@@ -41,10 +41,18 @@ describe('GitHandler', () => {
         worktreePath: tmpDir,
         filePath: 'file.txt',
         staged: false
-      })) as { kind: string; originalContent: string; modifiedContent: string }
+      })) as {
+        kind: string
+        originalContent: string
+        modifiedContent: string
+        originalReadState?: string
+        modifiedReadState?: string
+      }
       expect(result.kind).toBe('text')
       expect(result.originalContent).toBe('original')
       expect(result.modifiedContent).toBe('modified')
+      expect(result.originalReadState).toBe('present')
+      expect(result.modifiedReadState).toBe('present')
     })
 
     it('returns staged diff', async () => {
@@ -62,6 +70,63 @@ describe('GitHandler', () => {
       expect(result.kind).toBe('text')
       expect(result.originalContent).toBe('original')
       expect(result.modifiedContent).toBe('staged-content')
+    })
+
+    it('uses a present empty index blob as the unstaged baseline', async () => {
+      gitInit(tmpDir)
+      writeFileSync(path.join(tmpDir, 'file.txt'), 'HEAD content')
+      gitCommit(tmpDir, 'initial')
+      writeFileSync(path.join(tmpDir, 'file.txt'), '')
+      execFileSync('git', ['add', 'file.txt'], { cwd: tmpDir, stdio: 'pipe' })
+      writeFileSync(path.join(tmpDir, 'file.txt'), 'working content')
+
+      const result = (await dispatcher.callRequest('git.diff', {
+        worktreePath: tmpDir,
+        filePath: 'file.txt',
+        staged: false
+      })) as {
+        kind: string
+        originalContent: string
+        modifiedContent: string
+        originalReadState?: string
+        modifiedReadState?: string
+      }
+
+      expect(result).toMatchObject({
+        kind: 'text',
+        originalContent: '',
+        modifiedContent: 'working content',
+        originalReadState: 'present',
+        modifiedReadState: 'present'
+      })
+    })
+
+    it('marks a staged deletion as an absent modified read', async () => {
+      gitInit(tmpDir)
+      writeFileSync(path.join(tmpDir, 'file.txt'), 'original')
+      gitCommit(tmpDir, 'initial')
+      await fs.rm(path.join(tmpDir, 'file.txt'))
+      execFileSync('git', ['add', '--update'], { cwd: tmpDir, stdio: 'pipe' })
+
+      const result = (await dispatcher.callRequest('git.diff', {
+        worktreePath: tmpDir,
+        filePath: 'file.txt',
+        staged: true
+      })) as {
+        kind: string
+        originalContent: string
+        modifiedContent: string
+        originalReadState?: string
+        modifiedReadState?: string
+      }
+
+      expect(result).toMatchObject({
+        kind: 'text',
+        originalContent: 'original',
+        modifiedContent: '',
+        originalReadState: 'present',
+        modifiedReadState: 'absent'
+      })
     })
 
     it('omits over-limit text bodies before returning diff payloads', async () => {

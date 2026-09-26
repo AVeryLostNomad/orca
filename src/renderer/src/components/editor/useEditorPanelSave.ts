@@ -1,39 +1,37 @@
 import { useCallback } from 'react'
 import type { OpenFile } from '@/store/slices/editor'
-import { attemptEditorFileSave } from './editor-file-save-attempt'
-import { getEditorSaveTargetFile } from './editor-save-target'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { attemptEditorDocumentSave } from './editor-file-save-attempt'
 
 type UseEditorPanelSaveParams = {
-  activeFile: OpenFile | null
-  openFiles: OpenFile[]
+  activeDocumentId: WorkingDocumentId | null
+  activeFile: Pick<OpenFile, 'id' | 'isUntitled'> | null
   requestRenameForFile: (fileId: string) => void
 }
 
+// Content is intentionally absent from this API. A rich/Monaco surface may
+// invoke Cmd/Ctrl+S with a stale render-time string; the queue flushes producers
+// and saves the canonical document that exists at the moment it executes.
 export function useEditorPanelSave({
+  activeDocumentId,
   activeFile,
-  openFiles,
   requestRenameForFile
 }: UseEditorPanelSaveParams) {
-  const handleSaveForFile = useCallback(
-    async (file: OpenFile | null, content: string): Promise<boolean> => {
-      if (!file) {
+  const handleSaveForDocument = useCallback(
+    async (documentId: WorkingDocumentId | null): Promise<boolean> => {
+      if (!documentId) {
         return false
       }
-      const saveTargetFile = getEditorSaveTargetFile(file, openFiles)
-      if (!saveTargetFile) {
-        return false
-      }
-      if (saveTargetFile.isUntitled) {
-        requestRenameForFile(saveTargetFile.id)
-        return false
-      }
-      return attemptEditorFileSave({ fileId: saveTargetFile.id, fallbackContent: content })
+      return attemptEditorDocumentSave({ documentId })
     },
-    [openFiles, requestRenameForFile]
+    []
   )
-  const handleSave = useCallback(
-    (content: string): Promise<boolean> => handleSaveForFile(activeFile, content),
-    [activeFile, handleSaveForFile]
-  )
-  return { handleSave, handleSaveForFile }
+  const handleSave = useCallback((): Promise<boolean> => {
+    if (!activeDocumentId && activeFile?.isUntitled) {
+      requestRenameForFile(activeFile.id)
+      return Promise.resolve(false)
+    }
+    return handleSaveForDocument(activeDocumentId)
+  }, [activeDocumentId, activeFile, handleSaveForDocument, requestRenameForFile])
+  return { handleSave, handleSaveForDocument }
 }

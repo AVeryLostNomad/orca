@@ -41,20 +41,6 @@ function createModel(
 }
 
 describe('diff Monaco model disposal', () => {
-  it('derives original and modified model paths from explicit model keys', () => {
-    expect(
-      getDiffViewerMonacoModelPaths({
-        modelKey: 'fallback',
-        originalModelKey: 'head:path.ts',
-        modifiedModelKey: 'worktree:path.ts',
-        generationSuffix: ':large-diff-generation:2'
-      })
-    ).toEqual({
-      originalModelPath: 'diff:original:fallback:head~3Apath.ts:large-diff-generation:2',
-      modifiedModelPath: 'diff:modified:fallback:worktree~3Apath.ts:large-diff-generation:2'
-    })
-  })
-
   it('disposes only exact-path models that are no longer attached to an editor', () => {
     const detachedOriginalDispose = vi.fn()
     const attachedModifiedDispose = vi.fn()
@@ -82,23 +68,23 @@ describe('diff Monaco model disposal', () => {
     const unrelatedDispose = vi.fn()
     const models = new Map([
       [
-        'diff-section:review:abc:0:original',
-        createModel('diff-section:review:abc:0:original', false, originalDispose)
+        'combined-diff-snapshot:review:abc:0:original',
+        createModel('combined-diff-snapshot:review:abc:0:original', false, originalDispose)
       ],
       [
-        'diff-section:review:abc:0:modified',
-        createModel('diff-section:review:abc:0:modified', false, modifiedDispose)
+        'combined-diff-snapshot:review:abc:0:modified',
+        createModel('combined-diff-snapshot:review:abc:0:modified', false, modifiedDispose)
       ],
       [
-        'diff-section:review:abc:1:modified',
-        createModel('diff-section:review:abc:1:modified', false, unrelatedDispose)
+        'combined-diff-snapshot:review:abc:1:modified',
+        createModel('combined-diff-snapshot:review:abc:1:modified', false, unrelatedDispose)
       ]
     ])
     const monacoRegistry = createRegistry(models)
 
     disposeUnattachedMonacoModelPaths(monacoRegistry, [
-      'diff-section:review:abc:0:original',
-      'diff-section:review:abc:0:modified'
+      'combined-diff-snapshot:review:abc:0:original',
+      'combined-diff-snapshot:review:abc:0:modified'
     ])
 
     expect(originalDispose).toHaveBeenCalledOnce()

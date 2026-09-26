@@ -8,6 +8,7 @@ import {
 } from '@/runtime/runtime-git-client'
 import { getConnectionId } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
+import { openReviewWorkingFile } from '@/lib/review-working-file'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { resolveDefaultAgentForNewTab } from '@/lib/agent-tab-shortcuts'
 import { translate } from '@/i18n/i18n'
@@ -140,6 +141,17 @@ export function useGitHistoryCommitActions({
       event?: SourceControlRowOpenEvent
     ): void => {
       if (!activeWorktreeId || !worktreePath) {
+        return
+      }
+      if (event?.target === 'file') {
+        const targetGroupId = resolveSplitTargetGroupId(event)
+        void openReviewWorkingFile({
+          worktreeId: activeWorktreeId,
+          worktreePath,
+          relativePath: entry.path,
+          targetGroupId,
+          preview: shouldOpenSourceControlRowAsPreview(event, targetGroupId)
+        })
         return
       }
       // The cache is populated by loadCommitFiles when the row is expanded, so a

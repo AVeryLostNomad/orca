@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef } from 'react'
 import { monaco } from '@/lib/monaco-setup'
 import { disposeUnattachedMonacoModelPaths } from './diff-monaco-model-disposal'
 
-// Why: virtualized section rows own Monaco model paths for their lifetime;
-// dispose on unmount/collapse so remounts do not leak detached models.
+// Why: virtualized section rows own their snapshot model paths, while a live
+// working document model belongs to the document registry and can outlive any
+// one combined-diff section.
 export function useDiffSectionModelLifecycle(params: {
   modelPathBase: string
+  modifiedModelPath?: string
   collapsed: boolean
 }): {
   disposeDiffModels: () => void
@@ -13,14 +15,21 @@ export function useDiffSectionModelLifecycle(params: {
 } {
   const disposeDiffModels = useCallback(() => {
     window.setTimeout(() => {
-      disposeUnattachedMonacoModelPaths(monaco, [
-        `${params.modelPathBase}:original`,
-        `${params.modelPathBase}:modified`
-      ])
+      const snapshotPaths = [`${params.modelPathBase}:original`]
+      if (!params.modifiedModelPath) {
+        snapshotPaths.push(`${params.modelPathBase}:modified`)
+      }
+      disposeUnattachedMonacoModelPaths(monaco, snapshotPaths)
     }, 0)
-  }, [params.modelPathBase])
+  }, [params.modelPathBase, params.modifiedModelPath])
   const disposeDiffModelsRef = useRef(disposeDiffModels)
   // Keep callback-ref dispose path on the latest disposer without render-time mutation.
+  useEffect(() => {
+    if (!params.modifiedModelPath) {
+      return
+    }
+    disposeUnattachedMonacoModelPaths(monaco, [`${params.modelPathBase}:modified`])
+  }, [params.modelPathBase, params.modifiedModelPath])
   useEffect(() => {
     disposeDiffModelsRef.current = disposeDiffModels
   }, [disposeDiffModels])

@@ -17,6 +17,9 @@ import { buildDiffEditorWordWrapOptions } from './diff-editor-word-wrap-options'
 import { monacoFindOptions } from './monaco-find-options'
 import { installDiffEditorShiftWheelScroll } from './diff-editor-shift-wheel-scroll'
 
+import { EditorLspStatusChip } from './EditorLspStatusChip'
+import { EditorFileLoadErrorView } from './EditorFileLoadErrorView'
+import type { EditorLspStatus } from '@/lib/lsp/use-lsp-for-editor'
 const ImageDiffViewer = lazy(() => import('./ImageDiffViewer'))
 
 type DiffSectionBodyProps = {
@@ -38,7 +41,14 @@ type DiffSectionBodyProps = {
   sideBySide: boolean
   language: string
   modelPathBase: string
+  modifiedModelPath?: string
+  lspStatus?: EditorLspStatus
   isEditable: boolean
+  isDirty: boolean
+  workingDocumentError?: string
+  comparisonError?: string | null
+  onRetryComparison?: () => void
+  onRetryWorkingDocument?: () => void
   diffEditorFontSize: number
   diffWordWrap?: boolean
   diffShowWhitespace?: boolean
@@ -64,8 +74,15 @@ export function DiffSectionBody({
   sideBySide,
   language,
   modelPathBase,
+  modifiedModelPath,
+  lspStatus,
   isEditable,
+  isDirty,
   diffEditorFontSize,
+  workingDocumentError,
+  comparisonError,
+  onRetryComparison,
+  onRetryWorkingDocument,
   diffWordWrap,
   diffShowWhitespace,
   editorFontFamily,
@@ -119,11 +136,16 @@ export function DiffSectionBody({
             {translate('auto.components.editor.DiffSectionBody.f5cf81cec2', 'Loading diff...')}
           </span>
         </div>
+      ) : workingDocumentError ? (
+        <EditorFileLoadErrorView
+          message={workingDocumentError}
+          onRetry={() => onRetryWorkingDocument?.()}
+        />
       ) : section.error ? (
         <div className="flex h-full items-center justify-between gap-3 bg-muted/10 px-3 text-[11px] text-muted-foreground">
           <div className="flex min-w-0 items-center gap-2">
             <AlertCircle className="size-3.5 shrink-0 text-destructive" />
-            <span className="truncate">{section.error}</span>
+            <span className="truncate">{workingDocumentError ?? section.error}</span>
           </div>
           <Button
             type="button"
@@ -177,7 +199,7 @@ export function DiffSectionBody({
           filePath={section.path}
           renderLimit={renderLimit}
           action={
-            isEditable && section.dirty
+            isEditable && isDirty
               ? {
                   label: translate('auto.components.editor.DiffSectionBody.b5675b0694', 'Save'),
                   description: translate(
@@ -191,16 +213,16 @@ export function DiffSectionBody({
         />
       ) : (
         <DiffEditor
+          key={modifiedModelPath ?? modelPathBase}
           height="100%"
           language={language}
           original={section.originalContent}
-          modified={section.modifiedContent}
+          modified={modifiedModelPath ? undefined : section.modifiedContent}
           theme={monacoThemeName}
           onMount={handleEditorMount}
           // Why: @monaco-editor/react can dispose models before widget teardown.
-          // Keep them through unmount and dispose unattached models next tick.
           originalModelPath={`${modelPathBase}:original`}
-          modifiedModelPath={`${modelPathBase}:modified`}
+          modifiedModelPath={modifiedModelPath ?? `${modelPathBase}:modified`}
           keepCurrentOriginalModel
           keepCurrentModifiedModel
           options={{
@@ -222,6 +244,15 @@ export function DiffSectionBody({
           }}
         />
       )}
+      {comparisonError ? (
+        <div className="absolute inset-0 z-10">
+          <EditorFileLoadErrorView
+            message={comparisonError}
+            onRetry={() => onRetryComparison?.()}
+          />
+        </div>
+      ) : null}
+      {lspStatus ? <EditorLspStatusChip status={lspStatus} /> : null}
     </div>
   )
 }

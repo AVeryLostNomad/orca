@@ -20,6 +20,7 @@ export type MonacoContentSyncBridge = {
  *  assigned during render, which must happen in the component body so the mount
  *  handler and any handler firing before commit already read the current props. */
 export function useMonacoContentSyncBridge(params: {
+  registryManaged?: boolean
   editorRef: MutableRefObject<editor.IStandaloneCodeEditor | null>
   content: string
   contentRef: MutableRefObject<string>
@@ -28,6 +29,7 @@ export function useMonacoContentSyncBridge(params: {
   onContentChange: (content: string) => void
 }): MonacoContentSyncBridge {
   const { editorRef, content, contentRef, contentSyncModeRef, filePath, onContentChange } = params
+  const registryManaged = params.registryManaged === true
 
   const lastSyncedContentRef = useRef<string>(content)
 
@@ -37,6 +39,9 @@ export function useMonacoContentSyncBridge(params: {
 
   const handleChange = useCallback(
     (value: string | undefined) => {
+      if (registryManaged) {
+        return
+      }
       if (value !== undefined) {
         // Why: split panes share one retained model, so a sibling must ignore the echoed programmatic-sync onChange or it marks the file dirty.
         if (isApplyingLargePasteRef.current) {
@@ -55,11 +60,14 @@ export function useMonacoContentSyncBridge(params: {
         onContentChange(value)
       }
     },
-    [filePath, onContentChange]
+    [filePath, onContentChange, registryManaged]
   )
 
   // Why: sync the model on external `content` drift; useLayoutEffect lands the overwrite before paint so no stale text flashes. On-mount handled in handleMount.
   useLayoutEffect(() => {
+    if (registryManaged) {
+      return
+    }
     const ed = editorRef.current
     if (!ed || lastSyncedContentRef.current === content) {
       return
@@ -73,7 +81,7 @@ export function useMonacoContentSyncBridge(params: {
       isApplyingProgrammaticContentRef.current = false
       endProgrammaticContentSync(filePath)
     }
-  }, [content, contentSyncModeRef, editorRef, filePath])
+  }, [content, contentSyncModeRef, editorRef, filePath, registryManaged])
 
   return {
     contentRef,

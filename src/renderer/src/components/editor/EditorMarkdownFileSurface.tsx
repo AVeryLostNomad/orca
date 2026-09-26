@@ -1,6 +1,7 @@
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { MarkdownViewMode, OpenFile } from '@/store/slices/editor'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import { Button } from '@/components/ui/button'
 import { RICH_MARKDOWN_MAX_SIZE_BYTES } from '../../../../shared/constants'
 import { formatBytes } from '../status-bar/workspace-space-format'
@@ -26,7 +27,8 @@ export function EditorMarkdownFileSurface({
   markdownDocuments,
   getMarkdownSourceLineOffset,
   handleContentChange,
-  handleDirtyStateHint,
+  workingDocumentId,
+  documentRevision,
   monacoEditor
 }: {
   activeFile: OpenFile
@@ -42,7 +44,8 @@ export function EditorMarkdownFileSurface({
   markdownDocuments: MarkdownDocumentsController
   getMarkdownSourceLineOffset: (frontMatterRaw: string) => number
   handleContentChange: (content: string) => void
-  handleDirtyStateHint: (dirty: boolean) => void
+  workingDocumentId?: WorkingDocumentId
+  documentRevision?: number
   monacoEditor: React.JSX.Element
 }): React.JSX.Element {
   const setSizeOverride = useAppStore((s) => s.setMarkdownRichModeSizeOverride)
@@ -84,16 +87,17 @@ export function EditorMarkdownFileSurface({
       </div>
     )
   }
-  if (renderMode === 'rich-editor') {
+  if (
+    renderMode === 'rich-editor' &&
+    workingDocumentId !== undefined &&
+    documentRevision !== undefined
+  ) {
     const frontMatter = extractFrontMatter(currentContent)
     const editorContent = frontMatter ? frontMatter.body : currentContent
     const onContentChange = frontMatter
       ? (body: string): void => handleContentChange(prependFrontMatter(frontMatter.raw, body))
       : handleContentChange
-    const onSave = frontMatter
-      ? (body: string): Promise<boolean> =>
-          markdownDocuments.mdSave(prependFrontMatter(frontMatter.raw, body))
-      : markdownDocuments.mdSave
+    const onSave = markdownDocuments.mdSave
 
     return (
       <div className="flex h-full min-h-0 flex-col">
@@ -102,6 +106,8 @@ export function EditorMarkdownFileSurface({
           <RichMarkdownErrorBoundary key={viewStateScopeId} fileId={activeFile.id}>
             <RichMarkdownEditor
               fileId={activeFile.id}
+              documentId={workingDocumentId}
+              documentRevision={documentRevision}
               viewStateId={viewStateScopeId}
               content={editorContent}
               filePath={activeFile.filePath}
@@ -110,7 +116,6 @@ export function EditorMarkdownFileSurface({
               runtimeEnvironmentId={activeFile.runtimeEnvironmentId}
               scrollCacheKey={`${editorViewStateKey}:rich`}
               onContentChange={onContentChange}
-              onDirtyStateHint={handleDirtyStateHint}
               onSave={onSave}
               onOpenDocLink={markdownDocuments.onOpenDocLink}
               markdownDocuments={markdownDocuments.markdownDocuments}

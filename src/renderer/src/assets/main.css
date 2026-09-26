@@ -116,6 +116,7 @@
   --color-git-graph-lane-3: var(--git-graph-lane-3);
   --color-git-graph-lane-4: var(--git-graph-lane-4);
   --color-git-graph-lane-5: var(--git-graph-lane-5);
+  --color-editor-git-gutter-modified: var(--editor-git-gutter-modified);
   --color-annotation-highlight: var(--annotation-highlight);
   --shadow-floating: 0 10px 24px rgb(0 0 0 / 0.18);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -225,6 +226,7 @@
   --git-decoration-added: #587c0c;
   --git-decoration-modified: #895503;
   --git-decoration-deleted: #ad0707;
+  --editor-git-gutter-modified: var(--color-blue-600);
   --git-decoration-renamed: #007acc;
   --git-decoration-untracked: #007100;
   --git-decoration-copied: #007acc;
@@ -341,6 +343,7 @@
   --git-decoration-added: #81b88b;
   --git-decoration-modified: #e2c08d;
   --git-decoration-deleted: #c74e39;
+  --editor-git-gutter-modified: var(--color-blue-400);
   --git-decoration-renamed: #73c991;
   --git-decoration-untracked: #73c991;
   --git-decoration-copied: #73c991;
@@ -2203,6 +2206,74 @@ html.native-shell .app-layout {
 .monaco-editor .reference-zone-widget .preview.inline {
   height: 100%;
   width: 100%;
+}
+
+/* Git working-copy gutter; independent of conflict and comment decorations.
+   Monaco sizes .cldr to the whole lines-decorations lane; narrowing the Git one
+   keeps folding chevrons clickable beside it. The bar is a pseudo-element inset
+   from the line numbers. */
+.monaco-editor .orca-git-gutter-added,
+.monaco-editor .orca-git-gutter-modified,
+.monaco-editor .orca-git-gutter-deleted {
+  width: 12px !important;
+  cursor: pointer;
+}
+
+.monaco-editor .orca-git-gutter-added::before,
+.monaco-editor .orca-git-gutter-modified::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 3px;
+  border-radius: 1px;
+}
+
+.monaco-editor .orca-git-gutter-added::before {
+  background: var(--git-decoration-added);
+}
+
+.monaco-editor .orca-git-gutter-modified::before {
+  background: var(--editor-git-gutter-modified);
+}
+
+.monaco-editor .orca-git-gutter-deleted::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--git-decoration-deleted);
+}
+
+.monaco-editor .orca-git-gutter-deleted-before::before {
+  top: -4px;
+}
+
+.monaco-editor .orca-git-gutter-deleted-after::before {
+  bottom: -4px;
+}
+
+/* Inline Git change peek: an overlay tracking a view zone under the change. */
+.monaco-editor .orca-git-hunk-peek-host {
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.orca-git-hunk-peek {
+  --background: var(--vscode-editor-background, var(--editor-surface));
+  --foreground: var(--vscode-editor-foreground);
+  --muted-foreground: var(--vscode-editorLineNumber-foreground);
+  --border: color-mix(in srgb, var(--foreground) 24%, var(--background));
+  --accent: color-mix(in srgb, var(--foreground) 10%, var(--background));
+  --accent-foreground: var(--foreground);
+  --diff-added-ground: var(--vscode-diffEditor-insertedLineBackground);
+  --diff-removed-ground: var(--vscode-diffEditor-removedLineBackground);
+}
+
+.orca-git-hunk-peek > :first-child {
+  background: color-mix(in srgb, var(--foreground) 5%, var(--background));
 }
 
 /* ── Git conflict decorations ───────────────────────────────────── */

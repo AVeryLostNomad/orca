@@ -1,10 +1,9 @@
 import type { editor } from 'monaco-editor'
 
 export function buildDiffEditorWhitespaceOptions(
-  diffShowWhitespace: boolean | undefined
+  _diffShowWhitespace: boolean | undefined
 ): Pick<editor.IStandaloneDiffEditorConstructionOptions, 'ignoreTrimWhitespace'> {
-  return {
-    // Why: Monaco defaults this to true, which hides indentation-only diffs.
-    ignoreTrimWhitespace: diffShowWhitespace !== true
-  }
+  // Semantic filtering is performed by the shared provider. Monaco's generic
+  // trimming would hide meaningful whitespace before that policy can inspect it.
+  return { ignoreTrimWhitespace: false }
 }

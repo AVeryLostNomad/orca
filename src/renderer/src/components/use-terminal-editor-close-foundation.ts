@@ -7,17 +7,24 @@ import {
 import type { TerminalWorkspaceProjectionController } from './use-terminal-workspace-projection'
 import { runWithWindowCloseCheckpointScope } from './window-close-request-coordinator'
 import { showShutdownCheckpointFailureToast } from '@/lib/shutdown-checkpoint-failure-toast'
+import { useAppStore } from '@/store'
+import type { WorkingDocument, WorkingDocumentId } from '@/store/slices/editor/working-document'
+export type PendingEditorCloseState = {
+  tabIds: readonly string[]
+  pendingDocumentIds: readonly WorkingDocumentId[]
+  currentDocumentId: WorkingDocumentId | null
+}
 
 export function useTerminalEditorCloseFoundation(
-  controller: TerminalWorkspaceProjectionController
+  _controller: TerminalWorkspaceProjectionController
 ) {
-  const { openFiles } = controller
-  const [saveDialogFileId, setSaveDialogFileId] = useState<string | null>(null)
-  const saveDialogFile = saveDialogFileId
-    ? openFiles.find((file) => file.id === saveDialogFileId)
-    : null
-  const pendingEditorCloseQueueRef = useRef<string[]>([])
-  const inFlightSaveFileIdRef = useRef<string | null>(null)
+  const [pendingEditorCloseState, setPendingEditorCloseState] =
+    useState<PendingEditorCloseState | null>(null)
+  const saveDialogDocument = useAppStore((state): WorkingDocument | null => {
+    const documentId = pendingEditorCloseState?.currentDocumentId
+    return documentId ? (state.workingDocuments[documentId] ?? null) : null
+  })
+  const inFlightSaveDocumentIdRef = useRef<WorkingDocumentId | null>(null)
   const isClosingRef = useRef(false)
   const closeDialogDebounceTimersRef = useRef<Set<number>>(new Set())
   const releaseCloseDialogGuardAfterDebounce = useCallback(() => {
@@ -72,11 +79,10 @@ export function useTerminalEditorCloseFoundation(
   )
 
   return {
-    saveDialogFileId,
-    setSaveDialogFileId,
-    saveDialogFile,
-    pendingEditorCloseQueueRef,
-    inFlightSaveFileIdRef,
+    pendingEditorCloseState,
+    setPendingEditorCloseState,
+    saveDialogDocument,
+    inFlightSaveDocumentIdRef,
     isClosingRef,
     closeDialogDebounceTimersRef,
     releaseCloseDialogGuardAfterDebounce,

@@ -1,7 +1,9 @@
 import type { LargeDiffRenderLimit } from './large-diff-render-limit'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 
 export type DiffViewerProps = {
   modelKey: string
+  workingDocumentId?: WorkingDocumentId
   originalModelKey?: string
   modifiedModelKey?: string
   originalContent: string
@@ -10,7 +12,6 @@ export type DiffViewerProps = {
   filePath: string
   relativePath: string
   sideBySide: boolean
-  editable?: boolean
   // Why: optional because DiffViewer is also used by GitHubItemDialog for PR
   // review, where there is no local worktree to attach comments to.
   worktreeId?: string
@@ -22,7 +23,6 @@ export type DiffViewerProps = {
   commentableLineNumbers?: readonly number[]
   addLineCommentLabel?: string
   addLineCommentPlaceholder?: string
-  onContentChange?: (content: string) => void
   onSave?: (content: string) => void
   largeDiffRenderLimit?: LargeDiffRenderLimit
   // Why: main-process limited diffs intentionally blank text bodies before IPC;

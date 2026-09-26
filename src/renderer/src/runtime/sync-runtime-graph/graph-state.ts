@@ -9,12 +9,13 @@ import type {
   AgentStatusProjectionCache,
   BrowserPagesProjectionCache,
   BrowserWorkspacesProjectionCache,
-  EditorDraftHashCache,
   MobileSessionWorktreeInputs,
   OpenFileIndexes,
   OpenFilesProjectionCache,
   RegisteredTerminalTab,
-  TabsProjectionCache
+  TabsProjectionCache,
+  WorkingDocumentsProjectionCache,
+  WorkingDocumentVersionsCache
 } from './types'
 
 export const NO_TRANSPORT_GRACE_MS = 10_000
@@ -59,11 +60,12 @@ export const graphState = {
   cachedTabsProjection: null as TabsProjectionCache | null,
   cachedAgentStatusProjection: null as AgentStatusProjectionCache | null,
   cachedOpenFilesProjection: null as OpenFilesProjectionCache | null,
+  cachedWorkingDocumentsProjection: null as WorkingDocumentsProjectionCache | null,
+  cachedWorkingDocumentVersions: null as WorkingDocumentVersionsCache | null,
   cachedBrowserWorkspacesProjection: null as BrowserWorkspacesProjectionCache | null,
   cachedBrowserPagesProjection: null as BrowserPagesProjectionCache | null,
   cachedOpenFileIndexesSource: null as AppState['openFiles'] | null,
   cachedOpenFileIndexes: null as OpenFileIndexes | null,
-  cachedEditorDraftHashes: null as EditorDraftHashCache | null,
   cachedMobileTerminalThemeSettings: null as AppState['settings'] | null,
   cachedMobileTerminalThemeAppTheme: null as AppState['appThemeTerminalTheme'] | null,
   cachedMobileTerminalThemeSystemPrefersDark: null as boolean | null,

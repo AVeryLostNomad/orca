@@ -9,6 +9,7 @@ import {
   shouldDeleteScratchFileOnClose,
   shouldDeleteUntouchedUntitledFile
 } from '../tabs/untitled-file-cleanup'
+import { getWorkingDocumentIdsForTab } from '../working-document-state'
 
 export function createCloseFileAction(
   set: EditorSet,
@@ -16,10 +17,21 @@ export function createCloseFileAction(
 ): Pick<EditorSlice, 'closeFile'> {
   return {
     closeFile: (fileId) => {
-      // Why: capture untitled+dirty state before set() mutates the store, so cleanup of throwaway untitled files can decide after removal.
+      // A final dirty working document is handled by the close plan; an untouched scratch/untitled
+      // tab may still be deleted after its memberships are released.
       const preClose = get().openFiles.find((f) => f.id === fileId)
-      // Why: also check editorDrafts — isDirty is set by a debounced callback, so a draft can exist before isDirty flushes; a draft means the user typed something.
-      const hasDraft = !!get().editorDrafts[fileId]
+      const membershipTabIds = [
+        fileId,
+        ...Object.values(get().unifiedTabsByWorktree ?? {})
+          .flat()
+          .filter((tab) => tab.entityId === fileId)
+          .map((tab) => tab.id)
+      ]
+      const hasDraft = membershipTabIds.some((tabId) =>
+        getWorkingDocumentIdsForTab(get(), tabId).some(
+          (documentId) => get().workingDocuments[documentId]?.isDirty === true
+        )
+      )
       const shouldDeleteFromDisk =
         shouldDeleteUntouchedUntitledFile(preClose, hasDraft) ||
         shouldDeleteScratchFileOnClose(preClose)
@@ -31,8 +43,6 @@ export function createCloseFileAction(
         const closedFile = s.openFiles.find((f) => f.id === fileId)
         const idx = s.openFiles.findIndex((f) => f.id === fileId)
         const newFiles = s.openFiles.filter((f) => f.id !== fileId)
-        const newEditorDrafts = { ...s.editorDrafts }
-        delete newEditorDrafts[fileId]
         const newMarkdownViewMode = { ...s.markdownViewMode }
         delete newMarkdownViewMode[fileId]
         const newMarkdownRichModeSizeOverride = { ...s.markdownRichModeSizeOverride }
@@ -170,7 +180,6 @@ export function createCloseFileAction(
 
         return {
           openFiles: newFiles,
-          editorDrafts: newEditorDrafts,
           editorCursorLine: newEditorCursorLine,
           activeFileId: newActiveId,
           // Why: if the last editor closes with no browser/terminal surface left, return to the landing state like the terminal/browser close handlers do.
@@ -196,6 +205,9 @@ export function createCloseFileAction(
           recentlyClosedTabKindsByWorktree: nextRecentlyClosedKinds
         }
       })
+      for (const tabId of membershipTabIds) {
+        get().releaseWorkingDocumentsForTab(tabId)
+      }
 
       // Why: untitled unedited files exist on disk only because createUntitledMarkdownFile() eagerly writes a bindable path; delete the clutter (fire-and-forget).
       if (shouldDeleteFromDisk && preClose && typeof window !== 'undefined') {

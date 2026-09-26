@@ -5,6 +5,7 @@ import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
 import { buildWorkspaceSessionPayload } from '../../lib/workspace-session'
 import { createStoreSessionMockApi } from './store-session-test-harness'
 import { createTestStore, makeWorktree } from './store-test-helpers'
+import { getEditorClosePlan } from './editor/working-document-state'
 
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/lib/agent-status', async (importOriginal) => {
@@ -133,6 +134,41 @@ function closeAndRestart(
 describe('corrupt editor session restore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('recovers an empty combined-only draft with one real, close-protected editor tab', () => {
+    const store = prepareStore()
+    const session = corruptSession(WORKTREE_ID, '/workspace/recovered.ts')
+    session.openFilesByWorktree = {
+      [WORKTREE_ID]: [
+        {
+          filePath: '/workspace/recovered.ts',
+          relativePath: 'recovered.ts',
+          worktreeId: WORKTREE_ID,
+          language: 'typescript',
+          dirtyDraftContent: ''
+        }
+      ]
+    }
+    session.unifiedTabs = { [WORKTREE_ID]: [] }
+    store.getState().hydrateTabsSession(session)
+    store.getState().hydrateEditorSession(session)
+
+    const state = store.getState()
+    const [tab] = state.unifiedTabsByWorktree[WORKTREE_ID]
+    const [document] = Object.values(state.workingDocuments)
+    expect(state.unifiedTabsByWorktree[WORKTREE_ID]).toHaveLength(1)
+    expect(tab.contentType).toBe('editor')
+    expect(tab.entityId).toBe(state.openFiles[0].id)
+    expect(document).toMatchObject({ content: '', isDirty: true })
+    expect(state.workingDocumentIdsByTab).toEqual({ [tab.id]: [document.id] })
+    expect(getEditorClosePlan(state, [tab.id]).dirtyDocumentIds).toEqual([document.id])
+
+    store.getState().hydrateEditorSession(session)
+    expect(store.getState().unifiedTabsByWorktree[WORKTREE_ID].map((entry) => entry.id)).toEqual([
+      tab.id
+    ])
+    expect(store.getState().workingDocumentIdsByTab).toEqual({ [tab.id]: [document.id] })
   })
 
   it('does not preserve duplicate records that resurrect a closed editor', () => {

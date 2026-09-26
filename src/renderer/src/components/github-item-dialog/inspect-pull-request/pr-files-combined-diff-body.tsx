@@ -41,7 +41,6 @@ export function PRFilesCombinedDiffBody({
   renderViewedCheckbox,
   handleAddLineComment,
   setSectionHeights,
-  setSections,
   modifiedEditorsRef,
   handleSectionSaveRef,
   getCommentableLineNumbers
@@ -79,7 +78,6 @@ export function PRFilesCombinedDiffBody({
   // Why: a stable callback, not an inline arrow — this re-keys every mounted row's comment decorator.
   getCommentableLineNumbers: (section: DiffSection) => readonly number[] | undefined
   setSectionHeights: React.Dispatch<React.SetStateAction<Record<number, number>>>
-  setSections: React.Dispatch<React.SetStateAction<DiffSection[]>>
   modifiedEditorsRef: React.RefObject<Map<number, monacoEditor.IStandaloneCodeEditor>>
   handleSectionSaveRef: React.MutableRefObject<(index: number) => Promise<void>>
 }): React.JSX.Element {
@@ -150,7 +148,6 @@ export function PRFilesCombinedDiffBody({
                     )}
                     getCommentableLineNumbers={getCommentableLineNumbers}
                     setSectionHeights={setSectionHeights}
-                    setSections={setSections}
                     modifiedEditorsRef={modifiedEditorsRef}
                     handleSectionSaveRef={handleSectionSaveRef}
                   />

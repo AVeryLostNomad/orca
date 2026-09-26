@@ -15,9 +15,9 @@ import {
 } from './agent-status-projection'
 import {
   buildRuntimeMobileBrowserProjection,
-  buildRuntimeMobileEditorDraftsProjection,
   buildRuntimeMobileOpenFilesProjection,
   buildRuntimeMobileTabsProjection,
+  buildRuntimeMobileWorkingDocumentsProjection,
   getBrowserPagesByWorkspace,
   getBrowserTabsByWorktree
 } from './sync-projections'
@@ -66,7 +66,8 @@ export function canSkipRuntimeMobileSessionSyncKeyBuild(
     (state.activeBrowserTabIdByWorktree ?? EMPTY_ACTIVE_BROWSER_TAB_ID_BY_WORKTREE) ===
       (previousState.activeBrowserTabIdByWorktree ?? EMPTY_ACTIVE_BROWSER_TAB_ID_BY_WORKTREE) &&
     state.openFiles === previousState.openFiles &&
-    state.editorDrafts === previousState.editorDrafts &&
+    state.workingDocuments === previousState.workingDocuments &&
+    state.workingDocumentIdsByTab === previousState.workingDocumentIdsByTab &&
     state.settings === previousState.settings &&
     state.activeTabId === previousState.activeTabId &&
     state.terminalLayoutsByTabId === previousState.terminalLayoutsByTabId &&
@@ -142,10 +143,12 @@ export function getRuntimeMobileSessionSyncKey(
       browserPagesByWorkspace === previousBrowserPagesByWorkspace
         ? previousKey.browserProjection
         : buildRuntimeMobileBrowserProjection(state),
-    editorDraftsProjection:
-      canReusePrevious && state.editorDrafts === previousState.editorDrafts
-        ? previousKey.editorDraftsProjection
-        : buildRuntimeMobileEditorDraftsProjection(state.editorDrafts)
+    workingDocumentsProjection:
+      canReusePrevious &&
+      state.workingDocuments === previousState.workingDocuments &&
+      state.workingDocumentIdsByTab === previousState.workingDocumentIdsByTab
+        ? previousKey.workingDocumentsProjection
+        : buildRuntimeMobileWorkingDocumentsProjection(state)
   }
 }
 
@@ -177,6 +180,6 @@ export function runtimeMobileSessionSyncKeysEqual(
     a.tabsProjection === b.tabsProjection &&
     a.openFilesProjection === b.openFilesProjection &&
     a.browserProjection === b.browserProjection &&
-    a.editorDraftsProjection === b.editorDraftsProjection
+    a.workingDocumentsProjection === b.workingDocumentsProjection
   )
 }

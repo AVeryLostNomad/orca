@@ -39,7 +39,8 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     activeFileId: null,
     activeFileIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     ...overrides
   } as AppState

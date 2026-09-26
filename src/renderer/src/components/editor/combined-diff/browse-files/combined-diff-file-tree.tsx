@@ -43,6 +43,7 @@ export function CombinedDiffFileTree({
   collapsed,
   onCollapsedChange,
   onNavigate,
+  onOpenWorkingFile,
   statsFooter
 }: {
   mode: CombinedDiffFileTreeMode
@@ -54,6 +55,7 @@ export function CombinedDiffFileTree({
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
   onNavigate: (entry: CombinedDiffFileTreeEntry) => void
+  onOpenWorkingFile?: (entry: CombinedDiffFileTreeEntry) => void
   /** Pinned below the file list (e.g. total additions/deletions). */
   statsFooter?: React.ReactNode
 }): React.JSX.Element | null {
@@ -208,7 +210,8 @@ export function CombinedDiffFileTree({
     collapsedDirectoryKeys,
     scrollElement: listScrollElement,
     onToggleDirectory: toggleDirectory,
-    onNavigate
+    onNavigate,
+    onOpenWorkingFile
   }
 
   return (

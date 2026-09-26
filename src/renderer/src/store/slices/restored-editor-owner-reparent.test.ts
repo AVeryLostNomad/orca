@@ -16,6 +16,7 @@ import {
 } from '@/lib/editor-file-operation-owner'
 import type { AppState } from '@/store/types'
 import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
+import { buildWorkingDocumentTarget, type WorkingDocumentId } from './editor/working-document'
 
 const SOURCE = 'repo-a::/repo-a'
 const TARGET = 'repo-b::/repo-b'
@@ -54,19 +55,38 @@ function installWorkspaceState(): void {
   } as unknown as Partial<AppState>)
 }
 
+function documentForFile(fileId: string) {
+  const state = useAppStore.getState()
+  const documentId = state.workingDocumentIdsByTab[fileId]?.[0]
+  return documentId ? state.workingDocuments[documentId] : undefined
+}
+
+function documentIdForFile(fileId: string): WorkingDocumentId {
+  const document = documentForFile(fileId)
+  if (!document) {
+    throw new Error(`Missing working document for ${fileId}`)
+  }
+  return document.id
+}
+
 function openRestoredSource(): string {
-  return useAppStore.getState().openFile(
+  const fileId = useAppStore.getState().openFile(
     {
       filePath: FILE_PATH,
       relativePath: FILE_PATH,
       worktreeId: SOURCE,
       runtimeEnvironmentId: null,
       language: 'markdown',
-      mode: 'edit',
-      pendingDiskBaselineVerification: true
+      mode: 'edit'
     },
     { suppressActiveRuntimeFallback: true }
   )
+  const state = useAppStore.getState()
+  const file = state.openFiles.find((candidate) => candidate.id === fileId)!
+  const documentId = state.retainWorkingDocument(fileId, buildWorkingDocumentTarget(state, file))
+  state.acceptWorkingDocumentLoad(documentId, 0, 'disk content', 'disk-signature')
+  state.setWorkingDocumentExternalState(documentId, { pendingDiskBaselineVerification: true })
+  return fileId
 }
 
 function reparent(fileId: string) {
@@ -93,8 +113,7 @@ describe('restored editor owner reparent', () => {
   it('atomically migrates ownership, ids, placement, views, previews, and provenance', () => {
     const oldId = openRestoredSource()
     const state = useAppStore.getState()
-    state.setEditorDraft(oldId, 'edited draft')
-    state.markFileDirty(oldId, true)
+    state.setWorkingDocumentContent(documentIdForFile(oldId), 'edited draft')
     state.setEditorCursorLine(oldId, 37)
     state.setMarkdownViewMode(oldId, 'rich')
     state.setEditorViewMode(oldId, 'changes')
@@ -141,16 +160,17 @@ describe('restored editor owner reparent', () => {
       relativePath: 'docs/readme.md',
       worktreeId: TARGET,
       runtimeEnvironmentId: null,
-      isDirty: true,
-      pendingDiskBaselineVerification: true
+      isDirty: true
     })
-    expect(moved.pendingOwnerMigration).toBeUndefined()
+    expect(documentForFile(result.fileId)).toMatchObject({
+      pendingDiskBaselineVerification: true,
+      pendingOwnerMigration: undefined,
+      content: 'edited draft'
+    })
     expect(moved.operationProvenance?.generation.route).toEqual({
       executionHostId: 'local',
       runtimeEnvironmentId: null
     })
-    expect(getEditorFileOperationContext(next, moved, '/repo-b').worktreeId).toBe(TARGET)
-    expect(next.editorDrafts).toEqual({ [result.fileId]: 'edited draft' })
     expect(next.editorCursorLine[result.fileId]).toBe(37)
     expect(next.markdownViewMode[result.fileId]).toBe('rich')
     expect(next.editorViewMode[result.fileId]).toBe('changes')
@@ -391,15 +411,14 @@ describe('restored editor owner reparent', () => {
 
   it('persists and restores the destination owner and dirty hot-exit draft', () => {
     const oldId = openRestoredSource()
-    useAppStore.getState().setEditorDraft(oldId, 'hot exit')
-    useAppStore.getState().markFileDirty(oldId, true)
+    useAppStore.getState().setWorkingDocumentContent(documentIdForFile(oldId), 'hot exit')
     const result = reparent(oldId)
     expect(result.ok).toBe(true)
 
     const state = useAppStore.getState()
     const session = buildEditorSessionData(
       state.openFiles,
-      state.editorDrafts,
+      state,
       state.markdownFrontmatterVisible,
       state.activeFileIdByWorktree,
       state.activeTabTypeByWorktree
@@ -418,7 +437,7 @@ describe('restored editor owner reparent', () => {
       relativePath: 'docs/readme.md',
       isDirty: true
     })
-    expect(useAppStore.getState().editorDrafts[restored.id]).toBe('hot exit')
+    expect(documentForFile(restored.id)?.content).toBe('hot exit')
   })
 
   it.each([false, true])('fails closed on a %s destination collision', (dirtyDestination) => {
@@ -435,8 +454,14 @@ describe('restored editor owner reparent', () => {
       { suppressActiveRuntimeFallback: true }
     )
     if (dirtyDestination) {
-      useAppStore.getState().setEditorDraft(destinationId, 'destination draft')
-      useAppStore.getState().markFileDirty(destinationId, true)
+      const state = useAppStore.getState()
+      const destination = state.openFiles.find((file) => file.id === destinationId)!
+      const documentId = state.retainWorkingDocument(
+        destinationId,
+        buildWorkingDocumentTarget(state, destination)
+      )
+      state.acceptWorkingDocumentLoad(documentId, 0, 'disk content', 'disk-signature')
+      state.setWorkingDocumentContent(documentId, 'destination draft')
     }
     const before = useAppStore.getState().openFiles
 
@@ -734,10 +759,11 @@ describe('restored editor owner reparent', () => {
       events: [{ kind: 'delete', absolutePath: FILE_PATH }]
     })
     vi.advanceTimersByTime(100)
-    expect(
-      useAppStore.getState().openFiles.find((file) => file.id === result.fileId)?.externalMutation
-    ).toBe('deleted')
-    useAppStore.getState().setExternalMutation(result.fileId, null)
+    const documentId = documentIdForFile(result.fileId)
+    expect(useAppStore.getState().workingDocuments[documentId]?.externalMutation).toBe('deleted')
+    useAppStore
+      .getState()
+      .setWorkingDocumentExternalState(documentId, { externalMutation: undefined })
 
     watcher.handleFsChanged({
       worktreePath: '/repo-b',
@@ -746,9 +772,7 @@ describe('restored editor owner reparent', () => {
         { kind: 'create', absolutePath: '/repo-b/archive/readme.md' }
       ]
     })
-    expect(
-      useAppStore.getState().openFiles.find((file) => file.id === result.fileId)?.externalMutation
-    ).toBe('renamed')
+    expect(useAppStore.getState().workingDocuments[documentId]?.externalMutation).toBe('renamed')
 
     watcher.dispose()
     window.removeEventListener('orca:editor-external-file-change', listener)

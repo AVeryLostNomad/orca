@@ -13,7 +13,7 @@ function normalizeToModelEol(content: string, model: editor.ITextModel): string 
 }
 
 function applyModelEdit(
-  editorInstance: editor.IStandaloneCodeEditor,
+  editorInstance: Pick<editor.IStandaloneCodeEditor, 'pushUndoStop'>,
   model: editor.ITextModel,
   edit: editor.IIdentifiedSingleEditOperation,
   mode: MonacoContentSyncMode,
@@ -35,7 +35,7 @@ function applyModelEdit(
 }
 
 function replaceModelContent(
-  editorInstance: editor.IStandaloneCodeEditor,
+  editorInstance: Pick<editor.IStandaloneCodeEditor, 'pushUndoStop'>,
   model: editor.ITextModel,
   currentContent: string,
   content: string,
@@ -97,10 +97,24 @@ export function syncContentUpdate(
   if (!model) {
     return
   }
+  syncTextModelContent(model, content, mode, editorInstance)
+}
+
+export function syncTextModelContent(
+  model: editor.ITextModel,
+  content: string,
+  mode: MonacoContentSyncMode = 'undoable',
+  undoOwner: Pick<editor.IStandaloneCodeEditor, 'pushUndoStop'> = {
+    pushUndoStop: () => {
+      model.pushStackElement()
+      return true
+    }
+  }
+): void {
   const currentContent = model.getValue()
   const normalizedContent = normalizeToModelEol(content, model)
   if (currentContent.length === normalizedContent.length) {
-    replaceModelContent(editorInstance, model, currentContent, normalizedContent, mode, true)
+    replaceModelContent(undoOwner, model, currentContent, normalizedContent, mode, true)
     return
   }
   if (
@@ -111,7 +125,7 @@ export function syncContentUpdate(
     // selection, find-widget, and tokenization state above a live-file append.
     const fullRange = model.getFullModelRange()
     applyModelEdit(
-      editorInstance,
+      undoOwner,
       model,
       {
         range: {
@@ -127,5 +141,5 @@ export function syncContentUpdate(
     )
     return
   }
-  replaceModelContent(editorInstance, model, currentContent, normalizedContent, mode, true)
+  replaceModelContent(undoOwner, model, currentContent, normalizedContent, mode, true)
 }

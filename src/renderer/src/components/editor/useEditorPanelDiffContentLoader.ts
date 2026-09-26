@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import type { OpenFile } from '@/store/slices/editor'
-import { getConnectionIdForFile } from '@/lib/connection-context'
+import { getConnectionIdForFile, isWorktreeConnectionResolved } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
 import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import {
@@ -9,8 +9,13 @@ import {
   getRuntimeGitDiff,
   getRuntimeGitScope
 } from '@/runtime/runtime-git-client'
-import type { DiffContent, InFlightContentRead } from './editor-panel-content-types'
-import { canUseChangesModeForFile } from './editor-panel-file-mode'
+import {
+  WORKTREE_OWNER_NOT_READY_ERROR,
+  type DiffContent,
+  type FileContent,
+  type InFlightContentRead
+} from './editor-panel-content-types'
+import { getEditorGitBaselineScope } from './editor-panel-file-mode'
 import type { EditorPanelContentLoadOptions } from './useEditorPanelExternalContentEvents'
 
 const inFlightDiffReads = new Map<string, InFlightContentRead<DiffContent>>()
@@ -21,6 +26,7 @@ export type EditorPanelDiffContentLoader = (
 ) => Promise<void>
 
 type UseEditorPanelDiffContentLoaderParams = {
+  fileContentsRef: MutableRefObject<Record<string, FileContent>>
   diffReadGenerationCounterRef: MutableRefObject<number>
   diffReadGenerationRef: MutableRefObject<Record<string, number>>
   outstandingDiffReadsRef: MutableRefObject<Record<string, number>>
@@ -44,6 +50,7 @@ function inFlightDiffKey(
 }
 
 export function useEditorPanelDiffContentLoader({
+  fileContentsRef,
   diffReadGenerationCounterRef,
   diffReadGenerationRef,
   outstandingDiffReadsRef,
@@ -51,7 +58,17 @@ export function useEditorPanelDiffContentLoader({
 }: UseEditorPanelDiffContentLoaderParams): EditorPanelDiffContentLoader {
   return useCallback(
     async (file: OpenFile | null, options?: EditorPanelContentLoadOptions): Promise<void> => {
-      if (!file || (file.mode === 'edit' && !canUseChangesModeForFile(file))) {
+      if (!file) {
+        return
+      }
+      const baselineScope =
+        file.mode === 'edit' ? getEditorGitBaselineScope(useAppStore.getState(), file) : null
+      if (
+        file.mode === 'edit' &&
+        (baselineScope === null ||
+          fileContentsRef.current[file.id]?.isBinary !== false ||
+          fileContentsRef.current[file.id]?.loadError)
+      ) {
         return
       }
       const generation = diffReadGenerationCounterRef.current + 1
@@ -71,15 +88,22 @@ export function useEditorPanelDiffContentLoader({
         const connectionId = getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined
         const activeSettings = useAppStore.getState().settings
         const fileSettings = settingsForRuntimeOwner(activeSettings, file.runtimeEnvironmentId)
+        if (
+          connectionId === undefined &&
+          !fileSettings?.activeRuntimeEnvironmentId?.trim() &&
+          !isWorktreeConnectionResolved(file.worktreeId)
+        ) {
+          throw new Error(WORKTREE_OWNER_NOT_READY_ERROR)
+        }
         const gitScope = getRuntimeGitScope(fileSettings, connectionId)
         const effectiveDiffSource: typeof file.diffSource =
           file.mode === 'edit' ? 'unstaged' : file.diffSource
         const compareAgainstHead = file.mode === 'edit'
-        const key = inFlightDiffKey(
+        const key = `${inFlightDiffKey(
           { ...file, diffSource: effectiveDiffSource },
           gitScope ?? undefined,
           compareAgainstHead
-        )
+        )}::${baselineScope ?? ''}`
         const registeredRead = inFlightDiffReads.get(key)
         if (
           options?.force &&
@@ -145,17 +169,22 @@ export function useEditorPanelDiffContentLoader({
           ) as Promise<DiffContent>
           pending = { externalEventGeneration: options?.externalEventGeneration, promise }
           inFlightDiffReads.set(key, pending)
-          queueMicrotask(() => {
+          const clearRegisteredRead = (): void => {
             if (inFlightDiffReads.get(key) === pending) {
               inFlightDiffReads.delete(key)
             }
-          })
+          }
+          void promise.then(clearRegisteredRead, clearRegisteredRead)
         }
         const result = await pending.promise
         if (diffReadGenerationRef.current[file.id] !== generation) {
           return
         }
-        setDiffContents((prev) => ({ ...prev, [file.id]: result }))
+        setDiffContents((prev) => ({
+          ...prev,
+          [file.id]:
+            baselineScope === null ? result : { ...result, gitBaselineScope: baselineScope }
+        }))
       } catch (err) {
         if (diffReadGenerationRef.current[file.id] !== generation) {
           return
@@ -163,11 +192,8 @@ export function useEditorPanelDiffContentLoader({
         setDiffContents((prev) => ({
           ...prev,
           [file.id]: {
-            kind: 'text',
-            originalContent: '',
-            modifiedContent: `Error loading diff: ${String(err)}`,
-            originalIsBinary: false,
-            modifiedIsBinary: false
+            kind: 'error',
+            message: String(err)
           }
         }))
       } finally {
@@ -176,6 +202,12 @@ export function useEditorPanelDiffContentLoader({
         }
       }
     },
-    [diffReadGenerationCounterRef, diffReadGenerationRef, outstandingDiffReadsRef, setDiffContents]
+    [
+      fileContentsRef,
+      diffReadGenerationCounterRef,
+      diffReadGenerationRef,
+      outstandingDiffReadsRef,
+      setDiffContents
+    ]
   )
 }

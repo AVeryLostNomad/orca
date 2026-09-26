@@ -3,6 +3,8 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenFile } from '@/store/slices/editor'
 import type { FileContent } from './editor-panel-content-types'
+import { useAppStore } from '@/store'
+import { getWorkingDocumentId } from '@/store/slices/editor/working-document'
 
 const classifiers = vi.hoisted(() => ({
   getUnsupportedMessage: vi.fn<(content: string) => string | null>(),
@@ -61,6 +63,10 @@ vi.mock('./useEditorConflictNavigation', () => ({
 
 vi.mock('@/store', () => {
   const state = {
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
+    unifiedTabsByWorktree: {},
+    openFiles: [],
     markdownRichModeSizeOverridden: false,
     setMarkdownRichModeSizeOverride: () => {},
     reloadOpenCheckRunDetailsTab: () => {}
@@ -105,14 +111,28 @@ function renderEditPath({
   mode?: 'edit' | 'markdown-preview'
 }) {
   const activeFile = openFile(language, mode)
+  const owner = { executionHostId: 'local' as const, runtimeEnvironmentId: null }
+  const documentId = getWorkingDocumentId(owner, activeFile.filePath)
+  const state = useAppStore.getState()
+  state.workingDocumentIdsByTab[activeFile.id] = [documentId]
+  state.workingDocuments[documentId] = {
+    id: documentId,
+    target: { ...activeFile, owner, operationProvenance: {} as never },
+    content,
+    revision: 1,
+    isDirty: false,
+    loadState: 'ready',
+    writable: true,
+    alwaysAutoSave: false
+  }
   const fileContents = {
     [activeFile.id]: { content: '# Saved', isBinary: false }
   }
-  const editorDrafts = { [activeFile.id]: content }
+  const documentContentByTab = { [activeFile.id]: content }
   const model = getEditorPanelRenderModel({
     activeFile,
     fileContents,
-    editorDrafts,
+    documentContentByTab: documentContentByTab,
     gitStatusEntries: undefined,
     gitBranchEntries: undefined,
     markdownViewMode: { [activeFile.id]: viewMode },
@@ -126,7 +146,7 @@ function renderEditPath({
       viewStateScopeId={activeFile.id}
       fileContents={fileContents}
       diffContents={{}}
-      editBuffers={editorDrafts}
+      editBuffers={documentContentByTab}
       openFiles={[activeFile]}
       worktreeEntries={[]}
       resolvedLanguage={model.resolvedLanguage}
@@ -141,9 +161,8 @@ function renderEditPath({
       pendingEditorReveal={null}
       handleContentChange={vi.fn()}
       handleContentChangeForFile={vi.fn()}
-      handleDirtyStateHint={vi.fn()}
       handleSave={vi.fn()}
-      handleSaveForFile={vi.fn()}
+      handleSaveForDocument={vi.fn()}
       reloadContent={vi.fn()}
     />
   )
@@ -166,7 +185,7 @@ function getGuardedRenderModel({
   return getEditorPanelRenderModel({
     activeFile,
     fileContents: includeFileContent ? { [activeFile.id]: fileContent } : {},
-    editorDrafts: { [activeFile.id]: '# Draft' },
+    documentContentByTab: { [activeFile.id]: '# Draft' },
     gitStatusEntries: undefined,
     gitBranchEntries: undefined,
     markdownViewMode: { [activeFile.id]: 'rich' },

@@ -1,6 +1,7 @@
 import { expect, vi } from 'vitest'
 import type { RuntimeMobileMarkdownRequest } from '../../../shared/mobile-markdown-document'
 import { useAppStore } from '../store'
+import { buildWorkingDocumentTarget } from '@/store/slices/editor/working-document'
 
 type WindowStub = {
   addEventListener: Window['addEventListener']
@@ -59,7 +60,8 @@ export function setupWindow({
 export function resetEditorState(): void {
   useAppStore.setState({
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     worktreesByRepo: {
       repo: [{ id: 'wt-1', repoId: 'repo', path: '/repo', branch: 'main', hostId: 'local' }]
     },
@@ -75,14 +77,26 @@ export function resetEditorState(): void {
   } as never)
 }
 
-export function openMarkdownFile(): void {
-  useAppStore.getState().openFile({
+export function openMarkdownFile(content = ''): void {
+  const state = useAppStore.getState()
+  state.openFile({
     filePath: '/repo/README.md',
     relativePath: 'README.md',
     worktreeId: 'wt-1',
     language: 'markdown',
     mode: 'edit'
   })
+  const file = useAppStore.getState().openFiles[0]
+  if (!file) {
+    throw new Error('markdown file did not open')
+  }
+  const target = buildWorkingDocumentTarget(useAppStore.getState(), file)
+  const documentId = useAppStore.getState().retainWorkingDocument(file.id, target)
+  const revision = useAppStore.getState().workingDocuments[documentId]?.revision
+  if (revision === undefined) {
+    throw new Error('markdown document did not retain')
+  }
+  useAppStore.getState().acceptWorkingDocumentLoad(documentId, revision, content, undefined)
 }
 
 export async function sendRequest(request: RuntimeMobileMarkdownRequest): Promise<unknown> {

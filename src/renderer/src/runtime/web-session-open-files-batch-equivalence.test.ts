@@ -96,10 +96,9 @@ function makeCase(seed: number): {
       runtimeEnvironmentId: pick(random, ENVS),
       mode: isPreview ? 'markdown-preview' : 'edit',
       mirroredFromRuntimeSession: random() < 0.7,
-      // Why: the mirrored file overwrites every compared field, so only a preserved
-      // field like this can reveal which duplicate seeded it.
-      lastKnownDiskSignature: `sig-${seed}-${i}`
-    } as OpenFile)
+      // Preserved metadata identifies which duplicate wins the merge.
+      markdownPreviewAnchor: `anchor-${seed}-${i}`
+    })
   }
 
   const snapshots: RuntimeMobileSessionTabsResult[] = []

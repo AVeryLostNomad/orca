@@ -7,6 +7,8 @@ import {
   type MutableRefObject
 } from 'react'
 import { registerPendingEditorFlush } from './editor-pending-flush'
+import { useAppStore } from '@/store'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import {
   deleteIpynbCell,
   insertIpynbCell,
@@ -54,18 +56,20 @@ function requestStructuralFrame(
 type UseIpynbDocumentEditingArgs = {
   content: string
   fileId: string
+  documentId: WorkingDocumentId
+  documentRevision: number
   notebook: ParsedIpynb | null
   onContentChange: (content: string) => void
-  onDirtyStateHint: (dirty: boolean) => void
   onDeactivateEditor: () => void
 }
 
 export function useIpynbDocumentEditing({
   content,
   fileId,
+  documentId,
+  documentRevision,
   notebook,
   onContentChange,
-  onDirtyStateHint,
   onDeactivateEditor
 }: UseIpynbDocumentEditingArgs) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -74,15 +78,29 @@ export function useIpynbDocumentEditing({
   const contentRef = useRef(content)
   const notebookRef = useRef(notebook)
   const onContentChangeRef = useRef(onContentChange)
-  const onDirtyStateHintRef = useRef(onDirtyStateHint)
+  const sourceDocumentRevisionRef = useRef(documentRevision)
+  const lastCommittedContentRef = useRef(content)
+  const [sourceDocumentRevision, setSourceDocumentRevision] = useState(documentRevision)
   const sourceCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const structuralFrameIdsRef = useRef<number[]>([])
   useLayoutEffect(() => {
+    const hadSourceDrafts = Object.keys(sourceDraftsRef.current).length > 0
+    const receivedUnrelatedContent =
+      content !== contentRef.current && content !== lastCommittedContentRef.current
     contentRef.current = content
     notebookRef.current = notebook
     onContentChangeRef.current = onContentChange
-    onDirtyStateHintRef.current = onDirtyStateHint
-  }, [content, notebook, onContentChange, onDirtyStateHint])
+    if (hadSourceDrafts && receivedUnrelatedContent) {
+      sourceDraftsRef.current = {}
+      setSourceDrafts({})
+    }
+    if (!hadSourceDrafts || receivedUnrelatedContent) {
+      sourceDocumentRevisionRef.current = documentRevision
+      setSourceDocumentRevision((current) =>
+        current === documentRevision ? current : documentRevision
+      )
+    }
+  }, [content, documentRevision, notebook, onContentChange])
 
   const materializeSourceDrafts = useCallback((): string => {
     const latestNotebook = notebookRef.current
@@ -104,13 +122,20 @@ export function useIpynbDocumentEditing({
       clearTimeout(sourceCommitTimerRef.current)
       sourceCommitTimerRef.current = null
     }
+    if (
+      useAppStore.getState().workingDocuments[documentId]?.revision !==
+      sourceDocumentRevisionRef.current
+    ) {
+      return contentRef.current
+    }
     const nextContent = materializeSourceDrafts()
     if (nextContent !== contentRef.current) {
       contentRef.current = nextContent
+      lastCommittedContentRef.current = nextContent
       onContentChangeRef.current(nextContent)
     }
     return nextContent
-  }, [materializeSourceDrafts])
+  }, [documentId, materializeSourceDrafts])
 
   const queueSourceDraftCommit = useCallback((): void => {
     if (sourceCommitTimerRef.current !== null) {
@@ -122,8 +147,14 @@ export function useIpynbDocumentEditing({
   }, [flushSourceDrafts])
 
   useEffect(
-    () => registerPendingEditorFlush(fileId, flushSourceDrafts),
-    [fileId, flushSourceDrafts]
+    () =>
+      registerPendingEditorFlush(
+        documentId,
+        `ipynb:${fileId}`,
+        sourceDocumentRevision,
+        flushSourceDrafts
+      ),
+    [documentId, fileId, flushSourceDrafts, sourceDocumentRevision]
   )
 
   useEffect(() => {
@@ -143,7 +174,13 @@ export function useIpynbDocumentEditing({
       sourceDraftsRef.current = nextDrafts
       setSourceDrafts(nextDrafts)
     }
-  }, [notebook])
+    if (Object.keys(nextDrafts).length === 0) {
+      sourceDocumentRevisionRef.current = documentRevision
+      setSourceDocumentRevision((current) =>
+        current === documentRevision ? current : documentRevision
+      )
+    }
+  }, [documentRevision, notebook])
 
   const setRootRef = useCallback(
     (node: HTMLDivElement | null): void => {
@@ -172,7 +209,6 @@ export function useIpynbDocumentEditing({
       const nextDrafts = { ...sourceDraftsRef.current, [key]: source }
       sourceDraftsRef.current = nextDrafts
       setSourceDrafts(nextDrafts)
-      onDirtyStateHintRef.current(true)
       queueSourceDraftCommit()
     },
     [queueSourceDraftCommit]

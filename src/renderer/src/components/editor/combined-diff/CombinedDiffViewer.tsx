@@ -1,16 +1,19 @@
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { createProgrammaticScrollMarks } from '@/hooks/programmatic-scroll-marks'
 import { useWorkspaceFileBrowserActionPredicate } from '@/lib/file-preview'
+import { openReviewWorkingFile } from '@/lib/review-working-file'
 import { selectWorktreeDiffCommentsOrEmpty } from '@/store/worktree-diff-comments-selector'
 import type { OpenFile } from '@/store/slices/editor'
 import '@/lib/monaco-setup'
+import { ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT } from '../editor-autosave'
 import type { DiffSection } from '../diff-section-types'
 import {
   EMPTY_GIT_BRANCH_ENTRIES,
   EMPTY_GIT_STATUS_ENTRIES,
   useCombinedDiffEntrySet
 } from './resolve-changes/use-combined-diff-entry-set'
+import type { CombinedDiffFileTreeEntry } from './resolve-changes/combined-diff-section-identity'
 import { useCombinedDiffSectionIndexMap } from './resolve-changes/use-combined-diff-section-index-map'
 import { useCombinedDiffSectionRowKeys } from './resolve-changes/use-combined-diff-section-row-keys'
 import { useCombinedDiffSectionLoadRegistry } from './load-sections/combined-diff-section-load-registry'
@@ -24,27 +27,26 @@ import { useCombinedDiffScrollAnchors } from './scroll-viewport/use-combined-dif
 import { useCombinedDiffScrollPersistence } from './scroll-viewport/use-combined-diff-scroll-persistence'
 import { useCombinedDiffScrollbar } from './scroll-viewport/use-combined-diff-scrollbar'
 import { useCombinedDiffVirtualizer } from './scroll-viewport/use-combined-diff-virtualizer'
-import { CombinedDiffSectionList } from './scroll-viewport/combined-diff-section-list'
-import { CombinedDiffFileTree } from './browse-files/combined-diff-file-tree'
+import { CombinedDiffViewerContent } from './CombinedDiffViewerContent'
 import { useCombinedDiffTreeNavigation } from './browse-files/use-combined-diff-tree-navigation'
 import { CombinedDiffCommitHeader } from './review-controls/combined-diff-commit-header'
-import { CombinedDiffToolbar } from './review-controls/combined-diff-toolbar'
-import { ClearDiffNotesDialog } from './review-controls/combined-diff-notes-popover'
 import {
   CombinedDiffNoChangesEmptyState,
-  CombinedDiffSkippedConflictNotice,
   CombinedDiffSkippedConflictsEmptyState
 } from './review-controls/combined-diff-skipped-conflicts'
 import { useCombinedDiffNotesActions } from './review-controls/use-combined-diff-notes-actions'
 import { useCombinedDiffSectionActions } from './review-controls/use-combined-diff-section-actions'
 import { useCombinedDiffViewPreferences } from './review-controls/use-combined-diff-view-preferences'
+import { useCombinedDiffWorkingDocuments } from './use-combined-diff-working-documents'
 
 export default function CombinedDiffViewer({
   file,
-  viewStateKey
+  viewStateKey,
+  tabId
 }: {
   file: OpenFile
   viewStateKey: string
+  tabId: string
 }): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const gitStatusEntries = useAppStore(
@@ -119,6 +121,7 @@ export default function CombinedDiffViewer({
     setSections
   })
 
+  const workingDocumentIdsBySectionKey = useCombinedDiffWorkingDocuments({ file, sections, tabId })
   // Why: one incremental scan of `sections` feeds the virtualizer keys, the restore signal and the
   // toolbar collapse state, instead of three independent full passes per loaded section.
   const sectionRowKeys = useCombinedDiffSectionRowKeys({ generation, sections })
@@ -183,6 +186,23 @@ export default function CombinedDiffViewer({
     toggleSection,
     treeMode: entrySet.treeMode
   })
+  const openTreeWorkingFile = useCallback(
+    (entry: CombinedDiffFileTreeEntry) => {
+      const state = useAppStore.getState()
+      const targetGroupId =
+        (state.unifiedTabsByWorktree[file.worktreeId] ?? []).find((tab) => tab.id === tabId)
+          ?.groupId ?? state.activeGroupIdByWorktree[file.worktreeId]
+      void openReviewWorkingFile({
+        worktreeId: file.worktreeId,
+        worktreePath: file.filePath,
+        relativePath: entry.path,
+        targetGroupId,
+        preview: false
+      })
+    },
+    [file.filePath, file.worktreeId, tabId]
+  )
+
   const combinedGitStatusSignature = useCombinedDiffSectionRevalidation({
     file,
     gitStatusEntries,
@@ -193,21 +213,30 @@ export default function CombinedDiffViewer({
     shouldAutoReloadFromGitStatus: entrySet.shouldAutoReloadFromGitStatus,
     treeMode: entrySet.treeMode
   })
-  const { handleSectionSaveRef, modifiedEditorsRef, openSection, openSectionPreview } =
-    useCombinedDiffSectionActions({
-      activeGroupId,
-      branchCompare: entrySet.branchCompare,
-      canOpenWorkspaceFileBrowserForPath,
-      commitCompare: entrySet.commitCompare,
-      file,
-      isAllMode: entrySet.isAllMode,
-      isBranchMode: entrySet.isBranchMode,
-      isCommitMode: entrySet.isCommitMode,
-      sections,
-      sectionsRef: registry.sectionsRef,
-      setSectionHeights,
-      setSections
-    })
+  const sectionActions = useCombinedDiffSectionActions({
+    activeGroupId,
+    branchCompare: entrySet.branchCompare,
+    canOpenWorkspaceFileBrowserForPath,
+    commitCompare: entrySet.commitCompare,
+    file,
+    isAllMode: entrySet.isAllMode,
+    isBranchMode: entrySet.isBranchMode,
+    isCommitMode: entrySet.isCommitMode,
+    sectionsRef: registry.sectionsRef,
+    tabId,
+    workingDocumentIdsBySectionKey
+  })
+  const { saveDirtyDocuments } = sectionActions
+  useEffect(() => {
+    const handleCommandSave = (event: Event): void => {
+      const commandTabId = (event as CustomEvent<{ tabId?: string }>).detail?.tabId
+      if (commandTabId === tabId) {
+        void saveDirtyDocuments()
+      }
+    }
+    window.addEventListener(ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT, handleCommandSave)
+    return () => window.removeEventListener(ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT, handleCommandSave)
+  }, [saveDirtyDocuments, tabId])
 
   useCombinedDiffViewPersist({
     combinedGitStatusSignature,
@@ -300,97 +329,36 @@ export default function CombinedDiffViewer({
     return <CombinedDiffNoChangesEmptyState commitHeader={commitHeader} />
   }
 
-  const skippedConflictNotice =
-    (skippedConflicts?.length ?? 0) > 0 ? (
-      <CombinedDiffSkippedConflictNotice
-        onReviewConflicts={reviewSkippedConflicts}
-        skippedConflicts={skippedConflicts!}
-      />
-    ) : null
-  const allSectionsCollapsed = sectionRowKeys.allSectionsCollapsed
-
   return (
-    <>
-      <div className="flex flex-col flex-1 min-h-0">
-        <CombinedDiffToolbar
-          activeGroupId={activeGroupId}
-          allSectionsCollapsed={allSectionsCollapsed}
-          branchCompare={entrySet.branchCompare}
-          commitCompare={entrySet.commitCompare}
-          diffCommentCount={notes.diffCommentCount}
-          diffCommentsForWorktree={diffCommentsForWorktree}
-          diffShowWhitespace={settings?.diffShowWhitespace}
-          diffWordWrap={settings?.diffWordWrap}
-          file={file}
-          fileTreeCollapsed={preferences.fileTreeCollapsed}
-          isAllMode={entrySet.isAllMode}
-          isBranchMode={entrySet.isBranchMode}
-          isCommitMode={entrySet.isCommitMode}
-          notesCopied={notes.notesCopied}
-          onCopyNotes={() => void notes.handleCopyNotes()}
-          onOpenAlternateDiff={openAlternateDiff}
-          onOpenClearNotes={() => notes.setClearNotesDialogOpen(true)}
-          onShowFileTree={() => preferences.setFileTreeCollapsed(false)}
-          previewDiffComments={notes.previewDiffComments}
-          sectionCount={sections.length}
-          setAllSectionsCollapsed={preferences.setAllSectionsCollapsed}
-          sideBySide={preferences.sideBySide}
-          toggleDiffShowWhitespace={preferences.toggleDiffShowWhitespace}
-          toggleDiffWordWrap={preferences.toggleDiffWordWrap}
-          toggleSideBySide={preferences.toggleSideBySide}
-        />
-
-        {commitHeader}
-        <div className="flex min-h-0 flex-1">
-          <CombinedDiffFileTree
-            mode={entrySet.treeMode}
-            worktreePath={file.filePath}
-            entries={entrySet.entries}
-            sectionIndexByKey={treeNavigation.sectionIndexByKey}
-            activeSectionKey={treeNavigation.activeTreeSectionKey}
-            viewedSectionKeys={treeNavigation.viewedSectionKeys}
-            collapsed={preferences.fileTreeCollapsed}
-            onCollapsedChange={preferences.setFileTreeCollapsed}
-            onNavigate={treeNavigation.handleTreeNavigate}
-          />
-          <CombinedDiffSectionList
-            activeGroupId={activeGroupId}
-            canOpenWorkspaceFileBrowserForPath={canOpenWorkspaceFileBrowserForPath}
-            diffCommentsForWorktree={diffCommentsForWorktree}
-            file={file}
-            handleSectionSaveRef={handleSectionSaveRef}
-            isAllMode={entrySet.isAllMode}
-            isBranchMode={entrySet.isBranchMode}
-            isCommitMode={entrySet.isCommitMode}
-            loadSection={loadSection}
-            loadDeferredSection={loadDeferredSection}
-            markDirectScrollInput={markDirectScrollInput}
-            modifiedEditorsRef={modifiedEditorsRef}
-            onScrollbarPointerDown={handleScrollbarPointerDown}
-            openSection={openSection}
-            openSectionPreview={openSectionPreview}
-            retrySection={retrySection}
-            scrollThumb={scrollThumb}
-            sectionHeights={sectionHeights}
-            sections={sections}
-            setScrollContainerRef={setScrollContainerRef}
-            setSectionHeights={setSectionHeights}
-            setSections={setSections}
-            settings={settings}
-            sideBySide={preferences.sideBySide}
-            skippedConflictNotice={skippedConflictNotice}
-            toggleSection={toggleSection}
-            virtualizer={virtualizer}
-          />
-        </div>
-      </div>
-      <ClearDiffNotesDialog
-        diffCommentCount={notes.diffCommentCount}
-        isClearingNotes={notes.isClearingNotes}
-        onConfirm={() => void notes.handleConfirmClearNotes()}
-        open={notes.clearNotesDialogVisible}
-        setOpen={notes.setClearNotesDialogOpen}
-      />
-    </>
+    <CombinedDiffViewerContent
+      activeGroupId={activeGroupId}
+      canOpenWorkspaceFileBrowserForPath={canOpenWorkspaceFileBrowserForPath}
+      commitHeader={commitHeader}
+      diffCommentsForWorktree={diffCommentsForWorktree}
+      entrySet={entrySet}
+      file={file}
+      loadDeferredSection={loadDeferredSection}
+      loadSection={loadSection}
+      markDirectScrollInput={markDirectScrollInput}
+      notes={notes}
+      onOpenAlternateDiff={openAlternateDiff}
+      openTreeWorkingFile={openTreeWorkingFile}
+      preferences={preferences}
+      retrySection={retrySection}
+      sectionActions={sectionActions}
+      sectionHeights={sectionHeights}
+      sectionRowKeys={sectionRowKeys}
+      sections={sections}
+      setScrollContainerRef={setScrollContainerRef}
+      setSectionHeights={setSectionHeights}
+      settings={settings}
+      skippedConflicts={skippedConflicts}
+      treeNavigation={treeNavigation}
+      toggleSection={toggleSection}
+      virtualizer={virtualizer}
+      workingDocumentIdsBySectionKey={workingDocumentIdsBySectionKey}
+      scrollbar={{ handleScrollbarPointerDown, scrollThumb }}
+      reviewSkippedConflicts={reviewSkippedConflicts}
+    />
   )
 }

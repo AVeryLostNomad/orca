@@ -1,8 +1,11 @@
 import type React from 'react'
 import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 
 export type RichMarkdownEditorProps = {
   fileId: string
+  documentId: WorkingDocumentId
+  documentRevision: number
   viewStateId: string
   content: string
   filePath: string
@@ -11,7 +14,6 @@ export type RichMarkdownEditorProps = {
   runtimeEnvironmentId?: string | null
   scrollCacheKey: string
   onContentChange: (content: string) => void
-  onDirtyStateHint: (dirty: boolean) => void
   onSave: (content: string) => void
   onOpenDocLink?: (target: string) => void
   markdownDocuments?: MarkdownDocument[]

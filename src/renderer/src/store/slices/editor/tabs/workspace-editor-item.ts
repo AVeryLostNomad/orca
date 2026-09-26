@@ -74,7 +74,6 @@ export function getReplaceablePreviewFileId(
 export function removeEditorStateForReplacedPreview(
   state: Pick<
     EditorSlice,
-    | 'editorDrafts'
     | 'editorCursorLine'
     | 'markdownViewMode'
     | 'markdownRichModeSizeOverride'
@@ -87,7 +86,6 @@ export function removeEditorStateForReplacedPreview(
   nextFileId: string
 ): Pick<
   EditorSlice,
-  | 'editorDrafts'
   | 'editorCursorLine'
   | 'markdownViewMode'
   | 'markdownRichModeSizeOverride'
@@ -109,7 +107,6 @@ export function removeEditorStateForReplacedPreview(
   )
   if (replacedFile.id === nextFileId) {
     return {
-      editorDrafts: state.editorDrafts,
       editorCursorLine: state.editorCursorLine,
       markdownViewMode: state.markdownViewMode,
       markdownRichModeSizeOverride: state.markdownRichModeSizeOverride,
@@ -119,9 +116,6 @@ export function removeEditorStateForReplacedPreview(
     }
   }
   return {
-    editorDrafts: Object.fromEntries(
-      Object.entries(state.editorDrafts).filter(([fileId]) => fileId !== replacedFile.id)
-    ),
     editorCursorLine: Object.fromEntries(
       Object.entries(state.editorCursorLine).filter(([fileId]) => fileId !== replacedFile.id)
     ),

@@ -37,6 +37,7 @@ export function useTerminalWorkspaceStoreBindings(controller: TerminalWorkspaceF
   const setActiveTabType = useAppStore((state) => state.setActiveTabType)
   const setActiveFile = useAppStore((state) => state.setActiveFile)
   const closeFile = useAppStore((state) => state.closeFile)
+  const closeUnifiedTab = useAppStore((state) => state.closeUnifiedTab)
   const makePreviewFilePermanent = useAppStore((state) => state.makePreviewFilePermanent)
   const pinFile = useAppStore((state) => state.pinFile)
   const browserTabsByWorktree = useAppStore((state) => state.browserTabsByWorktree)
@@ -57,7 +58,7 @@ export function useTerminalWorkspaceStoreBindings(controller: TerminalWorkspaceF
   const activeGroupIdByWorktree = useAppStore((state) => state.activeGroupIdByWorktree)
   const ensureWorktreeRootGroup = useAppStore((state) => state.ensureWorktreeRootGroup)
   const reconcileWorktreeTabModel = useAppStore((state) => state.reconcileWorktreeTabModel)
-  const markFileDirty = useAppStore((state) => state.markFileDirty)
+  const discardWorkingDocument = useAppStore((state) => state.discardWorkingDocument)
   const setTabBarOrder = useAppStore((state) => state.setTabBarOrder)
   const tabBarOrderByWorktree = useAppStore((state) => state.tabBarOrderByWorktree)
   const tabBarOrder = renderedActiveWorktreeId
@@ -92,6 +93,7 @@ export function useTerminalWorkspaceStoreBindings(controller: TerminalWorkspaceF
     setActiveTabType,
     setActiveFile,
     closeFile,
+    closeUnifiedTab,
     makePreviewFilePermanent,
     pinFile,
     browserTabsByWorktree,
@@ -106,7 +108,7 @@ export function useTerminalWorkspaceStoreBindings(controller: TerminalWorkspaceF
     activeGroupIdByWorktree,
     ensureWorktreeRootGroup,
     reconcileWorktreeTabModel,
-    markFileDirty,
+    discardWorkingDocument,
     setTabBarOrder,
     tabBarOrderByWorktree,
     tabBarOrder,

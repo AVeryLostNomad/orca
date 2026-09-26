@@ -28,7 +28,8 @@ function makeCountingState(worktreeCount: number): {
     activeFileId: null,
     activeFileIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     agentStatusByPaneKey: {},
     get browserTabsByWorktree() {
@@ -102,7 +103,8 @@ function makeTitleCountingState(worktreeCount: number): {
     activeFileId: null,
     activeFileIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     agentStatusByPaneKey,
     browserTabsByWorktree: {}
@@ -255,7 +257,8 @@ function makeMountedState(tabIdPrefix: string): {
     activeFileId: null,
     activeFileIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     agentStatusByPaneKey: {},
     browserTabsByWorktree: {}

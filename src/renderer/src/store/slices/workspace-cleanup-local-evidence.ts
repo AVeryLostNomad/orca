@@ -52,8 +52,13 @@ export function getInitialWorkspaceCleanupGitDeferrals(state: AppState): string[
   }
 
   for (const file of state.openFiles) {
-    if (file.isDirty || state.editorDrafts[file.id] !== undefined) {
+    if (file.isDirty) {
       ids.add(file.worktreeId)
+    }
+  }
+  for (const document of Object.values(state.workingDocuments)) {
+    if (document.isDirty) {
+      ids.add(document.target.worktreeId)
     }
   }
 

@@ -1,14 +1,15 @@
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
-import { requestEditorFileSave, type EditorSaveFileTarget } from './editor-autosave'
+import { requestEditorDocumentSave, type EditorDocumentSaveTarget } from './editor-autosave'
 
-export async function attemptEditorFileSave(target: EditorSaveFileTarget): Promise<boolean> {
+export async function attemptEditorDocumentSave(
+  target: EditorDocumentSaveTarget
+): Promise<boolean> {
   try {
-    await requestEditorFileSave(target)
+    await requestEditorDocumentSave(target)
     return true
   } catch (error) {
-    // Why: shortcut handlers need a non-throwing result, while dependent actions must not treat a rejected write as success.
-    console.error('[editor] file save failed', error)
+    console.error('[editor] document save failed', error)
     toast.error(
       translate(
         'auto.components.editor.editor.save.failure.notice.8c59ce5075',

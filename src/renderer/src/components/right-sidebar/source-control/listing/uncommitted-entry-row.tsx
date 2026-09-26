@@ -13,7 +13,11 @@ import { DiffLineCounts } from './diff-line-counts'
 import { SourceControlEntryContextMenu } from './entry-context-menu'
 import { canDiscardStatusEntry, canStageStatusEntry, canUnstageStatusEntry } from './entry-actions'
 import { isSubmoduleWorktreeOnlyChange } from '../commit/discard-all-sequence'
-import { toPermanentSourceControlRowOpenEvent, type SourceControlRowOpenEvent } from './split-open'
+import {
+  toSourceControlRowOpenEvent,
+  toWorkingFileSourceControlRowOpenEvent,
+  type SourceControlRowOpenEvent
+} from './split-open'
 import {
   SOURCE_CONTROL_ROW_ACTION_OVERLAY_CLASS,
   SOURCE_CONTROL_TREE_FILE_PADDING_PX,
@@ -125,25 +129,24 @@ export const UncommittedEntryRow = React.memo(function UncommittedEntryRow({
           e.dataTransfer.effectAllowed = 'copy'
         }}
         onClick={(e) => {
+          if (e.detail > 1) {
+            return
+          }
           if (submoduleExpansion) {
-            // Why: a double-click emits two click events; without this guard it expands then immediately collapses.
-            if (e.detail > 1) {
-              return
-            }
             submoduleExpansion.onToggle()
             return
           }
           if (onSelect) {
             onSelect(e, entryKey, entry)
           } else {
-            onOpen(entry, e)
+            onOpen(entry, toSourceControlRowOpenEvent(e))
           }
         }}
         onDoubleClick={(e) => {
           if (submoduleExpansion) {
             return
           }
-          onOpen(entry, toPermanentSourceControlRowOpenEvent(e))
+          onOpen(entry, toWorkingFileSourceControlRowOpenEvent(e))
         }}
       >
         {submoduleExpansion && (
@@ -205,7 +208,10 @@ export const UncommittedEntryRow = React.memo(function UncommittedEntryRow({
             </span>
           </>
         )}
-        <div className={SOURCE_CONTROL_ROW_ACTION_OVERLAY_CLASS}>
+        <div
+          className={SOURCE_CONTROL_ROW_ACTION_OVERLAY_CLASS}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
           {canDiscard && (
             <ActionButton
               icon={entry.area === 'untracked' ? Trash : Undo2}

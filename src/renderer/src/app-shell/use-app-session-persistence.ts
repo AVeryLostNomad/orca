@@ -206,7 +206,9 @@ export function useAppSessionPersistence(): void {
         )
       },
       buildUiPatch: () => buildActiveViewUnloadPatch(useAppStore.getState()),
-      hasDirtyOpenFiles: () => useAppStore.getState().openFiles.some((file) => file.isDirty),
+      // Why: combined-only drafts have no OpenFile, so dirtiness is canonical document state.
+      hasDirtyOpenFiles: () =>
+        Object.values(useAppStore.getState().workingDocuments).some((document) => document.isDirty),
       // Why: an app-level quit degrades too — the pre-fix alternative was a quit
       // the user could only complete with SIGKILL, which loses strictly more (#15352).
       isDegradableShutdownInProgress: () =>

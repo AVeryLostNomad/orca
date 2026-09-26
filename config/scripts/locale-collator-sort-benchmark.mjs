@@ -129,7 +129,10 @@ for (const count of [36, 50, 250]) {
   const issues = makeJiraIssues(count)
   const before = () =>
     [...issues]
-      .sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }))
+      .sort(
+        // oxlint-disable-next-line sort-comparator-performance/no-repeated-collator -- this arm intentionally measures the legacy per-comparison localeCompare cost.
+        (a, b) => a.key.localeCompare(b.key, undefined, { numeric: true })
+      )
       .map((issue) => issue.key)
   const after = () => sortJiraIssues(issues, 'key', 'asc').map((issue) => issue.key)
   assertSameOrder(before, after, `numeric ${count}`)
@@ -142,7 +145,10 @@ for (const count of [36, 50, 250]) {
 for (const count of [10, 50, 250]) {
   const values = makeBaseSensitivityValues(count)
   const before = () =>
-    [...values].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    [...values].sort(
+      // oxlint-disable-next-line sort-comparator-performance/no-repeated-collator -- this arm intentionally measures the legacy per-comparison localeCompare cost.
+      (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })
+    )
   const after = () => [...values].sort(compareBaseSensitivityLocaleText)
   assertSameOrder(before, after, `base ${count}`)
   const { beforeMs, afterMs } = measurePair(before, after)

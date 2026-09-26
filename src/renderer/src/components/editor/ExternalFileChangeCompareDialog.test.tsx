@@ -1,142 +1,132 @@
 // @vitest-environment happy-dom
+
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocument } from '@/store/slices/editor/working-document'
 
-const mocks = vi.hoisted(() => ({
-  readRuntimeFileContent: vi.fn(),
-  getConnectionIdForFile: vi.fn(),
-  getState: vi.fn()
-}))
-
-vi.mock('@/runtime/runtime-file-client', () => ({
-  readRuntimeFileContent: mocks.readRuntimeFileContent
-}))
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  settingsForRuntimeOwner: () => null
-}))
-vi.mock('@/lib/connection-context', () => ({
-  getConnectionIdForFile: mocks.getConnectionIdForFile
-}))
-vi.mock('@/store', () => ({
-  useAppStore: { getState: mocks.getState }
-}))
-// Why: the lazy DiffViewer chunk cannot resolve under happy-dom; a stub that
-// echoes its props pins the disk-left/buffer-right wiring instead.
-vi.mock('@/lib/lazy-with-retry', () => ({
-  lazyWithRetry: () => (props: { originalContent: string; modifiedContent: string }) => (
-    <div data-testid="diff-stub">
-      original:{props.originalContent}|modified:{props.modifiedContent}
-    </div>
+const readRuntimeFileContent = vi.hoisted(() => vi.fn())
+const diffViewer = vi.hoisted(() =>
+  vi.fn(
+    ({
+      originalContent,
+      modifiedContent
+    }: {
+      originalContent: string
+      modifiedContent: string
+    }) => <div data-testid="comparison">{`${originalContent}::${modifiedContent}`}</div>
   )
+)
+
+vi.mock('@/store', () => ({
+  useAppStore: { getState: () => ({ settings: { editorAutoSave: false } }) }
 }))
+vi.mock('@/runtime/runtime-file-client', () => ({ readRuntimeFileContent }))
+vi.mock('@/runtime/runtime-rpc-client', () => ({
+  settingsForRuntimeOwner: (settings: unknown) => settings
+}))
+vi.mock('@/lib/connection-context', () => ({ getConnectionIdForFile: () => 'ssh-1' }))
+vi.mock('./DiffViewer', () => ({ default: diffViewer }))
 
 import { ExternalFileChangeCompareDialog } from './ExternalFileChangeCompareDialog'
 
-const file = {
-  id: 'file-1',
-  filePath: '/repo/notes.ts',
-  relativePath: 'notes.ts',
-  worktreeId: 'wt-1',
-  mode: 'edit',
-  isDirty: true,
-  externalMutation: 'changed'
-} as OpenFile
+function makeDocument(): WorkingDocument {
+  return {
+    id: 'document-1' as WorkingDocument['id'],
+    target: {
+      owner: { executionHostId: 'local', runtimeEnvironmentId: null },
+      filePath: '/repo/file.ts',
+      relativePath: 'file.ts',
+      worktreeId: 'wt-1',
+      language: 'typescript',
+      operationProvenance: {} as WorkingDocument['target']['operationProvenance']
+    },
+    content: 'draft',
+    revision: 1,
+    isDirty: true,
+    loadState: 'ready',
+    writable: true,
+    alwaysAutoSave: false
+  }
+}
 
 describe('ExternalFileChangeCompareDialog', () => {
-  let root: Root | null = null
-  let container: HTMLElement | null = null
+  let container: HTMLDivElement
+  let root: Root
 
   beforeEach(() => {
-    mocks.readRuntimeFileContent.mockReset()
-    mocks.getConnectionIdForFile.mockReset()
-    mocks.getConnectionIdForFile.mockReturnValue(undefined)
-    mocks.getState.mockReturnValue({ settings: null })
-    container = document.createElement('div')
-    document.body.appendChild(container)
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    readRuntimeFileContent.mockReset()
+    diffViewer.mockClear()
+    container = document.body.appendChild(document.createElement('div'))
+    root = createRoot(container)
+  })
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
   })
 
-  afterEach(async () => {
+  it('reads the owner-routed disk snapshot and keeps it separate from current edits', async () => {
+    readRuntimeFileContent.mockResolvedValue({ content: 'disk', isBinary: false })
     await act(async () => {
-      root?.unmount()
+      root.render(
+        <ExternalFileChangeCompareDialog
+          document={makeDocument()}
+          currentContent="draft"
+          open
+          onOpenChange={vi.fn()}
+          onReload={vi.fn()}
+          onKeepEdits={vi.fn()}
+        />
+      )
+      await Promise.resolve()
     })
-    container?.remove()
-    document.body.innerHTML = ''
-  })
-
-  async function render(element: React.JSX.Element): Promise<void> {
-    await act(async () => {
-      root = createRoot(container!)
-      root.render(element)
+    expect(readRuntimeFileContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: '/repo/file.ts',
+        relativePath: 'file.ts',
+        worktreeId: 'wt-1',
+        connectionId: 'ssh-1'
+      })
+    )
+    await vi.waitFor(() => expect(document.body.textContent).toContain('disk::draft'))
+    expect(diffViewer.mock.calls[0]?.[0]).toMatchObject({
+      originalContent: 'disk',
+      modifiedContent: 'draft'
     })
-  }
-
-  it('shows the disk version left and the buffer right once the read resolves', async () => {
-    mocks.readRuntimeFileContent.mockResolvedValue({ content: 'disk version', isBinary: false })
-
-    await render(
-      <ExternalFileChangeCompareDialog
-        file={file}
-        currentContent="buffer version"
-        open
-        onOpenChange={vi.fn()}
-        onReload={vi.fn()}
-        onKeepEdits={vi.fn()}
-      />
-    )
-
-    expect(document.body.textContent).toContain('File changed on disk')
-    expect(document.body.textContent).toContain('original:disk version|modified:buffer version')
-    expect(document.body.textContent).toContain('Reload from Disk')
-    expect(document.body.textContent).toContain('Keep My Edits')
   })
 
-  it('surfaces a read failure instead of a blank comparison', async () => {
-    mocks.readRuntimeFileContent.mockRejectedValue(new Error('transport down'))
-
-    await render(
-      <ExternalFileChangeCompareDialog
-        file={file}
-        currentContent="buffer version"
-        open
-        onOpenChange={vi.fn()}
-        onReload={vi.fn()}
-        onKeepEdits={vi.fn()}
-      />
-    )
-
-    expect(document.body.textContent).toContain('Could not read the file from disk')
-    expect(document.body.textContent).toContain('transport down')
-  })
-
-  it('wires the footer actions and closes the dialog around them', async () => {
-    mocks.readRuntimeFileContent.mockResolvedValue({ content: 'disk version', isBinary: false })
+  it('keeps reload and keep choices explicit after the read-only comparison', async () => {
+    readRuntimeFileContent.mockResolvedValue({ content: 'disk', isBinary: false })
     const onReload = vi.fn()
     const onKeepEdits = vi.fn()
     const onOpenChange = vi.fn()
-
-    await render(
-      <ExternalFileChangeCompareDialog
-        file={file}
-        currentContent="buffer version"
-        open
-        onOpenChange={onOpenChange}
-        onReload={onReload}
-        onKeepEdits={onKeepEdits}
-      />
-    )
-
-    const buttons = Array.from(document.body.querySelectorAll('button'))
     await act(async () => {
-      buttons.find((b) => b.textContent === 'Reload from Disk')?.click()
+      root.render(
+        <ExternalFileChangeCompareDialog
+          document={makeDocument()}
+          currentContent="draft"
+          open
+          onOpenChange={onOpenChange}
+          onReload={onReload}
+          onKeepEdits={onKeepEdits}
+        />
+      )
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Reload from Disk'))
+    const reload = [...document.body.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Reload from Disk'
+    )
+    const keep = [...document.body.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Keep My Edits'
+    )
+    act(() => {
+      reload?.click()
+      keep?.click()
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(onReload).toHaveBeenCalledTimes(1)
-
-    await act(async () => {
-      buttons.find((b) => b.textContent === 'Keep My Edits')?.click()
-    })
-    expect(onKeepEdits).toHaveBeenCalledTimes(1)
+    expect(onReload).toHaveBeenCalledOnce()
+    expect(onKeepEdits).toHaveBeenCalledOnce()
   })
 })

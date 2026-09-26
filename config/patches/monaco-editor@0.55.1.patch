@@ -1,0 +1,76 @@
+diff --git a/esm/vs/editor/browser/widget/diffEditor/diffEditorViewModel.js b/esm/vs/editor/browser/widget/diffEditor/diffEditorViewModel.js
+index 399dbc8153999b540b9b5cf329f89c61f6a2bf48..bc2d07a05447f31067b01555483c0885938fe96f 100644
+--- a/esm/vs/editor/browser/widget/diffEditor/diffEditorViewModel.js
++++ b/esm/vs/editor/browser/widget/diffEditor/diffEditorViewModel.js
+@@ -1,5 +1,6 @@
+ import { RunOnceScheduler } from '../../../../base/common/async.js';
+ import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
++import { isCancellationError } from '../../../../base/common/errors.js';
+ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+ import '../../../../base/common/observableInternal/index.js';
+ import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
+@@ -205,11 +206,19 @@ let DiffEditorViewModel = class DiffEditorViewModel extends Disposable {
+                 const edits = TextEditInfo.fromModelContentChanges(e.changes);
+                 modifiedTextEditInfos = combineTextEditInfos(modifiedTextEditInfos, edits);
+             }));
+-            let result = await documentDiffProvider.diffProvider.computeDiff(model.original, model.modified, {
+-                ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
+-                maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
+-                computeMoves: this._options.showMoves.read(reader),
+-            }, this._cancellationTokenSource.token);
++            let result;
++            try {
++                result = await documentDiffProvider.diffProvider.computeDiff(model.original, model.modified, {
++                    ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
++                    maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
++                    computeMoves: this._options.showMoves.read(reader),
++                }, this._cancellationTokenSource.token);
++            } catch (error) {
++                if (isCancellationError(error)) {
++                    return;
++                }
++                throw error;
++            }
+             if (this._cancellationTokenSource.token.isCancellationRequested) {
+                 return;
+             }
+diff --git a/esm/vs/editor/browser/widget/diffEditor/features/gutterFeature.js b/esm/vs/editor/browser/widget/diffEditor/features/gutterFeature.js
+index 01877be4c38d00326feeb1067c81a440bead31c0..91aa604668481e875514e6e8ef635d1e56ce5d03 100644
+--- a/esm/vs/editor/browser/widget/diffEditor/features/gutterFeature.js
++++ b/esm/vs/editor/browser/widget/diffEditor/features/gutterFeature.js
+@@ -99,7 +99,7 @@ let DiffEditorGutter = class DiffEditorGutter extends Disposable {
+         }).recomputeInitiallyAndOnChange(this._store);
+         const gutterItems = derived(this, reader => {
+             const model = this._diffModel.read(reader);
+-            if (!model) {
++            if (!model || !model.isDiffUpToDate.read(reader)) {
+                 return [];
+             }
+             const diffs = model.diff.read(reader);
+diff --git a/esm/vs/editor/browser/widget/diffEditor/utils/editorGutter.js b/esm/vs/editor/browser/widget/diffEditor/utils/editorGutter.js
+index cbe9bb8e8bb97ca69e1026d2335857ec7ae32a16..158fb080fb5f0244dd1c720950e8a00c918dbb3a 100644
+--- a/esm/vs/editor/browser/widget/diffEditor/utils/editorGutter.js
++++ b/esm/vs/editor/browser/widget/diffEditor/utils/editorGutter.js
+@@ -66,6 +66,10 @@ class EditorGutter extends Disposable {
+                 transaction(tx => {
+                     /** EditorGutter.render */
+                     for (const gutterItem of gutterItems) {
++                        // Content layout can update before the pending diff is invalidated.
++                        if (gutterItem.range.endLineNumberExclusive > this._editor.getModel().getLineCount() + 1) {
++                            continue;
++                        }
+                         if (!gutterItem.range.intersect(visibleRange2)) {
+                             continue;
+                         }
+diff --git a/esm/vs/language/typescript/tsMode.js b/esm/vs/language/typescript/tsMode.js
+index 6ff0b8e91ea58ab5346413cdd22ccb2ae7ea0f4f..cb8c8863e14a161f8393662372ddcf10d0919dfa 100644
+--- a/esm/vs/language/typescript/tsMode.js
++++ b/esm/vs/language/typescript/tsMode.js
+@@ -201,6 +201,7 @@ function setupMode(defaults, modeId) {
+     }
+   }
+   registerProviders();
++  defaults.onDidChange(registerProviders);
+   return worker;
+ }
+ function disposeAll(disposables) {

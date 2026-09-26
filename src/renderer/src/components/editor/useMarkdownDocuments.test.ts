@@ -6,9 +6,9 @@ describe('saveMarkdownAndRefreshDocuments', () => {
     const save = vi.fn().mockResolvedValue(false)
     const refresh = vi.fn().mockResolvedValue(undefined)
 
-    await expect(saveMarkdownAndRefreshDocuments('draft', save, refresh)).resolves.toBe(false)
+    await expect(saveMarkdownAndRefreshDocuments(save, refresh)).resolves.toBe(false)
 
-    expect(save).toHaveBeenCalledWith('draft')
+    expect(save).toHaveBeenCalledWith()
     expect(refresh).not.toHaveBeenCalled()
   })
 
@@ -16,7 +16,7 @@ describe('saveMarkdownAndRefreshDocuments', () => {
     const save = vi.fn().mockResolvedValue(true)
     const refresh = vi.fn().mockResolvedValue(undefined)
 
-    await expect(saveMarkdownAndRefreshDocuments('draft', save, refresh)).resolves.toBe(true)
+    await expect(saveMarkdownAndRefreshDocuments(save, refresh)).resolves.toBe(true)
 
     expect(refresh).toHaveBeenCalledTimes(1)
   })

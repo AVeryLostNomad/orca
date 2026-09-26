@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import { joinPath } from '@/lib/path'
 import type { OpenFile } from '@/store/slices/editor'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import type { DiffComment } from '../../../../../../shared/diff-comment-types'
 import { DiffSectionItem } from '../../DiffSectionItem'
 import type { DiffSectionItemProps } from '../../diff-section-item-props'
@@ -23,7 +24,6 @@ export function CombinedDiffSectionList({
   loadSection,
   loadDeferredSection,
   markDirectScrollInput,
-  modifiedEditorsRef,
   onScrollbarPointerDown,
   openSection,
   openSectionPreview,
@@ -33,12 +33,12 @@ export function CombinedDiffSectionList({
   sections,
   setScrollContainerRef,
   setSectionHeights,
-  setSections,
   settings,
   sideBySide,
   skippedConflictNotice,
   toggleSection,
-  virtualizer
+  virtualizer,
+  workingDocumentIdsBySectionKey
 }: {
   activeGroupId: string | undefined
   canOpenWorkspaceFileBrowserForPath: (path: string) => boolean
@@ -51,7 +51,6 @@ export function CombinedDiffSectionList({
   loadSection: (index: number) => void
   loadDeferredSection: (index: number) => void
   markDirectScrollInput: () => void
-  modifiedEditorsRef: DiffSectionItemProps['modifiedEditorsRef']
   onScrollbarPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
   openSection: (index: number) => void
   openSectionPreview: (section: DiffSection) => void
@@ -61,12 +60,12 @@ export function CombinedDiffSectionList({
   sections: DiffSection[]
   setScrollContainerRef: (node: HTMLDivElement | null) => void
   setSectionHeights: React.Dispatch<React.SetStateAction<Record<number, number>>>
-  setSections: React.Dispatch<React.SetStateAction<DiffSection[]>>
   settings: DiffSectionItemProps['settings']
   sideBySide: boolean
   skippedConflictNotice: React.ReactNode
   toggleSection: (index: number) => void
   virtualizer: Virtualizer<HTMLDivElement, Element>
+  workingDocumentIdsBySectionKey: Readonly<Record<string, WorkingDocumentId>>
 }): React.JSX.Element {
   // Why: per-row filter() rescanned all worktree comments per visible row per render — index once, same order preserved.
   const commentCountByFilePath = useMemo(() => {
@@ -132,9 +131,9 @@ export function CombinedDiffSectionList({
                       : undefined
                   }
                   setSectionHeights={setSectionHeights}
-                  setSections={setSections}
-                  modifiedEditorsRef={modifiedEditorsRef}
                   handleSectionSaveRef={handleSectionSaveRef}
+                  workingDocumentId={workingDocumentIdsBySectionKey[section.key]}
+                  workingFilePath={joinPath(file.filePath, section.path)}
                   renderHeaderTrailingContent={(section) => {
                     const fileNoteCount = commentCountByFilePath.get(section.path) ?? 0
                     return fileNoteCount > 0 ? (

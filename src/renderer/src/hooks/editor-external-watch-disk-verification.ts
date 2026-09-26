@@ -1,11 +1,7 @@
 import { useAppStore } from '@/store'
-import type { OpenFile } from '@/store/slices/editor'
-import { joinPath } from '@/lib/path'
-import {
-  getOpenFilesForExternalFileChange,
-  notifyEditorExternalFileChange
-} from '@/components/editor/editor-autosave'
-import { markFileChangedOnDisk } from '@/components/editor/editor-changed-on-disk-mark'
+import type { WorkingDocument, WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { notifyEditorExternalFileChange } from '@/components/editor/editor-autosave'
+import { markWorkingDocumentChangedOnDisk } from '@/components/editor/editor-changed-on-disk-mark'
 import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
 import {
   clearSelfWrite,
@@ -21,12 +17,8 @@ export type EditorExternalWatchNotification = {
   relativePath: string
   runtimeEnvironmentId: string | null
   allowLocalWindowsWslAliases?: true
-  indexedOpenFiles?: {
-    matches: (openFiles: OpenFile[]) => OpenFile[]
-  }
 }
 
-// Why: atomic writes burst same-path events; one reload dispatch each fans out into N EditorPanel rebuilds that can wedge the renderer (issue #826), so debounce per owner+path.
 const EXTERNAL_RELOAD_DEBOUNCE_MS = 75
 const pendingExternalReloadTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -45,39 +37,31 @@ export function scheduleDebouncedEditorExternalReload(
   pendingExternalReloadTimers.set(key, handle)
 }
 
-const inFlightEchoVerificationReads = new Map<string, ReturnType<typeof readRuntimeFileContent>>()
+const inFlightEchoVerificationReads = new Map<
+  WorkingDocumentId,
+  ReturnType<typeof readRuntimeFileContent>
+>()
 
-// Why: one save echo can arrive as a burst of payloads; share the in-flight full-file read so concurrent payloads for the same file don't stack duplicate reads.
-function readFileForEchoVerification(args: {
-  runtimeEnvironmentId: string | null | undefined
-  filePath: string
-  relativePath: string
-  worktreeId: string | null | undefined
+function readDocumentForEchoVerification(
+  document: WorkingDocument,
   connectionId: string | undefined
-  expectedExternalSshTargetId?: string
-}): ReturnType<typeof readRuntimeFileContent> {
-  const key = [
-    args.runtimeEnvironmentId ?? '',
-    args.connectionId ?? '',
-    args.expectedExternalSshTargetId ?? '',
-    args.filePath
-  ].join('::')
-  let pending = inFlightEchoVerificationReads.get(key)
+): ReturnType<typeof readRuntimeFileContent> {
+  let pending = inFlightEchoVerificationReads.get(document.id)
   if (!pending) {
     pending = readRuntimeFileContent({
-      settings: args.runtimeEnvironmentId
-        ? { activeRuntimeEnvironmentId: args.runtimeEnvironmentId }
+      settings: document.target.owner.runtimeEnvironmentId
+        ? { activeRuntimeEnvironmentId: document.target.owner.runtimeEnvironmentId }
         : null,
-      filePath: args.filePath,
-      relativePath: args.relativePath,
-      worktreeId: args.worktreeId ?? undefined,
-      connectionId: args.connectionId,
-      expectedExternalSshTargetId: args.expectedExternalSshTargetId
+      filePath: document.target.filePath,
+      relativePath: document.target.relativePath,
+      worktreeId: document.target.worktreeId,
+      connectionId,
+      expectedExternalSshTargetId: document.target.externalSshTargetId
     })
-    inFlightEchoVerificationReads.set(key, pending)
+    inFlightEchoVerificationReads.set(document.id, pending)
     const release = (): void => {
-      if (inFlightEchoVerificationReads.get(key) === pending) {
-        inFlightEchoVerificationReads.delete(key)
+      if (inFlightEchoVerificationReads.get(document.id) === pending) {
+        inFlightEchoVerificationReads.delete(document.id)
       }
     }
     pending.then(release, release)
@@ -85,202 +69,136 @@ function readFileForEchoVerification(args: {
   return pending
 }
 
-function markTabsChangedOnDisk(fileIds: string[], connectionId: string | undefined): void {
+function markDocumentsChangedOnDisk(documentIds: readonly WorkingDocumentId[]): void {
   const state = useAppStore.getState()
-  for (const fileId of fileIds) {
-    const file = state.openFiles.find((candidate) => candidate.id === fileId)
-    // Why: echo verification resolves async — the tab may have been closed since, so only mark files still open.
-    if (file) {
-      markFileChangedOnDisk(state, file, { connectionId, origin: 'live' })
+  for (const documentId of documentIds) {
+    const document = state.workingDocuments[documentId]
+    if (document) {
+      markWorkingDocumentChangedOnDisk(state, document, { origin: 'live' })
     }
   }
 }
 
 export function scheduleEditorChangedOnDiskMark(
   target: EditorExternalWatchTarget,
-  notification: EditorExternalWatchNotification,
-  fileIds: string[]
+  documentIds: readonly WorkingDocumentId[]
 ): void {
-  if (fileIds.length === 0) {
-    return
+  for (const documentId of documentIds) {
+    const document = useAppStore.getState().workingDocuments[documentId]
+    if (!document) {
+      continue
+    }
+    const recentSelfWrite = getRecentSelfWrite(documentId)
+    if (!recentSelfWrite) {
+      markDocumentsChangedOnDisk([documentId])
+      continue
+    }
+    void readDocumentForEchoVerification(document, target.connectionId)
+      .then((result) => {
+        if (result.isBinary || result.content !== recentSelfWrite.content) {
+          markDocumentsChangedOnDisk([documentId])
+        }
+      })
+      .catch(() => markDocumentsChangedOnDisk([documentId]))
   }
-  const absolutePath = joinPath(notification.worktreePath, notification.relativePath)
-  const recentSelfWrite = getRecentSelfWrite(absolutePath, target.runtimeEnvironmentId)
-  // Why: the fs event may be the echo of Orca's own save — verify disk really differs from our last write before showing a "changed on disk" banner.
-  if (!recentSelfWrite || recentSelfWrite.content === null) {
-    markTabsChangedOnDisk(fileIds, target.connectionId)
-    return
-  }
-  void readFileForEchoVerification({
-    runtimeEnvironmentId: target.runtimeEnvironmentId,
-    filePath: absolutePath,
-    relativePath: notification.relativePath,
-    worktreeId: notification.worktreeId,
-    connectionId: target.connectionId
-  })
-    .then((result) => {
-      if (result.isBinary || result.content !== recentSelfWrite.content) {
-        markTabsChangedOnDisk(fileIds, target.connectionId)
-      }
-    })
-    .catch(() => {
-      // Why: unreadable disk state can't disprove an external change — keep the conflict visible rather than risk a silent overwrite.
-      markTabsChangedOnDisk(fileIds, target.connectionId)
-    })
 }
 
-// Per-file generation so a newer echo-verify read supersedes an older one — overlapping reads can't clear each other's autosave gate or apply a stale verdict.
-const liveMoveVerifyGeneration = new Map<string, number>()
+const liveMoveVerifyGeneration = new Map<WorkingDocumentId, number>()
 let liveMoveVerifyCounter = 0
 
 type LiveMoveVerifyCandidate = {
-  fileId: string
+  documentId: WorkingDocumentId
   baseline: string | undefined
   generation: number
-  /** The move that installed the provenance; a newer move re-homing the tab supersedes this verification, even across a rekey. */
   operationId?: string
 }
 
-// Fails closed: anything but a proven baseline match surfaces the conflict, so a real external write is never swallowed.
 function resolveLiveMoveVerification(
   candidate: LiveMoveVerifyCandidate,
   diskSignature: string | null,
-  connectionId: string | undefined,
   consumeProvenance: boolean
 ): void {
-  const { fileId, baseline, generation, operationId } = candidate
-  if (liveMoveVerifyGeneration.get(fileId) !== generation) {
+  const { documentId, baseline, generation, operationId } = candidate
+  if (liveMoveVerifyGeneration.get(documentId) !== generation) {
     return
   }
-  liveMoveVerifyGeneration.delete(fileId)
+  liveMoveVerifyGeneration.delete(documentId)
   const state = useAppStore.getState()
-  state.setPendingLiveDiskVerification(fileId, false)
-  const file = state.openFiles.find((candidateFile) => candidateFile.id === fileId)
+  const document = state.workingDocuments[documentId]
+  if (!document) {
+    return
+  }
+  state.setWorkingDocumentExternalState(documentId, { pendingLiveDiskVerification: undefined })
   if (
-    !file ||
-    !file.isDirty ||
-    file.externalMutation === 'changed' ||
-    file.lastKnownDiskSignature !== baseline ||
-    (operationId !== undefined && file.pendingSelfMoveEcho?.operationId !== operationId)
+    !document.isDirty ||
+    document.externalMutation === 'changed' ||
+    document.lastKnownDiskSignature !== baseline ||
+    (operationId !== undefined && document.pendingSelfMoveEcho?.operationId !== operationId)
   ) {
     return
   }
-  // Why: proactive post-commit verification leaves provenance for a later destination watcher event; a watcher-driven check consumes it.
   if (consumeProvenance) {
-    state.clearSelfMoveEcho(fileId)
+    state.setWorkingDocumentExternalState(documentId, { pendingSelfMoveEcho: undefined })
   }
-  const isMoveEcho = baseline !== undefined && diskSignature === baseline
-  if (!isMoveEcho) {
-    markFileChangedOnDisk(state, file, { connectionId, origin: 'live' })
+  if (baseline === undefined || diskSignature !== baseline) {
+    markWorkingDocumentChangedOnDisk(state, document, { origin: 'live' })
   }
 }
 
-/** Verifies destination echoes latched before a completed editor path rekey. */
 export function verifyLatchedEditorMoveDestinations(
-  worktreePath: string,
   connectionId: string | undefined,
-  fileIds: readonly string[]
+  documentIds: readonly WorkingDocumentId[]
 ): void {
-  const state = useAppStore.getState()
-  const gated = fileIds.filter(
-    (id) => state.openFiles.find((file) => file.id === id)?.pendingSelfMoveEcho
-  )
-  if (gated.length === 0) {
-    return
-  }
-  scheduleEditorSelfMoveEchoVerification(
-    { worktreeId: '', worktreePath, connectionId, runtimeEnvironmentId: null },
-    gated,
-    false
-  )
+  scheduleEditorSelfMoveEchoVerification(connectionId, documentIds, false)
 }
 
-// Autosave is suspended synchronously first so a write landing mid-read can't be overwritten before verification settles.
 export function scheduleEditorSelfMoveEchoVerification(
-  target: EditorExternalWatchTarget,
-  fileIds: string[],
+  connectionId: string | undefined,
+  documentIds: readonly WorkingDocumentId[],
   consumeProvenance: boolean
 ): void {
-  if (fileIds.length === 0) {
-    return
-  }
   const state = useAppStore.getState()
-  for (const fileId of fileIds) {
-    const file = state.openFiles.find((candidate) => candidate.id === fileId)
-    if (!file || !file.isDirty || file.externalMutation === 'changed') {
+  for (const documentId of documentIds) {
+    const document = state.workingDocuments[documentId]
+    if (!document || !document.isDirty || document.externalMutation === 'changed') {
       continue
     }
     const generation = ++liveMoveVerifyCounter
-    liveMoveVerifyGeneration.set(fileId, generation)
-    state.setPendingLiveDiskVerification(fileId, true)
+    liveMoveVerifyGeneration.set(documentId, generation)
+    state.setWorkingDocumentExternalState(documentId, { pendingLiveDiskVerification: true })
     const candidate: LiveMoveVerifyCandidate = {
-      fileId,
-      baseline: file.lastKnownDiskSignature,
+      documentId,
+      baseline: document.lastKnownDiskSignature,
       generation,
-      operationId: file.pendingSelfMoveEcho?.operationId
+      operationId: document.pendingSelfMoveEcho?.operationId
     }
-    // Why: cross-worktree tabs must read their own absolute path; joining their relative path to the initiating worktree can address the wrong host path.
-    void readFileForEchoVerification({
-      runtimeEnvironmentId: file.runtimeEnvironmentId?.trim() || target.runtimeEnvironmentId,
-      filePath: file.filePath,
-      relativePath: file.relativePath,
-      worktreeId: file.worktreeId,
-      connectionId: target.connectionId,
-      expectedExternalSshTargetId: file.externalSshTargetId
-    })
-      .then((result) => {
-        const diskSignature = result.isBinary ? null : getDiskBaselineSignature(result.content)
+    void readDocumentForEchoVerification(document, connectionId)
+      .then((result) =>
         resolveLiveMoveVerification(
           candidate,
-          diskSignature,
-          target.connectionId,
+          result.isBinary ? null : getDiskBaselineSignature(result.content),
           consumeProvenance
         )
-      })
-      .catch(() =>
-        resolveLiveMoveVerification(candidate, null, target.connectionId, consumeProvenance)
       )
+      .catch(() => resolveLiveMoveVerification(candidate, null, consumeProvenance))
   }
 }
 
 export function scheduleSelfWriteAwareEditorExternalReload(
   target: EditorExternalWatchTarget,
   notification: EditorExternalWatchNotification,
-  file: OpenFile,
+  document: WorkingDocument,
   recentSelfWrite: RecentSelfWrite
 ): void {
-  if (recentSelfWrite.content === null) {
-    scheduleDebouncedEditorExternalReload(notification)
-    return
-  }
-  const runtimeEnvironmentId = file.runtimeEnvironmentId ?? target.runtimeEnvironmentId
-  // Why: a self-write stamp only proves recent change; compare disk content so it suppresses only Orca's echo, not a newer agent write in the same TTL.
-  void readFileForEchoVerification({
-    runtimeEnvironmentId,
-    filePath: file.filePath,
-    relativePath: file.relativePath,
-    worktreeId: file.worktreeId,
-    connectionId: target.connectionId,
-    expectedExternalSshTargetId: file.externalSshTargetId
-  })
+  void readDocumentForEchoVerification(document, target.connectionId)
     .then((result) => {
-      if (
-        (result.isBinary || result.content !== recentSelfWrite.content) &&
-        hasCleanExternalReloadTarget(notification)
-      ) {
-        clearSelfWrite(file.filePath, runtimeEnvironmentId)
+      if (result.isBinary || result.content !== recentSelfWrite.content) {
+        clearSelfWrite(document.id)
         scheduleDebouncedEditorExternalReload(notification)
       }
     })
     .catch(() => {
-      if (hasCleanExternalReloadTarget(notification)) {
-        clearSelfWrite(file.filePath, runtimeEnvironmentId)
-        scheduleDebouncedEditorExternalReload(notification)
-      }
+      clearSelfWrite(document.id)
+      scheduleDebouncedEditorExternalReload(notification)
     })
-}
-
-function hasCleanExternalReloadTarget(notification: EditorExternalWatchNotification): boolean {
-  const matching = getOpenFilesForExternalFileChange(useAppStore.getState().openFiles, notification)
-  return matching.some((file) => !file.isDirty)
 }

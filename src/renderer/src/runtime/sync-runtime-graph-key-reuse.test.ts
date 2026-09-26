@@ -5,6 +5,7 @@ import {
   runtimeMobileSessionSyncKeysEqual
 } from './sync-runtime-graph'
 import type { AppState } from '../store/types'
+import type { WorkingDocument, WorkingDocumentId } from '../store/slices/editor/working-document'
 
 function makeState(overrides: Partial<AppState> = {}): AppState {
   return {
@@ -18,7 +19,8 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     activeFileId: null,
     activeFileIdByWorktree: {},
     openFiles: [],
-    editorDrafts: {},
+    workingDocuments: {},
+    workingDocumentIdsByTab: {},
     activeTabId: null,
     ...overrides
   } as AppState
@@ -36,6 +38,34 @@ function makeOpenMarkdownFile(): AppState['openFiles'][number] {
   }
 }
 
+const README_DOCUMENT_ID = 'working-document:readme' as WorkingDocumentId
+
+function markdownDocumentState(
+  content: string
+): Pick<AppState, 'workingDocuments' | 'workingDocumentIdsByTab'> {
+  const document: WorkingDocument = {
+    id: README_DOCUMENT_ID,
+    target: {
+      owner: { executionHostId: 'local' as never, runtimeEnvironmentId: null },
+      filePath: '/repo/README.md',
+      worktreeId: 'wt-1',
+      relativePath: 'README.md',
+      language: 'markdown',
+      operationProvenance: {} as WorkingDocument['target']['operationProvenance']
+    },
+    content,
+    revision: 1,
+    isDirty: true,
+    loadState: 'ready',
+    writable: true,
+    alwaysAutoSave: false
+  }
+  return {
+    workingDocuments: { [README_DOCUMENT_ID]: document },
+    workingDocumentIdsByTab: { '/repo/README.md': [README_DOCUMENT_ID] }
+  }
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -50,7 +80,7 @@ describe('runtime mobile session sync key projection reuse', () => {
         'term-1': { 1: 'Codex working' }
       } as unknown as AppState['runtimePaneTitlesByTabId'],
       openFiles: [makeOpenMarkdownFile()],
-      editorDrafts: { '/repo/README.md': '# draft' }
+      ...markdownDocumentState('# draft')
     })
     const baseKey = getRuntimeMobileSessionSyncKey(base)
     const titleTick = makeState({
@@ -67,7 +97,7 @@ describe('runtime mobile session sync key projection reuse', () => {
     expect(stringifySpy).not.toHaveBeenCalled()
     expect(titleTickKey.tabsProjection).toBe(baseKey.tabsProjection)
     expect(titleTickKey.openFilesProjection).toBe(baseKey.openFilesProjection)
-    expect(titleTickKey.editorDraftsProjection).toBe(baseKey.editorDraftsProjection)
+    expect(titleTickKey.workingDocumentsProjection).toBe(baseKey.workingDocumentsProjection)
     expect(runtimeMobileSessionSyncKeysEqual(baseKey, titleTickKey)).toBe(false)
   })
 
@@ -77,7 +107,7 @@ describe('runtime mobile session sync key projection reuse', () => {
         'wt-1': [{ id: 'term-1', title: 'Codex working', customTitle: null }]
       } as unknown as AppState['tabsByWorktree'],
       openFiles: [makeOpenMarkdownFile()],
-      editorDrafts: { '/repo/README.md': '# draft' }
+      ...markdownDocumentState('# draft')
     })
     const baseKey = getRuntimeMobileSessionSyncKey(base)
     const titleTick = makeState({
@@ -94,7 +124,7 @@ describe('runtime mobile session sync key projection reuse', () => {
     expect(stringifySpy).toHaveBeenCalledTimes(1)
     expect(titleTickKey.tabsProjection).not.toBe(baseKey.tabsProjection)
     expect(titleTickKey.openFilesProjection).toBe(baseKey.openFilesProjection)
-    expect(titleTickKey.editorDraftsProjection).toBe(baseKey.editorDraftsProjection)
+    expect(titleTickKey.workingDocumentsProjection).toBe(baseKey.workingDocumentsProjection)
     expect(runtimeMobileSessionSyncKeysEqual(baseKey, titleTickKey)).toBe(false)
   })
 
@@ -117,7 +147,7 @@ describe('runtime mobile session sync key projection reuse', () => {
     expect(stringifySpy).not.toHaveBeenCalled()
     expect(activatedKey.tabsProjection).toBe(baseKey.tabsProjection)
     expect(activatedKey.openFilesProjection).toBe(baseKey.openFilesProjection)
-    expect(activatedKey.editorDraftsProjection).toBe(baseKey.editorDraftsProjection)
+    expect(activatedKey.workingDocumentsProjection).toBe(baseKey.workingDocumentsProjection)
     expect(runtimeMobileSessionSyncKeysEqual(baseKey, activatedKey)).toBe(false)
   })
 
@@ -157,7 +187,7 @@ describe('runtime mobile session sync key projection reuse', () => {
 })
 
 describe('mobile session snapshot reuse', () => {
-  it('reuses draft document versions when only runtime pane titles change', () => {
+  it('reuses canonical document versions when only runtime pane titles change', () => {
     const draft = {
       length: 1,
       charCodeAt: vi.fn(() => 120)
@@ -172,7 +202,7 @@ describe('mobile session snapshot reuse', () => {
         'term-1': { 1: 'Codex working' }
       } as unknown as AppState['runtimePaneTitlesByTabId'],
       openFiles: [makeOpenMarkdownFile()],
-      editorDrafts: { '/repo/README.md': draft },
+      ...markdownDocumentState(draft),
       activeFileId: '/repo/README.md'
     })
 

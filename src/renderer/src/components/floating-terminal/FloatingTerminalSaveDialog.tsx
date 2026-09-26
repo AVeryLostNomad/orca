@@ -12,23 +12,23 @@ import type { useFloatingTerminalPanelController } from './use-floating-terminal
 
 type FloatingTerminalSaveDialogProps = Pick<
   ReturnType<typeof useFloatingTerminalPanelController>,
-  | 'saveDialogFileId'
-  | 'saveDialogFile'
+  | 'pendingEditorCloseState'
+  | 'saveDialogDocument'
   | 'handleFloatingSaveDialogCancel'
   | 'handleFloatingSaveDialogDiscard'
   | 'handleFloatingSaveDialogSave'
 >
 
 export function renderFloatingTerminalSaveDialog({
-  saveDialogFileId,
-  saveDialogFile,
+  pendingEditorCloseState,
+  saveDialogDocument,
   handleFloatingSaveDialogCancel,
   handleFloatingSaveDialogDiscard,
   handleFloatingSaveDialogSave
 }: FloatingTerminalSaveDialogProps): React.JSX.Element {
   return (
     <Dialog
-      open={saveDialogFileId !== null}
+      open={Boolean(pendingEditorCloseState?.currentDocumentId)}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
           handleFloatingSaveDialogCancel()
@@ -44,11 +44,11 @@ export function renderFloatingTerminalSaveDialog({
             )}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {saveDialogFile
+            {saveDialogDocument
               ? translate(
                   'auto.components.floating.terminal.FloatingTerminalPanel.5ddc688c52',
                   '"{{value0}}" has unsaved changes. Do you want to save before closing?',
-                  { value0: saveDialogFile.relativePath.split('/').pop() }
+                  { value0: saveDialogDocument.target.relativePath.split('/').pop() }
                 )
               : translate(
                   'auto.components.floating.terminal.FloatingTerminalPanel.b085fb58b5',

@@ -12,6 +12,7 @@ import { shouldShowEditorPanelHeader } from './editor-header'
 import { getUntitledFileRoot } from './untitled-file-rename-path'
 import { translate } from '@/i18n/i18n'
 import type { ArtifactWriteRequest } from '../../../../shared/artifacts'
+import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 
 type EditorPanelRenderModel = ReturnType<typeof getEditorPanelRenderModel>
 
@@ -28,7 +29,7 @@ type EditorPanelShellProps = {
   openFiles: OpenFile[]
   fileContents: Record<string, FileContent>
   diffContents: Record<string, DiffContent>
-  editorDrafts: Record<string, string>
+  documentContentByTab: Record<string, string>
   pendingEditorReveal: ReturnType<typeof useAppStore.getState>['pendingEditorReveal']
   renameDialogFile: OpenFile | null
   renameError: string | null
@@ -47,9 +48,8 @@ type EditorPanelShellProps = {
   createMarkdownArtifactRequest?: () => Promise<ArtifactWriteRequest>
   onContentChange: (content: string) => void
   onContentChangeForFile: (file: OpenFile, content: string) => void
-  onDirtyStateHint: (dirty: boolean) => void
-  onSave: (content: string) => Promise<boolean>
-  onSaveForFile: (file: OpenFile, content: string) => Promise<boolean>
+  onSave: () => Promise<boolean>
+  onSaveForDocument: (documentId: WorkingDocumentId | null) => Promise<boolean>
   onReloadContent: (file: OpenFile) => void
   onCloseMarkdownTableOfContents: () => void
   onCloseRenameDialog: () => void
@@ -70,7 +70,7 @@ export function EditorPanelShell({
   openFiles,
   fileContents,
   diffContents,
-  editorDrafts,
+  documentContentByTab,
   pendingEditorReveal,
   renameDialogFile,
   renameError,
@@ -89,9 +89,8 @@ export function EditorPanelShell({
   createMarkdownArtifactRequest,
   onContentChange,
   onContentChangeForFile,
-  onDirtyStateHint,
   onSave,
-  onSaveForFile,
+  onSaveForDocument,
   onReloadContent,
   onCloseMarkdownTableOfContents,
   onCloseRenameDialog,
@@ -143,7 +142,7 @@ export function EditorPanelShell({
           viewStateScopeId={activeViewStateId ?? activeFile.id}
           fileContents={fileContents}
           diffContents={diffContents}
-          editBuffers={editorDrafts}
+          editBuffers={documentContentByTab}
           openFiles={openFiles}
           worktreeEntries={model.worktreeEntries}
           resolvedLanguage={model.resolvedLanguage}
@@ -158,9 +157,8 @@ export function EditorPanelShell({
           pendingEditorReveal={pendingEditorReveal}
           handleContentChange={onContentChange}
           handleContentChangeForFile={onContentChangeForFile}
-          handleDirtyStateHint={onDirtyStateHint}
           handleSave={onSave}
-          handleSaveForFile={onSaveForFile}
+          handleSaveForDocument={onSaveForDocument}
           reloadContent={onReloadContent}
           showMarkdownTableOfContents={showMarkdownTableOfContents}
           showMarkdownFrontmatter={markdownFrontmatterVisible}

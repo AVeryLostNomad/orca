@@ -1,17 +1,21 @@
-import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { detectLanguage } from '@/lib/language-detect'
-import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
-import { ImageDiffViewer, MarkdownPreview, PierreFileDiff } from './editor-lazy-views'
+import { DiffViewer, ImageDiffViewer, MarkdownPreview, PierreFileDiff } from './editor-lazy-views'
 import { ExternalFileChangeBanner } from './ExternalFileChangeBanner'
 import type { useMarkdownDocuments } from './useMarkdownDocuments'
+import type { WorkingDocument } from '@/store/slices/editor/working-document'
+import type { FileContent } from './editor-panel-content-types'
+import { EditorFileLoadErrorView } from './EditorFileLoadErrorView'
 
 type MarkdownDocumentsController = ReturnType<typeof useMarkdownDocuments>
 
 export function EditorDiffFileSurface({
   activeFile,
+  workingDocument,
+  fileContent,
+  onSave,
   diffContent,
   editBuffer,
   sideBySide,
@@ -26,6 +30,9 @@ export function EditorDiffFileSurface({
   reloadContent
 }: {
   activeFile: OpenFile
+  workingDocument?: WorkingDocument
+  fileContent?: FileContent
+  onSave: (content: string) => Promise<boolean>
   diffContent: GitDiffResult | undefined
   editBuffer: string | undefined
   sideBySide: boolean
@@ -39,7 +46,6 @@ export function EditorDiffFileSurface({
   markdownDocuments: MarkdownDocumentsController
   reloadContent: (file: OpenFile) => void
 }): React.JSX.Element {
-  const openFile = useAppStore((state) => state.openFile)
   if (!diffContent) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -48,7 +54,10 @@ export function EditorDiffFileSurface({
     )
   }
 
-  const isEditable = activeFile.diffSource === 'unstaged'
+  const isEditable =
+    activeFile.diffSource === 'unstaged' &&
+    workingDocument?.loadState === 'ready' &&
+    workingDocument.writable
   if (diffContent.kind === 'binary') {
     if (diffContent.isImage) {
       return (
@@ -82,15 +91,19 @@ export function EditorDiffFileSurface({
       </div>
     )
   }
-
-  const modifiedDiffContent = editBuffer ?? diffContent.modifiedContent
-  const externalChangeBanner =
-    activeFile.externalMutation === 'changed' ? (
-      <ExternalFileChangeBanner
-        file={activeFile}
-        currentContent={modifiedDiffContent}
-        reloadContent={reloadContent}
+  if (fileContent?.loadError) {
+    return (
+      <EditorFileLoadErrorView
+        message={fileContent.loadError}
+        onRetry={() => reloadContent(activeFile)}
       />
+    )
+  }
+
+  const modifiedDiffContent = workingDocument?.content ?? editBuffer ?? diffContent.modifiedContent
+  const externalChangeBanner =
+    workingDocument?.externalMutation === 'changed' ? (
+      <ExternalFileChangeBanner document={workingDocument} currentContent={modifiedDiffContent} />
     ) : null
 
   if (
@@ -128,45 +141,37 @@ export function EditorDiffFileSurface({
   }
 
   const diffReloadNonce = activeFile.diffContentReloadNonce ?? 0
-  // Why: diff tabs are read-only in the Pierre renderer; "Edit file" jumps to a
-  // regular editor tab where unstaged content can actually be changed.
-  const editFileAction = isEditable ? (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-6 px-2 text-xs"
-      onClick={() =>
-        openFile(
-          {
-            filePath: activeFile.filePath,
-            relativePath: activeFile.relativePath,
-            worktreeId: activeFile.worktreeId,
-            language: detectLanguage(activeFile.relativePath),
-            mode: 'edit',
-            runtimeEnvironmentId: activeFile.runtimeEnvironmentId
-          },
-          { focusEditor: true }
-        )
-      }
-    >
-      {translate('auto.components.editor.EditorContent.d6aa8b56a3', 'Edit file')}
-    </Button>
-  ) : null
-  const diffViewer = (
+  const diffViewer = isEditable ? (
+    <DiffViewer
+      modelKey={diffViewStateKey}
+      workingDocumentId={workingDocument.id}
+      originalContent={diffContent.originalContent}
+      modifiedContent={modifiedDiffContent}
+      filePath={activeFile.filePath}
+      relativePath={activeFile.relativePath}
+      language={detectLanguage(activeFile.relativePath)}
+      sideBySide={sideBySide}
+      worktreeId={activeFile.worktreeId}
+      onSave={onSave}
+      largeDiffRenderLimit={diffContent.largeDiffRenderLimit}
+    />
+  ) : (
     <PierreFileDiff
       // Why: key off the reload nonce so refreshed blobs remount cleanly; content identity is handled via cacheKey.
       key={`${viewStateScopeId}:${diffReloadNonce}`}
       scrollKey={diffViewStateKey}
       originalContent={diffContent.originalContent}
       modifiedContent={modifiedDiffContent}
+      originalReadState={diffContent.originalReadState}
+      modifiedReadState={diffContent.modifiedReadState}
       relativePath={activeFile.relativePath}
+      language={detectLanguage(activeFile.relativePath)}
       sideBySide={sideBySide}
       worktreeId={activeFile.worktreeId}
       largeDiffRenderLimit={diffContent.largeDiffRenderLimit}
-      headerActions={editFileAction}
     />
   )
-  if (activeFile.externalMutation !== 'changed') {
+  if (workingDocument?.externalMutation !== 'changed') {
     return diffViewer
   }
   return (

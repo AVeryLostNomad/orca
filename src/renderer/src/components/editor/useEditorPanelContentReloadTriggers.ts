@@ -1,6 +1,6 @@
 import { useEffect, useMemo, type MutableRefObject } from 'react'
 import type { OpenFile } from '@/store/slices/editor'
-import type { useAppStore } from '@/store'
+import { useAppStore } from '@/store'
 import type { DiffContent } from './editor-panel-content-types'
 import {
   isReloadableSingleFileDiffTab,
@@ -8,6 +8,7 @@ import {
 } from './editor-panel-diff-reload'
 import type { EditorPanelDiffContentLoader } from './useEditorPanelDiffContentLoader'
 import type { EditorPanelFileContentLoader } from './useEditorPanelFileContentLoader'
+import { getEditorGitBaselineScope } from './editor-panel-file-mode'
 
 type GitStatusByWorktree = ReturnType<typeof useAppStore.getState>['gitStatusByWorktree']
 
@@ -36,6 +37,9 @@ export function useEditorPanelContentReloadTriggers({
   loadDiffContent,
   loadFileContent
 }: UseEditorPanelContentReloadTriggersParams): void {
+  const baselineScope = useAppStore((state) =>
+    activeFile ? getEditorGitBaselineScope(state, activeFile) : null
+  )
   const changesStatusEntries = activeFile?.worktreeId ? gitStatusEntries : undefined
   const activeFileGitStatusEntries = useMemo(() => {
     if (!activeFile?.relativePath || !changesStatusEntries) {
@@ -70,7 +74,7 @@ export function useEditorPanelContentReloadTriggers({
     if (!current) {
       return
     }
-    if (!(isChangesMode || activeFileShouldReloadOnGitStatusChange)) {
+    if (!(baselineScope !== null || isChangesMode || activeFileShouldReloadOnGitStatusChange)) {
       return
     }
     if (!isVisibleRef.current) {
@@ -88,6 +92,7 @@ export function useEditorPanelContentReloadTriggers({
     activeFileShouldReloadOnGitStatusChange,
     activeFileGitStatusSignature,
     isChangesMode,
+    baselineScope,
     activeFile?.id,
     invalidateDiffContent,
     loadDiffContent,

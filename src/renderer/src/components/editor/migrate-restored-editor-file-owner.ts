@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store'
+import type { AppState } from '@/store/types'
 import {
   findWorkspaceFileRoute,
   type RuntimeWorkspaceFileRoute
@@ -8,10 +9,17 @@ import {
   captureEditorFileOperationProvenance,
   type EditorFileOperationProvenance
 } from '@/lib/editor-file-operation-owner'
-import { requestEditorSaveQuiesce } from './editor-autosave'
+import { quiesceDocumentSave } from './editor-autosave'
 import type { RestoredEditorOwnerResult } from '@/store/slices/editor'
 
 export type RestoredEditorOwnerMigrationResult = RestoredEditorOwnerResult
+function getDocumentForTab(
+  state: Pick<AppState, 'workingDocuments' | 'workingDocumentIdsByTab'>,
+  tabId: string
+) {
+  const documentId = state.workingDocumentIdsByTab[tabId]?.[0]
+  return documentId ? state.workingDocuments[documentId] : undefined
+}
 
 export async function migrateRestoredEditorFileOwner(
   fileId: string,
@@ -20,10 +28,11 @@ export async function migrateRestoredEditorFileOwner(
 ): Promise<RestoredEditorOwnerMigrationResult> {
   const state = useAppStore.getState()
   const source = state.openFiles.find((file) => file.id === fileId)
+  const sourceDocument = getDocumentForTab(state, fileId)
   const initialRoute = source
     ? findWorkspaceFileRoute(state, route.executionHostId, source.filePath)
     : null
-  if (!source || !routesMatch(initialRoute, route)) {
+  if (!source || !sourceDocument || !routesMatch(initialRoute, route)) {
     return { ok: false, reason: 'stale' }
   }
   let targetOperationProvenance: EditorFileOperationProvenance
@@ -37,14 +46,17 @@ export async function migrateRestoredEditorFileOwner(
   } catch {
     return { ok: false, reason: 'owner-changed' }
   }
-  if (!state.setRestoredEditorOwnerMigrationPending(fileId, true)) {
+  if (sourceDocument.pendingOwnerMigration) {
     return { ok: false, reason: 'stale' }
   }
+  state.setWorkingDocumentExternalState(sourceDocument.id, { pendingOwnerMigration: true })
 
   try {
-    await requestEditorSaveQuiesce({ fileId })
+    await quiesceDocumentSave(sourceDocument.id)
   } catch (error) {
-    useAppStore.getState().setRestoredEditorOwnerMigrationPending(fileId, false)
+    useAppStore
+      .getState()
+      .setWorkingDocumentExternalState(sourceDocument.id, { pendingOwnerMigration: undefined })
     throw error
   }
   const currentState = useAppStore.getState()
@@ -62,7 +74,9 @@ export async function migrateRestoredEditorFileOwner(
       throw new Error('stale route')
     }
   } catch {
-    currentState.setRestoredEditorOwnerMigrationPending(fileId, false)
+    currentState.setWorkingDocumentExternalState(sourceDocument.id, {
+      pendingOwnerMigration: undefined
+    })
     return { ok: false, reason: 'owner-changed' }
   }
   return currentState.reparentRestoredEditorFileOwner({

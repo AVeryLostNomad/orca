@@ -10,13 +10,13 @@ export const EDITOR_TAB_CONTENT_TYPES = new Set<TabContentType>([
 ])
 
 type EditorCmdSaveState = {
-  activeFileId: string | null
   activeTabType: string | null
   activeView: TopLevelView
+  activeWorktreeId: string | null
   getActiveTab: (worktreeId: string) => Tab | null
 }
 
-export function getEditorCmdSaveFileId(
+export function getEditorCmdSaveTabId(
   state: EditorCmdSaveState,
   floatingPanelOwnsEvent: boolean
 ): string | null {
@@ -24,12 +24,12 @@ export function getEditorCmdSaveFileId(
     // Why: outside the workspace view no mounted panel claims the request, so
     // returning an id would swallow Cmd/Ctrl+S on Tasks/Settings without saving.
     // The floating panel floats above every view and keeps its own ownership.
-    return state.activeView === 'terminal' && state.activeTabType === 'editor'
-      ? state.activeFileId
-      : null
+    const activeTab =
+      state.activeView === 'terminal' && state.activeTabType === 'editor' && state.activeWorktreeId
+        ? state.getActiveTab(state.activeWorktreeId)
+        : null
+    return activeTab && EDITOR_TAB_CONTENT_TYPES.has(activeTab.contentType) ? activeTab.id : null
   }
   const activeTab = state.getActiveTab(FLOATING_TERMINAL_WORKTREE_ID)
-  return activeTab && EDITOR_TAB_CONTENT_TYPES.has(activeTab.contentType)
-    ? activeTab.entityId
-    : null
+  return activeTab && EDITOR_TAB_CONTENT_TYPES.has(activeTab.contentType) ? activeTab.id : null
 }

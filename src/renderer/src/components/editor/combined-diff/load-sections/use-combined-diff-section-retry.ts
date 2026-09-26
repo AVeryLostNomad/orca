@@ -93,7 +93,7 @@ export function useCombinedDiffSectionRetry({
   const requestSectionReload = useCallback(
     (index: number): void => {
       const section = sectionsRef.current[index]
-      if (!section || section.dirty) {
+      if (!section) {
         return
       }
       loadedIndicesRef.current.delete(index)

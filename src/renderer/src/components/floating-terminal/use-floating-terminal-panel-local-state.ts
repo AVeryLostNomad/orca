@@ -45,9 +45,7 @@ export function useFloatingTerminalPanelLocalState() {
   const lastPersistedBoundsRef = useRef<FloatingTerminalPanelCommittedBounds | null>(
     initialBoundsState.source === 'user' ? initialBoundsState.committedBounds : null
   )
-  const pendingEditorCloseQueueRef = useRef<string[]>([])
   const pendingReclaimArmByFileIdRef = useRef<Map<string, () => void>>(new Map())
-  const saveDialogFileIdRef = useRef<string | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [terminalPaneRegistry] = useState(() =>
     createTerminalPaneHandleRegistry<TerminalPaneHandle>()
@@ -92,9 +90,7 @@ export function useFloatingTerminalPanelLocalState() {
     restoreBoundsRef,
     stagedBoundsRef,
     lastPersistedBoundsRef,
-    pendingEditorCloseQueueRef,
     pendingReclaimArmByFileIdRef,
-    saveDialogFileIdRef,
     panelRef,
     terminalPaneRegistry,
     doubleTapDetectorRef,
