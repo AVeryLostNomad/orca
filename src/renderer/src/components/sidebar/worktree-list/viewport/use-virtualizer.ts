@@ -19,6 +19,7 @@ import {
   shouldAdjustWorktreeSidebarMeasuredRowScroll,
   USER_SCROLL_MEASUREMENT_ADJUSTMENT_SUPPRESS_MS
 } from './use-scroll-suppression'
+import { useClampedVirtualScrollOffsetSync } from '@/hooks/virtualizer-clamped-scroll-offset'
 
 export type WorktreeListVirtualizer = ReturnType<typeof useWorktreeListVirtualizer>
 
@@ -145,6 +146,8 @@ export function useWorktreeListVirtualizer(args: {
       now: window.performance.now(),
       suppressUntil: args.suppressMeasurementAdjustmentUntilRef.current
     })
+  // Why: a stale offset past the DOM clamp pins a later header in flow, covering row 0 and blanking its own slot.
+  useClampedVirtualScrollOffsetSync(virtualizer, scrollRef)
 
   return {
     virtualizer,

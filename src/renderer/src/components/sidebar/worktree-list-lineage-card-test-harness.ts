@@ -54,6 +54,7 @@ export function createReactVirtualModuleMock(): Record<string, unknown> {
     measureElement: () => 32,
     useVirtualizer: ({ count }: { count: number }) => ({
       elementsCache: new Map(),
+      scrollOffset: null,
       getTotalSize: () => count * 80,
       getVirtualItems: () =>
         Array.from({ length: count }, (_, index) => ({

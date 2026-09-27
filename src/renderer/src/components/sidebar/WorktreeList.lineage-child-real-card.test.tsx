@@ -67,6 +67,7 @@ vi.mock('@tanstack/react-virtual', () => ({
   measureElement: () => 32,
   useVirtualizer: ({ count }: { count: number }) => ({
     elementsCache: new Map(),
+    scrollOffset: null,
     getTotalSize: () => count * 96,
     getVirtualItems: () =>
       Array.from({ length: count }, (_, index) => ({

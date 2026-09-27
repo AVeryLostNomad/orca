@@ -73,6 +73,7 @@ vi.mock('@tanstack/react-virtual', () => ({
     getItemKey?: (index: number) => string | number
   }) => ({
     elementsCache: new Map(),
+    scrollOffset: null,
     getTotalSize: () => count * 96,
     getVirtualItems: () =>
       Array.from({ length: count }, (_, index) => ({
