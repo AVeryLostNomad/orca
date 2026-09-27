@@ -1,4 +1,4 @@
-import type { editor, IDisposable } from 'monaco-editor'
+import type { editor, IDisposable, Uri } from 'monaco-editor'
 import { monaco } from '@/lib/monaco-setup'
 import { useAppStore } from '@/store'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
@@ -25,8 +25,13 @@ const models = new Map<WorkingDocumentId, RetainedModel>()
 let unsubscribeStore: (() => void) | undefined
 let unsubscribeSaves: (() => void) | undefined
 
-export function getWorkingDocumentModelUri(id: WorkingDocumentId): string {
-  return `orca-working-document:${encodeURIComponent(id)}`
+// Why: peek/reference UIs label models by URI path, so carry the file path; the id query keeps it unique.
+function workingDocumentModelUri(id: WorkingDocumentId, filePath: string): Uri {
+  return monaco.Uri.from({
+    scheme: 'orca-working-document',
+    path: monaco.Uri.file(filePath).path,
+    query: id
+  })
 }
 
 function collectModel(id: WorkingDocumentId, entry: RetainedModel): void {
@@ -81,7 +86,7 @@ export function acquireWorkingDocumentModel(id: WorkingDocumentId): editor.IText
   const model = monaco.editor.createModel(
     document.content,
     document.target.language,
-    monaco.Uri.parse(getWorkingDocumentModelUri(id))
+    workingDocumentModelUri(id, document.target.filePath)
   )
   const entry: RetainedModel = {
     model,

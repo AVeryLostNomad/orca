@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type * as Monaco from 'monaco-editor'
 import { installMonacoPeekReferencesPreviewOptions } from './monaco-peek-preview-options'
 
-type FakePreviewEditor = Pick<Monaco.editor.ICodeEditor, 'updateOptions'>
+type FakePreviewEditor = Pick<Monaco.editor.ICodeEditor, 'updateOptions' | 'getModel'>
 
 type FakeReferenceWidgetInstance = {
   _preview?: FakePreviewEditor
@@ -32,13 +32,14 @@ function createReferenceWidgetConstructor(hooks: {
 }
 
 function createPreviewEditor(): FakePreviewEditor {
-  return { updateOptions: vi.fn() }
+  return { updateOptions: vi.fn(), getModel: () => null }
 }
 
 const peekPreviewOptions = {
   smoothScrolling: false,
   stickyScroll: { enabled: false },
-  wordWrap: 'off'
+  wordWrap: 'off',
+  readOnly: false
 }
 
 describe('installMonacoPeekReferencesPreviewOptions', () => {
@@ -59,7 +60,8 @@ describe('installMonacoPeekReferencesPreviewOptions', () => {
   it('updates the embedded preview before revealing a reference', async () => {
     const calls: string[] = []
     const preview: FakePreviewEditor = {
-      updateOptions: vi.fn(() => calls.push('updateOptions'))
+      updateOptions: vi.fn(() => calls.push('updateOptions')),
+      getModel: () => null
     }
     const referenceWidget = createReferenceWidgetConstructor({
       revealReference: async () => {

@@ -31,11 +31,7 @@ import { MonacoMarkdownAnnotationOverlay } from './MonacoMarkdownAnnotationOverl
 import { AskAgentSelectionPopover } from './AskAgentSelectionPopover'
 import type { MonacoMarkdownSelectionAnnotationTarget } from './monaco-markdown-selection-annotation'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
-import {
-  acquireWorkingDocumentModel,
-  attachWorkingDocumentEditor,
-  getWorkingDocumentModelUri
-} from './working-document-model'
+import { acquireWorkingDocumentModel, attachWorkingDocumentEditor } from './working-document-model'
 import { flushPendingEditorChange } from './editor-pending-flush'
 import { useMonacoGitGutter } from './use-monaco-git-gutter'
 import type { EditorGitBaseline } from './editor-git-baseline'
@@ -109,8 +105,7 @@ export default function MonacoEditor({
     if (!workingDocumentId) {
       return filePath
     }
-    acquireWorkingDocumentModel(workingDocumentId)
-    return getWorkingDocumentModelUri(workingDocumentId)
+    return acquireWorkingDocumentModel(workingDocumentId).uri.toString()
   }, [workingDocumentId, filePath])
   useLayoutEffect(() => {
     if (!workingDocumentId || !mountedEditor) {

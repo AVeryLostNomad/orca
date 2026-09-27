@@ -172,6 +172,23 @@ export async function exerciseLiveDiffLsp(
         { timeout: 15_000 }
       )
       await page.keyboard.press('Escape')
+      if (index === 0) {
+        await page.keyboard.press('Escape')
+        await page.keyboard.press('Shift+F12')
+        const peek = page.locator('.reference-zone-widget').filter({ visible: true })
+        const tree = peek.locator('.ref-tree')
+        // The open file previews through its working model; unopened files through disk snapshots.
+        await expect(tree).toContainText('result = buildLiveWidget', { timeout: 15_000 })
+        await expect(tree).not.toContainText(/\.ts:\d+:\d+/)
+        await expect(peek.locator('.preview .view-lines')).toContainText('buildLiveWidget')
+        await tree.getByText(SUPPORT, { exact: true }).click()
+        const supportReference = tree.getByText(/function buildLiveWidget\(label: string\)/)
+        await expect(supportReference).toBeVisible()
+        await supportReference.click()
+        await expect(peek.locator('.preview .view-lines')).toContainText('answerFromSibling: 42')
+        await page.keyboard.press('Escape')
+        await expect(peek).toHaveCount(0)
+      }
       await page.keyboard.press('F12')
       await expect(page.locator('.editor-header-path').first()).toHaveAttribute(
         'title',

@@ -1,7 +1,8 @@
 import type * as Monaco from 'monaco-editor'
 import { ReferenceWidget as MonacoReferenceWidget } from 'monaco-editor/esm/vs/editor/contrib/gotoSymbol/browser/peek/referencesWidget.js'
+import { isLspLocationPreviewModel } from './lsp/lsp-location-models'
 
-type PeekPreviewEditor = Pick<Monaco.editor.ICodeEditor, 'updateOptions'>
+type PeekPreviewEditor = Pick<Monaco.editor.ICodeEditor, 'updateOptions' | 'getModel'>
 
 const PEEK_REFERENCES_PREVIEW_OPTIONS: Monaco.editor.IEditorOptions = {
   smoothScrolling: false,
@@ -24,7 +25,11 @@ type ReferenceWidgetConstructor = {
 function applyPeekReferencesPreviewOptions(editor: PeekPreviewEditor | undefined): void {
   // Why: Monaco embedded editors inherit Orca's full-editor options first.
   // Peek previews are transient readers, so keep scroll/wrap widgets out of them.
-  editor?.updateOptions(PEEK_REFERENCES_PREVIEW_OPTIONS)
+  // Disk-snapshot previews of unopened files are never saved, so block edits there.
+  editor?.updateOptions({
+    ...PEEK_REFERENCES_PREVIEW_OPTIONS,
+    readOnly: isLspLocationPreviewModel(editor.getModel())
+  })
 }
 
 export function installMonacoPeekReferencesPreviewOptions(

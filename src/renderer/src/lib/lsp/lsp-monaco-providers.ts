@@ -24,6 +24,7 @@ import {
   toMonacoTextEdits
 } from './lsp-monaco-converters'
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
+import { resolveLspLocationModels } from './lsp-location-models'
 import { registerLspCodeActionProvider } from './lsp-monaco-code-action-provider'
 import { registerLspCompletionProvider } from './lsp-monaco-completion-provider'
 import { registerLspRenameProvider } from './lsp-monaco-rename-provider'
@@ -121,7 +122,7 @@ export function ensureLspProvidersForLanguage(
           : lspPositionParams(binding, position),
         token
       )
-      return toMonacoLocations(monaco, result)
+      return resolveLspLocationModels(monaco, binding.session, toMonacoLocations(monaco, result))
     }
   }
 

@@ -32,7 +32,11 @@ export function installLspEditorOpener(monaco: MonacoModule): void {
       if (!binding) {
         return false
       }
-      const targetPath = pathFromLspUri(resource.toString())
+      // Locations inside open documents point at their working-document model.
+      const targetModel = monaco.editor.getModel(resource)
+      const targetPath =
+        (targetModel && getLspBindingForModel(targetModel)?.filePath) ??
+        pathFromLspUri(resource.toString())
       if (!targetPath) {
         return false
       }
