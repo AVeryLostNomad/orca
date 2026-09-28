@@ -13,6 +13,7 @@ import { useWorkspaceBoardTaskStatusSync } from './use-workspace-board-task-stat
 import { useWorkspaceKanbanStatusActions } from './use-workspace-kanban-status-actions'
 import { useWorkspaceKanbanWorktreeActions } from './use-workspace-kanban-worktree-actions'
 import type { Worktree } from '../../../../shared/worktree/types'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 import { useContextualTour } from '@/components/contextual-tours/use-contextual-tour'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import WorkspaceKanbanDrawerView from './WorkspaceKanbanDrawerView'
@@ -30,6 +31,8 @@ type WorkspaceKanbanDrawerProps = {
   preserveOpenForMenu: boolean
   onOpenChange: (open: boolean) => void
   onMenuOpenChange: (open: boolean) => void
+  /** The sidebar's host page; the board shows the same host's workspaces. */
+  hostPageId?: ExecutionHostId
 }
 
 export default function WorkspaceKanbanDrawer(
@@ -50,7 +53,8 @@ function WorkspaceKanbanDrawerContent({
   dragPreview,
   preserveOpenForMenu,
   onOpenChange,
-  onMenuOpenChange
+  onMenuOpenChange,
+  hostPageId
 }: WorkspaceKanbanDrawerProps): React.JSX.Element {
   const allWorktrees = useAllWorktrees()
   const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
@@ -96,7 +100,8 @@ function WorkspaceKanbanDrawerContent({
     open,
     repoMap,
     sortBy,
-    workspaceStatuses
+    workspaceStatuses,
+    hostPageId
   })
   const {
     selectedWorktreeIds,

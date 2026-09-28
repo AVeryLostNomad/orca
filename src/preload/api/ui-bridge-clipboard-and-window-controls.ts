@@ -23,6 +23,7 @@ export const uiClipboardAndWindowControlsApi = {
       relativePath: string
       staged: boolean
       runtimeEnvironmentId?: string
+      activate?: boolean
     }) => void
   ): (() => void) => {
     const listener = (
@@ -33,6 +34,7 @@ export const uiClipboardAndWindowControlsApi = {
         relativePath: string
         staged: boolean
         runtimeEnvironmentId?: string
+        activate?: boolean
       }
     ) => callback(data)
     ipcRenderer.on('ui:openDiffFromMobile', listener)

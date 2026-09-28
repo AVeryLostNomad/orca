@@ -23,10 +23,12 @@ export function useWorkspaceKanbanBoardProjection(args: {
   repoMap: ReturnType<typeof useRepoMap>
   sortBy: ReturnType<typeof useAppStore.getState>['sortBy']
   workspaceStatuses: ReturnType<typeof useAppStore.getState>['workspaceStatuses']
+  hostPageId?: ExecutionHostId
 }) {
   const visibleWorktreeIds = useVisibleWorkspaceKanbanWorktreeIds({
     allWorktrees: args.allWorktrees,
-    repoMap: args.repoMap
+    repoMap: args.repoMap,
+    hostPageId: args.hostPageId
   })
   const worktreesByStatus = useMemo(
     () =>

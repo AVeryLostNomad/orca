@@ -6100,14 +6100,7 @@
           "5b90e4a2f6": "hidden worktrees",
           "7f18c5b0d3": "Review {{value0}} hidden worktree in {{value1}}",
           "4e2b7a9c05": "Review {{value0}} hidden worktrees in {{value1}}",
-          "c3e8a1f4b2": "Don't show again",
-          "6c07f3a91e": "{{value0}} on {{value1}}"
-        },
-        "NoticeHostGlyph": {
-          "hostDisconnected": "{{hostName}} disconnected",
-          "sshHostProject": "Project on SSH host {{hostName}}",
-          "localHostProject": "Project on this host",
-          "runtimeHostProject": "Project on {{hostName}}"
+          "c3e8a1f4b2": "Don't show again"
         },
         "newExternalWorktreesInboxActions": {
           "a11c2f6d89": "Could not keep external worktrees hidden. Try again.",
@@ -18155,7 +18148,12 @@
       "openActivity": "View activity",
       "closeActivity": "Turn off activity view",
       "projects": "Projects",
-      "workspaces": "Workspaces"
+      "workspaces": "Workspaces",
+      "localProjects": "Local Projects",
+      "localWorkspaces": "Local Workspaces",
+      "hostPages": "Hosts",
+      "hostConnecting": "Connecting…",
+      "hostUnreachable": "Unreachable"
     }
   },
   "runtimeRpc": {

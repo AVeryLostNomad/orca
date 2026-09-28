@@ -116,20 +116,20 @@ describe('modifier routing across link source owners', () => {
     expect(openUrlMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the legacy modifier on the system browser when inversion is off', () => {
+  it('keeps a remote loopback link in the system browser when the modifier resolves there', () => {
     storeState.settings = {
       openLinksInApp: false,
       openLinksInAppModifierInverts: false,
       activeRuntimeEnvironmentId: null
     }
 
-    openHttpLink('https://example.com/', {
+    openHttpLink('http://localhost:5173/', {
       worktreeId: 'wt-1',
       modifierHeld: true,
       sourceOwner: { kind: 'runtime', runtimeEnvironmentId: 'env-1' }
     })
 
-    expect(openUrlMock).toHaveBeenCalledWith('https://example.com/')
+    expect(openUrlMock).toHaveBeenCalledWith('http://localhost:5173/')
     expect(openRuntimeBrowserTabMock).not.toHaveBeenCalled()
   })
 })

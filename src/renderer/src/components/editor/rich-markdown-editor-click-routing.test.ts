@@ -16,8 +16,11 @@ beforeEach(() => {
 
 // Why: the preview deliberately routes differently; this pins the editor side so a
 // future "make them consistent" change cannot land silently.
-function clickExternalLinkWithShift(sourceOwner: HttpLinkSourceOwner, isMac = true): boolean {
-  const href = 'https://example.com/docs'
+function clickExternalLinkWithShift(
+  sourceOwner: HttpLinkSourceOwner,
+  isMac = true,
+  href = 'https://example.com/docs'
+): boolean {
   const view = {
     state: {
       doc: {
@@ -58,7 +61,8 @@ describe('rich markdown editor Shift+modifier click on external links', () => {
     expect(clickExternalLinkWithShift({ kind: 'local' })).toBe(true)
     expect(openHttpLinkMock).toHaveBeenCalledWith('https://example.com/docs', {
       forceSystemBrowser: true,
-      sourceOwner: { kind: 'local' }
+      sourceOwner: { kind: 'local' },
+      worktreeId: 'wt-1'
     })
   })
 
@@ -68,7 +72,8 @@ describe('rich markdown editor Shift+modifier click on external links', () => {
     expect(clickExternalLinkWithShift({ kind: 'local' }, false)).toBe(true)
     expect(openHttpLinkMock).toHaveBeenCalledWith('https://example.com/docs', {
       forceSystemBrowser: true,
-      sourceOwner: { kind: 'local' }
+      sourceOwner: { kind: 'local' },
+      worktreeId: 'wt-1'
     })
   })
 
@@ -80,5 +85,15 @@ describe('rich markdown editor Shift+modifier click on external links', () => {
       'https://example.com/docs',
       expect.objectContaining({ forceSystemBrowser: true, sourceOwner })
     )
+  })
+
+  it('routes a remote loopback link through its workspace browser', () => {
+    const sourceOwner = { kind: 'runtime', runtimeEnvironmentId: 'env-1' } as const
+
+    expect(clickExternalLinkWithShift(sourceOwner, true, 'http://localhost:5173/')).toBe(true)
+    expect(openHttpLinkMock).toHaveBeenCalledWith('http://localhost:5173/', {
+      sourceOwner,
+      worktreeId: 'wt-1'
+    })
   })
 })

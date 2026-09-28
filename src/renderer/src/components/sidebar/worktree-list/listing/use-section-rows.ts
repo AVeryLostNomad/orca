@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
@@ -10,22 +10,17 @@ import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shar
 import type { WorktreeLineage } from '../../../../../../shared/worktree/lineage-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
-import { getHostDisplayLabelOverrides } from '../../../../../../shared/host-setting-overrides'
 import { buildRows } from '../grouping/build-rows'
 import type { ProjectGroupingModel } from '../grouping/project-grouping'
 import type { PinnedWorktreeDisplayPolicy, Row, WorktreeGroupBy } from '../grouping/row-types'
 import { getLogicalRepoOrderRankById } from '../../project-header-drop'
 import { getEmptyProjectPlaceholderRepoIds } from '../../empty-project-placeholder-repos'
-import { addHostSectionRows } from '../../host-section-rows'
-import { orderHostSectionOptions } from '../../host-section-order'
-import { buildSidebarHostOptions } from '../../sidebar-host-options'
 import { selectPendingWorktreeCreationKeys } from './pending-worktree-creation-keys'
 
 type SectionRowsArgs = {
   groupBy: WorktreeGroupBy
   projectOrderBy: ProjectOrderBy
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
-  defaultHostId: ExecutionHostId
   worktrees: Worktree[]
   repos: readonly Repo[]
   repoMap: Map<string, Repo>
@@ -42,11 +37,11 @@ type SectionRowsArgs = {
   importedWorktreesByRepo: Parameters<typeof buildRows>[14]
   newExternalWorktreesInboxByRepo: Parameters<typeof buildRows>[15]
   filterRepoIds: readonly string[]
-  visibleWorkspaceHostIds: readonly ExecutionHostId[] | null
-  workspaceHostScope: AppState['workspaceHostScope']
+  /** Set on paged host sidebars: rows that name no host of their own must still stay on this page. */
+  hostPageId?: ExecutionHostId
 }
 
-function collectRenderedSidebarRowKeys(sectionRows: ReturnType<typeof addHostSectionRows>) {
+function collectRenderedSidebarRowKeys(sectionRows: readonly Row[]) {
   const keys = new Set<string>()
   for (const row of sectionRows) {
     if (row.type === 'header') {
@@ -66,17 +61,10 @@ function collectRenderedSidebarRowKeys(sectionRows: ReturnType<typeof addHostSec
   return keys
 }
 
-// Builds the full sidebar row model: grouped worktree rows first, then the host-section
-// tier wrapped around them.
+// Builds the grouped sidebar row model.
 export function useSidebarSectionRows(args: SectionRowsArgs) {
-  const { repos, worktrees, repoMap, effectiveCollapsedGroups, defaultHostId } = args
+  const { repos, worktrees, repoMap, effectiveCollapsedGroups } = args
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
-  const sshTargetLabels = useAppStore((s) => s.sshTargetLabels)
-  const sshConnectionStates = useAppStore((s) => s.sshConnectionStates)
-  const runtimeEnvironments = useAppStore((s) => s.runtimeEnvironments)
-  const runtimeStatusByEnvironmentId = useAppStore((s) => s.runtimeStatusByEnvironmentId)
-  const workspaceHostOrder = useAppStore((s) => s.workspaceHostOrder)
-  const setWorkspaceHostOrder = useAppStore((s) => s.setWorkspaceHostOrder)
 
   // Why: manual header order is bound to state.repos; Recent/Smart derive order from the sorted worktree stream.
   const repoOrder = useMemo(
@@ -100,46 +88,19 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
   const pendingCreationKeys = useAppStore(
     useShallow((s) => selectPendingWorktreeCreationKeys(s.pendingWorktreeCreations))
   )
-  const pendingCreations = useMemo(
-    () =>
-      pendingCreationKeys.map((key) => {
-        const separator = key.indexOf(' ')
-        return {
-          creationId: key.slice(0, separator),
-          repoId: key.slice(separator + 1)
-        }
-      }),
-    [pendingCreationKeys]
-  )
-  const hostLabelOverrides = useMemo(
-    () => getHostDisplayLabelOverrides(args.settings),
-    [args.settings]
-  )
-  const hostOptions = useMemo(
-    () =>
-      buildSidebarHostOptions({
-        repos,
-        sshTargetLabels,
-        sshConnectionStates,
-        settings: args.settings,
-        runtimeEnvironments,
-        runtimeStatusByEnvironmentId,
-        hostLabelOverrides
-      }),
-    [
-      repos,
-      sshTargetLabels,
-      sshConnectionStates,
-      args.settings,
-      runtimeEnvironments,
-      runtimeStatusByEnvironmentId,
-      hostLabelOverrides
-    ]
-  )
-  const hostLabelById = useMemo(
-    () => new Map(hostOptions.map((host) => [host.id, host.label])),
-    [hostOptions]
-  )
+  const pendingCreations = useMemo(() => {
+    // Why: a pending create names only its repo, so the page keeps the creates whose repo it lists.
+    const pageRepoIds = args.hostPageId
+      ? new Set(args.visibleReposForRows.map((repo) => repo.id))
+      : null
+    return pendingCreationKeys.flatMap((key) => {
+      const separator = key.indexOf(' ')
+      const repoId = key.slice(separator + 1)
+      return pageRepoIds && !pageRepoIds.has(repoId)
+        ? []
+        : [{ creationId: key.slice(0, separator), repoId }]
+    })
+  }, [args.hostPageId, args.visibleReposForRows, pendingCreationKeys])
 
   const rows: Row[] = useMemo(
     () =>
@@ -163,8 +124,6 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
         pendingCreations,
         args.projectGrouping,
         args.visibleFolderWorkspacesForRows,
-        hostLabelById,
-        defaultHostId,
         args.pinnedDisplayPolicy
       ),
     [
@@ -173,7 +132,6 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       repoMap,
       args.prCache,
       effectiveCollapsedGroups,
-      defaultHostId,
       repoOrder,
       args.workspaceStatuses,
       args.projectOrderBy,
@@ -187,69 +145,15 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       args.importedWorktreesByRepo,
       args.newExternalWorktreesInboxByRepo,
       pendingCreations,
-      hostLabelById,
       args.pinnedDisplayPolicy
     ]
   )
-  const orderedHostOptions = useMemo(
-    () => orderHostSectionOptions(hostOptions, workspaceHostOrder),
-    [hostOptions, workspaceHostOrder]
-  )
-  const [hostDragActive, setHostDragActive] = useState(false)
-  const handleReorderHostSections = useCallback(
-    (orderedVisibleHostIds: ExecutionHostId[]) => {
-      const visibleHostIds = new Set(orderedVisibleHostIds)
-      const hostOptionIds = orderedHostOptions.map((host) => host.id)
-      const knownHostIds = new Set(hostOptionIds)
-      const nextOrder: ExecutionHostId[] = [...orderedVisibleHostIds]
-      const seen = new Set(nextOrder)
-      // Why: dragging only covers rendered hosts; keep non-rendered SSH/runtime hosts in the saved order so they return in place.
-      for (const hostId of [...workspaceHostOrder, ...hostOptionIds]) {
-        if (!knownHostIds.has(hostId) || visibleHostIds.has(hostId) || seen.has(hostId)) {
-          continue
-        }
-        nextOrder.push(hostId)
-        seen.add(hostId)
-      }
-      setWorkspaceHostOrder(nextOrder)
-    },
-    [orderedHostOptions, setWorkspaceHostOrder, workspaceHostOrder]
-  )
-  const sectionRows = useMemo(
-    () =>
-      addHostSectionRows({
-        rows,
-        hostOptions: orderedHostOptions,
-        workspaceHostScope: args.workspaceHostScope,
-        visibleWorkspaceHostIds: args.visibleWorkspaceHostIds,
-        defaultHostId,
-        collapsedHostKeys: effectiveCollapsedGroups,
-        forceCollapseHosts: hostDragActive,
-        // Why: projects/workspaces are the primary sidebar object; host sections are only an explicit host-filter view.
-        preferProjectGrouping: true
-      }),
-    [
-      args.visibleWorkspaceHostIds,
-      args.workspaceHostScope,
-      defaultHostId,
-      effectiveCollapsedGroups,
-      hostDragActive,
-      orderedHostOptions,
-      rows
-    ]
-  )
-  const renderedSidebarRowKeys = useMemo(
-    () => collectRenderedSidebarRowKeys(sectionRows),
-    [sectionRows]
-  )
+  const renderedSidebarRowKeys = useMemo(() => collectRenderedSidebarRowKeys(rows), [rows])
 
   return {
     rows,
-    sectionRows,
     renderedSidebarRowKeys,
     allRepoIds,
-    placeholderRepoIds,
-    handleReorderHostSections,
-    setHostDragActive
+    placeholderRepoIds
   }
 }

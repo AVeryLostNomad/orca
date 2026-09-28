@@ -20,13 +20,6 @@ export function renderWorktreeSidebarDropIndicators(args: {
       headerDrag.projectGroupDrag.state.dropIndicatorY !== null ? (
         <WorktreeSidebarDropIndicator y={headerDrag.projectGroupDrag.state.dropIndicatorY} />
       ) : null}
-      {headerDrag.hostDrag.state.draggingHostId !== null &&
-      headerDrag.hostDrag.state.dropIndicatorY !== null ? (
-        <WorktreeSidebarDropIndicator
-          y={headerDrag.hostDrag.state.dropIndicatorY}
-          className="z-40"
-        />
-      ) : null}
       {worktreeDragState.draggingWorktreeId !== null &&
       worktreeDragState.dropIndicatorY !== null ? (
         <WorktreeSidebarDropIndicator y={worktreeDragState.dropIndicatorY} />

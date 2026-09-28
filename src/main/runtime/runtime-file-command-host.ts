@@ -52,14 +52,16 @@ export type RuntimeFileCommandHost = {
     worktreeId: string,
     filePath: string,
     relativePath: string,
-    runtimeEnvironmentId?: string | null
+    runtimeEnvironmentId?: string | null,
+    activate?: boolean
   ): void
   openDiff(
     worktreeId: string,
     filePath: string,
     relativePath: string,
     staged: boolean,
-    runtimeEnvironmentId?: string | null
+    runtimeEnvironmentId?: string | null,
+    activate?: boolean
   ): void
 }
 
@@ -148,14 +150,6 @@ export function watchWindowsRuntimeFileExplorer(
       )
     }
   }
-}
-
-export function isSafeMobileRelativePath(relativePath: string): boolean {
-  if (!relativePath || relativePath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(relativePath)) {
-    return false
-  }
-  const parts = relativePath.replace(/\\/g, '/').split('/')
-  return parts.every((part) => part !== '' && part !== '.' && part !== '..')
 }
 
 export function isMobileMarkdownPath(relativePath: string): boolean {

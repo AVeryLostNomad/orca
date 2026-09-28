@@ -47,7 +47,11 @@ const ResolveTerminalPath = WorktreeSelector.extend({
     .optional()
 })
 
-const FileOpenDiff = FileOpen.extend({
+const FileOpenRequest = FileOpen.extend({
+  activate: z.boolean().optional()
+})
+
+const FileOpenDiff = FileOpenRequest.extend({
   staged: z.boolean().optional()
 })
 
@@ -143,15 +147,20 @@ export const FILE_METHODS: RpcAnyMethod[] = [
   }),
   defineMethod({
     name: 'files.open',
-    params: FileOpen,
+    params: FileOpenRequest,
     handler: async (params, { runtime }) =>
-      runtime.openMobileFile(params.worktree, params.relativePath)
+      runtime.openMobileFile(params.worktree, params.relativePath, params.activate)
   }),
   defineMethod({
     name: 'files.openDiff',
     params: FileOpenDiff,
     handler: async (params, { runtime }) =>
-      runtime.openMobileDiff(params.worktree, params.relativePath, params.staged === true)
+      runtime.openMobileDiff(
+        params.worktree,
+        params.relativePath,
+        params.staged === true,
+        params.activate
+      )
   }),
   defineMethod({
     name: 'files.read',

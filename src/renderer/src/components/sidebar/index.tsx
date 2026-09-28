@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '@/store'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useSidebarResize } from '@/hooks/useSidebarResize'
@@ -18,6 +18,11 @@ import { useWorkspaceRevealBodyRedirect } from './use-workspace-reveal-body-redi
 import { resolveLeftSidebarStyleVariables } from '@/lib/left-sidebar-appearance'
 import { useSystemPrefersDark } from '@/components/terminal-pane/use-system-prefers-dark'
 import { lazyWithRetry } from '@/lib/lazy-with-retry'
+import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../../../shared/execution-host'
+import { SidebarHostPager } from './SidebarHostPager'
+import type { SidebarHostPage } from './sidebar-host-pages'
+import { useSidebarHostPages } from './use-sidebar-host-pages'
+import { useSidebarHostPageReveal } from './use-sidebar-host-page-reveal'
 
 // Why lazy: the Agents list pulls the whole activity pipeline (virtualizer, markdown
 // previews, thread derivation); users on the workspace view should not load or render any of it.
@@ -42,6 +47,11 @@ export const WORKTREE_SIDEBAR_RESIZE_HANDLE_LINE_CLASS_NAME =
 type SidebarProps = {
   worktreeScrollOffsetRef: React.MutableRefObject<number>
   worktreeScrollAnchorRef: React.MutableRefObject<VirtualizedScrollAnchor>
+}
+
+type HostPageScrollRefs = {
+  scrollOffsetRef: React.MutableRefObject<number>
+  scrollAnchorRef: React.MutableRefObject<VirtualizedScrollAnchor>
 }
 
 function Sidebar({
@@ -149,6 +159,51 @@ function Sidebar({
 
   useWorkspaceRevealBodyRedirect(sidebarOpen && sidebarBody === 'agents')
 
+  const { pages: hostPages, activePage: activeHostPage } = useSidebarHostPages()
+  const setSidebarHostPageId = useAppStore((s) => s.setSidebarHostPageId)
+  const revealHostPageId = useSidebarHostPageReveal(hostPages, activeHostPage.id)
+  // Why: each host page keeps its own scroll position; local reuses the app-owned refs.
+  const [remotePageScrollRefs] = useState(() => new Map<ExecutionHostId, HostPageScrollRefs>())
+  const renderHostPage = useCallback(
+    (page: SidebarHostPage, active: boolean) => {
+      let scrollRefs: HostPageScrollRefs = {
+        scrollOffsetRef: worktreeScrollOffsetRef,
+        scrollAnchorRef: worktreeScrollAnchorRef
+      }
+      if (page.id !== LOCAL_EXECUTION_HOST_ID) {
+        const cached = remotePageScrollRefs.get(page.id)
+        scrollRefs = cached ?? {
+          scrollOffsetRef: { current: 0 },
+          scrollAnchorRef: { current: null }
+        }
+        remotePageScrollRefs.set(page.id, scrollRefs)
+      }
+      return (
+        <WorktreeList
+          hostPageId={page.id}
+          isActivePage={active}
+          consumesReveals={active && page.id === revealHostPageId}
+          scrollOffsetRef={scrollRefs.scrollOffsetRef}
+          scrollAnchorRef={scrollRefs.scrollAnchorRef}
+          workspaceBoardOpen={workspaceBoardOpen}
+          onWorkspaceBoardDragPreviewStart={previewWorkspaceBoardFromDrag}
+          onWorkspaceBoardDragPreviewCommit={solidifyWorkspaceBoardFromDrag}
+          onWorkspaceBoardDragPreviewCancel={cancelWorkspaceBoardDragPreview}
+        />
+      )
+    },
+    [
+      cancelWorkspaceBoardDragPreview,
+      previewWorkspaceBoardFromDrag,
+      remotePageScrollRefs,
+      revealHostPageId,
+      solidifyWorkspaceBoardFromDrag,
+      workspaceBoardOpen,
+      worktreeScrollAnchorRef,
+      worktreeScrollOffsetRef
+    ]
+  )
+
   return (
     <TooltipProvider delayDuration={400}>
       <div
@@ -165,6 +220,9 @@ function Sidebar({
             <SidebarHeader
               onWorkspaceBoardMenuOpenChange={setWorkspaceBoardMenuOpen}
               activityOptionsTarget={setAgentOptionsTarget}
+              hostPages={hostPages}
+              activeHostPage={activeHostPage}
+              onHostPageChange={setSidebarHostPageId}
             />
             {sidebarBody === 'agents' ? (
               <React.Suspense fallback={<div className="min-h-0 flex-1" />}>
@@ -182,13 +240,11 @@ function Sidebar({
                 </ActivityThreadCollapseContext.Provider>
               </React.Suspense>
             ) : (
-              <WorktreeList
-                scrollOffsetRef={worktreeScrollOffsetRef}
-                scrollAnchorRef={worktreeScrollAnchorRef}
-                workspaceBoardOpen={workspaceBoardOpen}
-                onWorkspaceBoardDragPreviewStart={previewWorkspaceBoardFromDrag}
-                onWorkspaceBoardDragPreviewCommit={solidifyWorkspaceBoardFromDrag}
-                onWorkspaceBoardDragPreviewCancel={cancelWorkspaceBoardDragPreview}
+              <SidebarHostPager
+                pages={hostPages}
+                activePageId={activeHostPage.id}
+                onActivePageChange={setSidebarHostPageId}
+                renderPage={renderHostPage}
               />
             )}
 
@@ -259,6 +315,7 @@ function Sidebar({
           preserveOpenForMenu={workspaceBoardMenuOpen}
           onOpenChange={handleWorkspaceBoardOpenChange}
           onMenuOpenChange={setWorkspaceBoardMenuOpen}
+          hostPageId={activeHostPage.id}
         />
       ) : null}
       {showAgentDashboard ? (

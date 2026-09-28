@@ -11,7 +11,8 @@ import type { Repo } from '../../../../shared/repo-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import {
   getRepoExecutionHostId,
-  getSettingsFocusedExecutionHostId
+  getSettingsFocusedExecutionHostId,
+  type ExecutionHostId
 } from '../../../../shared/execution-host'
 import { getActiveSidebarWorkspaceId } from '../../../../shared/workspace-scope'
 import { getPinnedWorktreeDisplayPolicy } from './worktree-list/grouping/row-types'
@@ -37,10 +38,16 @@ import { useVisibleSidebarWorktrees } from './worktree-list/listing/use-visible-
 import { useWorktreeStatusMutations } from './worktree-list/drag/use-status-mutations'
 import { shouldFiltersHideAllRows } from './sidebar-empty-state-gate'
 import { buildWorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
+import { sidebarHasActiveFilters } from './sidebar-filter-actions'
 
 type WorktreeListProps = {
   scrollOffsetRef: React.MutableRefObject<number>
   scrollAnchorRef: React.MutableRefObject<VirtualizedScrollAnchor>
+  /** Host whose paged sidebar this list renders; omitted, the list spans every visible host. */
+  hostPageId?: ExecutionHostId
+  /** Only the page on screen publishes Cmd+1–9 order and answers reveal requests. */
+  isActivePage?: boolean
+  consumesReveals?: boolean
   workspaceBoardOpen?: boolean
   onWorkspaceBoardDragPreviewStart?: () => void
   onWorkspaceBoardDragPreviewCommit?: () => void
@@ -50,6 +57,9 @@ type WorktreeListProps = {
 const WorktreeList = React.memo(function WorktreeList({
   scrollOffsetRef,
   scrollAnchorRef,
+  hostPageId,
+  isActivePage = true,
+  consumesReveals = isActivePage,
   workspaceBoardOpen = false,
   onWorkspaceBoardDragPreviewStart = NOOP_WORKSPACE_BOARD_DRAG_PREVIEW_CALLBACK,
   onWorkspaceBoardDragPreviewCommit = NOOP_WORKSPACE_BOARD_DRAG_PREVIEW_CALLBACK,
@@ -104,7 +114,34 @@ const WorktreeList = React.memo(function WorktreeList({
   )
 
   const agentSendTargetWorktreeId = useAgentSendTargetWorktreeId()
-  const { filterState, hasFilters, clearFilters } = useSidebarWorktreeFilters()
+  const {
+    filterState: userFilterState,
+    hasFilters: userHasFilters,
+    clearFilters
+  } = useSidebarWorktreeFilters()
+  // Why: a host page narrows every row source to its host; the Hosts filter only decides which pages exist.
+  const filterState = useMemo(
+    () =>
+      hostPageId
+        ? {
+            ...userFilterState,
+            visibleWorkspaceHostIds: [hostPageId],
+            workspaceHostScope: hostPageId
+          }
+        : userFilterState,
+    [hostPageId, userFilterState]
+  )
+  const hasFilters = useMemo(
+    () =>
+      hostPageId
+        ? sidebarHasActiveFilters({
+            ...userFilterState,
+            visibleWorkspaceHostIds: null,
+            workspaceHostScope: 'all'
+          })
+        : userHasFilters,
+    [hostPageId, userFilterState, userHasFilters]
+  )
   const sortedIds = useSidebarWorktreeSortOrder({ allWorktrees, repoMap, sortBy })
   const manualOrderCatalog = useMemo(
     () => buildWorktreeManualOrderCatalog({ worktrees: allWorktrees, folderWorkspaces }),
@@ -154,7 +191,6 @@ const WorktreeList = React.memo(function WorktreeList({
     groupBy,
     projectOrderBy,
     pinnedDisplayPolicy,
-    defaultHostId,
     worktrees: visibleWorktrees,
     repos,
     repoMap,
@@ -171,12 +207,12 @@ const WorktreeList = React.memo(function WorktreeList({
     importedWorktreesByRepo: externalWorktreeCards.importedWorktreesByRepo,
     newExternalWorktreesInboxByRepo: externalWorktreeCards.newExternalWorktreesInboxByRepo,
     filterRepoIds: filterState.filterRepoIds,
-    visibleWorkspaceHostIds: filterState.visibleWorkspaceHostIds,
-    workspaceHostScope: filterState.workspaceHostScope
+    hostPageId
   })
   const selection = useSidebarWorktreeSelection({
-    sectionRows: rowModel.sectionRows,
-    pinnedDisplayPolicy
+    rows: rowModel.rows,
+    pinnedDisplayPolicy,
+    publishShortcutOrder: isActivePage
   })
   const statusMutations = useWorktreeStatusMutations({
     manualOrderCatalog,
@@ -244,7 +280,10 @@ const WorktreeList = React.memo(function WorktreeList({
     worktrees: allWorktrees,
     folderWorkspaces,
     hasFilters,
-    clearFilters
+    clearFilters,
+    hostPageId,
+    consumesReveals,
+    listensForCurrentWorkspaceReveal: isActivePage
   })
 
   const filtersHideAllRows = shouldFiltersHideAllRows({
@@ -282,7 +321,7 @@ const WorktreeList = React.memo(function WorktreeList({
       <VirtualizedWorktreeViewport
         // Why: status headers move during wake (inactive -> active); key only on grouping mode so row identity survives.
         key={`group:${groupBy}:host:${filterState.visibleWorkspaceHostIds?.join(',') ?? 'all'}:lineage`}
-        rows={rowModel.sectionRows}
+        rows={rowModel.rows}
         // Why: full-page nav views aren't scoped to a worktree, so no sidebar card should look selected.
         activeWorktreeId={
           activeView === 'tasks' || activeView === 'activity' ? null : currentSidebarWorktreeId
@@ -315,8 +354,8 @@ const WorktreeList = React.memo(function WorktreeList({
         handleDeleteProjectGroup={projectGroupDialogs.handleDeleteProjectGroup}
         handleCreateFolderWorkspace={handleCreateFolderWorkspace}
         activeModal={activeModal}
-        pendingRevealWorktree={pendingRevealWorktree}
-        pendingRevealSidebarRow={pendingRevealSidebarRow}
+        pendingRevealWorktree={consumesReveals ? pendingRevealWorktree : null}
+        pendingRevealSidebarRow={consumesReveals ? pendingRevealSidebarRow : null}
         clearPendingRevealWorktreeId={clearPendingRevealWorktreeId}
         clearPendingRevealSidebarRow={clearPendingRevealSidebarRow}
         agentSendTargetWorktreeId={agentSendTargetWorktreeId}
@@ -333,8 +372,6 @@ const WorktreeList = React.memo(function WorktreeList({
         worktreeLineageById={worktreeLineageById}
         workspaceLineageByChildKey={workspaceLineageByChildKey}
         allRepoIds={rowModel.allRepoIds}
-        onReorderHostSections={rowModel.handleReorderHostSections}
-        onHostDragActiveChange={rowModel.setHostDragActive}
         prCache={prCache}
         hostedReviewCache={hostedReviewCache}
         workspaceStatuses={workspaceStatuses}

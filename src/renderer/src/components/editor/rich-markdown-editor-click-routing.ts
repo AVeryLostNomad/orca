@@ -1,3 +1,4 @@
+import { parseLoopbackHttpUrl } from '../../../../shared/localhost-worktree-labels'
 import type { MutableRefObject } from 'react'
 import type { Editor } from '@tiptap/react'
 import type { EditorView } from '@tiptap/pm/view'
@@ -129,6 +130,7 @@ export function handleRichMarkdownEditorClick({
       runtimeEnvironmentId,
       sourceOwner,
       settings,
+      worktreeId,
       worktreeRoot
     })
     return true
@@ -187,7 +189,8 @@ function openMarkdownLinkInClientOs({
   worktreeRoot,
   runtimeEnvironmentId,
   sourceOwner,
-  settings
+  settings,
+  worktreeId
 }: {
   href: string
   filePath: string
@@ -195,6 +198,7 @@ function openMarkdownLinkInClientOs({
   runtimeEnvironmentId?: string | null
   sourceOwner: HttpLinkSourceOwner
   settings: RichMarkdownRuntimeSettings
+  worktreeId: string
 }): void {
   if (sourceOwner.kind === 'unknown') {
     return
@@ -204,9 +208,14 @@ function openMarkdownLinkInClientOs({
     return
   }
   if (classified.kind === 'external') {
-    // Why: deliberate divergence from the preview — this path hands the link to the
-    // client OS unconditionally, so it does not follow the invert setting.
-    openHttpLink(classified.url, { forceSystemBrowser: true, sourceOwner })
+    // Why: the client-OS default cannot reach a remote workspace's loopback.
+    openHttpLink(classified.url, {
+      sourceOwner,
+      worktreeId,
+      ...(sourceOwner.kind !== 'local' && parseLoopbackHttpUrl(classified.url)
+        ? {}
+        : { forceSystemBrowser: true })
+    })
     return
   }
   if (classified.kind === 'anchor') {

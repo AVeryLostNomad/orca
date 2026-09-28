@@ -7,6 +7,31 @@ export function normalizeLocalhostHostname(hostname: string): string {
   return hostname.replace(/^\[|\]$/g, '').toLowerCase()
 }
 
+export function parseLoopbackHttpUrl(rawUrl: string): URL | null {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    return null
+  }
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    !isLoopbackHostname(url.hostname)
+  ) {
+    return null
+  }
+  return url
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const bare = normalizeLocalhostHostname(hostname)
+  return (
+    LOOPBACK_LOCALHOST_HOSTS.has(bare) ||
+    bare.endsWith('.localhost') ||
+    /^127(?:\.\d{1,3}){3}$/.test(bare)
+  )
+}
+
 // Why: only http(s) loopback URLs with an explicit port can be attributed to a
 // scanned workspace port and labeled; everything else stays as-is.
 export function parseLoopbackUrlWithPort(rawUrl: string): URL | null {

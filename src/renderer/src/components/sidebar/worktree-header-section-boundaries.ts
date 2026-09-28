@@ -54,7 +54,7 @@ function indexBucketSuccessors(
 function findNextHeaderRenderRowIndex(rows: readonly RenderRow[], startIndex: number): number {
   for (let index = startIndex; index < rows.length; index++) {
     const row = rows[index]
-    if (row?.type === 'header' || row?.type === 'host-header') {
+    if (row?.type === 'header') {
       return index
     }
   }
@@ -70,9 +70,6 @@ function findProjectGroupSectionEndIndex(
     const row = rows[index]
     if (!row) {
       continue
-    }
-    if (row.type === 'host-header') {
-      return index
     }
     if (row.type !== 'header') {
       continue

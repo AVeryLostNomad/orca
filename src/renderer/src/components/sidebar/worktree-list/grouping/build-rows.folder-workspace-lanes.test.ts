@@ -7,7 +7,6 @@ import { repo, worktree } from '../../worktree-list-groups-test-fixtures'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 
 const GROUP: ProjectGroup = {
   id: 'group-1',
@@ -176,71 +175,5 @@ describe('membership is decided once, not per mode', () => {
     // Parity with today's behaviour: nothing filters folder workspaces by
     // isArchived, so a mode must not be the thing that hides one.
     expect(counts).toEqual([1, 1, 1, 1])
-  })
-})
-
-describe('host bookkeeping for lanes containing folder workspaces', () => {
-  const SSH_HOST = 'ssh:target-1' as ExecutionHostId
-
-  it('scopes a collapsed folder-only lane header to its host', () => {
-    const sshGroup: ProjectGroup = { ...GROUP, connectionId: 'target-1' }
-    const rows = buildRows(
-      'workspace-status',
-      [],
-      new Map(),
-      null,
-      new Set(['workspace-status:in-progress']),
-      undefined,
-      undefined,
-      'manual',
-      {},
-      new Map(),
-      false,
-      undefined,
-      [sshGroup],
-      new Set(),
-      new Map(),
-      new Map(),
-      [],
-      undefined,
-      [makeFolderWorkspace()]
-    )
-    const header = rows.find((row) => row.type === 'header')
-    expect(header).toBeDefined()
-    const counts = header && 'hostWorktreeCounts' in header ? header.hostWorktreeCounts : undefined
-    // Undefined counts render globally, which is exactly the pre-fix bug.
-    expect(counts).toBeDefined()
-    expect([...counts!.keys()]).toEqual([SSH_HOST])
-  })
-
-  it('gives a folder-only host an explicit empty id array', () => {
-    const sshGroup: ProjectGroup = { ...GROUP, connectionId: 'target-1' }
-    const rows = buildRows(
-      'workspace-status',
-      [],
-      new Map(),
-      null,
-      new Set(),
-      undefined,
-      undefined,
-      'manual',
-      {},
-      new Map(),
-      false,
-      undefined,
-      [sshGroup],
-      new Set(),
-      new Map(),
-      new Map(),
-      [],
-      undefined,
-      [makeFolderWorkspace()]
-    )
-    const header = rows.find((row) => row.type === 'header')
-    const ids = header && 'hostWorktreeIds' in header ? header.hostWorktreeIds : undefined
-    // The key must exist even though folder workspaces contribute no worktree
-    // ids, or the host-section fallback leaks the global id list into it.
-    expect(ids?.has(SSH_HOST)).toBe(true)
-    expect(ids?.get(SSH_HOST)).toEqual([])
   })
 })

@@ -1,3 +1,4 @@
+import { parseLoopbackHttpUrl } from '../../../shared/localhost-worktree-labels'
 import { translate } from '@/i18n/i18n'
 import { openHttpLink, type HttpLinkSourceOwner } from '@/lib/http-link-routing'
 
@@ -27,15 +28,22 @@ export function canSourceOwnerOpenInOrca(
   )
 }
 
-/** Which destinations a clicked link offers, primary first; a remote source that
- *  cannot reach Orca's managed browser offers only the system browser. */
+/** Which destinations a clicked link offers, primary first; remote loopback links require Orca. */
 export function httpLinkActionDestinationsFor(
+  url: string,
   settings: { openLinksInApp?: boolean } | null | undefined,
   sourceOwner: HttpLinkSourceOwner,
   canOpenOwnedBrowser: boolean
 ): HttpLinkActionDestinations {
-  if (!canSourceOwnerOpenInOrca(sourceOwner, canOpenOwnedBrowser)) {
+  const canOpenInOrca = canSourceOwnerOpenInOrca(sourceOwner, canOpenOwnedBrowser)
+  if (!canOpenInOrca) {
     return { primary: 'system' }
+  }
+  if (
+    (sourceOwner.kind === 'runtime' || sourceOwner.kind === 'ssh') &&
+    parseLoopbackHttpUrl(url) !== null
+  ) {
+    return { primary: 'orca', alternate: 'system' }
   }
   return settings?.openLinksInApp === true
     ? { primary: 'orca', alternate: 'system' }

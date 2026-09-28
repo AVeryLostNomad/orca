@@ -7,12 +7,12 @@ import {
 } from './mirrored-browser-tabs'
 import { buildMirroredEditorTabs } from './tab-builders'
 import { buildMirroredAgentTabs, isReadyBrowserTab, isReadyEditorTab } from './terminal-surfaces'
+import { adoptPublishedRuntimeEditorTab } from '../runtime-editor-tab-publish'
 import { hostSnapshotAffirmsClientHostedPages } from '../host-session-snapshot-authority'
 import type { prepareWebSessionTabsSnapshotBase } from './apply-preparation-base'
 import type { OpenFile } from '../../store/slices/editor'
 import {
   advanceWebSessionOpenFilesIndex,
-  firstOpenFileByIdForWorktree,
   sameOpenFiles,
   webSessionOpenFilesForWorktree
 } from './state-equality-files'
@@ -105,16 +105,17 @@ export function prepareWebSessionTabsSnapshotBrowser(
       : null
   const readyEditorTabs = reconcilesNonAgentTabs ? snapshot.tabs.filter(isReadyEditorTab) : []
   const worktreeOpenFiles = webSessionOpenFilesForWorktree(state, worktreeId, batchContext)
+  // Why: a tab the user closed before its host echo arrived must not flash back open.
   const mirroredEditorTabs = buildMirroredEditorTabs(
     snapshot,
     environmentId,
-    firstOpenFileByIdForWorktree(worktreeOpenFiles),
+    worktreeOpenFiles,
     existingTabIndex,
     hostGroupIdByTabId,
     targetGroupId,
     mirroredTerminalTabEntries.length + mirroredBrowserTabs.length,
     now
-  )
+  ).filter((entry) => !adoptPublishedRuntimeEditorTab(environmentId, entry.file, entry.hostTabId))
   const mirroredAgentTabs = buildMirroredAgentTabs(
     snapshot,
     hostGroupIdByTabId,
@@ -130,7 +131,7 @@ export function prepareWebSessionTabsSnapshotBrowser(
       .filter(
         (file) =>
           file.runtimeEnvironmentId === environmentId &&
-          (file.mode === 'edit' || file.mode === 'markdown-preview') &&
+          (file.mode === 'edit' || file.mode === 'diff' || file.mode === 'markdown-preview') &&
           // Why: only cull host-mirrored tabs; locally opened files have no host counterpart, so their omission isn't a close signal.
           file.mirroredFromRuntimeSession === true &&
           !mirroredEditorFileIds.has(file.id)
@@ -178,7 +179,7 @@ export function prepareWebSessionTabsSnapshotBrowser(
         !mirroredBrowserWorkspaceIds.has(tab.entityId)
       )
     }
-    if (tab.contentType === 'editor') {
+    if (tab.contentType === 'editor' || tab.contentType === 'diff') {
       return (
         !removedEditorFileIds.has(tab.entityId) &&
         !mirroredEditorFileIds.has(tab.entityId) &&

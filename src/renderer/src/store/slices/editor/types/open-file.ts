@@ -166,4 +166,5 @@ export type EditorOpenTargetOptions = {
   preview?: boolean
   runtimeEnvironmentId?: string | null
   forceContentReload?: boolean
+  background?: boolean
 }

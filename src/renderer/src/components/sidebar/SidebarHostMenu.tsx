@@ -32,7 +32,7 @@ import {
   unwrapRuntimeRpcResult
 } from '@/runtime/runtime-rpc-client'
 import type { RuntimeStatus } from '../../../../shared/runtime-types'
-import type { HostHeaderRow } from './host-section-rows'
+import type { SidebarHostOption } from './sidebar-host-options'
 import { buildHostHeaderMenuModel } from './host-header-menu-items'
 import { HostRenameDialog } from './HostRenameDialog'
 import { HostRemoveDialog } from './HostRemoveDialog'
@@ -52,16 +52,21 @@ function blockedTitle(reason: 'client-too-old' | 'server-too-old'): string {
 
 // Why: SSH and paired runtime hosts share the sidebar model, but Settings keeps
 // their management pages separate so each connection type can explain itself.
-function openManageHost(row: HostHeaderRow): void {
+type SidebarHostMenuTarget = Pick<
+  SidebarHostOption,
+  'id' | 'kind' | 'label' | 'health' | 'compatibility'
+>
+
+function openManageHost(host: SidebarHostMenuTarget): void {
   const state = useAppStore.getState()
-  if (row.kind === 'runtime') {
-    const parsed = parseExecutionHostId(row.hostId)
+  if (host.kind === 'runtime') {
+    const parsed = parseExecutionHostId(host.id)
     state.openSettingsTarget({
       pane: 'servers',
       repoId: null,
       sectionId: parsed?.kind === 'runtime' ? parsed.environmentId : undefined
     })
-  } else if (row.kind === 'ssh') {
+  } else if (host.kind === 'ssh') {
     state.openSettingsTarget({ pane: 'ssh', repoId: null, sectionId: 'ssh' })
   } else {
     state.openSettingsTarget({ pane: 'general', repoId: null })
@@ -69,14 +74,14 @@ function openManageHost(row: HostHeaderRow): void {
   state.openSettingsPage()
 }
 
-export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JSX.Element {
+export function SidebarHostMenu({ host }: { host: SidebarHostMenuTarget }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [removeOpen, setRemoveOpen] = useState(false)
   const mountedRef = useMountedRef()
   const sshStatus = useAppStore((s) => {
-    const parsed = parseExecutionHostId(row.hostId)
+    const parsed = parseExecutionHostId(host.id)
     if (parsed?.kind !== 'ssh') {
       return null
     }
@@ -84,20 +89,20 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
   })
 
   const model = buildHostHeaderMenuModel({
-    kind: row.kind,
-    health: row.health,
+    kind: host.kind,
+    health: host.health,
     sshConnected: sshStatus === 'connected',
-    compatibility: row.compatibility
+    compatibility: host.compatibility
   })
-  const removalTarget = resolveHostRemoval(row.hostId)
+  const removalTarget = resolveHostRemoval(host.id)
 
   const handleManage = useCallback(() => {
-    openManageHost(row)
-  }, [row])
+    openManageHost(host)
+  }, [host])
 
   const runSshAction = useCallback(
     async (action: 'connect' | 'disconnect') => {
-      const parsed = parseExecutionHostId(row.hostId)
+      const parsed = parseExecutionHostId(host.id)
       if (parsed?.kind !== 'ssh') {
         return
       }
@@ -124,11 +129,11 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
         }
       }
     },
-    [mountedRef, row.hostId]
+    [mountedRef, host.id]
   )
 
   const handleCheckConnection = useCallback(async () => {
-    const parsed = parseExecutionHostId(row.hostId)
+    const parsed = parseExecutionHostId(host.id)
     if (parsed?.kind !== 'runtime') {
       return
     }
@@ -153,7 +158,7 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
           'auto.components.sidebar.HostSectionHeaderMenu.7f1a2b3c4d',
           '{{value0}} is reachable',
           {
-            value0: row.label
+            value0: host.label
           }
         )
       )
@@ -177,7 +182,7 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
         setBusy(false)
       }
     }
-  }, [mountedRef, row.hostId, row.label])
+  }, [mountedRef, host.id, host.label])
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
@@ -188,16 +193,12 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
               variant="ghost"
               size="icon-xs"
               type="button"
-              className="size-5 shrink-0 text-muted-foreground can-hover:opacity-0 transition-opacity focus-visible:opacity-100 group-hover/host-header:opacity-100 data-[state=open]:opacity-100"
+              className="size-5 shrink-0 text-muted-foreground can-hover:opacity-0 transition-opacity focus-visible:opacity-100 group-hover/host-page:opacity-100 data-[state=open]:opacity-100"
               aria-label={translate(
                 'auto.components.sidebar.HostSectionHeaderMenu.4f2c8a9b10',
                 'Host actions for {{value0}}',
-                { value0: row.label }
+                { value0: host.label }
               )}
-              // Why: the host header row itself toggles collapse on click;
-              // opening the menu must not also fold the section.
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
             >
               {busy ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -211,28 +212,28 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
           {translate('auto.components.sidebar.HostSectionHeaderMenu.6b7c8d9e10', 'Host actions')}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-56">
+      <DropdownMenuContent side="bottom" align="start" sideOffset={6} className="w-56">
         {model.blocked && (
           <>
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onSelect={() => openManageHost(row)}
+                  onSelect={() => openManageHost(host)}
                 >
                   <AlertTriangle className="size-3.5" />
                   {blockedTitle(model.blocked.reason)}
                 </DropdownMenuItem>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={6} className="max-w-72">
-                {row.compatibility ? describeRuntimeCompatBlock(row.compatibility) : null}
+                {host.compatibility ? describeRuntimeCompatBlock(host.compatibility) : null}
               </TooltipContent>
             </Tooltip>
             <DropdownMenuSeparator />
           </>
         )}
         <DropdownMenuLabel className="truncate text-[11px] font-medium text-muted-foreground">
-          {row.label}
+          {host.label}
         </DropdownMenuLabel>
         {model.actions.includes('rename') && (
           <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
@@ -285,15 +286,15 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
       <HostRenameDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
-        hostId={row.hostId}
-        derivedLabel={row.label}
+        hostId={host.id}
+        derivedLabel={host.label}
       />
       {removalTarget && (
         <HostRemoveDialog
           open={removeOpen}
           onOpenChange={setRemoveOpen}
-          hostId={row.hostId}
-          label={row.label}
+          hostId={host.id}
+          label={host.label}
           target={removalTarget}
         />
       )}

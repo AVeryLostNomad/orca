@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import type React from 'react'
 import { useAppStore } from '@/store'
 import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
@@ -6,14 +6,12 @@ import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { ProjectOrderBy } from '../../../../../../shared/ui-chrome-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
-import type { HostHeaderRow, HostSectionRow } from '../../host-section-rows'
 import type { Row, WorktreeGroupBy } from '../grouping/row-types'
 import type { RenderRow } from '../listing/render-row'
 import {
   getProjectGroupHeaderSectionEndByGroupId,
   getRepoHeaderSectionEndByRepoId
 } from '../../worktree-header-section-boundaries'
-import { useHostHeaderDrag } from '../../host-header-drag'
 import { useRepoHeaderDrag } from '../../project-header-drag'
 import { getSidebarOrderedRepoHeaderIdsByBucket } from '../../project-header-drop'
 import { useProjectGroupHeaderDrag } from '../../project-group-header-drag'
@@ -45,7 +43,7 @@ function bucketById(byBucket: ReadonlyMap<string, readonly string[]>): Map<strin
 // Reordering the three header tiers (host card, project group, project) plus the bucket
 // bookkeeping their drag controllers and DOM attributes need.
 export function useWorktreeSidebarHeaderDrag(args: {
-  rows: HostSectionRow[]
+  rows: Row[]
   renderRows: readonly RenderRow[]
   firstHeaderIndex: number
   allRepoIds: string[]
@@ -54,8 +52,6 @@ export function useWorktreeSidebarHeaderDrag(args: {
   groupBy: WorktreeGroupBy
   projectOrderBy: ProjectOrderBy
   scrollRef: React.RefObject<HTMLDivElement | null>
-  onReorderHostSections: (orderedHostIds: ExecutionHostId[]) => void
-  onHostDragActiveChange: (active: boolean) => void
   suppressMeasurementAdjustmentUntilRef: React.MutableRefObject<number>
   directScrollInputUntilRef: React.MutableRefObject<number>
 }) {
@@ -69,8 +65,6 @@ export function useWorktreeSidebarHeaderDrag(args: {
     groupBy,
     projectOrderBy,
     scrollRef,
-    onReorderHostSections,
-    onHostDragActiveChange,
     suppressMeasurementAdjustmentUntilRef,
     directScrollInputUntilRef
   } = args
@@ -108,36 +102,13 @@ export function useWorktreeSidebarHeaderDrag(args: {
     },
     [reorderRepos, suppressScrollCorrectionForHeaderCommit]
   )
-  const orderedHostIds = useMemo(
-    () =>
-      rows
-        .filter((row): row is HostHeaderRow => row.type === 'host-header')
-        .map((row) => row.hostId),
-    [rows]
-  )
-  const hostDrag = useHostHeaderDrag({
-    orderedHostIds,
-    onCommit: onReorderHostSections,
-    getScrollContainer: () => scrollRef.current
-  })
-  useEffect(() => {
-    onHostDragActiveChange(hostDrag.state.draggingHostId !== null)
-  }, [hostDrag.state.draggingHostId, onHostDragActiveChange])
-  useEffect(() => () => onHostDragActiveChange(false), [onHostDragActiveChange])
 
   const sidebarRepoHeaderIdsByBucket = useMemo(
-    () =>
-      getSidebarOrderedRepoHeaderIdsByBucket(
-        rows.filter((row): row is Row => row.type !== 'host-header')
-      ),
+    () => getSidebarOrderedRepoHeaderIdsByBucket(rows),
     [rows]
   )
   const sidebarProjectGroupHeaderIdsByBucket = useMemo(
-    () =>
-      getSidebarOrderedProjectGroupHeaderIdsByBucket(
-        rows.filter((row): row is Row => row.type !== 'host-header'),
-        projectGroupByIdForHeaderDrag
-      ),
+    () => getSidebarOrderedProjectGroupHeaderIdsByBucket(rows, projectGroupByIdForHeaderDrag),
     [projectGroupByIdForHeaderDrag, rows]
   )
   const repoHeaderIndexByRepoId = useMemo(
@@ -219,8 +190,6 @@ export function useWorktreeSidebarHeaderDrag(args: {
   return {
     canReorderRepoHeaders,
     canReorderProjectGroupHeaders,
-    orderedHostIds,
-    hostDrag,
     repoDrag,
     projectGroupDrag,
     sidebarRepoHeaderIdsByBucket,

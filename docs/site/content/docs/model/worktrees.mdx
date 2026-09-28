@@ -92,7 +92,13 @@ The Branch name field is only offered when you're creating from a typed workspac
 
 The sidebar groups worktrees by **project** by default — top-level rows are projects (one project = one git repo or a related cluster), expanded into the worktrees you're actively working on. The header has its own filter input (separate from the global search) so you can narrow the list without leaving the sidebar.
 
-The sidebar header filter menu groups host and project scope under a shared **Show** section (submenu rows for **Hosts** and projects), then the hide toggles:
+### Host pages
+
+When projects live on more than one host — [SSH hosts](/docs/ssh) or paired [Remote Orca Servers](/docs/remote-servers) — each host gets its own full sidebar page. The header reads **Local Projects** (or **Local Workspaces** when grouped by status) with a pip for every page. Swipe sideways on a trackpad, Shift-scroll with a mouse, or click a pip (arrow keys move between pips) to slide to another host's page, titled with that host's name. A remote page shows the host's connection state beside its title and a **Host actions** menu (rename, reconnect or check connection, manage, remove).
+
+Rows no longer carry host labels, because every row on a page belongs to that page's host. The workspace board and `Cmd+1–9` follow the page you are viewing. Revealing a workspace on another host — from `Cmd-J`, a notification, or **Reveal in sidebar** — slides the sidebar to that host's page. Each device remembers its own last page.
+
+The sidebar header filter menu groups host and project scope under a shared **Show** section (submenu rows for **Hosts** and projects), then the hide toggles. **Hosts** chooses which host pages exist:
 
 - **Sleeping** workspaces — each project's **entry-point / main** workspace stays visible under this filter so the project row does not disappear when that checkout is idle
 - **Except default branch** (only while **Hide sleeping** is on) — keeps default-branch workspaces visible during the sleeping sweep; the sub-option is hidden when sleeping workspaces are already shown

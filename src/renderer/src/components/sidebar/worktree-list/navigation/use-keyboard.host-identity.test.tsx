@@ -4,7 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Worktree } from '../../../../../../shared/worktree/types'
-import type { HostSectionRow } from '../../host-section-rows'
+import type { Row } from '../grouping/row-types'
 import type { RenderRow } from '../listing/render-row'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 
@@ -26,7 +26,7 @@ const { useWorktreeListKeyboardNavigation } = await import('./use-keyboard')
 const repo = { id: 'repo-1', path: '/repo-1', displayName: 'Repo 1' }
 
 // Local worktrees carry no `hostId` — `withRepoHostOwnership` leaves them unqualified.
-function localRow(id: string): HostSectionRow & { type: 'item' } {
+function localRow(id: string): Row & { type: 'item' } {
   return {
     type: 'item',
     rowKey: `row:${id}`,
@@ -41,7 +41,7 @@ function localRow(id: string): HostSectionRow & { type: 'item' } {
   }
 }
 
-const rows: HostSectionRow[] = [localRow('a'), localRow('b'), localRow('c')]
+const rows: Row[] = [localRow('a'), localRow('b'), localRow('c')]
 const renderRows = rows as unknown as RenderRow[]
 
 let container: HTMLDivElement

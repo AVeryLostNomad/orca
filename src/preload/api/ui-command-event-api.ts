@@ -213,6 +213,7 @@ export type UiCommandEventApi = {
       filePath: string
       relativePath: string
       runtimeEnvironmentId?: string
+      activate?: boolean
     }) => void
   ) => () => void
   onOpenDiffFromMobile: (
@@ -222,6 +223,7 @@ export type UiCommandEventApi = {
       relativePath: string
       staged: boolean
       runtimeEnvironmentId?: string
+      activate?: boolean
     }) => void
   ) => () => void
   onMobileMarkdownRequest: (callback: (request: RuntimeMobileMarkdownRequest) => void) => () => void

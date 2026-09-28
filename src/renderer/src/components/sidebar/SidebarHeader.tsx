@@ -8,15 +8,24 @@ import { Popover, PopoverAnchor, PopoverArrow, PopoverContent } from '@/componen
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Sparkles, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
+import type { SidebarHostPage } from './sidebar-host-pages'
+import { SidebarHostPageTitle } from './SidebarHostPageTitle'
 
 type SidebarHeaderProps = {
   onWorkspaceBoardMenuOpenChange: (open: boolean) => void
   activityOptionsTarget?: React.Ref<HTMLDivElement>
+  hostPages?: readonly SidebarHostPage[]
+  activeHostPage?: SidebarHostPage
+  onHostPageChange?: (hostId: ExecutionHostId) => void
 }
 
 const SidebarHeader = React.memo(function SidebarHeader({
   onWorkspaceBoardMenuOpenChange,
-  activityOptionsTarget
+  activityOptionsTarget,
+  hostPages,
+  activeHostPage,
+  onHostPageChange
 }: SidebarHeaderProps) {
   // Subscribe this memoized header to locale changes before using translate().
   useTranslation()
@@ -48,12 +57,21 @@ const SidebarHeader = React.memo(function SidebarHeader({
   return (
     <div className="mt-2 flex h-8 min-w-0 items-center justify-between gap-1.5 px-2">
       <div className="flex min-w-0 items-center gap-1">
-        <span
-          className="select-none pl-2 pr-0.5 text-xs font-semibold text-muted-foreground/80"
-          data-sidebar-section-title={groupBy === 'repo' ? 'projects' : 'workspaces'}
-        >
-          {sidebarTitle}
-        </span>
+        {!agentsViewActive && hostPages && activeHostPage && onHostPageChange ? (
+          <SidebarHostPageTitle
+            pages={hostPages}
+            activePage={activeHostPage}
+            sectionKind={groupBy === 'repo' ? 'projects' : 'workspaces'}
+            onSelectPage={onHostPageChange}
+          />
+        ) : (
+          <span
+            className="select-none pl-2 pr-0.5 text-xs font-semibold text-muted-foreground/80"
+            data-sidebar-section-title={groupBy === 'repo' ? 'projects' : 'workspaces'}
+          >
+            {sidebarTitle}
+          </span>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Popover

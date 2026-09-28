@@ -3,7 +3,6 @@ import { projectHostSetupProjectionFromRepos } from '../../../../shared/project-
 import { buildRows } from './worktree-list/grouping/build-rows'
 import { getGroupKeyForWorktree } from './worktree-list/grouping/worktree-group-keys'
 import {
-  LOCAL_HOST_LABEL,
   repo,
   worktree,
   remoteRepo,
@@ -47,8 +46,8 @@ describe('buildRows with pinned worktrees', () => {
 
     expect(rows).toMatchObject([
       { type: 'header', key: 'project:github:stablyai/orca', label: 'Orca', count: 2 },
-      { type: 'item', worktree: { id: worktree.id }, hostContextLabel: LOCAL_HOST_LABEL },
-      { type: 'item', worktree: { id: remoteWorktree.id }, hostContextLabel: 'gpu-vm' }
+      { type: 'item', worktree: { id: worktree.id } },
+      { type: 'item', worktree: { id: remoteWorktree.id } }
     ])
   })
 
@@ -201,9 +200,9 @@ describe('buildRows with pinned worktrees', () => {
         label: 'sample-app',
         count: 3
       },
-      { type: 'item', worktree: { id: localWorktree.id }, hostContextLabel: LOCAL_HOST_LABEL },
-      { type: 'item', worktree: { id: sshWorktree.id }, hostContextLabel: 'build server' },
-      { type: 'item', worktree: { id: runtimeWorktree.id }, hostContextLabel: 'dev-container' }
+      { type: 'item', worktree: { id: localWorktree.id } },
+      { type: 'item', worktree: { id: sshWorktree.id } },
+      { type: 'item', worktree: { id: runtimeWorktree.id } }
     ])
   })
 

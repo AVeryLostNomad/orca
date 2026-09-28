@@ -463,17 +463,6 @@ describe('createUISlice hydratePersistedUI', () => {
     })
   })
 
-  it('persists workspace host order changes', () => {
-    const setUI = vi.fn(() => Promise.resolve())
-    vi.stubGlobal('window', { api: { ui: { set: setUI } } })
-    const store = createUIStore()
-
-    store.getState().setWorkspaceHostOrder(['ssh:win%20vm', 'bogus' as never, 'local'])
-
-    expect(store.getState().workspaceHostOrder).toEqual(['ssh:win%20vm', 'local'])
-    expect(setUI).toHaveBeenCalledWith({ workspaceHostOrder: ['ssh:win%20vm', 'local'] })
-  })
-
   it('persists group changes with collapsed groups cleared', () => {
     const setUI = vi.fn(() => Promise.resolve())
     vi.stubGlobal('window', { api: { ui: { set: setUI } } })

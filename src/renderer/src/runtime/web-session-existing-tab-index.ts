@@ -33,7 +33,7 @@ export function buildWebSessionExistingTabIndex({
       const editorTabById = new Map<string, PositionedTab>()
       const editorTabByFileId = new Map<string, PositionedTab>()
       unifiedTabs.forEach((tab, position) => {
-        if (tab.contentType === 'editor') {
+        if (tab.contentType === 'editor' || tab.contentType === 'diff') {
           const positioned = { position, tab }
           setFirst(editorTabById, tab.id, positioned)
           setFirst(editorTabByFileId, tab.entityId, positioned)

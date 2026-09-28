@@ -64,6 +64,7 @@ describe('RuntimeFileCommands', () => {
       '/repo/docs/readme.md',
       'docs/readme.md',
       true,
+      undefined,
       undefined
     )
     expect(result).toEqual({
@@ -86,6 +87,7 @@ describe('RuntimeFileCommands', () => {
       'wt-1',
       '/repo/docs/readme.md',
       'docs/readme.md',
+      undefined,
       undefined
     )
     expect(result).toEqual({
@@ -108,6 +110,7 @@ describe('RuntimeFileCommands', () => {
       'wt-1',
       '/repo/assets/logo.png',
       'assets/logo.png',
+      undefined,
       undefined
     )
     expect(result).toEqual({

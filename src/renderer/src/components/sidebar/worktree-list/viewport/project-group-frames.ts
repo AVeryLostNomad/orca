@@ -47,9 +47,6 @@ function getColoredProjectGroupRanges(
     let endIndex = startIndex + 1
     while (endIndex < rows.length) {
       const descendant = rows[endIndex]
-      if (descendant?.type === 'host-header') {
-        break
-      }
       if (descendant?.type === 'header' && (descendant.projectGroupDepth ?? 0) <= depth) {
         break
       }
@@ -57,7 +54,7 @@ function getColoredProjectGroupRanges(
     }
 
     ranges.push({
-      key: `${row.hostId ?? ''}:${row.key}`,
+      key: row.key,
       color: row.projectGroup.color.trim(),
       depth,
       startIndex,

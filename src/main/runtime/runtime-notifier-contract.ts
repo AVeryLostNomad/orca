@@ -102,14 +102,16 @@ export type RuntimeNotifier = {
     worktreeId: string,
     filePath: string,
     relativePath: string,
-    runtimeEnvironmentId?: string | null
+    runtimeEnvironmentId?: string | null,
+    activate?: boolean
   ): void
   openDiff?(
     worktreeId: string,
     filePath: string,
     relativePath: string,
     staged: boolean,
-    runtimeEnvironmentId?: string | null
+    runtimeEnvironmentId?: string | null,
+    activate?: boolean
   ): void
   readMobileMarkdownTab?(worktreeId: string, tabId: string): Promise<RuntimeMarkdownReadTabResult>
   saveMobileMarkdownTab?(

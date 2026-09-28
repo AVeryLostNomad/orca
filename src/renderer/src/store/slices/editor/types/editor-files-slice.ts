@@ -48,6 +48,8 @@ export type EditorFilesSlice = {
       forceContentReload?: boolean
       focusEditor?: boolean
       reopenId?: string
+      /** Skip focus changes while materializing a remotely requested tab. */
+      background?: boolean
       /** Skip unified-tab creation; the caller owns the surface (workspace notes pane). */
       suppressUnifiedTab?: boolean
     }

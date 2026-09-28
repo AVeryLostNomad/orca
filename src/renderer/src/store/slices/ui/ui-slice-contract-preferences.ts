@@ -1,4 +1,5 @@
 import type { PersistedUIState } from '../../../../../shared/persisted-ui-state-types'
+import type { ExecutionHostId } from '../../../../../shared/execution-host'
 import type {
   ActivityGroupBy,
   AgentActivityDisplayMode,
@@ -42,7 +43,9 @@ export type UISlicePreferences = {
   visibleWorkspaceHostIds: VisibleWorkspaceHostIds
   setVisibleWorkspaceHostIds: (ids: VisibleWorkspaceHostIds) => void
   workspaceHostOrder: WorkspaceHostOrder
-  setWorkspaceHostOrder: (ids: WorkspaceHostOrder) => void
+  /** Host whose page the paged sidebar shows. Device-local; resolves to the first page when absent. */
+  sidebarHostPageId: ExecutionHostId
+  setSidebarHostPageId: (hostId: ExecutionHostId) => void
   /** Automations page host filter, in stable form. Never written from an unhydrated catalog. */
   automationHostFilter: AutomationHostFilter
   setAutomationHostFilter: (filter: AutomationHostFilter) => void

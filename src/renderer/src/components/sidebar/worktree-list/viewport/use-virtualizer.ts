@@ -35,7 +35,6 @@ export function useWorktreeListVirtualizer(args: {
   const { renderRows, firstHeaderIndex, scrollRef, scrollOffsetRef } = args
   const stickyHeaderIndexes = useMemo(() => getStickyHeaderIndexes(renderRows), [renderRows])
   const activeStickyHeaderIndexRef = useRef<number | null>(null)
-  const activeStickyHostIndexRef = useRef<number | null>(null)
   const stickyRangeStartIndexRef = useRef(0)
 
   const getVirtualItemKey = useCallback(
@@ -88,10 +87,7 @@ export function useWorktreeListVirtualizer(args: {
         )
       }
       const index = getVirtualRowIndex(element)
-      if (
-        index !== null &&
-        (renderRows[index]?.type === 'header' || renderRows[index]?.type === 'host-header')
-      ) {
+      if (index !== null && renderRows[index]?.type === 'header') {
         return estimateRenderRowSize(
           renderRows,
           index,
@@ -121,11 +117,10 @@ export function useWorktreeListVirtualizer(args: {
         stickyRangeStartIndexRef.current = range.startIndex
         return extractWorktreeVirtualRowIndexes({
           range,
-          stickyHeaderIndexes,
-          rows: renderRows
+          stickyHeaderIndexes
         })
       },
-      [renderRows, stickyHeaderIndexes]
+      [stickyHeaderIndexes]
     ),
     overscan: 10,
     gap: WORKTREE_SIDEBAR_VIRTUAL_ROW_GAP,
@@ -154,7 +149,6 @@ export function useWorktreeListVirtualizer(args: {
     isCurrentVirtualRowElement,
     stickyHeaderIndexes,
     activeStickyHeaderIndexRef,
-    activeStickyHostIndexRef,
     stickyRangeStartIndexRef
   }
 }

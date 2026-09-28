@@ -183,6 +183,9 @@ export function createMarkdownPreviewActions(
         }
         return changed ? { openFiles, unifiedTabsByWorktree } : s
       })
+      void import('@/runtime/runtime-editor-tab-publish').then(({ publishRuntimeEditorTab }) =>
+        publishRuntimeEditorTab(get(), fileId)
+      )
     },
 
     pinFile: (fileId, tabId) => {

@@ -28,7 +28,6 @@ describe('getNaturalWorktreeIds', () => {
   it('ignores every non-item row type', () => {
     const rows = [
       { type: 'header', key: 'k' },
-      { type: 'host-header' },
       { type: 'imported-worktrees-card' },
       { type: 'new-external-worktrees-inbox' },
       { type: 'pending-creation' },

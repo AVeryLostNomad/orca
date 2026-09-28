@@ -231,6 +231,29 @@ describe('terminal link action routing', () => {
     expect(openUrl).not.toHaveBeenCalled()
   })
 
+  it('opens a remote loopback popover primary in the owning browser', () => {
+    const request = vi.fn()
+    const url = 'http://app.localhost:5173/'
+
+    handleTerminalHttpLink(url, plainEvent(), {
+      worktreeId: 'wt-1',
+      sourceOwner: { kind: 'runtime', runtimeEnvironmentId: 'env-1' },
+      linkActionContext: actionContext(request),
+      actionDestinations: { primary: 'orca', alternate: 'system' }
+    })
+
+    expect(request.mock.calls[0][0].primary.label).toBe('Orca Browser')
+    request.mock.calls[0][0].primary.run()
+    expect(openRuntimeBrowserTab).toHaveBeenCalledWith({
+      workspaceId: 'wt-1',
+      url,
+      intent: { kind: 'url' },
+      expectedRuntimeEnvironmentId: 'env-1'
+    })
+    request.mock.calls[0][0].alternate.run()
+    expect(openUrl).toHaveBeenCalledWith(url)
+  })
+
   it('uses Shift+modifier for the alternate local destination', () => {
     const event = { ...plainEvent(), metaKey: true, shiftKey: true }
 

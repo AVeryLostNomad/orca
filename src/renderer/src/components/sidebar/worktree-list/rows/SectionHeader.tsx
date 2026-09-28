@@ -80,7 +80,6 @@ export function renderWorktreeSectionHeaderRow(args: {
   row: GroupHeaderRow
   vItem: VirtualItem
   isActiveStickyHeader: boolean
-  hasStickyHost: boolean
   hasHeaderTopSpacing: boolean
   measureVirtualRowElement: (element: HTMLDivElement | null) => void
 }): React.JSX.Element {
@@ -209,11 +208,7 @@ export function renderWorktreeSectionHeaderRow(args: {
         // Why: drop the inter-group spacer once the header pins so it sits flush at top (see getActiveStickyHeaderIndexForScroll).
         args.hasHeaderTopSpacing && !isActiveStickyHeader && 'pt-1',
         isActiveStickyHeader
-          ? cn(
-              'sticky z-20 bg-worktree-sidebar',
-              // Why: when a host card is pinned, the group tier pins flush beneath it, not at the viewport top.
-              args.hasStickyHost ? 'top-[35px]' : showStickyGroupFrame ? 'top-0' : '-top-px'
-            )
+          ? cn('sticky z-20 bg-worktree-sidebar', showStickyGroupFrame ? 'top-0' : '-top-px')
           : 'absolute top-0'
       )}
       style={isActiveStickyHeader ? undefined : { transform: getVirtualRowTransform(vItem.start) }}

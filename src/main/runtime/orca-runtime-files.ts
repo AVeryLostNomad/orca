@@ -9,4 +9,3 @@ export { _resetRuntimeFileWatcherLeasesForTests } from './runtime-file-watcher-l
 export type { ResolvedRuntimeFileWorktree } from './runtime-file-command-target'
 export type { ResolvedRuntimeFileTarget } from './runtime-file-command-target'
 export type { RuntimeFileCommandHost } from './runtime-file-command-host'
-export { isSafeMobileRelativePath } from './runtime-file-command-host'

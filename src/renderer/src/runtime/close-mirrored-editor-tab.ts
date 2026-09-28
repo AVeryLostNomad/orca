@@ -33,7 +33,7 @@ export function notifyHostOfMirroredEditorClose(
   }
   // A mirrored unified tab carries the host's tab id as `id` and the local file id as `entityId`; the host close RPC resolves by id.
   const unifiedTab = (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
-    (tab) => tab.contentType === 'editor' && tab.entityId === fileId
+    (tab) => (tab.contentType === 'editor' || tab.contentType === 'diff') && tab.entityId === fileId
   )
   if (!unifiedTab) {
     return false

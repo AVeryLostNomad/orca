@@ -163,6 +163,81 @@ describe('openHttpLink', () => {
     expect(openUrlMock).not.toHaveBeenCalled()
   })
 
+  it.each([
+    [
+      'runtime localhost',
+      'http://localhost:5173/',
+      { kind: 'runtime', runtimeEnvironmentId: 'env-1' },
+      { expectedRuntimeEnvironmentId: 'env-1' }
+    ],
+    [
+      'SSH localhost',
+      'http://localhost:5173/',
+      { kind: 'ssh', connectionId: 'ssh-1' },
+      { expectedSshConnectionId: 'ssh-1' }
+    ],
+    [
+      'runtime IPv4 loopback',
+      'http://127.0.0.1:3000/',
+      { kind: 'runtime', runtimeEnvironmentId: 'env-1' },
+      { expectedRuntimeEnvironmentId: 'env-1' }
+    ],
+    [
+      'SSH localhost subdomain',
+      'http://app.localhost:5173/',
+      { kind: 'ssh', connectionId: 'ssh-1' },
+      { expectedSshConnectionId: 'ssh-1' }
+    ]
+  ] as const)(
+    'routes a remote-owned %s URL through its workspace browser by default',
+    (_label, url, sourceOwner, expectedOwner) => {
+      storeState.settings = { openLinksInApp: false }
+
+      openHttpLink(url, { worktreeId: 'wt-1', sourceOwner })
+
+      expect(openRuntimeBrowserTabMock).toHaveBeenCalledWith({
+        workspaceId: 'wt-1',
+        url,
+        intent: { kind: 'url' },
+        ...expectedOwner
+      })
+      expect(openUrlMock).not.toHaveBeenCalled()
+      expect(createBrowserTabMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps the client browser when a default remote loopback route cannot open', async () => {
+    storeState.settings = { openLinksInApp: false }
+    openRuntimeBrowserTabMock.mockImplementationOnce(() =>
+      Promise.reject(new Error('asserted SSH connection cannot provide this browser'))
+    )
+
+    openHttpLink('http://localhost:5173/', {
+      worktreeId: 'wt-1',
+      sourceOwner: { kind: 'ssh', connectionId: 'ssh-1' }
+    })
+
+    await vi.waitFor(() => expect(openUrlMock).toHaveBeenCalledWith('http://localhost:5173/'))
+    expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed remote loopback open the user explicitly sent to Orca', async () => {
+    storeState.settings = { openLinksInApp: true }
+    openRuntimeBrowserTabMock.mockImplementationOnce(() =>
+      Promise.reject(new Error('runtime browser tab creation failed'))
+    )
+
+    openHttpLink('http://localhost:5173/', {
+      worktreeId: 'wt-1',
+      sourceOwner: { kind: 'runtime', runtimeEnvironmentId: 'env-1' }
+    })
+
+    await vi.waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith('runtime browser tab creation failed')
+    )
+    expect(openUrlMock).not.toHaveBeenCalled()
+  })
+
   it('routes runtime and SSH document owners through their workspace browsers', () => {
     storeState.settings = { openLinksInApp: true, localhostWorktreeLabelsEnabled: true }
 
@@ -229,21 +304,21 @@ describe('openHttpLink', () => {
     expect(toastErrorMock).toHaveBeenCalledWith('runtime unavailable')
   })
 
-  it('keeps an explicit runtime system-browser action on the viewing client', () => {
-    storeState.settings = { openLinksInApp: true }
+  it('keeps an explicit remote loopback system-browser action on the viewing client', () => {
+    storeState.settings = { openLinksInApp: false }
 
-    openHttpLink('https://example.com/', {
+    openHttpLink('http://localhost:5173/', {
       worktreeId: 'wt-1',
       forceSystemBrowser: true,
       sourceOwner: { kind: 'runtime', runtimeEnvironmentId: 'env-1' }
     })
 
-    expect(openUrlMock).toHaveBeenCalledWith('https://example.com/')
+    expect(openUrlMock).toHaveBeenCalledWith('http://localhost:5173/')
     expect(openRuntimeBrowserTabMock).not.toHaveBeenCalled()
   })
 
-  it('keeps generic runtime-owned document links in the system browser', () => {
-    storeState.settings = { openLinksInApp: true }
+  it('keeps non-loopback runtime-owned document links in the system browser', () => {
+    storeState.settings = { openLinksInApp: false }
 
     openHttpLink('https://example.com/', {
       worktreeId: 'wt-1',
@@ -490,8 +565,7 @@ describe('openHttpLink', () => {
     expect(registerLocalhostLabelMock).not.toHaveBeenCalled()
   })
 
-  // Why: the hover label must describe the click's real destination — a remote pane's
-  // loopback URL opens raw in the system browser, so a local worktree label would lie.
+  // Why: the client label service cannot label a remote browser's loopback route.
   it.each([
     ['runtime', { kind: 'runtime', runtimeEnvironmentId: 'env-1' }] as const,
     ['ssh', { kind: 'ssh', connectionId: 'conn-1' }] as const

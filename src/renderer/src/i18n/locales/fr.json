@@ -5769,14 +5769,7 @@
           "5b90e4a2f6": "worktrees masqués",
           "7f18c5b0d3": "Examiner {{value0}} worktree masqué dans {{value1}}",
           "4e2b7a9c05": "Examiner {{value0}} worktrees masqués dans {{value1}}",
-          "c3e8a1f4b2": "Ne plus afficher",
-          "6c07f3a91e": "{{value0}} sur {{value1}}"
-        },
-        "NoticeHostGlyph": {
-          "hostDisconnected": "{{hostName}} déconnecté",
-          "sshHostProject": "Projet sur l'hôte SSH {{hostName}}",
-          "localHostProject": "Projet sur cette machine",
-          "runtimeHostProject": "Projet sur {{hostName}}"
+          "c3e8a1f4b2": "Ne plus afficher"
         },
         "newExternalWorktreesInboxActions": {
           "a11c2f6d89": "Impossible de garder les worktrees externes masqués. Réessayez.",

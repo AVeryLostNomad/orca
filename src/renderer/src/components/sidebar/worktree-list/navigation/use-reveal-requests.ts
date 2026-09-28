@@ -13,6 +13,7 @@ import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { composeWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import type { WorktreeGroupBy } from '../grouping/row-types'
 import { getKnownSidebarWorktreeById } from './folder-reveal'
+import { getSidebarRevealTargetHostIds } from '../../sidebar-reveal-host'
 
 // Turns a "show me the current workspace" request into whatever the sidebar must change
 // first — grouping mode, active filters — before the viewport can scroll to it.
@@ -27,6 +28,10 @@ export function useSidebarRevealRequests(args: {
   folderWorkspaces: readonly FolderWorkspace[]
   hasFilters: boolean
   clearFilters: () => void
+  /** The host page rendering this list; reveals for other hosts switch pages instead of clearing filters. */
+  hostPageId?: ExecutionHostId
+  consumesReveals?: boolean
+  listensForCurrentWorkspaceReveal?: boolean
 }): void {
   const {
     groupBy,
@@ -38,7 +43,10 @@ export function useSidebarRevealRequests(args: {
     worktrees,
     folderWorkspaces,
     hasFilters,
-    clearFilters
+    clearFilters,
+    hostPageId,
+    consumesReveals = true,
+    listensForCurrentWorkspaceReveal = true
   } = args
   const setGroupBy = useAppStore((s) => s.setGroupBy)
   const pendingRevealSidebarRow = useAppStore((s) => s.pendingRevealSidebarRow)
@@ -52,7 +60,7 @@ export function useSidebarRevealRequests(args: {
   })
 
   useEffect(() => {
-    if (!pendingRevealSidebarRow) {
+    if (!consumesReveals || !pendingRevealSidebarRow) {
       return
     }
     const rowKey = pendingRevealSidebarRow.rowKey
@@ -69,6 +77,7 @@ export function useSidebarRevealRequests(args: {
     }
   }, [
     clearFilters,
+    consumesReveals,
     groupBy,
     hasFilters,
     pendingRevealSidebarRow,
@@ -110,7 +119,19 @@ export function useSidebarRevealRequests(args: {
         currentSidebarExecutionHostId ?? undefined,
         currentSidebarWorktreeId
       )
-      if (hasFilters && !renderedWorktreeIdentities.includes(currentIdentity)) {
+      const targetHostIds = hostPageId
+        ? getSidebarRevealTargetHostIds(useAppStore.getState(), {
+            worktreeId: currentSidebarWorktreeId,
+            behavior: 'smooth',
+            ...(currentSidebarExecutionHostId
+              ? { executionHostId: currentSidebarExecutionHostId }
+              : {})
+          })
+        : []
+      // Why: a workspace on another host lives on another page — the reveal slides there, no filter involved.
+      const onOtherHostPage =
+        targetHostIds.length > 0 && !targetHostIds.some((hostId) => hostId === hostPageId)
+      if (!onOtherHostPage && hasFilters && !renderedWorktreeIdentities.includes(currentIdentity)) {
         if (confirmationPending.current) {
           return
         }
@@ -155,6 +176,7 @@ export function useSidebarRevealRequests(args: {
     [
       confirm,
       hasFilters,
+      hostPageId,
       currentSidebarWorktreeId,
       currentSidebarExecutionHostId,
       folderWorkspaces,
@@ -167,6 +189,9 @@ export function useSidebarRevealRequests(args: {
   )
 
   useEffect(() => {
+    if (!listensForCurrentWorkspaceReveal) {
+      return
+    }
     window.addEventListener(
       SCROLL_TO_CURRENT_WORKSPACE_REVEAL_REQUEST_EVENT,
       handleRevealCurrentWorkspaceRequest
@@ -177,5 +202,5 @@ export function useSidebarRevealRequests(args: {
         handleRevealCurrentWorkspaceRequest
       )
     }
-  }, [handleRevealCurrentWorkspaceRequest])
+  }, [handleRevealCurrentWorkspaceRequest, listensForCurrentWorkspaceReveal])
 }

@@ -10,6 +10,7 @@ import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
 import type { ReadyEditorSurface, MirroredEditorTab } from './state'
 import type { WebSessionExistingTabIndex } from '../web-session-existing-tab-index'
 import { isReadyEditorTab, localEditorFileId, editorSourceFileId } from './terminal-surfaces'
+import { buildDiffEditorFileId } from '../../store/slices/editor/file-ids/editor-file-ids'
 
 export function buildTerminalUnifiedTab(
   tab: TerminalTab,
@@ -83,7 +84,7 @@ export function buildEditorUnifiedTab(
     groupId,
     worktreeId: file.worktreeId,
     executionHostId: toRuntimeExecutionHostId(environmentId),
-    contentType: 'editor',
+    contentType: file.mode === 'diff' ? 'diff' : 'editor',
     label,
     customLabel: null,
     color: tab.color !== undefined ? tab.color : (existingUnifiedTab?.color ?? null),
@@ -98,7 +99,7 @@ export function buildEditorUnifiedTab(
 export function buildMirroredEditorTabs(
   snapshot: RuntimeMobileSessionTabsResult,
   environmentId: string,
-  worktreeOpenFileById: ReadonlyMap<string, OpenFile>,
+  worktreeOpenFiles: readonly OpenFile[],
   existingTabIndex: WebSessionExistingTabIndex,
   hostGroupIdByTabId: ReadonlyMap<string, string>,
   fallbackGroupId: string,
@@ -106,8 +107,19 @@ export function buildMirroredEditorTabs(
   now: number
 ): MirroredEditorTab[] {
   return snapshot.tabs.filter(isReadyEditorTab).map((tab, index) => {
-    const fileId = localEditorFileId(tab)
-    const existingFile = worktreeOpenFileById.get(fileId)
+    const diffSource = tab.type === 'file' && tab.mode === 'diff' ? tab.diffSource : undefined
+    const mode = diffSource ? ('diff' as const) : tab.type === 'markdown' ? tab.mode : 'edit'
+    const fallbackFileId = diffSource
+      ? buildDiffEditorFileId(snapshot.worktree, diffSource, tab.relativePath, environmentId)
+      : localEditorFileId(tab)
+    const existingFile = worktreeOpenFiles.find(
+      (candidate) =>
+        candidate.runtimeEnvironmentId === environmentId &&
+        candidate.filePath === tab.filePath &&
+        candidate.mode === mode &&
+        (!diffSource || candidate.diffSource === diffSource)
+    )
+    const fileId = existingFile?.id ?? fallbackFileId
     const existingUnifiedTab = existingTabIndex.getEditorUnifiedTab(fileId, tab.id)
     const sourceFileId = editorSourceFileId(tab)
     const groupId = hostGroupIdByTabId.get(tab.id) ?? fallbackGroupId
@@ -118,9 +130,10 @@ export function buildMirroredEditorTabs(
       relativePath: tab.relativePath,
       worktreeId: snapshot.worktree,
       language: tab.language,
-      isDirty: tab.isDirty,
+      isDirty: existingFile?.isDirty || tab.isDirty,
       runtimeEnvironmentId: environmentId,
-      mode: tab.type === 'markdown' ? tab.mode : 'edit',
+      mode,
+      ...(diffSource ? { diffSource } : {}),
       markdownPreviewSourceFileId: sourceFileId,
       // Why: marks this tab host-owned so a later snapshot that omits it can cull it; locally opened tabs lack this flag and survive.
       mirroredFromRuntimeSession: true

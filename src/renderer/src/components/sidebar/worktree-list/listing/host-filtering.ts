@@ -46,38 +46,44 @@ export function filterFolderWorkspacesForVisibleHosts(
   if (!visibleHostIdSet) {
     return folderWorkspaces
   }
+  const resolveHostId = createFolderWorkspaceRowHostIdResolver(projectGroups, defaultHostId)
+  return folderWorkspaces.filter((folderWorkspace) =>
+    visibleHostIdSet.has(resolveHostId(folderWorkspace))
+  )
+}
+
+/** Host a folder workspace row renders under, matching its project group by id and host. */
+export function createFolderWorkspaceRowHostIdResolver(
+  projectGroups: readonly ProjectGroup[],
+  defaultHostId: ExecutionHostId
+): (folderWorkspace: FolderWorkspace) => ExecutionHostId {
   const projectGroupsById = new Map<string, ProjectGroup[]>()
   for (const group of projectGroups) {
     const groups = projectGroupsById.get(group.id) ?? []
     groups.push(group)
     projectGroupsById.set(group.id, groups)
   }
-  return folderWorkspaces.filter((folderWorkspace) => {
+  return (folderWorkspace) => {
     const folderHostId =
       normalizeExecutionHostId(folderWorkspace.executionHostId) ??
       (folderWorkspace.connectionId
         ? toSshExecutionHostId(folderWorkspace.connectionId)
         : defaultHostId)
+    const candidates = projectGroupsById.get(folderWorkspace.projectGroupId)
     const projectGroup =
-      projectGroupsById
-        .get(folderWorkspace.projectGroupId)
-        ?.find(
-          (group) => getProjectGroupExecutionHostIdForRows(group, defaultHostId) === folderHostId
-        ) ??
-      projectGroupsById
-        .get(folderWorkspace.projectGroupId)
-        ?.find(
-          (group) => getProjectGroupExecutionHostIdForRows(group, defaultHostId) === defaultHostId
-        ) ??
-      projectGroupsById.get(folderWorkspace.projectGroupId)?.[0]
-    return visibleHostIdSet.has(
-      getFolderWorkspaceExecutionHostIdForRows({
-        folderWorkspace,
-        projectGroup,
-        defaultHostId
-      })
-    )
-  })
+      candidates?.find(
+        (group) => getProjectGroupExecutionHostIdForRows(group, defaultHostId) === folderHostId
+      ) ??
+      candidates?.find(
+        (group) => getProjectGroupExecutionHostIdForRows(group, defaultHostId) === defaultHostId
+      ) ??
+      candidates?.[0]
+    return getFolderWorkspaceExecutionHostIdForRows({
+      folderWorkspace,
+      projectGroup,
+      defaultHostId
+    })
+  }
 }
 
 export function getProjectGroupExecutionHostIdForRows(

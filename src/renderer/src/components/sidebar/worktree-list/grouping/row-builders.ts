@@ -9,7 +9,6 @@ import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-
 import { isValidResolvedWorktreeLineageEdge } from '../../../../../../shared/resolved-worktree-lineage'
 import { getProjectedWorktreeLineage } from '../../worktree-lineage-projection'
 import { getWorktreeLineageGroupKey } from './group-keys'
-import type { NoticeHostContext } from './host-labels'
 import type { RenderableFolderWorkspace } from './folder-workspace-lanes'
 import type {
   FolderWorkspaceRow,
@@ -37,33 +36,25 @@ export function buildPendingCreationRow(
 
 export function buildImportedWorktreesCardRow(
   candidate: ImportedWorktreesCardCandidate,
-  placement: ImportedWorktreesCardRow['placement'],
-  hostContext?: NoticeHostContext
+  placement: ImportedWorktreesCardRow['placement']
 ): ImportedWorktreesCardRow {
   return {
     type: 'imported-worktrees-card',
     key: `imported-worktrees-card:${placement}:${candidate.repo.id}`,
     repo: candidate.repo,
     hiddenWorktrees: candidate.hiddenWorktrees,
-    placement,
-    ...(hostContext
-      ? { hostContextLabel: hostContext.label, hostContextHostId: hostContext.hostId }
-      : {})
+    placement
   }
 }
 
 export function buildNewExternalWorktreesInboxRow(
-  candidate: NewExternalWorktreesInboxCandidate,
-  hostContext?: NoticeHostContext
+  candidate: NewExternalWorktreesInboxCandidate
 ): NewExternalWorktreesInboxRow {
   return {
     type: 'new-external-worktrees-inbox',
     key: `new-external-worktrees-inbox:${candidate.repo.id}`,
     repo: candidate.repo,
-    inboxWorktrees: candidate.inboxWorktrees,
-    ...(hostContext
-      ? { hostContextLabel: hostContext.label, hostContextHostId: hostContext.hostId }
-      : {})
+    inboxWorktrees: candidate.inboxWorktrees
   }
 }
 
@@ -79,7 +70,6 @@ function buildWorktreeRow(
     isLastLineageChild: boolean
     lineageChildCount: number
     lineageCollapsed: boolean
-    hostContextLabel?: string
   }
 ): WorktreeRow {
   return {
@@ -93,7 +83,6 @@ function buildWorktreeRow(
     lineageTrail: options.lineageTrail,
     isLastLineageChild: options.isLastLineageChild,
     lineageChildCount: options.lineageChildCount,
-    ...(options.hostContextLabel ? { hostContextLabel: options.hostContextLabel } : {}),
     ...(options.lineageChildCount > 0
       ? { lineageGroupKey: getWorktreeLineageGroupKey(worktree) }
       : {}),
@@ -112,20 +101,10 @@ export function appendWorktreeRows(
     collapsedGroups: Set<string>
     groupDepth: number
     sectionKey: string
-    hostContextLabelByRepoId?: ReadonlyMap<string, string>
-    hostContextLabelByWorktreeIdentity?: ReadonlyMap<string, string>
     cyclicLineageIds: ReadonlySet<string>
   }
 ): void {
-  const {
-    nestLineage,
-    collapsedGroups,
-    groupDepth,
-    sectionKey,
-    hostContextLabelByRepoId,
-    hostContextLabelByWorktreeIdentity,
-    cyclicLineageIds
-  } = options
+  const { nestLineage, collapsedGroups, groupDepth, sectionKey, cyclicLineageIds } = options
   if (!nestLineage) {
     for (const worktree of worktrees) {
       result.push(
@@ -137,10 +116,7 @@ export function appendWorktreeRows(
           lineageTrail: [],
           isLastLineageChild: false,
           lineageChildCount: 0,
-          lineageCollapsed: false,
-          hostContextLabel:
-            hostContextLabelByWorktreeIdentity?.get(getWorktreeHostIdentity(worktree)) ??
-            hostContextLabelByRepoId?.get(worktree.repoId)
+          lineageCollapsed: false
         })
       )
     }
@@ -207,10 +183,7 @@ export function appendWorktreeRows(
           lineageTrail,
           isLastLineageChild: isLastChild,
           lineageChildCount: children.length,
-          lineageCollapsed,
-          hostContextLabel:
-            hostContextLabelByWorktreeIdentity?.get(worktreeIdentity) ??
-            hostContextLabelByRepoId?.get(worktree.repoId)
+          lineageCollapsed
         })
       )
       if (lineageCollapsed) {

@@ -198,6 +198,7 @@ export const uiTerminalAndSessionTabsApi = {
       filePath: string
       relativePath: string
       runtimeEnvironmentId?: string
+      activate?: boolean
     }) => void
   ): (() => void) => {
     const listener = (
@@ -207,6 +208,7 @@ export const uiTerminalAndSessionTabsApi = {
         filePath: string
         relativePath: string
         runtimeEnvironmentId?: string
+        activate?: boolean
       }
     ) => callback(data)
     ipcRenderer.on('ui:openFileFromMobile', listener)

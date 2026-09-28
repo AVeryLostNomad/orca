@@ -62,18 +62,6 @@ export function estimateRenderRowSize(
   _activeStickyHeaderIndex: number | null
 ): number {
   const row = rows[index]
-  if (row?.type === 'host-header') {
-    return (
-      HOST_HEADER_ROW_HEIGHT +
-      (shouldUseHeaderTopSpacing({
-        rows,
-        index,
-        firstHeaderIndex
-      })
-        ? SECONDARY_GROUP_HEADER_TOP_MARGIN
-        : 0)
-    )
-  }
   if (row?.type === 'header') {
     return (
       GROUP_HEADER_ROW_HEIGHT +
@@ -149,106 +137,38 @@ export function getStickyHeaderIndexes(rows: readonly RenderRow[]): number[] {
   rows.forEach((row, index) => {
     // Why: project groups are the top-level repo sidebar context; nested repo
     // headers should not replace their containing group as the pinned header.
-    if (
-      row.type === 'host-header' ||
-      (row.type === 'header' && (row.projectGroupDepth ?? 0) === 0)
-    ) {
+    if (row.type === 'header' && (row.projectGroupDepth ?? 0) === 0) {
       indexes.push(index)
     }
   })
   return indexes
 }
 
-// Why: the pinned host card is h-8 (32px) inside a pt-1 (4px) wrapper; the
-// group tier pins one pixel up to sit flush beneath it. Keep in sync with
-// HostSectionHeader's layout.
-export const HOST_STICKY_PINNED_HEIGHT = 36
-
-export type ActiveStickyIndexes = {
-  /** Pinned host card (tier 1), or null outside host sections. */
-  hostIndex: number | null
-  /** Pinned group header (tier 2), offset below the host when one is pinned. */
-  groupIndex: number | null
-}
-
-function getHostStickyIndexes(rows: readonly RenderRow[], sticky: readonly number[]): number[] {
-  return sticky.filter((index) => rows[index]?.type === 'host-header')
-}
-
-/** Two-tier sticky resolution: the host card is the outer hierarchy level so
- *  it stays pinned for the whole section while group headers hand off beneath
- *  it. Without host sections this degrades to the original single-tier rules. */
-export function getActiveStickyIndexesForScroll(args: {
-  rows: readonly RenderRow[]
+/** The group header pinned at the top of the worktree list for this scroll position. */
+export function getActiveWorktreeStickyHeaderIndex(args: {
   rangeStartIndex: number
   scrollOffset: number
   stickyHeaderIndexes: readonly number[]
   virtualItems: readonly VirtualItem[]
-}): ActiveStickyIndexes {
-  const hostIndexes = getHostStickyIndexes(args.rows, args.stickyHeaderIndexes)
-
-  const resolveWithHandoff = (
-    candidates: readonly number[],
-    pinnedOffset: number,
-    fallbackToCandidate: boolean
-  ): number | null => {
-    const candidateIndex = getActiveStickyHeaderIndex(candidates, args.rangeStartIndex)
-    if (candidateIndex === null) {
-      return null
-    }
-    const candidate = args.virtualItems.find((item) => item.index === candidateIndex)
-    if (!candidate) {
-      // Why: scrollToIndex/reveal can advance rangeStartIndex before TanStack
-      // mounts the candidate row. Pinning without geometry lets a Project
-      // sticky paint over the Host card (#10088). Prefer a previous mounted
-      // sticky; group tier waits for geometry, host tier may keep the id.
-      const previous = getPreviousStickyHeaderIndex(candidates, candidateIndex)
-      if (previous !== null) {
-        const previousItem = args.virtualItems.find((item) => item.index === previous)
-        if (previousItem) {
-          return previous
-        }
-      }
-      return fallbackToCandidate ? candidateIndex : null
-    }
-    // Why: hand off the moment the incoming header reaches its pinned slot
-    // (top of the viewport, or the bottom edge of the pinned host card).
-    if (args.scrollOffset + pinnedOffset >= candidate.start) {
-      return candidateIndex
-    }
-    const previous = getPreviousStickyHeaderIndex(candidates, candidateIndex)
-    if (previous !== null) {
-      return previous
-    }
-    // Why: a host section's first group is still in flow below the pinned
-    // host card until it reaches the slot — pinning it early would double
-    // it up. The host tier keeps the legacy fallback.
-    return fallbackToCandidate ? candidateIndex : null
+}): number | null {
+  const candidateIndex = getActiveStickyHeaderIndex(args.stickyHeaderIndexes, args.rangeStartIndex)
+  if (candidateIndex === null) {
+    return null
   }
-
-  const hostIndex = resolveWithHandoff(hostIndexes, 0, true)
-
-  const hostPosition = hostIndex === null ? -1 : hostIndexes.indexOf(hostIndex)
-  const nextHostIndex =
-    hostPosition >= 0 ? (hostIndexes[hostPosition + 1] ?? Number.POSITIVE_INFINITY) : null
-  const groupIndexes = args.stickyHeaderIndexes.filter((index) => {
-    if (args.rows[index]?.type !== 'header') {
-      return false
-    }
-    // Why: a group from the previous host must never pin beneath the next
-    // host's card — only groups inside the pinned host's section qualify.
-    if (hostIndex !== null) {
-      return index > hostIndex && index < (nextHostIndex ?? Number.POSITIVE_INFINITY)
-    }
-    return true
-  })
-  const groupIndex = resolveWithHandoff(
-    groupIndexes,
-    hostIndex !== null ? HOST_STICKY_PINNED_HEIGHT : 0,
-    hostIndex === null
-  )
-
-  return { hostIndex, groupIndex }
+  const previousIndex = getPreviousStickyHeaderIndex(args.stickyHeaderIndexes, candidateIndex)
+  const candidate = args.virtualItems.find((item) => item.index === candidateIndex)
+  if (!candidate) {
+    // Why: scrollToIndex/reveal can advance rangeStartIndex before TanStack mounts the
+    // candidate row; keep a mounted previous header rather than pin one without geometry (#10088).
+    const previousMounted =
+      previousIndex !== null && args.virtualItems.some((item) => item.index === previousIndex)
+    return previousMounted ? previousIndex : candidateIndex
+  }
+  // Why: hand off the moment the incoming header reaches the top of the viewport.
+  if (args.scrollOffset >= candidate.start) {
+    return candidateIndex
+  }
+  return previousIndex ?? candidateIndex
 }
 
 export function getActiveStickyHeaderIndex(
@@ -278,7 +198,6 @@ export function getPreviousStickyHeaderIndex(
 export function extractWorktreeVirtualRowIndexes(args: {
   range: Range
   stickyHeaderIndexes: readonly number[]
-  rows?: readonly RenderRow[]
 }): number[] {
   const activeStickyHeaderIndex = getActiveStickyHeaderIndex(
     args.stickyHeaderIndexes,
@@ -292,15 +211,10 @@ export function extractWorktreeVirtualRowIndexes(args: {
     args.stickyHeaderIndexes,
     activeStickyHeaderIndex
   )
-  // Why: the pinned host card (tier 1) can be far above the visible range
-  // while group headers hand off beneath it — keep it mounted regardless.
-  const hostIndexes = args.rows ? getHostStickyIndexes(args.rows, args.stickyHeaderIndexes) : []
-  const activeHostIndex = getActiveStickyHeaderIndex(hostIndexes, args.range.startIndex)
   return Array.from(
     new Set([
       activeStickyHeaderIndex,
       ...(previousStickyHeaderIndex === null ? [] : [previousStickyHeaderIndex]),
-      ...(activeHostIndex === null ? [] : [activeHostIndex]),
       ...defaultRangeExtractor(args.range)
     ])
   ).sort((a, b) => a - b)

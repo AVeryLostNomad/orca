@@ -24,6 +24,8 @@ Toggle: [Settings → Terminal → Allow TUI Clipboard Writes (OSC 52)](/docs/se
 
 A plain click on a terminal link (HTTP/OSC 8 URL, file path, workspace, terminal, or task handle) opens a compact action popover instead of navigating immediately. Local web links and links owned by a capability-verified paired runtime offer **Orca Browser** and **System Browser**; SSH-owned links and older runtimes stay system-only. Web links also get **Copy link**, which copies the resolved URL (including hidden OSC 8 destinations) without closing the popover — file and workspace destinations stay unchanged. `Cmd`-click (macOS) / `Ctrl`-click (Windows / Linux) still opens directly, and `Shift+Cmd` / `Shift+Ctrl`-click still uses the [link-routing](/docs/browser/overview#link-routing) alternate.
 
+For loopback web links (`localhost:5173`, `127.0.0.1:3000`) from a remote workspace that can route browser traffic, **Orca Browser** is the primary action regardless of your link-routing default, so the page loads from the remote host rather than this device.
+
 Previewable HTML file links can open in Orca from local, SSH, and paired-runtime workspaces; remote file rows also offer **Download & open with default app**. If a linked file is already open in a sibling workspace tab, Orca activates that tab instead of opening a duplicate. See [HTML viewers](/docs/editing/viewers#html).
 
 Turn the popover off under [Settings → Browser → Show terminal link actions](/docs/settings). With it off, opening a link requires the modifier-click.

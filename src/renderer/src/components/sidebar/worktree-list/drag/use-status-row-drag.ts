@@ -1,9 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import type React from 'react'
 import type { WorkspaceStatus } from '../../../../../../shared/worktree/types'
-import type { HostSectionRow } from '../../host-section-rows'
+import type { Row, WorktreeGroupBy } from '../grouping/row-types'
 import { PINNED_GROUP_KEY } from '../grouping/group-keys'
-import type { WorktreeGroupBy } from '../grouping/row-types'
 import { hasWorkspaceDragData, readWorkspaceDragDataIds } from '../../workspace-status'
 import { useWorkspaceStatusDocumentDrop } from '../../use-workspace-status-drop'
 import type { WorktreeDropCommitContext } from './drop-commit-context'
@@ -17,7 +16,7 @@ export function useWorkspaceStatusRowDrag(args: {
   session: WorktreeDragSession
   runtime: WorktreeDragRuntime
   scrollRef: React.RefObject<HTMLDivElement | null>
-  rows: HostSectionRow[]
+  rows: Row[]
   groupBy: WorktreeGroupBy
   onMoveWorktreeToStatus: (worktreeId: string, status: WorkspaceStatus) => void
   onPinWorktree: (worktreeId: string) => void

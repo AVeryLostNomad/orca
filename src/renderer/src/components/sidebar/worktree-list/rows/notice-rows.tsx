@@ -62,8 +62,6 @@ export function renderImportedWorktreesVirtualRow(args: {
     >
       <ImportedWorktreesVisibilityLine
         repoDisplayName={row.repo.displayName}
-        hostContextLabel={row.hostContextLabel}
-        hostContextHostId={row.hostContextHostId}
         hiddenWorktrees={row.hiddenWorktrees}
         placement={row.placement}
         pending={actionState?.pending ?? false}
@@ -96,8 +94,6 @@ export function renderNewExternalWorktreesInboxVirtualRow(args: {
     >
       <NewExternalWorktreesInboxLine
         repoDisplayName={row.repo.displayName}
-        hostContextLabel={row.hostContextLabel}
-        hostContextHostId={row.hostContextHostId}
         inboxCount={row.inboxWorktrees.length}
         pending={actionState?.pending ?? false}
         error={actionState?.error ?? null}

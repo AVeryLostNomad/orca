@@ -6,19 +6,11 @@ import type { WorktreeLineage } from '../../../../../../shared/worktree/lineage-
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shared/worktree/types'
 import { cloneDefaultWorkspaceStatuses } from '../../../../../../shared/workspace-statuses'
 import type { AppState } from '../../../../store/types'
-import { LOCAL_EXECUTION_HOST_ID } from '../../../../../../shared/execution-host'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { getCyclicProjectedWorktreeLineageIds } from '../../worktree-lineage-projection'
 import { ALL_GROUP_KEY, ALL_GROUP_META } from './group-keys'
 import { appendOrderedGroups } from './group-sections'
 import type { SectionAppendContext } from './group-sections'
-import {
-  getLaneHostWorktreeCounts,
-  getLaneHostWorktreeIds,
-  getMixedWorktreeHostContextLabels,
-  getNoticeHostContextLabels
-} from './host-labels'
 import { buildProjectGroupingIndex } from './project-grouping'
 import type { ProjectGroupingModel } from './project-grouping'
 import { appendProjectGroupSections } from './project-group-sections'
@@ -68,8 +60,6 @@ export function buildRows(
   pendingCreations: readonly PendingCreationRef[] = [],
   projectGrouping?: ProjectGroupingModel,
   folderWorkspaces: readonly FolderWorkspace[] = [],
-  hostLabelById?: ReadonlyMap<string, string>,
-  defaultHostId: ExecutionHostId = LOCAL_EXECUTION_HOST_ID,
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy = getPinnedWorktreeDisplayPolicy(settings)
 ): Row[] {
   const result: Row[] = []
@@ -109,23 +99,6 @@ export function buildRows(
     pinnedDisplayPolicy === 'duplicate-in-groups'
       ? worktrees
       : worktrees.filter((worktree) => !pinnedSectionIds.has(getWorktreeHostIdentity(worktree)))
-  const mixedWorktreeHostContextLabels = getMixedWorktreeHostContextLabels(
-    naturalWorktrees,
-    repoMap,
-    hostLabelById,
-    defaultHostId
-  )
-  // Why here and not per section: a notice row can land in the pinned section
-  // instead of its project's own, and the host ambiguity it resolves belongs to
-  // the project either way. repoMap is the unfiltered universe; the candidate
-  // maps are host-filter scoped, so only they gate eligibility.
-  const noticeHostContextLabelByRepoId = getNoticeHostContextLabels(
-    new Set([...importedWorktreesByRepo.keys(), ...newExternalWorktreesInboxByRepo.keys()]),
-    repoMap.keys(),
-    repoMap,
-    projectIndex,
-    hostLabelById
-  )
   const renderedNaturalAnchorRepoIds = getRenderedNaturalAnchorRepoIds({
     groupBy,
     worktrees: naturalWorktrees,
@@ -139,7 +112,6 @@ export function buildRows(
   emitPinnedGroup(
     pinnedSectionWorktrees,
     repoMap,
-    defaultHostId,
     collapsedGroups,
     renderedNaturalAnchorRepoIds,
     importedWorktreesByRepo,
@@ -148,8 +120,7 @@ export function buildRows(
     lineageById,
     worktreeMap,
     nestLineage,
-    cyclicLineageIds,
-    noticeHostContextLabelByRepoId
+    cyclicLineageIds
   )
   if (groupBy === 'none') {
     // Why folder workspaces gate this too: an account with only folder
@@ -162,18 +133,6 @@ export function buildRows(
         count: naturalWorktrees.length + renderableFolderWorkspaces.length,
         tone: ALL_GROUP_META.tone,
         icon: ALL_GROUP_META.icon,
-        hostWorktreeCounts: getLaneHostWorktreeCounts(
-          naturalWorktrees,
-          renderableFolderWorkspaces,
-          repoMap,
-          defaultHostId
-        ),
-        hostWorktreeIds: getLaneHostWorktreeIds(
-          naturalWorktrees,
-          renderableFolderWorkspaces,
-          repoMap,
-          defaultHostId
-        ),
         worktreeIds: naturalWorktrees.map((worktree) => worktree.id)
       })
       if (!collapsedGroups.has(ALL_GROUP_KEY)) {
@@ -182,7 +141,6 @@ export function buildRows(
           collapsedGroups,
           groupDepth: 0,
           sectionKey: ALL_GROUP_KEY,
-          hostContextLabelByWorktreeIdentity: mixedWorktreeHostContextLabels,
           cyclicLineageIds
         })
         for (const pair of [...renderableFolderWorkspaces].sort((left, right) =>
@@ -218,14 +176,9 @@ export function buildRows(
     collapsedGroups,
     workspaceStatuses,
     repoMap,
-    defaultHostId,
-    hostLabelById,
-    projectIndex,
     importedWorktreesByRepo,
     newExternalWorktreesInboxByRepo,
     pendingByRepo,
-    mixedWorktreeHostContextLabels,
-    noticeHostContextLabelByRepoId,
     lineageById,
     worktreeMap,
     nestLineage,

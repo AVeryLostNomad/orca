@@ -54,7 +54,7 @@ export type TerminalPaneMountPreparation = {
     paneId: number
   ) => ReturnType<typeof resolveTerminalHttpLinkSourceOwner>
   canOpenOwnedBrowserForPane: (paneId: number) => boolean
-  getHttpLinkActionDestinations: (paneId: number) => TerminalHttpLinkActionDestinations
+  getHttpLinkActionDestinations: (paneId: number, url: string) => TerminalHttpLinkActionDestinations
   getLinkActionContext: (paneId: number) => TerminalLinkActionContext | null
   linkDeps: LinkHandlerDeps
   queueResizeAll: (focusActive: boolean) => void
@@ -123,8 +123,12 @@ export function prepareTerminalPaneMount(
       )
     )
   }
-  const getHttpLinkActionDestinations = (paneId: number): TerminalHttpLinkActionDestinations =>
+  const getHttpLinkActionDestinations = (
+    paneId: number,
+    url: string
+  ): TerminalHttpLinkActionDestinations =>
     httpLinkActionDestinationsFor(
+      url,
       deps.settingsRef.current,
       getHttpLinkSourceOwnerForPane(paneId),
       canOpenOwnedBrowserForPane(paneId)

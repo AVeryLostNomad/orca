@@ -215,10 +215,10 @@ describe('closed-sidebar Cmd+1-9 ordering (#9497)', () => {
     expect(getVisibleWorktreeIds()).toEqual(['wt-main', 'wt-feature'])
   })
 
-  it('honors an explicit host filter and keeps the all-hosts default unfiltered', () => {
+  it('numbers only the host page the sidebar shows', () => {
     const localRepo = makeRepo('repo1')
     const sshRepo = makeRepo('repo-ssh', { connectionId: 'my-target' })
-    // Base sort interleaves the hosts, so any host grouping has to reorder them.
+    // Base sort interleaves the hosts, so page scoping has to drop the other host's cards.
     const localMain = makeMainWorktree('wt-local-main', { sortOrder: 3 })
     const remoteMain = makeMainWorktree('wt-remote-main', { repoId: 'repo-ssh', sortOrder: 2 })
     const localFeature = makeWorktree('wt-local-feature', { sortOrder: 1 })
@@ -232,30 +232,19 @@ describe('closed-sidebar Cmd+1-9 ordering (#9497)', () => {
       sshTargetLabels: new Map([['my-target', 'My Target']])
     } as Partial<AppState>
 
-    seedStore([], storeOverrides)
-    // Default all-hosts scope adds no host sections, so repo grouping alone orders it.
-    expect(getVisibleWorktreeIds()).toEqual([
-      'wt-local-main',
-      'wt-local-feature',
-      'wt-remote-main',
-      'wt-remote-feature'
-    ])
-
-    seedStore([], { ...storeOverrides, visibleWorkspaceHostIds: ['local'] })
+    seedStore([], { ...storeOverrides, sidebarHostPageId: 'local' })
     expect(getVisibleWorktreeIds()).toEqual(['wt-local-main', 'wt-local-feature'])
 
+    seedStore([], { ...storeOverrides, sidebarHostPageId: 'ssh:my-target' })
+    expect(getVisibleWorktreeIds()).toEqual(['wt-remote-main', 'wt-remote-feature'])
+
+    // A Hosts filter that hides local leaves the remote page as the first, active page.
     seedStore([], {
       ...storeOverrides,
-      visibleWorkspaceHostIds: ['ssh:my-target', 'local']
+      sidebarHostPageId: 'local',
+      visibleWorkspaceHostIds: ['ssh:my-target']
     })
-    // Host sections keep each host's workspaces contiguous, ordered by the host
-    // registry (local first) rather than by the filter argument's order.
-    expect(getVisibleWorktreeIds()).toEqual([
-      'wt-local-main',
-      'wt-local-feature',
-      'wt-remote-main',
-      'wt-remote-feature'
-    ])
+    expect(getVisibleWorktreeIds()).toEqual(['wt-remote-main', 'wt-remote-feature'])
   })
 
   it('keeps the sort layer intact for smart and comparator sort modes', () => {
@@ -270,15 +259,18 @@ describe('closed-sidebar Cmd+1-9 ordering (#9497)', () => {
     expect(getVisibleWorktreeIds()).toEqual(['wt-main', 'wt-newer', 'wt-older'])
   })
 
-  it('keeps same-id hosts as separate closed-sidebar shortcut positions', () => {
-    seedStore([
+  it('keeps same-id workspaces on their own host pages', () => {
+    const worktrees = [
       makeWorktree('repo1::/same', { hostId: 'local' }),
       makeWorktree('repo1::/same', { hostId: 'ssh:box' })
+    ]
+    seedStore(worktrees, { sidebarHostPageId: 'local' })
+    expect(getVisibleWorktreeShortcutTargets()).toEqual([
+      { id: 'repo1::/same', executionHostId: 'local' }
     ])
 
-    expect(getVisibleWorktreeIds()).toEqual(['repo1::/same'])
+    seedStore(worktrees, { sidebarHostPageId: 'ssh:box' })
     expect(getVisibleWorktreeShortcutTargets()).toEqual([
-      { id: 'repo1::/same', executionHostId: 'local' },
       { id: 'repo1::/same', executionHostId: 'ssh:box' }
     ])
   })

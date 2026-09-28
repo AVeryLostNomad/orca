@@ -43,6 +43,8 @@ A nested **Hold Shift…** toggle inverts that default for one click with the pl
 
 A capability-verified paired runtime can offer the same Orca/system-browser choice for its terminal links. SSH-owned terminal links and links from older runtimes remain system-browser only. See [Terminal → Link actions](/docs/terminal#link-actions).
 
+Loopback links (`localhost`, `127.0.0.1`, `[::1]`, `*.localhost`) from a remote workspace — a paired server or an SSH host — open in that workspace's Orca browser by default, whichever default you picked above, because only that browser reaches the remote machine's ports. Your system browser would load this device's `localhost` instead. Choosing **System Browser** explicitly, or the modifier when it means system browser, still opens this device's browser; hosts that cannot route browser traffic keep opening the system browser.
+
 ## Downloads
 
 Browser downloads appear in a shelf under the toolbar while they are active or recently completed, with actions to cancel an in-progress download, open a finished file, show it in its folder, or dismiss the row.

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react'
 import type React from 'react'
 import type { WorkspaceStatus } from '../../../../../../shared/worktree/types'
-import type { HostSectionRow } from '../../host-section-rows'
+import type { Row } from '../grouping/row-types'
 import { PINNED_GROUP_KEY } from '../grouping/group-keys'
 import { WORKTREE_SIDEBAR_VIRTUAL_ROW_GAP } from '../viewport/virtual-rows'
 import { getWorkspaceStatusGroupKey } from '../../workspace-status'
@@ -37,7 +37,7 @@ export type WorktreeDragSession = ReturnType<typeof useWorktreeDragSession>
 // Owns the geometry side of a sidebar row drag: which groups exist, which ids travel
 // together, and where the insertion line lands for a given pointer position.
 export function useWorktreeDragSession(args: {
-  rows: HostSectionRow[]
+  rows: Row[]
   scrollRef: React.RefObject<HTMLDivElement | null>
 }) {
   const { rows, scrollRef } = args

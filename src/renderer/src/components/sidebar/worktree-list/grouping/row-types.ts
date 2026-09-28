@@ -3,7 +3,6 @@ import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { DetectedWorktree, Worktree } from '../../../../../../shared/worktree/types'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 
 export type WorktreeGroupBy = 'none' | 'workspace-status' | 'repo' | 'pr-status'
 export type PinnedWorktreeDisplayPolicy = 'single-location' | 'duplicate-in-groups'
@@ -24,10 +23,7 @@ export type GroupHeaderRow = {
   repo?: Repo
   projectGroup?: ProjectGroup | { id: null; name: 'Ungrouped'; tabOrder: number }
   projectGroupDepth?: number
-  hostId?: ExecutionHostId
-  hostWorktreeCounts?: ReadonlyMap<ExecutionHostId, number>
-  hostWorktreeIds?: ReadonlyMap<ExecutionHostId, readonly string[]>
-  worktreeIds?: readonly string[]
+  worktreeIds?: string[]
 }
 
 export type WorktreeRow = {
@@ -43,7 +39,6 @@ export type WorktreeRow = {
   lineageChildCount: number
   lineageGroupKey?: string
   lineageCollapsed?: boolean
-  hostContextLabel?: string
 }
 
 export type ImportedWorktreesCardCandidate = {
@@ -57,9 +52,6 @@ export type ImportedWorktreesCardRow = {
   repo: Repo
   hiddenWorktrees: DetectedWorktree[]
   placement: 'repo-group' | 'pinned-fallback'
-  /** Set only when the row's project is checked out on more than one host. */
-  hostContextLabel?: string
-  hostContextHostId?: ExecutionHostId
 }
 
 export type NewExternalWorktreesInboxCandidate = {
@@ -72,9 +64,6 @@ export type NewExternalWorktreesInboxRow = {
   key: string
   repo: Repo
   inboxWorktrees: DetectedWorktree[]
-  /** Set only when the row's project is checked out on more than one host. */
-  hostContextLabel?: string
-  hostContextHostId?: ExecutionHostId
 }
 
 export type PendingCreationRow = {

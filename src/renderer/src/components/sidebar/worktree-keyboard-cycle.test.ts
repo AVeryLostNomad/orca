@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import type { HostSectionRow } from './host-section-rows'
+import type { Row } from './worktree-list/grouping/row-types'
 import {
   getCyclableWorktreeIds,
   getCyclableWorktrees,
@@ -60,7 +60,7 @@ describe('getCyclableWorktreeIds', () => {
     addedAt: 1
   }
 
-  function worktree(id: string, isPinned = false): HostSectionRow & { type: 'item' } {
+  function worktree(id: string, isPinned = false): Row & { type: 'item' } {
     return {
       type: 'item',
       rowKey: `row:${id}`,
@@ -78,13 +78,13 @@ describe('getCyclableWorktreeIds', () => {
   it('keeps a pinned worktree cyclable when only its natural group is collapsed', () => {
     // Why: `single-location` renders a pinned worktree solely under Pinned, so
     // rebuilding the cycle list from natural groups alone would drop it.
-    const rows: HostSectionRow[] = [worktree('pinned-a', true), worktree('plain-b')]
+    const rows: Row[] = [worktree('pinned-a', true), worktree('plain-b')]
 
     expect(getCyclableWorktreeIds(rows, 'single-location')).toEqual(['pinned-a', 'plain-b'])
   })
 
   it('counts a duplicated pinned worktree once', () => {
-    const rows: HostSectionRow[] = [
+    const rows: Row[] = [
       worktree('dup', true),
       { ...worktree('dup'), rowKey: 'row:dup-natural' },
       worktree('plain-b')
@@ -94,7 +94,7 @@ describe('getCyclableWorktreeIds', () => {
   })
 
   it('keeps same-id rows on different hosts independently cyclable', () => {
-    const rows: HostSectionRow[] = [
+    const rows: Row[] = [
       {
         ...worktree('shared'),
         worktree: { id: 'shared', repoId: repo.id, hostId: 'local' } as never
@@ -115,7 +115,7 @@ describe('getCyclableWorktreeIds', () => {
   it('leaves folder workspaces out of the rotation', () => {
     // Why: their synthetic `folder:` id is not activatable through
     // activateAndRevealWorktree, so arrowing onto one would be a dead keypress.
-    const rows: HostSectionRow[] = [
+    const rows: Row[] = [
       {
         type: 'folder-workspace',
         key: 'folder-workspace:folder-1',
@@ -128,27 +128,6 @@ describe('getCyclableWorktreeIds', () => {
     ]
 
     expect(getCyclableWorktreeIds(rows, 'single-location')).toEqual(['plain-b'])
-  })
-
-  it('drops worktrees the sidebar elided inside a collapsed host section', () => {
-    // Why: addHostSectionRows omits a collapsed host's rows entirely, so anything
-    // it removed must not stay reachable by arrowing.
-    const rows: HostSectionRow[] = [
-      {
-        type: 'host-header',
-        key: 'host:local',
-        hostId: 'local' as never,
-        kind: 'local',
-        label: 'This computer',
-        detail: '',
-        health: 'local',
-        collapsed: true,
-        count: 1
-      },
-      worktree('visible-after-host')
-    ]
-
-    expect(getCyclableWorktreeIds(rows, 'single-location')).toEqual(['visible-after-host'])
   })
 })
 

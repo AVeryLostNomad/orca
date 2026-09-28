@@ -39,7 +39,8 @@ export function createOpenFileAction(
             editorItemLabel,
             editorItemContentType,
             options?.preview ?? false,
-            scratch.editorItemTargetGroupId
+            scratch.editorItemTargetGroupId,
+            options?.background === true
           )
       const openedFile = get().openFiles.find(
         (candidate) => candidate.id === scratch.editorItemFileId
@@ -61,6 +62,11 @@ export function createOpenFileAction(
         } catch {
           // Owner resolution failed closed; the normal file loader exposes the existing retry error.
         }
+      }
+      if (!options?.suppressUnifiedTab) {
+        void import('@/runtime/runtime-editor-tab-publish').then(({ publishRuntimeEditorTab }) =>
+          publishRuntimeEditorTab(get(), scratch.editorItemFileId)
+        )
       }
       if (options?.focusEditor) {
         set({

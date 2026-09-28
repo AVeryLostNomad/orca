@@ -168,8 +168,7 @@ export function appendProjectGroupSections(
       tone: PROJECT_GROUP_META.tone,
       icon: PROJECT_GROUP_META.icon,
       projectGroup,
-      projectGroupDepth: depth,
-      hostId: getProjectGroupExecutionHostId(projectGroup)
+      projectGroupDepth: depth
     })
     if (collapsedGroups.has(key)) {
       continue

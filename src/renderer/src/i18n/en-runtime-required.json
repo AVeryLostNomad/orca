@@ -35,6 +35,7 @@
         "45af57999b": "Close preview",
         "474c59b4b3": "Close · Esc",
         "68796dafa0": "pr",
+        "86d84a17ca": "Add a review comment",
         "88fd82474d": "page",
         "924c2fe05e": "destructive",
         "b0b7344684": "Request up to 15 reviewers",
@@ -368,7 +369,16 @@
           "skippedConflictsExcluded_other": "{{count}} unresolved conflicts were excluded from this diff view."
         },
         "DiffSectionBody": {
-          "bdbf02d5df": "binary"
+          "35d6afb5be": "Binary file changed",
+          "72f71f52eb": "Text diff is unavailable for this file.",
+          "7ce8436458": "Text diff is unavailable for this file in branch compare.",
+          "bdbf02d5df": "binary",
+          "cef4cf0ff5": "Retry",
+          "f5cf81cec2": "Loading diff..."
+        },
+        "DiffViewer": {
+          "593f2193f6": "This draft crossed the safe display limit, but it can still be saved.",
+          "b5675b0694": "Save"
         },
         "EditorContent": {
           "d07e4b8553": "branch",

@@ -67,7 +67,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
 
   const renderRows = useMemo(() => buildRenderableRows(rows), [rows])
   const firstHeaderIndex = useMemo(
-    () => renderRows.findIndex((row) => row.type === 'header' || row.type === 'host-header'),
+    () => renderRows.findIndex((row) => row.type === 'header'),
     [renderRows]
   )
   const folderBackedProjectGroupIds = useMemo(
@@ -90,8 +90,6 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     groupBy,
     projectOrderBy: props.projectOrderBy,
     scrollRef,
-    onReorderHostSections: props.onReorderHostSections,
-    onHostDragActiveChange: props.onHostDragActiveChange,
     suppressMeasurementAdjustmentUntilRef: scrollSuppression.suppressMeasurementAdjustmentUntilRef,
     directScrollInputUntilRef: scrollSuppression.directScrollInputUntilRef
   })

@@ -1,6 +1,7 @@
 import { translate } from '@/i18n/i18n'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import {
+  parseLoopbackHttpUrl,
   parseLoopbackUrlWithPort,
   type LocalhostWorktreeLabelRoute
 } from '../../../shared/localhost-worktree-labels'
@@ -10,7 +11,7 @@ import { toast } from 'sonner'
 
 export type OpenHttpLinkOptions = {
   worktreeId?: string | null
-  /** Terminal-only opt-in for routing a remote-owned source through its managed browser. */
+  /** Lets a remote-owned source use its managed browser for non-loopback URLs. */
   allowRemoteInApp?: boolean
   /** Unconditional: always use the system browser regardless of settings. */
   forceSystemBrowser?: boolean
@@ -134,17 +135,21 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
     openLinksInApp,
     state?.settings?.openLinksInAppModifierInverts === true
   )
+  const remoteLoopbackWithWorkspace =
+    Boolean(worktreeId) &&
+    (sourceOwner?.kind === 'runtime' || sourceOwner?.kind === 'ssh') &&
+    parseLoopbackHttpUrl(url) !== null
   const wantsOrca =
     !forceSystemBrowser &&
     !modifier.wantsSystemBrowser &&
     Boolean(worktreeId) &&
-    (forceInApp || openLinksInApp || modifier.wantsOrca)
+    (forceInApp || openLinksInApp || modifier.wantsOrca || remoteLoopbackWithWorkspace)
 
   if (
     wantsOrca &&
-    allowRemoteInApp &&
     worktreeId &&
-    (sourceOwner?.kind === 'runtime' || sourceOwner?.kind === 'ssh')
+    (sourceOwner?.kind === 'runtime' || sourceOwner?.kind === 'ssh') &&
+    (allowRemoteInApp || remoteLoopbackWithWorkspace)
   ) {
     if (workspaceHttpLinkBrowserOpener) {
       void workspaceHttpLinkBrowserOpener({
@@ -155,14 +160,23 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
           ? { expectedRuntimeEnvironmentId: sourceOwner.runtimeEnvironmentId }
           : { expectedSshConnectionId: sourceOwner.connectionId })
       }).catch((error) => {
+        // Why: loopback went in-app only by default; hosts that cannot route it (SSH routing off,
+        // runtimes without browser streaming) keep the client browser their port forwards serve.
+        if (!(forceInApp || openLinksInApp || modifier.wantsOrca)) {
+          void window.api.shell.openUrl(url)
+          return
+        }
         toast.error(
           error instanceof Error
             ? error.message
             : translate('auto.lib.workspace.browser.tab.open.urlFailed', 'Unable to open URL.')
         )
       })
+      return
     }
-    return
+    if (!remoteLoopbackWithWorkspace) {
+      return
+    }
   }
 
   if (wantsOrca && sourceIsLocal && worktreeId && state) {

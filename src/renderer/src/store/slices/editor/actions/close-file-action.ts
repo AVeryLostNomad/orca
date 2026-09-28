@@ -2,6 +2,7 @@ import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import type { EditorSlice } from '../types/editor-slice'
 import { getRecentlyClosedTabPosition, pushRecentlyClosedTabKind } from '../../recently-closed-tabs'
 import { notifyHostOfMirroredEditorClose } from '@/runtime/close-mirrored-editor-tab'
+import { markRuntimeEditorTabPublishClosed } from '@/runtime/runtime-editor-tab-publish'
 import { type ClosedEditorTabSnapshot, MAX_RECENT_CLOSED_EDITOR_TABS } from '../types/open-file'
 import { removeMarkdownVisibilityKeys } from '../tabs/workspace-editor-item'
 import {
@@ -36,6 +37,8 @@ export function createCloseFileAction(
         shouldDeleteUntouchedUntitledFile(preClose, hasDraft) ||
         shouldDeleteScratchFileOnClose(preClose)
 
+      // Why: a locally published tab can close before the host snapshot carries its id.
+      markRuntimeEditorTabPublishClosed(get(), preClose)
       // Why: mirrored tabs are host-owned, so the host must close its copy or its next snapshot re-mirrors the file and the tab reopens.
       notifyHostOfMirroredEditorClose(get(), preClose?.worktreeId, fileId)
 

@@ -7,16 +7,10 @@ import type {
 } from '../../../../../../shared/worktree/types'
 import { getWorkspaceStatus } from '../../workspace-status'
 import type { WorktreeGroupBy } from '../grouping/row-types'
-import {
-  getVirtualRowTransform,
-  getWorktreeVirtualRowTransform,
-  shouldUseHeaderTopSpacing
-} from '../viewport/virtual-rows'
+import { getWorktreeVirtualRowTransform, shouldUseHeaderTopSpacing } from '../viewport/virtual-rows'
 import type { RenderRow } from '../listing/render-row'
 import type { ImportedWorktreeCardActionState } from '../../imported-worktrees-card-actions'
 import type { NewExternalWorktreesInboxActionState } from '../../new-external-worktrees-inbox-actions'
-import type { useHostHeaderDrag } from '../../host-header-drag'
-import { HostSectionHeader } from './HostSectionHeader'
 import { renderFolderWorkspaceVirtualRow, type FolderWorkspaceRowContext } from './folder-row'
 import {
   renderImportedWorktreesVirtualRow,
@@ -35,14 +29,11 @@ export type WorktreeVirtualRowContext = {
   renderRows: RenderRow[]
   firstHeaderIndex: number
   activeStickyHeaderIndexRef: React.MutableRefObject<number | null>
-  activeStickyHostIndexRef: React.MutableRefObject<number | null>
   measureVirtualRowElement: (element: HTMLDivElement | null) => void
   groupBy: WorktreeGroupBy
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
   activeWorktreeId: string | null
   worktreeDragState: WorktreeRowDragState
-  orderedHostIds: readonly string[]
-  hostDrag: ReturnType<typeof useHostHeaderDrag>
   toggleGroupWithScrollAnchor: (groupKey: string) => void
   header: SectionHeaderRowContext
   item: WorktreeItemRowContext
@@ -58,49 +49,6 @@ export type WorktreeVirtualRowContext = {
   onWorkspaceStatusDragOver: (event: React.DragEvent, status: WorkspaceStatus) => void
   onWorkspaceStatusDragLeave: (event: React.DragEvent) => void
   onWorkspaceStatusDrop: (event: React.DragEvent, status: WorkspaceStatus) => void
-}
-
-function renderHostHeaderVirtualRow(
-  ctx: WorktreeVirtualRowContext,
-  row: Extract<RenderRow, { type: 'host-header' }>,
-  vItem: VirtualItem
-): React.JSX.Element {
-  // Why: the host card is the outer tier; it pins above group headers (z-30 vs z-20) and stays put as they hand off.
-  const isActiveStickyHost = ctx.activeStickyHostIndexRef.current === vItem.index
-  const hasHeaderTopSpacing = shouldUseHeaderTopSpacing({
-    rows: ctx.renderRows,
-    index: vItem.index,
-    firstHeaderIndex: ctx.firstHeaderIndex
-  })
-  return (
-    <div
-      key={vItem.key}
-      role="presentation"
-      data-worktree-virtual-row
-      data-worktree-virtual-row-key={String(vItem.key)}
-      data-worktree-sticky-header=""
-      data-worktree-sticky-header-active={isActiveStickyHost ? '' : undefined}
-      data-index={vItem.index}
-      ref={ctx.measureVirtualRowElement}
-      className={cn(
-        'left-0 right-0',
-        hasHeaderTopSpacing && !isActiveStickyHost && 'pt-1',
-        isActiveStickyHost ? 'sticky -top-px z-30 bg-worktree-sidebar' : 'absolute top-0'
-      )}
-      style={isActiveStickyHost ? undefined : { transform: getVirtualRowTransform(vItem.start) }}
-    >
-      <HostSectionHeader
-        row={row}
-        onToggle={() => ctx.toggleGroupWithScrollAnchor(row.key)}
-        onDragPointerDown={
-          ctx.orderedHostIds.length > 1
-            ? (e) => ctx.hostDrag.onHandlePointerDown(e, row.hostId)
-            : undefined
-        }
-        dragging={ctx.hostDrag.state.draggingHostId === row.hostId}
-      />
-    </div>
-  )
 }
 
 function renderLineageGroupVirtualRow(
@@ -151,17 +99,12 @@ export function renderWorktreeVirtualRow(
   row: RenderRow,
   vItem: VirtualItem
 ): React.JSX.Element | null {
-  if (row.type === 'host-header') {
-    return renderHostHeaderVirtualRow(ctx, row, vItem)
-  }
-
   if (row.type === 'header') {
     return renderWorktreeSectionHeaderRow({
       ctx: ctx.header,
       row,
       vItem,
       isActiveStickyHeader: ctx.activeStickyHeaderIndexRef.current === vItem.index,
-      hasStickyHost: ctx.activeStickyHostIndexRef.current !== null,
       hasHeaderTopSpacing: shouldUseHeaderTopSpacing({
         rows: ctx.renderRows,
         index: vItem.index,

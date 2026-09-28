@@ -1,16 +1,11 @@
-import type { HostSectionRow } from '../../host-section-rows'
+import type { Row } from '../grouping/row-types'
 
-type WorktreeItemRow = Extract<HostSectionRow, { type: 'item' }>
-export type RenderRow =
-  | HostSectionRow
-  | { type: 'lineage-group'; key: string; rows: WorktreeItemRow[] }
+type WorktreeItemRow = Extract<Row, { type: 'item' }>
+export type RenderRow = Row | { type: 'lineage-group'; key: string; rows: WorktreeItemRow[] }
 
 export function getRenderRowKey(row: RenderRow): string {
-  if (row.type === 'host-header') {
-    return `host:${row.hostId}`
-  }
   if (row.type === 'header') {
-    return row.hostId ? `hdr:${row.hostId}:${row.key}` : `hdr:${row.key}`
+    return `hdr:${row.key}`
   }
   if (row.type === 'lineage-group') {
     return `lineage-group:${row.key}`

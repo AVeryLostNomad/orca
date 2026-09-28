@@ -180,6 +180,15 @@ An old client against a new host ignores the key, as Rule 1 allows. New members 
 `RuntimeTerminalWaitBlockedReason` are also Rule 1: no consumer switches exhaustively on it,
 and both the CLI and worker-start interpolate it as an opaque string.
 
+## Worked example: background `files.open`
+
+`files.open` and `files.openDiff` accept an optional `activate`. On the wire that is Rule 1, but an
+older host strips the key and opens the tab in the foreground, taking its own user's focus every
+time a paired desktop opens a file. Desktop clients therefore publish client-opened editor tabs
+only to hosts that advertise `files.open-background.v1` (`FILE_OPEN_BACKGROUND_RUNTIME_CAPABILITY`);
+against older hosts those tabs stay client-local. An absent `activate` keeps the foreground open
+mobile relies on.
+
 ## Known debt: JSON-RPC errors drop Node's string code
 
 An error raised on an SSH host crosses the relay as JSON-RPC, and

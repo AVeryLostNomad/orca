@@ -4,7 +4,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Worktree } from '../../../../../../shared/worktree/types'
-import type { HostSectionRow } from '../../host-section-rows'
+import type { Row } from '../grouping/row-types'
 import { useSidebarWorktreeSelection } from './use-selection'
 import { getVisibleWorktreeShortcutTargets } from '../../visible-worktrees'
 
@@ -12,7 +12,7 @@ import { getVisibleWorktreeShortcutTargets } from '../../visible-worktrees'
 
 type Selection = ReturnType<typeof useSidebarWorktreeSelection>
 
-function row(worktree: Worktree): HostSectionRow {
+function row(worktree: Worktree): Row {
   return {
     type: 'item',
     rowKey: `row:${worktree.hostId}`,
@@ -36,7 +36,7 @@ let selection: Selection
 
 function Probe(): null {
   selection = useSidebarWorktreeSelection({
-    sectionRows: rows,
+    rows,
     pinnedDisplayPolicy: 'single-location'
   })
   return null

@@ -1,9 +1,9 @@
 import { ALL_GROUP_KEY, PINNED_GROUP_KEY } from '../grouping/group-keys'
 import { getNaturalWorktreeIds } from '../../natural-worktree-ids'
-import type { HostSectionRow } from '../../host-section-rows'
+import type { Row } from '../grouping/row-types'
 import type { WorktreeDragGroup } from '../../worktree-manual-order'
 
-export function getWorktreeDragGroups(rows: HostSectionRow[]): WorktreeDragGroup[] {
+export function getWorktreeDragGroups(rows: Row[]): WorktreeDragGroup[] {
   const groups: WorktreeDragGroup[] = []
   let current: { key: string; ids: string[] } | null = null
   const naturalWorktreeIds = getNaturalWorktreeIds(rows)
@@ -15,7 +15,6 @@ export function getWorktreeDragGroups(rows: HostSectionRow[]): WorktreeDragGroup
       continue
     }
     if (
-      row.type === 'host-header' ||
       row.type === 'imported-worktrees-card' ||
       row.type === 'new-external-worktrees-inbox' ||
       row.type === 'pending-creation' ||
@@ -36,7 +35,7 @@ export function getWorktreeDragGroups(rows: HostSectionRow[]): WorktreeDragGroup
   return groups.filter((group) => group.worktreeIds.length > 0)
 }
 
-export function getWorktreeDragIndexes(rows: readonly HostSectionRow[]): {
+export function getWorktreeDragIndexes(rows: readonly Row[]): {
   groupKeyByRowKey: Map<string, string>
   groupIndexByRowKey: Map<string, number>
 } {

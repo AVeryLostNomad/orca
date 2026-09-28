@@ -1,15 +1,14 @@
 import type { ExecutionHostId } from '../../../../shared/execution-host'
-import type { HostSectionOption } from './host-section-rows'
 
-export function orderHostSectionOptions(
-  hostOptions: readonly HostSectionOption[],
+export function orderHostSectionOptions<T extends { id: ExecutionHostId }>(
+  hostOptions: readonly T[],
   workspaceHostOrder: readonly ExecutionHostId[] = []
-): HostSectionOption[] {
+): T[] {
   if (workspaceHostOrder.length === 0 || hostOptions.length <= 1) {
     return [...hostOptions]
   }
   const hostById = new Map(hostOptions.map((host) => [host.id, host]))
-  const ordered: HostSectionOption[] = []
+  const ordered: T[] = []
   const seen = new Set<ExecutionHostId>()
   for (const hostId of workspaceHostOrder) {
     const host = hostById.get(hostId)

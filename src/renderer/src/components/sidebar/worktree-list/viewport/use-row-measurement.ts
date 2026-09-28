@@ -7,7 +7,7 @@ import {
 } from '@/hooks/useVirtualizedScrollAnchor'
 import {
   buildLineageRowRekeyMap,
-  getActiveStickyIndexesForScroll,
+  getActiveWorktreeStickyHeaderIndex,
   getVirtualRowKey,
   pruneStaleVirtualRowElementCache
 } from './virtual-rows'
@@ -55,15 +55,12 @@ export function useVirtualRowMeasurementSync(args: {
   const lineageRowRekeys = useMemo(() => buildLineageRowRekeyMap(renderRows), [renderRows])
   const totalSize = virtualizer.getTotalSize()
   const virtualItems = virtualizer.getVirtualItems()
-  const activeStickyIndexes = getActiveStickyIndexesForScroll({
-    rows: renderRows,
+  virtualization.activeStickyHeaderIndexRef.current = getActiveWorktreeStickyHeaderIndex({
     rangeStartIndex: virtualization.stickyRangeStartIndexRef.current,
     scrollOffset: virtualizer.scrollOffset ?? scrollOffsetRef.current,
     stickyHeaderIndexes: virtualization.stickyHeaderIndexes,
     virtualItems
   })
-  virtualization.activeStickyHeaderIndexRef.current = activeStickyIndexes.groupIndex
-  virtualization.activeStickyHostIndexRef.current = activeStickyIndexes.hostIndex
 
   const measureMountedRows = useCallback(() => {
     virtualizer.elementsCache.forEach((element) => {

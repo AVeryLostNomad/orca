@@ -390,9 +390,9 @@ describe('applyWebSessionTabsSnapshot', () => {
     expect(batched.openFiles.some((file) => file.id === '/repo/second.ts')).toBe(false)
   })
 
-  it('seeds a mirrored editor file from the first duplicate open file, as find() did', () => {
-    // Why: two entries share (worktree, id) and differ in a copied presentation field, so which
-    // duplicate seeds the mirrored spread remains observable while disk state stays canonical.
+  it('seeds a mirrored editor file from its own environment when another shares the id', () => {
+    // Why: two entries share (worktree, id) and differ in a copied presentation field; the other
+    // environment's tab must neither seed nor be replaced by this environment's mirror.
     const duplicate = (isPreview: boolean, environmentId: string | null): OpenFile =>
       ({
         id: '/repo/dup.ts',
@@ -440,7 +440,12 @@ describe('applyWebSessionTabsSnapshot', () => {
       const mirrored = next.openFiles.find(
         (file) => file.id === '/repo/dup.ts' && file.runtimeEnvironmentId === ENV
       )
-      expect(mirrored?.isPreview, label).toBe(true)
+      const otherEnvironment = next.openFiles.find(
+        (file) => file.id === '/repo/dup.ts' && file.runtimeEnvironmentId === 'other-env'
+      )
+      expect(mirrored?.isPreview, label).toBe(false)
+      expect(mirrored?.isDirty, label).toBe(true)
+      expect(otherEnvironment?.isPreview, label).toBe(true)
       expect(diskBaseline(next, '/repo/dup.ts'), label).toBe('winner')
     }
   })

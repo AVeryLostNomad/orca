@@ -14,7 +14,7 @@ import {
 } from './runtime-file-commands-terminal-file-paths'
 import { stat } from 'node:fs/promises'
 import { runtimeFileRouteForTarget } from './runtime-file-command-target'
-import { isSafeMobileRelativePath } from './runtime-file-command-host'
+import { isSafeWorktreeRelativePath } from '../../shared/worktree-relative-path-safety'
 import { resolveAuthorizedPath } from '../ipc/filesystem-auth'
 import { isENOENT } from '../ipc/filesystem-path-containment'
 import type { RuntimeFileStatLike } from './runtime-file-commands-mobile-file-list-limit'
@@ -85,7 +85,7 @@ export class RuntimeFileCommandsWithResolveTerminalPath extends RuntimeFileComma
     try {
       if (
         ownedRelativePath !== null &&
-        (ownedRelativePath === '' || isSafeMobileRelativePath(ownedRelativePath))
+        (ownedRelativePath === '' || isSafeWorktreeRelativePath(ownedRelativePath))
       ) {
         const stats =
           ownedRoute.kind === 'ssh'

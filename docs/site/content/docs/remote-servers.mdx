@@ -100,6 +100,10 @@ Adding a server saves it without forcing every new project onto it. Open **Advan
 
 Once the server shows **Connected**, select it or one of its projects and use Orca normally. Terminals, agent processes, files, worktrees, and session state live on the server computer.
 
+The server's projects get their own sidebar page, titled with the server's name: swipe sideways or click the pips beside **Local Projects** to switch. See [Worktrees → Host pages](/docs/model/worktrees#host-pages).
+
+Tabs you open in a server workspace live on the server: terminals, browser pages, and file or staged/unstaged diff tabs are server tabs, so the server and its other paired devices see them and they come back when you reconnect. Opening a file from your laptop does not move focus on the server desktop. Browser tabs and `localhost` links load the server's own ports — `localhost:5173` is the dev server running on the server, not on your laptop. File tabs sync once the server runs a version that supports it; older servers keep them on this device.
+
 When several paired clients share that server, the sidebar filter can offer **Hide other-client workspaces** so this device only lists workspaces it created. See [Worktrees → Sidebar layout](/docs/model/worktrees#sidebar-layout).
 
 That means:

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getLocalhostWorktreeHostLabel,
   getLocalhostWorktreeRouteKey,
+  parseLoopbackHttpUrl,
   slugifyLocalhostWorktreeLabel
 } from './localhost-worktree-labels'
 
@@ -58,4 +59,24 @@ describe('localhost worktree labels', () => {
       })
     )
   })
+})
+
+describe('parseLoopbackHttpUrl', () => {
+  it.each([
+    'http://localhost:5173/',
+    'http://app.localhost:5173/',
+    'http://127.0.0.1:3000/',
+    'http://127.255.255.255/',
+    'http://[::1]:5173/',
+    'http://0.0.0.0:5173/'
+  ])('recognizes %s', (url) => {
+    expect(parseLoopbackHttpUrl(url)).not.toBeNull()
+  })
+
+  it.each(['https://example.com/', 'http://127.example/', 'file:///tmp/index.html'])(
+    'rejects %s',
+    (url) => {
+      expect(parseLoopbackHttpUrl(url)).toBeNull()
+    }
+  )
 })

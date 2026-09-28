@@ -1,7 +1,8 @@
 // @ts-nocheck -- mechanically split class members.
 import { RuntimeFileCommandsWithConstructor } from './runtime-file-commands-constructor'
 import type { RuntimeFileReadResult } from '../../shared/runtime-types'
-import { isMobileBinaryPath, isSafeMobileRelativePath } from './runtime-file-command-host'
+import { isMobileBinaryPath } from './runtime-file-command-host'
+import { isSafeWorktreeRelativePath } from '../../shared/worktree-relative-path-safety'
 import { joinWorktreeRelativePath } from './runtime-relative-paths'
 import { readLocalMobileFile } from './runtime-file-commands-terminal-file-paths'
 import { truncateMobileFilePreview } from './runtime-file-commands-terminal-artifact-access'
@@ -16,7 +17,7 @@ export class RuntimeFileCommandsWithReadMobileFile extends RuntimeFileCommandsWi
     const target = await this.host.resolveRuntimeFileTarget(worktreeSelector)
     const { worktree } = target
     const provider = requireRuntimeFileProvider(target)
-    if (!isSafeMobileRelativePath(relativePath)) {
+    if (!isSafeWorktreeRelativePath(relativePath)) {
       throw new Error('invalid_relative_path')
     }
     if (isMobileBinaryPath(relativePath)) {

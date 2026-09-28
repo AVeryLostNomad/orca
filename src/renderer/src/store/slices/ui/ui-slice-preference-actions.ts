@@ -22,7 +22,6 @@ import {
 } from '../../../../../shared/status-bar-usage-mode'
 import type { WorkspaceHostScope } from '../../../../../shared/ui-chrome-types'
 import {
-  normalizeExecutionHostOrder,
   normalizeExecutionHostScope,
   normalizeVisibleExecutionHostIds
 } from '../../../../../shared/execution-host'
@@ -37,6 +36,7 @@ import {
   normalizeWorkspaceStatuses,
   WORKSPACE_BOARD_COLUMN_WIDTH_DEFAULT
 } from '../../../../../shared/workspace-statuses'
+import { loadSidebarHostPageId, saveSidebarHostPageId } from '@/lib/sidebar-host-page-preference'
 
 export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Partial<UISlice> {
   return {
@@ -89,10 +89,13 @@ export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Par
         .catch(console.error)
     },
     workspaceHostOrder: [],
-    setWorkspaceHostOrder: (ids) => {
-      const workspaceHostOrder = normalizeExecutionHostOrder(ids)
-      set({ workspaceHostOrder })
-      window.api.ui.set({ workspaceHostOrder }).catch(console.error)
+    sidebarHostPageId: loadSidebarHostPageId(),
+    setSidebarHostPageId: (hostId) => {
+      if (get().sidebarHostPageId === hostId) {
+        return
+      }
+      saveSidebarHostPageId(hostId)
+      set({ sidebarHostPageId: hostId })
     },
     automationHostFilter: ALL_AUTOMATION_HOSTS_FILTER,
     setAutomationHostFilter: (filter) => {

@@ -6,8 +6,7 @@ import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { keybindingMatchesAction } from '../../../../../../shared/keybindings'
-import type { HostSectionRow } from '../../host-section-rows'
-import type { PinnedWorktreeDisplayPolicy } from '../grouping/row-types'
+import type { PinnedWorktreeDisplayPolicy, Row } from '../grouping/row-types'
 import type { RenderRow } from '../listing/render-row'
 import {
   getCyclableRowIdentity,
@@ -38,7 +37,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export function useWorktreeListKeyboardNavigation(args: {
-  rows: HostSectionRow[]
+  rows: Row[]
   renderRows: RenderRow[]
   activeWorktreeId: string | null
   activeWorkspaceExecutionHostId: ExecutionHostId | null

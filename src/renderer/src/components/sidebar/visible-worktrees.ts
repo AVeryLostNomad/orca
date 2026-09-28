@@ -17,10 +17,8 @@ import {
   isDetachedHeadWorkspace,
   isSleepingSweepExemptWorkspace
 } from './visible-worktree-kinds'
-import {
-  getVisibleWorkspaceHostIdSet,
-  worktreeMatchesVisibleHost
-} from './visible-worktree-host-scope'
+import { worktreeMatchesVisibleHost } from './visible-worktree-host-scope'
+import { getSidebarHostPagesFromState } from './sidebar-host-pages'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { buildWorktreeComparator, sortWorktreesSmart } from './smart-sort'
 import { getWorktreeIdsWithLiveAgent, isInactiveWorkspace } from '@/lib/worktree-activity-state'
@@ -342,7 +340,8 @@ export function getVisibleWorktreeIds(): string[] {
   )
 
   const visibleIdRank = new Map(visibleIds.map((id, index) => [id, index]))
-  const visibleHostIds = getVisibleWorkspaceHostIdSet(state)
+  // Why the page, not the Hosts filter: Cmd+1–9 numbers the page the sidebar would show.
+  const visibleHostIds = new Set([getSidebarHostPagesFromState(state).activePage.id])
   const defaultHostId = getSettingsFocusedExecutionHostId(state.settings)
   const visibleWorktrees = allWorktrees
     .filter(
@@ -363,7 +362,7 @@ export function getVisibleWorktreeShortcutTargets(): VisibleWorktreeShortcutTarg
   const visibleIds = getVisibleWorktreeIds()
   const visibleIdRank = new Map(visibleIds.map((id, index) => [id, index]))
   const repoMap = getRepoMapFromState(state)
-  const visibleHostIds = getVisibleWorkspaceHostIdSet(state)
+  const visibleHostIds = new Set([getSidebarHostPagesFromState(state).activePage.id])
   const defaultHostId = getSettingsFocusedExecutionHostId(state.settings)
   const worktrees = getAllWorktreesFromState(state)
     .filter(

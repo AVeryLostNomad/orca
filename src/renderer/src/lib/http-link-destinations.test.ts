@@ -9,11 +9,25 @@ describe('httpLinkActionDestinationsFor', () => {
   ])(
     'offers both destinations for a %s owner and follows the preference',
     (_label, owner, canOpen) => {
-      expect(httpLinkActionDestinationsFor({ openLinksInApp: true }, owner, canOpen)).toEqual({
+      expect(
+        httpLinkActionDestinationsFor(
+          'https://example.com/',
+          { openLinksInApp: true },
+          owner,
+          canOpen
+        )
+      ).toEqual({
         primary: 'orca',
         alternate: 'system'
       })
-      expect(httpLinkActionDestinationsFor({ openLinksInApp: false }, owner, canOpen)).toEqual({
+      expect(
+        httpLinkActionDestinationsFor(
+          'https://example.com/',
+          { openLinksInApp: false },
+          owner,
+          canOpen
+        )
+      ).toEqual({
         primary: 'system',
         alternate: 'orca'
       })
@@ -21,11 +35,28 @@ describe('httpLinkActionDestinationsFor', () => {
   )
 
   it.each([
+    ['runtime', 'http://127.0.0.1:3000/', { kind: 'runtime', runtimeEnvironmentId: 'env-1' }],
+    ['SSH', 'http://app.localhost:5173/', { kind: 'ssh', connectionId: 'ssh-1' }]
+  ] as const)('offers Orca first for a capable remote %s loopback link', (_label, url, owner) => {
+    expect(httpLinkActionDestinationsFor(url, { openLinksInApp: false }, owner, true)).toEqual({
+      primary: 'orca',
+      alternate: 'system'
+    })
+  })
+
+  it.each([
     ['incapable runtime', { kind: 'runtime', runtimeEnvironmentId: 'env-1' } as const],
     ['ineligible SSH', { kind: 'ssh', connectionId: 'ssh-1' } as const],
     ['unknown owner', { kind: 'unknown' } as const]
   ])('offers only the system browser for an %s', (_label, owner) => {
-    expect(httpLinkActionDestinationsFor({ openLinksInApp: true }, owner, false)).toEqual({
+    expect(
+      httpLinkActionDestinationsFor(
+        'http://localhost:5173/',
+        { openLinksInApp: true },
+        owner,
+        false
+      )
+    ).toEqual({
       primary: 'system'
     })
   })

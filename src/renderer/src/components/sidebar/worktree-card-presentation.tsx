@@ -19,7 +19,6 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     repo,
     inPinnedSection,
     hideRepoBadge,
-    hostContextLabel,
     affiliateListMode,
     workspaceRecordMutable,
     flushSurface,
@@ -80,7 +79,6 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     showRepoIdentityInTitle && !!repo && !hideRepoBadge && !isFolder && !showPinnedRepoIcon
   const showRepoBadgeInMetaRow =
     !showRepoIdentityInTitle && !!repo && !hideRepoBadge && !showPinnedRepoIcon
-  const showHostContextBadge = !compactCards && !!hostContextLabel
   const showDetachedHeadInMetaRow = !compactCards && !isFolder && detachedHeadDisplay !== null
   const showBranch =
     !isFolder &&
@@ -100,7 +98,6 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   // Why: grouped views can hide the repo badge; don't reserve a blank metadata lane unless there's real content.
   const hasDetailedMetaRowContent = Boolean(
     (showRepoBadgeInMetaRow && repo) ||
-    showHostContextBadge ||
     folderMetaRowContent ||
     showBranch ||
     showIdentityInNewCard ||
@@ -277,7 +274,6 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     showPinnedRepoIcon,
     showInlineRepoBadge,
     showRepoBadgeInMetaRow,
-    showHostContextBadge,
     showIdentityInNewCard,
     showDetachedHeadInMetaRow,
     showBranch,

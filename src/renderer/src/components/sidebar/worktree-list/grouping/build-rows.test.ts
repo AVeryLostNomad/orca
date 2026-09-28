@@ -129,35 +129,6 @@ describe('buildRows with pinned worktrees', () => {
     expect(rows[2]).toMatchObject({ type: 'header', icon: ALL_GROUP_META.icon })
   })
 
-  it('uses worktree host ownership for pinned header host counts', () => {
-    const runtimePinned = {
-      ...pinned,
-      hostId: 'runtime:03ef704c-b180-4b10-998d-e28fbd5de9a3' as const
-    }
-
-    const rows = buildRows(
-      'none',
-      [runtimePinned, unpinned1],
-      repoMap,
-      null,
-      new Set(),
-      undefined,
-      undefined,
-      undefined,
-      {},
-      new Map([
-        [runtimePinned.id, runtimePinned],
-        [unpinned1.id, unpinned1]
-      ])
-    )
-    const pinnedHeader = rows[0]
-
-    expect(pinnedHeader).toMatchObject({ type: 'header', key: 'pinned' })
-    expect(pinnedHeader.type === 'header' ? pinnedHeader.hostWorktreeCounts : undefined).toEqual(
-      new Map([['runtime:03ef704c-b180-4b10-998d-e28fbd5de9a3', 1]])
-    )
-  })
-
   it('groups all worktrees under All in groupBy none', () => {
     const rows = buildRows('none', [unpinned1, unpinned2], repoMap, null, new Set())
 

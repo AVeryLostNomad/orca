@@ -1,8 +1,8 @@
-import type { HostSectionRow } from './host-section-rows'
+import type { Row } from './worktree-list/grouping/row-types'
+import type { PinnedWorktreeDisplayPolicy, WorktreeRow } from './worktree-list/grouping/row-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { composeWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { getWorktreeExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
-import type { PinnedWorktreeDisplayPolicy, WorktreeRow } from './worktree-list/grouping/row-types'
 import { getPreferredWorktreeRows } from './worktree-sidebar-row-preference'
 
 /** Host-resolved identity for a cyclable row.
@@ -19,7 +19,7 @@ export function getCyclableRowIdentity(row: Pick<WorktreeRow, 'worktree' | 'repo
 }
 
 export function getCyclableWorktreeRows(
-  rows: readonly HostSectionRow[],
+  rows: readonly Row[],
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
 ): WorktreeRow[] {
   const itemRows = rows.filter((row): row is WorktreeRow => row.type === 'item')
@@ -47,7 +47,7 @@ export function resolveActiveCycleIdentity(args: {
 /** Worktree ids in sidebar order, taken from the rows the sidebar actually
  *  rendered, so collapsed groups and collapsed host sections drop out on their own. */
 export function getCyclableWorktreeIds(
-  rows: readonly HostSectionRow[],
+  rows: readonly Row[],
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
 ): string[] {
   // Why item-only: folder workspaces render as their own row type and are not
@@ -66,7 +66,7 @@ export function getCyclableWorktreeIds(
 }
 
 export function getCyclableWorktrees(
-  rows: readonly HostSectionRow[],
+  rows: readonly Row[],
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
 ): Worktree[] {
   return getCyclableWorktreeRows(rows, pinnedDisplayPolicy).map((row) => row.worktree)

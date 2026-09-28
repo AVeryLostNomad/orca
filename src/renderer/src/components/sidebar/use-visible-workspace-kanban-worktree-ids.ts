@@ -5,7 +5,10 @@ import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { computeVisibleWorktrees } from './visible-worktrees'
 import { getWorktreeIdsWithLiveAgent } from '@/lib/worktree-activity-state'
-import { getSettingsFocusedExecutionHostId } from '../../../../shared/execution-host'
+import {
+  getSettingsFocusedExecutionHostId,
+  type ExecutionHostId
+} from '../../../../shared/execution-host'
 import type { AppState } from '@/store/types'
 import {
   EMPTY_PAIRED_DEVICE_IDS_BY_ENVIRONMENT,
@@ -16,6 +19,8 @@ import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualif
 type UseVisibleWorkspaceKanbanWorktreeIdsParams = {
   allWorktrees: readonly Worktree[]
   repoMap: Map<string, Repo>
+  /** The sidebar's host page; replaces the Hosts filter, which only decides which pages exist. */
+  hostPageId?: ExecutionHostId
 }
 
 const EMPTY_WORKTREE_ID_SET: ReadonlySet<string> = new Set()
@@ -24,7 +29,8 @@ const EMPTY_RUNTIME_STATUS_BY_ENVIRONMENT_ID: AppState['runtimeStatusByEnvironme
 
 export function useVisibleWorkspaceKanbanWorktreeIds({
   allWorktrees,
-  repoMap
+  repoMap,
+  hostPageId
 }: UseVisibleWorkspaceKanbanWorktreeIdsParams): ReadonlySet<string> {
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
   const showSleepingWorkspaces = useAppStore((s) => s.showSleepingWorkspaces)
@@ -92,8 +98,8 @@ export function useVisibleWorkspaceKanbanWorktreeIds({
           : EMPTY_PAIRED_DEVICE_IDS_BY_ENVIRONMENT,
         alwaysShowDefaultBranchWorkspace,
         repoMap,
-        workspaceHostScope,
-        visibleWorkspaceHostIds,
+        workspaceHostScope: hostPageId ?? workspaceHostScope,
+        visibleWorkspaceHostIds: hostPageId ? [hostPageId] : visibleWorkspaceHostIds,
         defaultHostId: getSettingsFocusedExecutionHostId(settings),
         worktreeLineageById: {},
         // Why: the board has no nested lineage presentation. Ancestor injection
@@ -111,6 +117,7 @@ export function useVisibleWorkspaceKanbanWorktreeIds({
     hideDetachedHeadWorkspaces,
     hideWorkspacesFromOtherDevices,
     alwaysShowDefaultBranchWorkspace,
+    hostPageId,
     workspaceHostScope,
     visibleWorkspaceHostIds,
     settings,

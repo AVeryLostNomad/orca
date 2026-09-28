@@ -66,6 +66,7 @@ export function useNativeChatLinkActions(
         worktreeId: context.worktreeId,
         sourceOwner,
         destinations: httpLinkActionDestinationsFor(
+          route.url,
           state.settings,
           sourceOwner,
           canNativeChatOpenOwnedBrowser(state, context.worktreeId, sourceOwner)

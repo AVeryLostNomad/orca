@@ -6,6 +6,7 @@ import {
   restoreRecentlyClosedTabPosition
 } from '../../recently-closed-tabs'
 import { notifyHostOfMirroredEditorClose } from '@/runtime/close-mirrored-editor-tab'
+import { markRuntimeEditorTabPublishClosed } from '@/runtime/runtime-editor-tab-publish'
 import { type ClosedEditorTabSnapshot, MAX_RECENT_CLOSED_EDITOR_TABS } from '../types/open-file'
 import {
   deleteUntouchedUntitledFile,
@@ -72,8 +73,9 @@ export function createRecentlyClosedEditorTabs(
       const closingFiles = state.openFiles.filter(
         (file) => !activeWorktreeId || file.worktreeId === activeWorktreeId
       )
-      // Why: close-all bypasses closeFile, so notify mirrored host-owned editors here or the next host snapshot reopens them.
+      // Why: close-all bypasses closeFile, so notify host-owned editors and pending local publishes here.
       for (const file of closingFiles) {
+        markRuntimeEditorTabPublishClosed(state, file)
         notifyHostOfMirroredEditorClose(state, file.worktreeId, file.id)
       }
 
