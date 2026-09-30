@@ -40,6 +40,10 @@ const nativeTextStyles = `
   color: transparent !important;
   text-shadow: none !important;
 }
+/* The overlay (z-index 2) shares this stacking context; rows must scroll under the header. */
+:host([${ACTIVE_ATTRIBUTE}]) [data-diffs-header][data-sticky] {
+  z-index: 3;
+}
 `
 
 type NativeEditorAttributes = {
@@ -101,7 +105,10 @@ export function installPierreNativeOverlay(
         element.setAttribute('aria-hidden', 'true')
         element.setAttribute('tabindex', '-1')
       }
-      host.setAttribute(ACTIVE_ATTRIBUTE, '')
+      // Runs every reconcile; a redundant write restyles every native row via :host([...]).
+      if (!host.hasAttribute(ACTIVE_ATTRIBUTE)) {
+        host.setAttribute(ACTIVE_ATTRIBUTE, '')
+      }
     },
     restoreNativeEditor,
     cleanup: () => {

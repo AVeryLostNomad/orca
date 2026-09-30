@@ -10,6 +10,7 @@ import {
 } from './pierre-monaco-projection-geometry'
 import type { PierreDiffAnnotationData } from './pierre-diff-comment-annotations'
 import { installPierreNativeOverlay } from './pierre-monaco-projection-native'
+import { createPierreMonacoSpacerZones } from './pierre-monaco-projection-zones'
 import { installPierreMonacoHorizontalScroll } from './pierre-monaco-horizontal-scroll'
 
 type HiddenAreaEditor = editor.IStandaloneCodeEditor & {
@@ -49,10 +50,10 @@ export function installPierreMonacoProjection({
   let appliedWordWrap: 'off' | 'on' | undefined
   let appliedTypography: string | undefined
   let keyboardNavigation = false
-  let zoneIds: string[] = []
   let appliedLayout: string | undefined
   let appliedLines: ProjectedLine[] = []
   const hiddenAreaEditor = getHiddenAreaEditor(editor)
+  const zones = createPierreMonacoSpacerZones(editor)
   const root = host.shadowRoot ?? host
   const {
     cleanup: cleanupNativeOverlay,
@@ -60,21 +61,9 @@ export function installPierreMonacoProjection({
     restoreNativeEditor
   } = installPierreNativeOverlay(host, root, container)
 
-  const clearZones = (): void => {
-    if (!zoneIds.length) {
-      return
-    }
-    editor.changeViewZones((accessor) => {
-      for (const zoneId of zoneIds) {
-        accessor.removeZone(zoneId)
-      }
-    })
-    zoneIds = []
-  }
-
   const deactivate = (): void => {
     appliedLayout = undefined
-    clearZones()
+    zones.clear()
     hiddenAreaEditor.setHiddenAreas([])
     container.style.display = 'none'
     if (visible) {
@@ -91,6 +80,17 @@ export function installPierreMonacoProjection({
       frame = undefined
       horizontalScroll.runProjecting(reconcile)
     })
+  }
+  // Why: Pierre re-windows rows inside its own rAF; a new rAF from there lands a frame late.
+  const reconcileNow = (): void => {
+    if (disposed) {
+      return
+    }
+    if (frame !== undefined) {
+      cancelAnimationFrame(frame)
+      frame = undefined
+    }
+    horizontalScroll.runProjecting(reconcile)
   }
   const horizontalScroll = installPierreMonacoHorizontalScroll(
     editor,
@@ -190,56 +190,32 @@ export function installPierreMonacoProjection({
     // Hover decorations mutate Pierre's DOM without changing the projected rows.
     if (appliedLayout === layoutKey && unchangedRows) {
       horizontalScroll.apply(scrollLeft)
+      editor.render()
       disableNativeEditor()
       return
     }
     appliedLayout = layoutKey
     appliedLines = lines
-    clearZones()
+    zones.clear()
     if (cachedMetadata !== nativeFileDiff.fileDiff || cachedHiddenAreasKey !== hiddenAreas.key) {
       cachedMetadata = nativeFileDiff.fileDiff
       cachedHiddenAreasKey = hiddenAreas.key
       hiddenAreaEditor.setHiddenAreas(hiddenAreas.areas)
     }
-    editor.layout({ width: contentWidth, height })
+    // Why: the container moves this frame; Monaco must paint scroll + zones in the same frame.
+    editor.layout({ width: contentWidth, height }, true)
     editor.setScrollTop(editor.getTopForLineNumber(lines[0]!.lineNumber))
     horizontalScroll.apply(scrollLeft)
 
-    const zoneSpecs: { afterLineNumber: number; heightInPx: number }[] = []
-    for (let index = 1; index < lines.length; index++) {
-      const previous = lines[index - 1]!
-      const current = lines[index]!
-      const nativeDistance = current.top - previous.top
-      const monacoDistance =
-        editor.getTopForLineNumber(current.lineNumber) -
-        editor.getTopForLineNumber(previous.lineNumber)
-      const heightInPx = Math.round(nativeDistance - monacoDistance)
-      if (heightInPx > 0) {
-        zoneSpecs.push({ afterLineNumber: previous.lineNumber, heightInPx })
-      }
-    }
-    if (zoneSpecs.length) {
-      editor.changeViewZones((accessor) => {
-        zoneIds = zoneSpecs.map(({ afterLineNumber, heightInPx }) => {
-          const spacer = document.createElement('div')
-          spacer.style.pointerEvents = 'none'
-          return accessor.addZone({
-            afterLineNumber,
-            heightInPx,
-            domNode: spacer,
-            showInHiddenAreas: true,
-            suppressMouseDown: true
-          })
-        })
-      })
-    }
+    zones.sync(lines)
+    editor.render()
 
     visible = true
     // Pierre replaces its editable content node during a render; disable the replacement too.
     disableNativeEditor()
   }
 
-  const mutationObserver = new MutationObserver(requestReconcile)
+  const mutationObserver = new MutationObserver(reconcileNow)
   mutationObserver.observe(root, { childList: true, subtree: true })
   const resizeObserver = new ResizeObserver(requestReconcile)
   resizeObserver.observe(host)
