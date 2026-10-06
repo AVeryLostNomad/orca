@@ -65,6 +65,9 @@ export class RepoUpdatePersistenceOperations {
         | 'projectGroupId'
         | 'projectGroupOrder'
         | 'projectHostSetupMethod'
+        | 'githubAccountRef'
+        | 'claudeAccountId'
+        | 'codexAccountId'
       >
     > & {
       externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null

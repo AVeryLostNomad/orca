@@ -16,6 +16,10 @@ export type ProjectGroup = {
   isCollapsed: boolean
   color: string | null
   icon?: RepoIcon | null
+  /** Account pins inherited by member projects (and subgroups) that don't set their own. */
+  githubAccountRef?: string | null
+  claudeAccountId?: string | null
+  codexAccountId?: string | null
   createdAt: number
   updatedAt: number
 }

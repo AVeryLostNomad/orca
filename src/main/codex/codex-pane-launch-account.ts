@@ -47,9 +47,17 @@ export function resolveCodexPaneLaunchAccount(args: {
       ? 'custom-home'
       : resolvedHomeRoute
   if (!args.pinnedByResume) {
+    const selectedAccountId = getSelectedCodexAccountIdForTarget(args.settings, args.target)
+    if (homeRoute === 'account-home') {
+      const ownerAccountId = resolveCodexHomeOwnerAccountId(args)
+      // Why: a project-pinned pane runs another account's home on purpose; global switches never make it stale.
+      if (ownerAccountId && ownerAccountId !== selectedAccountId) {
+        return null
+      }
+    }
     return {
       selectionKey,
-      accountId: getSelectedCodexAccountIdForTarget(args.settings, args.target),
+      accountId: selectedAccountId,
       ...(homeRoute ? { homeRoute } : {}),
       ...(args.shellStartupHomeOverride
         ? { shellStartupHomeOverride: args.shellStartupHomeOverride }

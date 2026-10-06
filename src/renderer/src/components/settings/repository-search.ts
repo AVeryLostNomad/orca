@@ -152,6 +152,21 @@ export function getRepositoryPaneSearchEntries(
             ]
           }
         ]),
+    ...(getRepoExecutionHostId(repo) === LOCAL_EXECUTION_HOST_ID
+      ? [
+          {
+            title: translate(
+              'auto.components.settings.RepositoryAgentAccountsSection.title',
+              'Agent Accounts'
+            ),
+            description: translate(
+              'auto.components.settings.RepositoryAgentAccountsSection.description',
+              'Pin the Claude and Codex accounts agents use in this project.'
+            ),
+            keywords: [repo.displayName, 'claude', 'codex', 'agent', 'account', 'personal', 'work']
+          }
+        ]
+      : []),
     ...(isFolder || !isLocalWindowsProject
       ? []
       : [

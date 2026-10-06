@@ -6,6 +6,8 @@ import { isWorkspaceLinkedItemSourceContextMatch } from '../../../shared/workspa
 import { DiffCommentSchema } from '../../../shared/diff-comment-schema'
 import { normalizeExecutionHostId } from '../../../shared/execution-host'
 import { sanitizeRepoIcon } from '../../../shared/repo-icon'
+import { isValidGithubAccountRefString } from '../../../shared/github/github-account-ref'
+import { PROJECT_ACCOUNT_PIN_FIELDS } from '../../../shared/project-account-pin-types'
 
 export const ProjectGroupCreateArgs = z.object({
   name: z.string().min(1),
@@ -14,6 +16,14 @@ export const ProjectGroupCreateArgs = z.object({
   parentGroupId: z.string().nullable().optional(),
   createdFrom: z.enum(['manual', 'folder-scan', 'migration']).optional()
 })
+
+// Why: null/blank clears the pin so the group falls back to its parent or the global selection.
+const ProjectAccountIdPin = z
+  .string()
+  .max(200)
+  .nullable()
+  .optional()
+  .transform((value) => (value === undefined ? undefined : value?.trim() ? value : null))
 
 export const ProjectGroupUpdateArgs = z.object({
   groupId: z.string().min(1),
@@ -25,8 +35,19 @@ export const ProjectGroupUpdateArgs = z.object({
     icon: z
       .unknown()
       .transform((value) => sanitizeRepoIcon(value))
-      .optional()
+      .optional(),
+    githubAccountRef: z
+      .unknown()
+      .transform((value) => (isValidGithubAccountRefString(value) ? value : null))
+      .optional(),
+    claudeAccountId: ProjectAccountIdPin,
+    codexAccountId: ProjectAccountIdPin
   })
+})
+
+export const ProjectGroupClearDescendantAccountPinsArgs = z.object({
+  groupId: z.string().min(1),
+  field: z.enum(PROJECT_ACCOUNT_PIN_FIELDS)
 })
 
 export const ProjectGroupSelectorArgs = z.object({

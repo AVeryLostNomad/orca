@@ -7,6 +7,12 @@ import {
   normalizeProjectGroupName
 } from '../../../shared/project-groups'
 import { sanitizeRepoIcon } from '../../../shared/repo-icon'
+import { getRepoExecutionHostId } from '../../../shared/execution-host'
+import {
+  PROJECT_ACCOUNT_PIN_FIELDS,
+  type ProjectAccountPinField,
+  type ProjectAccountPins
+} from '../../../shared/project-account-pin-types'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
 import { projectGroupWorkspaceKey } from '../../../shared/project-group-workspace'
 import { removeWorkspaceSessionOwner } from '../restoring-sessions/session-owner-removal'
@@ -66,7 +72,8 @@ export class ProjectGroupPersistenceOperations {
 
   updateProjectGroup(
     groupId: string,
-    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>>
+    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>> &
+      ProjectAccountPins
   ): ProjectGroup | null {
     const group = (this.state.projectGroups ?? []).find((entry) => entry.id === groupId)
     if (!group) {
@@ -87,9 +94,65 @@ export class ProjectGroupPersistenceOperations {
     if (updates.icon !== undefined) {
       group.icon = sanitizeRepoIcon(updates.icon) ?? null
     }
+    for (const field of PROJECT_ACCOUNT_PIN_FIELDS) {
+      if (!(field in updates)) {
+        continue
+      }
+      const value = updates[field]
+      if (typeof value === 'string' && value.trim()) {
+        group[field] = value
+      } else {
+        delete group[field]
+      }
+    }
     group.updatedAt = Date.now()
     this.scheduleSave()
     return group
+  }
+
+  /** Clears `field` on every project and subgroup below `groupId` so they all inherit its value. */
+  clearProjectGroupDescendantAccountPins(
+    groupId: string,
+    field: ProjectAccountPinField
+  ): { clearedProjects: number; clearedGroups: number } | null {
+    const rootGroup = (this.state.projectGroups ?? []).find((group) => group.id === groupId)
+    if (!rootGroup) {
+      return null
+    }
+    const hostId = getProjectGroupExecutionHostId(rootGroup)
+    const subtreeIds = getProjectGroupSubtreeIds(this.state.projectGroups ?? [], groupId, hostId)
+    let clearedGroups = 0
+    for (const group of this.state.projectGroups ?? []) {
+      if (
+        group.id !== groupId &&
+        subtreeIds.has(group.id) &&
+        getProjectGroupExecutionHostId(group) === hostId &&
+        group[field]
+      ) {
+        delete group[field]
+        group.updatedAt = Date.now()
+        clearedGroups += 1
+      }
+    }
+    let clearedProjects = 0
+    this.state.repos = this.state.repos.map((repo) => {
+      if (
+        !repo.projectGroupId ||
+        !subtreeIds.has(repo.projectGroupId) ||
+        getRepoExecutionHostId(repo) !== hostId ||
+        !repo[field]
+      ) {
+        return repo
+      }
+      clearedProjects += 1
+      const next = { ...repo }
+      delete next[field]
+      return next
+    })
+    if (clearedGroups > 0 || clearedProjects > 0) {
+      this.scheduleSave()
+    }
+    return { clearedProjects, clearedGroups }
   }
 
   deleteProjectGroup(groupId: string): boolean {

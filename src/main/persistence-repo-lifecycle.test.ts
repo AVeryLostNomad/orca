@@ -142,6 +142,47 @@ describe('Store', () => {
     expect(store.getRepo('sibling')?.projectGroupId).toBe(sibling.id)
   })
 
+  it('clears account overrides across a group subtree so members inherit', async () => {
+    const store = await createStore()
+    const root = store.createProjectGroup({
+      name: 'Work',
+      createdFrom: 'manual'
+    })
+    const child = store.createProjectGroup({
+      name: 'Services',
+      parentGroupId: root.id,
+      createdFrom: 'manual'
+    })
+    const sibling = store.createProjectGroup({
+      name: 'Personal',
+      createdFrom: 'manual'
+    })
+    store.updateProjectGroup(root.id, { claudeAccountId: 'work' })
+    store.updateProjectGroup(child.id, {
+      claudeAccountId: 'other',
+      codexAccountId: 'keep'
+    })
+    store.addRepo(makeRepo({ id: 'direct', path: '/direct', projectGroupId: root.id }))
+    store.addRepo(makeRepo({ id: 'nested', path: '/nested', projectGroupId: child.id }))
+    store.addRepo(makeRepo({ id: 'outside', path: '/outside', projectGroupId: sibling.id }))
+    store.updateRepo('direct', { claudeAccountId: 'mine' })
+    store.updateRepo('nested', { claudeAccountId: 'mine' })
+    store.updateRepo('outside', { claudeAccountId: 'mine' })
+
+    expect(store.clearProjectGroupDescendantAccountPins(root.id, 'claudeAccountId')).toEqual({
+      clearedProjects: 2,
+      clearedGroups: 1
+    })
+
+    const groups = new Map(store.getProjectGroups().map((group) => [group.id, group]))
+    expect(groups.get(root.id)?.claudeAccountId).toBe('work')
+    expect(groups.get(child.id)?.claudeAccountId).toBeUndefined()
+    expect(groups.get(child.id)?.codexAccountId).toBe('keep')
+    expect(store.getRepo('direct')?.claudeAccountId).toBeUndefined()
+    expect(store.getRepo('nested')?.claudeAccountId).toBeUndefined()
+    expect(store.getRepo('outside')?.claudeAccountId).toBe('mine')
+  })
+
   it('adapts flat folder-scan groups into sparse nested folder scopes on load', async () => {
     writeDataFile({
       schemaVersion: 1,

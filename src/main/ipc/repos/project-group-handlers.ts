@@ -6,6 +6,7 @@ import type { NestedRepoScanResult, ProjectGroup } from '../../../shared/project
 import { notifyReposChanged } from './repos-changed-notification'
 import {
   ProjectGroupCancelNestedScanArgs,
+  ProjectGroupClearDescendantAccountPinsArgs,
   ProjectGroupCreateArgs,
   ProjectGroupMoveProjectArgs,
   ProjectGroupScanNestedArgs,
@@ -13,7 +14,13 @@ import {
   ProjectGroupUpdateArgs,
   parseProjectGroupIpcArgs
 } from './repo-ipc-arg-schemas'
+import { prewarmGithubAccountTokens } from '../../github/github-account-env'
 import { activeNestedRepoScans, runNestedRepoScanForIpc } from './nested-repo-scan-ipc'
+
+// Why: a group pin can newly apply to many projects; warm their GH tokens before terminals spawn.
+function onProjectAccountPinsChanged(): void {
+  prewarmGithubAccountTokens()
+}
 
 export function registerProjectGroupHandlers(mainWindow: BrowserWindow, store: Store): void {
   ipcMain.handle('projectGroups:list', () => store.getProjectGroups())
@@ -44,8 +51,25 @@ export function registerProjectGroupHandlers(mainWindow: BrowserWindow, store: S
     const updated = store.updateProjectGroup(args.groupId, args.updates)
     if (updated) {
       notifyReposChanged(mainWindow)
+      if ('githubAccountRef' in args.updates) {
+        onProjectAccountPinsChanged()
+      }
     }
     return updated
+  })
+
+  ipcMain.handle('projectGroups:clearDescendantAccountPins', (_event, rawArgs: unknown) => {
+    const args = parseProjectGroupIpcArgs(
+      ProjectGroupClearDescendantAccountPinsArgs,
+      rawArgs,
+      'invalid_project_group_clear_descendant_account_pins_args'
+    )
+    const result = store.clearProjectGroupDescendantAccountPins(args.groupId, args.field)
+    if (result) {
+      notifyReposChanged(mainWindow)
+      onProjectAccountPinsChanged()
+    }
+    return result
   })
 
   ipcMain.handle('projectGroups:delete', (_event, rawArgs: unknown): boolean => {

@@ -29,6 +29,9 @@ import { SearchableSetting } from './SearchableSetting'
 import { useAppStore } from '../../store'
 import { translate } from '@/i18n/i18n'
 import { searchKeywords } from './settings-search-keywords'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host'
+import { resolveGroupAccountPin } from '../../../../shared/project-account-pins'
+import { describeAccountPinFallback } from '../project-accounts/ProjectAccountPinSelect'
 
 const DEFAULT_VALUE = 'default'
 const ADD_PAT_VALUE = 'add-pat'
@@ -69,6 +72,28 @@ export function RepositoryGithubAccountSection({
       cancelled = true
     }
   }, [])
+
+  const projectGroups = useAppStore((state) => state.projectGroups)
+  const inheritedPin = resolveGroupAccountPin(
+    projectGroups,
+    repo.projectGroupId,
+    getRepoExecutionHostId(repo),
+    'githubAccountRef'
+  )
+  const inheritedOptions = [
+    ...ghAccounts.map((account) => ({
+      value: formatGithubAccountRef({
+        kind: 'gh-cli',
+        host: account.host,
+        user: account.user
+      }),
+      label: `${account.user} (${account.host})`
+    })),
+    ...patAccounts.map((meta) => ({
+      value: `pat:${meta.id}`,
+      label: `${meta.label} (${meta.host})`
+    }))
+  ]
 
   const currentRef = repo.githubAccountRef ?? null
   const parsedCurrent = parseGithubAccountRef(currentRef)
@@ -154,7 +179,7 @@ export function RepositoryGithubAccountSection({
       <p className="text-sm text-muted-foreground">
         {translate(
           'auto.components.settings.RepositoryGithubAccountSection.explainer',
-          'Issues, pull requests, and terminals opened in this project authenticate as the pinned account. Terminals get a scoped GH_TOKEN, so `gh auth switch` inside them has no effect.'
+          "Issues, pull requests, and terminals opened in this project authenticate as the pinned account. Terminals get a scoped GH_TOKEN, so `gh auth switch` inside them has no effect. Unset projects inherit their project group's account."
         )}
       </p>
       <Select value={currentRef ?? DEFAULT_VALUE} onValueChange={onSelect}>
@@ -163,9 +188,13 @@ export function RepositoryGithubAccountSection({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={DEFAULT_VALUE}>
-            {translate(
-              'auto.components.settings.RepositoryGithubAccountSection.defaultOption',
-              'Default (active gh account)'
+            {describeAccountPinFallback(
+              inheritedPin,
+              inheritedOptions,
+              translate(
+                'auto.components.settings.RepositoryGithubAccountSection.defaultOption',
+                'Default (active gh account)'
+              )
             )}
           </SelectItem>
           {ghAccounts.map((account) => {

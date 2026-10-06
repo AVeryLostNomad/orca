@@ -14,6 +14,7 @@ import {
   invalidateGithubAccountToken,
   prewarmGithubAccountTokens
 } from '../github/github-account-env'
+import { applyInheritedProjectAccountPins } from '../../shared/project-account-pins'
 import { registerGitHubAccountHandlers } from './github-account-handlers'
 import { registerGitHubIssueMutationHandlers } from './github-issue-mutation-handlers'
 import { registerGitHubPRMutationHandlers } from './github-pr-mutation-handlers'
@@ -25,7 +26,8 @@ import { registerGitHubWorkItemHandlers } from './github-work-item-handlers'
 
 export function registerGitHubHandlers(store: Store, stats: StatsCollector): void {
   configureGithubAccountEnv({
-    getRepos: () => store.getRepos(),
+    // Why: projects without their own pin inherit their group's GitHub account.
+    getRepos: () => applyInheritedProjectAccountPins(store.getRepos(), store.getProjectGroups()),
     ghExec: ghExecFileAsync,
     getPatAccounts: () => store.getSettings().githubPatAccounts ?? []
   })

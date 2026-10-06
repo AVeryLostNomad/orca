@@ -120,6 +120,12 @@ export class ProjectCollectionOperations {
     return getProjectGroupOperations(this).updateProjectGroup(groupId, updates)
   }
 
+  clearProjectGroupDescendantAccountPins(
+    ...args: Parameters<ProjectGroupPersistenceOperations['clearProjectGroupDescendantAccountPins']>
+  ): ReturnType<ProjectGroupPersistenceOperations['clearProjectGroupDescendantAccountPins']> {
+    return getProjectGroupOperations(this).clearProjectGroupDescendantAccountPins(...args)
+  }
+
   deleteProjectGroup(groupId: string): boolean {
     return getProjectGroupOperations(this).deleteProjectGroup(groupId)
   }

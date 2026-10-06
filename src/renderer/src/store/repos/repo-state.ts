@@ -1,3 +1,4 @@
+import type { ProjectAccountPins } from '../../../../shared/project-account-pin-types'
 import type { SshRepoReadoption } from '../../../../shared/ssh-types'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type {
@@ -231,7 +232,8 @@ export type RepoSlice = {
   // options.hostId targets a specific host's row + RPC target when the id exists on multiple hosts; else the group's own host owns the call.
   updateProjectGroup: (
     groupId: string,
-    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>>,
+    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>> &
+      ProjectAccountPins,
     options?: { hostId?: ExecutionHostId }
   ) => Promise<boolean>
   deleteProjectGroup: (groupId: string, options?: { hostId?: ExecutionHostId }) => Promise<boolean>

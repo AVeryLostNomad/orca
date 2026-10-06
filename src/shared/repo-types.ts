@@ -108,8 +108,12 @@ export type Repo = {
   /** Transitional source for ProjectHostSetup.setupMethod while Repo remains compatibility storage. */
   projectHostSetupMethod?: RepoProjectHostSetupMethod
   /** Pinned GitHub account for this project (see shared/github/github-account-ref).
-   *  Undefined = gh's active account / ambient env (current behavior). */
+   *  Undefined = inherit from the project group, else gh's active account / ambient env. */
   githubAccountRef?: string | null
+  /** Pinned managed Claude account id for local agent launches. Undefined = inherit from the group, else the global selection. */
+  claudeAccountId?: string | null
+  /** Pinned managed Codex account id for local agent launches. Undefined = inherit from the group, else the global selection. */
+  codexAccountId?: string | null
 }
 
 /**

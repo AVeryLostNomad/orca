@@ -14,6 +14,13 @@ import {
   writeManagedClaudeKeychainCredentials
 } from '../keychain'
 import { ClaudeRuntimeAuthCredentialIdentity } from './runtime-auth-credential-identity'
+import {
+  getClaudePinnedAccountHomePath,
+  hasClaudePinnedAccountHome,
+  pickFresherClaudeCredentials,
+  readPinnedHomeCredentials,
+  writePinnedHomeCredentials
+} from '../claude-pinned-account-home'
 
 const OWNERSHIP_PROBE_TIMEOUT = 'orca-wsl-ownership-probe-timeout'
 
@@ -27,10 +34,44 @@ export class ClaudeRuntimeAuthManagedCredentials extends ClaudeRuntimeAuthCreden
     if (!managedAuthPath) {
       return null
     }
-    if (process.platform === 'darwin') {
-      return readManagedClaudeKeychainCredentials(account.id)
+    const managedCredentials =
+      process.platform === 'darwin'
+        ? await readManagedClaudeKeychainCredentials(account.id)
+        : readClaudeManagedAuthFile(managedAuthPath, '.credentials.json')
+    return this.reconcileWithPinnedHomeCredentials(account, managedAuthPath, managedCredentials)
+  }
+
+  // Why: a project-pinned Claude refreshes its token inside its own home; adopt the
+  // newer copy so Orca never resurrects a rotated (single-use) refresh token.
+  private async reconcileWithPinnedHomeCredentials(
+    account: ClaudeManagedAccount,
+    managedAuthPath: string,
+    managedCredentials: string | null
+  ): Promise<string | null> {
+    if (account.managedAuthRuntime === 'wsl' || !hasClaudePinnedAccountHome(account.id)) {
+      return managedCredentials
     }
-    return readClaudeManagedAuthFile(managedAuthPath, '.credentials.json')
+    try {
+      const homeCredentials = await readPinnedHomeCredentials(
+        getClaudePinnedAccountHomePath(account.id)
+      )
+      if (
+        !homeCredentials ||
+        !this.isValidCredentialsJsonObject(homeCredentials) ||
+        pickFresherClaudeCredentials(managedCredentials, homeCredentials) !== 'home'
+      ) {
+        return managedCredentials
+      }
+      if (process.platform === 'darwin') {
+        await writeManagedClaudeKeychainCredentials(account.id, homeCredentials)
+      } else {
+        writeClaudeManagedAuthFile(managedAuthPath, '.credentials.json', homeCredentials)
+      }
+      return homeCredentials
+    } catch (error) {
+      console.warn('[claude-project-pin] failed to reconcile pinned home credentials:', error)
+      return managedCredentials
+    }
   }
 
   protected async writeManagedCredentials(
@@ -43,9 +84,20 @@ export class ClaudeRuntimeAuthManagedCredentials extends ClaudeRuntimeAuthCreden
     }
     if (process.platform === 'darwin') {
       await writeManagedClaudeKeychainCredentials(account.id, credentialsJson)
-      return
+    } else {
+      writeClaudeManagedAuthFile(managedAuthPath, '.credentials.json', credentialsJson)
     }
-    writeClaudeManagedAuthFile(managedAuthPath, '.credentials.json', credentialsJson)
+    if (account.managedAuthRuntime !== 'wsl' && hasClaudePinnedAccountHome(account.id)) {
+      try {
+        // Why: keep a pinned home on the same rotation so its next refresh doesn't use a dead token.
+        await writePinnedHomeCredentials(
+          getClaudePinnedAccountHomePath(account.id),
+          credentialsJson
+        )
+      } catch (error) {
+        console.warn('[claude-project-pin] failed to update pinned home credentials:', error)
+      }
+    }
   }
 
   /**

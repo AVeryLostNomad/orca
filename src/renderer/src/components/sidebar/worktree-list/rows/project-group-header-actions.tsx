@@ -1,5 +1,5 @@
 import React from 'react'
-import { Ellipsis, Palette, Plus } from 'lucide-react'
+import { Ellipsis, Palette, Plus, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -26,6 +26,7 @@ export function ProjectGroupHeaderMenu({
   hostId,
   label,
   onChangeIcon,
+  onOpenAccounts,
   onRename,
   onDelete
 }: {
@@ -34,6 +35,8 @@ export function ProjectGroupHeaderMenu({
   hostId?: ExecutionHostId
   label: string
   onChangeIcon: (groupId: string, hostId?: ExecutionHostId) => void
+  /** Omitted for groups whose accounts can't be pinned from here (runtime-hosted). */
+  onOpenAccounts?: (groupId: string, hostId?: ExecutionHostId) => void
   onRename: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
   onDelete: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
 }): React.JSX.Element {
@@ -77,6 +80,12 @@ export function ProjectGroupHeaderMenu({
             'Customize icon and color'
           )}
         </DropdownMenuItem>
+        {onOpenAccounts ? (
+          <DropdownMenuItem onSelect={() => onOpenAccounts(groupId, hostId)}>
+            <UserRound className="size-3.5" />
+            {translate('auto.components.sidebar.WorktreeList.groupAccounts', 'Group accounts…')}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onSelect={() => onRename(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.4d7b73658c', 'Rename group')}
         </DropdownMenuItem>

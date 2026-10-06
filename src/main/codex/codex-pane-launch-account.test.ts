@@ -54,6 +54,27 @@ describe('resolveCodexPaneLaunchAccount', () => {
     })
   })
 
+  it('skips panes a project pinned to a non-selected account home', () => {
+    expect(
+      resolveCodexPaneLaunchAccount({
+        pinnedByResume: false,
+        launchCodexHomePath: '/data/codex-accounts/account-b/home',
+        systemCodexHomePath: SYSTEM_HOME,
+        settings: settings({
+          host: 'account-a',
+          accounts: [
+            managedAccount({ id: 'account-a' }),
+            managedAccount({
+              id: 'account-b',
+              managedHomePath: '/data/codex-accounts/account-b/home'
+            })
+          ]
+        }),
+        target: { runtime: 'host' }
+      })
+    ).toBeNull()
+  })
+
   it('records the origin account a resume pinned the pane to, not the selection', () => {
     const accounts = [
       managedAccount({ id: 'account-a' }),

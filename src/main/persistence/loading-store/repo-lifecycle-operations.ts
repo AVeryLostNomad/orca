@@ -184,6 +184,9 @@ export class RepoLifecycleOperations {
         | 'projectGroupId'
         | 'projectGroupOrder'
         | 'projectHostSetupMethod'
+        | 'githubAccountRef'
+        | 'claudeAccountId'
+        | 'codexAccountId'
       >
     > & {
       externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null

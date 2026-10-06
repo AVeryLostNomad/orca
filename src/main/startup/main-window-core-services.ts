@@ -108,7 +108,7 @@ export function attachMainWindowCoreServices(
     store,
     runtime,
     prepareCodexRuntimeHomeForLaunch,
-    (target) => claudeRuntimeAuth.prepareForClaudeLaunch(target),
+    (target, launch) => claudeRuntimeAuth.prepareForClaudeLaunch(target, launch),
     {
       prepareCodexSessionResume: prepareCodexSessionResumeForLaunch,
       awaitLocalPtyStartup: () => state.localPtyStartupReady,

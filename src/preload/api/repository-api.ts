@@ -24,6 +24,10 @@ import type {
   ProjectUpdateArgs
 } from '../../shared/project-types'
 import type { BaseRefDefaultResult, BaseRefSearchResult, Repo } from '../../shared/repo-types'
+import type {
+  ProjectAccountPinField,
+  ProjectAccountPins
+} from '../../shared/project-account-pin-types'
 
 export type RepositoryApi = {
   list: () => Promise<Repo[]>
@@ -73,6 +77,8 @@ export type RepositoryApi = {
       sourceControlAi?: Repo['sourceControlAi'] | null
       externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
       githubAccountRef?: Repo['githubAccountRef'] | null
+      claudeAccountId?: string | null
+      codexAccountId?: string | null
     }
   }) => Promise<Repo>
   pickFolder: () => Promise<string | null>
@@ -148,8 +154,14 @@ export type ProjectGroupsApi = {
   }) => Promise<ProjectGroup>
   update: (args: {
     groupId: string
-    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>>
+    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>> &
+      ProjectAccountPins
   }) => Promise<ProjectGroup | null>
+  /** Clears `field` on every project and subgroup in the group so they inherit the group's value. */
+  clearDescendantAccountPins: (args: {
+    groupId: string
+    field: ProjectAccountPinField
+  }) => Promise<{ clearedProjects: number; clearedGroups: number } | null>
   delete: (args: { groupId: string }) => Promise<boolean>
   moveProject: (args: {
     projectId: string

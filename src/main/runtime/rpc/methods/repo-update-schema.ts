@@ -72,6 +72,8 @@ export function createRepoUpdateSchema<T extends z.ZodRawShape>(
       projectGroupId: OptionalString.nullable().optional(),
       projectGroupOrder: OptionalFiniteNumber,
       sourceControlAi: RepoSourceControlAiOverrides,
+      claudeAccountId: z.string().max(200).nullable().optional(),
+      codexAccountId: z.string().max(200).nullable().optional(),
       // Why: null clears the pin; invalid ref strings collapse to undefined (dropped).
       githubAccountRef: z
         .unknown()

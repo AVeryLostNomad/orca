@@ -5,6 +5,7 @@ import type { AppState } from '@/store/types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import { ProjectGroupNameDialog } from '../../ProjectGroupNameDialog'
 import { ProjectGroupIconDialog } from '../../ProjectGroupIconDialog'
+import { ProjectGroupAccountsDialog } from '../../ProjectGroupAccountsDialog'
 import { ProjectGroupDeleteDialog } from '../../ProjectGroupDeleteDialog'
 import SuppressExternalWorktreeInboxDialog from '../../SuppressExternalWorktreeInboxDialog'
 import type { NewExternalWorktreesInboxActionState } from '../../new-external-worktrees-inbox-actions'
@@ -64,6 +65,15 @@ export function SidebarWorktreeListDialogs({
           }
         }}
         onSubmit={dialogs.handleSubmitProjectGroupName}
+      />
+      <ProjectGroupAccountsDialog
+        group={dialogs.accountsDialogGroup}
+        hostId={dialogs.accountsDialogHostId}
+        onOpenChange={(open) => {
+          if (!open) {
+            dialogs.closeAccountsDialog()
+          }
+        }}
       />
       <ProjectGroupIconDialog
         group={dialogs.iconDialogGroup}

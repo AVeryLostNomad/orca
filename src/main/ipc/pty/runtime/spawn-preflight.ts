@@ -135,7 +135,9 @@ export async function prepareRuntimePtySpawn(
   ctx.launchCommand = codexResumeLaunch.command
   ctx.claudeAuth =
     ctx.isClaudeLaunch && ctx.deps.prepareClaudeAuth
-      ? await ctx.deps.prepareClaudeAuth(ctx.codexSelectionTarget)
+      ? await ctx.deps.prepareClaudeAuth(ctx.codexSelectionTarget, {
+          workspacePath: ctx.cwd
+        })
       : null
   if (ctx.isClaudeLaunch && isClaudeAuthSwitchInProgress()) {
     throw new Error(CLAUDE_AUTH_SWITCH_IN_PROGRESS_MESSAGE)

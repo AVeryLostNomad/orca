@@ -57,6 +57,7 @@ export type SectionHeaderRowContext = {
   toggleGroupWithScrollAnchor: (groupKey: string) => void
   projectActions: RepoHeaderProjectActions
   onChangeProjectGroupIcon: (groupId: string, hostId?: ExecutionHostId) => void
+  onOpenProjectGroupAccounts?: (groupId: string, hostId?: ExecutionHostId) => void
   onRenameProjectGroup: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
   onDeleteProjectGroup: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
   onCreateFolderWorkspace: (projectGroup: ProjectGroup) => void
@@ -373,6 +374,11 @@ export function renderWorktreeSectionHeaderRow(args: {
               hostId={projectGroupHostIdForHeader}
               label={row.label}
               onChangeIcon={ctx.onChangeProjectGroupIcon}
+              onOpenAccounts={
+                projectGroupHostIdForHeader?.startsWith('runtime:')
+                  ? undefined
+                  : ctx.onOpenProjectGroupAccounts
+              }
               onRename={ctx.onRenameProjectGroup}
               onDelete={ctx.onDeleteProjectGroup}
             />

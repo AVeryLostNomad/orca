@@ -81,6 +81,10 @@ export function useProjectGroupDialogs(args: {
     groupId: string
     hostId?: ExecutionHostId
   } | null>(null)
+  const [accountsDialog, setAccountsDialog] = useState<{
+    groupId: string
+    hostId?: ExecutionHostId
+  } | null>(null)
 
   const handleCreateGroupFromRepo = useCallback((repo: Repo) => {
     setNameDialog({ type: 'create-from-repo', repo })
@@ -107,6 +111,11 @@ export function useProjectGroupDialogs(args: {
     (groupId: string, currentName: string, hostId?: ExecutionHostId) => {
       setNameDialog({ type: 'rename', groupId, currentName, hostId })
     },
+    []
+  )
+
+  const handleOpenProjectGroupAccounts = useCallback(
+    (groupId: string, hostId?: ExecutionHostId) => setAccountsDialog({ groupId, hostId }),
     []
   )
 
@@ -225,6 +234,11 @@ export function useProjectGroupDialogs(args: {
     setIconDialogGroupId: (groupId: string | null) => {
       setIconDialog((current) => (groupId === null ? null : current))
     },
+    accountsDialogGroup:
+      projectGroups.find((group) => group.id === accountsDialog?.groupId) ?? null,
+    accountsDialogHostId: accountsDialog?.hostId,
+    closeAccountsDialog: () => setAccountsDialog(null),
+    handleOpenProjectGroupAccounts,
     deleteProjectCount,
     deleteProjectNames,
     removeContainedProjects,

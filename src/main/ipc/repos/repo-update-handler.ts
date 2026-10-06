@@ -47,6 +47,8 @@ export function registerRepoUpdateHandler(mainWindow: BrowserWindow, store: Stor
             | 'projectGroupId'
             | 'projectGroupOrder'
             | 'githubAccountRef'
+            | 'claudeAccountId'
+            | 'codexAccountId'
           >
         > & {
           externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null
@@ -84,6 +86,17 @@ export function registerRepoUpdateHandler(mainWindow: BrowserWindow, store: Stor
           updates.githubAccountRef = undefined
         } else if (value !== undefined && !isValidGithubAccountRefString(value)) {
           delete updates.githubAccountRef
+        }
+      }
+      for (const field of ['claudeAccountId', 'codexAccountId'] as const) {
+        if (!(field in updates)) {
+          continue
+        }
+        const value = updates[field] as unknown
+        if (value === null || (typeof value === 'string' && !value.trim())) {
+          updates[field] = undefined
+        } else if (typeof value !== 'string' || value.length > 200) {
+          delete updates[field]
         }
       }
       // Why: worktree materialization calls .trim() per entry, so strip non-string[] at the boundary to avoid a silent throw later.

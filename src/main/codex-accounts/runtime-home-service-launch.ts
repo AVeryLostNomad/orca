@@ -14,6 +14,12 @@ import { resolveCodexSessionBackfillPaths } from '../codex/codex-session-backfil
 import type { CodexSessionBackfillDate } from '../codex/codex-session-backfill-types'
 import { CodexRuntimeHomeRouting } from './runtime-home-service-home-routing'
 
+export type CodexLaunchHomeOptions = {
+  unavailableManagedHomePath?: string
+  /** Host account pinned by the launch's project/group; WSL launches ignore it. */
+  pinnedAccountId?: string | null
+}
+
 export abstract class CodexRuntimeHomeLaunch extends CodexRuntimeHomeRouting {
   protected initializeLastSyncedState(): void {
     const settings = this.store.getSettings()
@@ -36,7 +42,7 @@ export abstract class CodexRuntimeHomeLaunch extends CodexRuntimeHomeRouting {
   prepareForCodexLaunch(
     target?: CodexAccountSelectionTarget,
     launchEnv?: NodeJS.ProcessEnv,
-    options?: { unavailableManagedHomePath?: string }
+    options?: CodexLaunchHomeOptions
   ): string | null {
     if (target?.runtime === 'wsl') {
       const wslTarget = this.resolveWslDefaultTarget(target)
@@ -44,6 +50,12 @@ export abstract class CodexRuntimeHomeLaunch extends CodexRuntimeHomeRouting {
       this.startLegacyWslAuthDrain(wslTarget)
       this.finishWslLaunchPreparation(wslTarget, homePath)
       return homePath
+    }
+    const pinnedHome = options?.pinnedAccountId
+      ? this.preparePinnedManagedHostHomeForLaunch(options.pinnedAccountId)
+      : null
+    if (pinnedHome) {
+      return pinnedHome
     }
     const selfContainedAccount = this.getSelfContainedManagedHostAccount()
     if (selfContainedAccount) {
@@ -79,7 +91,7 @@ export abstract class CodexRuntimeHomeLaunch extends CodexRuntimeHomeRouting {
   async prepareForCodexLaunchAsync(
     target?: CodexAccountSelectionTarget,
     launchEnv?: NodeJS.ProcessEnv,
-    options?: { unavailableManagedHomePath?: string }
+    options?: CodexLaunchHomeOptions
   ): Promise<string | null> {
     if (target?.runtime !== 'wsl') {
       return this.prepareForCodexLaunch(target, launchEnv, options)

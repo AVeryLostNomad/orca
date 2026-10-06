@@ -47,6 +47,7 @@ export type VirtualizedWorktreeViewportProps = {
   handleMoveProjectToGroup: (repo: Repo, groupId: string) => void
   handleRemoveProjectFromGroup: (repo: Repo) => void
   handleChangeProjectGroupIcon: (groupId: string, hostId?: ExecutionHostId) => void
+  handleOpenProjectGroupAccounts?: (groupId: string, hostId?: ExecutionHostId) => void
   handleRenameProjectGroup: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
   handleDeleteProjectGroup: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
   handleCreateFolderWorkspace: (projectGroup: ProjectGroup) => void

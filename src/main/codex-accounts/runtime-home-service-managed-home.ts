@@ -121,6 +121,39 @@ export abstract class CodexRuntimeHomeManagedHome extends CodexRuntimeHomeSync {
     return perAccountHome
   }
 
+  /**
+   * Launch home for a project-pinned host account that is not the global
+   * selection. Unlike the selected-account path this leaves selection/sync
+   * state alone, so other panes keep following the global selection.
+   * Null = no usable pin (unknown, WSL, already selected, or untrusted home).
+   */
+  protected preparePinnedManagedHostHomeForLaunch(accountId: string): string | null {
+    const settings = this.store.getSettings()
+    const account = this.getActiveAccount(settings.codexManagedAccounts, accountId)
+    if (
+      !account ||
+      this.getWslManagedHomePath(account) ||
+      normalizeCodexRuntimeSelection(settings).host === account.id
+    ) {
+      return null
+    }
+    const resolved = this.resolveSelfContainedManagedHome(account)
+    if (resolved.kind === 'indeterminate') {
+      throw new ManagedCodexHomeTemporarilyUnavailableError()
+    }
+    if (resolved.kind !== 'owned') {
+      console.warn('[codex-project-pin] pinned account home is not Orca-owned; using selection')
+      return null
+    }
+    syncSystemCodexResourcesIntoManagedHome(resolved.homePath)
+    syncSystemConfigIntoManagedCodexHome({
+      runtimeHomePath: resolved.homePath,
+      systemHomePath: getSystemCodexHomePath()
+    })
+    this.startSelfContainedSessionBridgeForLaunch(resolved.homePath)
+    return resolved.homePath
+  }
+
   // Why: Codex's own `/resume` picker only lists rollouts under the launch
   // CODEX_HOME, so a self-contained account home starts out with no history at
   // all. Hardlink every other Orca-visible home's rollouts in — after launch,

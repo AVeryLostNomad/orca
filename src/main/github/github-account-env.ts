@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve, sep } from 'node:path'
 import type { Repo } from '../../shared/repo-types'
 import {
   parseGithubAccountRef,
@@ -7,6 +5,7 @@ import {
   type GithubPatAccountMeta
 } from '../../shared/github/github-account-ref'
 import { loadGithubPatToken } from './github-pat-store'
+import { findRepoForCwd } from '../project-accounts/repo-for-cwd'
 
 /**
  * Per-project GitHub account → GH_TOKEN materialization.
@@ -39,66 +38,14 @@ export function configureGithubAccountEnv(options: {
 
 // ── cwd → account ref ────────────────────────────────────────────────
 
-function normalizePathForMatch(path: string): string {
-  const resolved = resolve(path)
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
-}
-
-function isPathWithin(child: string, parent: string): boolean {
-  return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep)
-}
-
-function refForPath(path: string, pinned: { path: string; ref: string }[]): string | null {
-  let best: { path: string; ref: string } | null = null
-  for (const entry of pinned) {
-    if (isPathWithin(path, entry.path) && (!best || entry.path.length > best.path.length)) {
-      best = entry
-    }
-  }
-  return best?.ref ?? null
-}
-
-/** Worktree dirs carry a `.git` pointer file (`gitdir: <repo>/.git/worktrees/x`);
- *  follow it so worktrees inherit their parent repo's account pin. */
-function mainRepoPathFromWorktree(cwd: string): string | null {
-  try {
-    const raw = readFileSync(resolve(cwd, '.git'), 'utf-8')
-    const match = raw.match(/^gitdir:\s*(.+)$/m)
-    if (!match) {
-      return null
-    }
-    const gitdir = match[1].trim()
-    const marker = gitdir.replace(/\\/g, '/').indexOf('/.git/worktrees/')
-    if (marker === -1) {
-      return null
-    }
-    return gitdir.slice(0, marker)
-  } catch {
-    // Not a linked worktree (regular .git directory, or no cwd access).
-    return null
-  }
-}
-
 export function githubAccountRefForCwd(cwd: string | undefined): string | null {
   if (!cwd || !getReposSource) {
     return null
   }
-  const pinned = getReposSource()
-    .filter((repo): repo is Repo & { githubAccountRef: string } => Boolean(repo.githubAccountRef))
-    .map((repo) => ({
-      path: normalizePathForMatch(repo.path),
-      ref: repo.githubAccountRef
-    }))
-  if (pinned.length === 0) {
-    return null
-  }
-  const normalizedCwd = normalizePathForMatch(cwd)
-  const direct = refForPath(normalizedCwd, pinned)
-  if (direct) {
-    return direct
-  }
-  const mainRepoPath = mainRepoPathFromWorktree(cwd)
-  return mainRepoPath ? refForPath(normalizePathForMatch(mainRepoPath), pinned) : null
+  const pinned = getReposSource().filter((repo): repo is Repo & { githubAccountRef: string } =>
+    Boolean(repo.githubAccountRef)
+  )
+  return findRepoForCwd(pinned, cwd)?.githubAccountRef ?? null
 }
 
 // ── token resolution + cache ─────────────────────────────────────────

@@ -75,5 +75,7 @@ export function allocatePtyLifecycleSequence(): number {
 }
 
 export type PrepareClaudeAuth = (
-  target?: ClaudeAccountSelectionTarget
+  target?: ClaudeAccountSelectionTarget,
+  /** Lets a project/group account pin pick the launch account. */
+  launchContext?: { workspacePath?: string }
 ) => Promise<ClaudeRuntimeAuthPreparation>

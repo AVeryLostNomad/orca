@@ -7,6 +7,7 @@ import { getDefaultWslDistro } from '../wsl'
 import { isAgentStatusHooksEnabled } from '../agent-hooks/managed-agent-hook-controls'
 import { ensureRealHomeCodexHookState } from '../codex/codex-real-home-hook-install'
 import { mainProcessState as state } from './main-process-state'
+import { resolveProjectAgentAccountIdForCwd } from '../project-accounts/project-agent-account-pins'
 
 export async function prepareCodexRuntimeHomeForLaunch(
   target?: CodexAccountSelectionTarget,
@@ -43,22 +44,38 @@ export async function prepareCodexRuntimeHomeForLaunch(
     })
     return true
   }
+  const pinnedAccountId =
+    target?.runtime === 'wsl'
+      ? null
+      : resolveProjectAgentAccountIdForCwd(
+          state.store,
+          launchContext?.workspacePath,
+          'codexAccountId'
+        )
+  const launchHomeOptions = {
+    unavailableManagedHomePath: launchContext?.unavailableManagedHomePath,
+    pinnedAccountId
+  }
   let realHomeHooksPrepared = await ensureRealHomeHooksIfSelected()
   // Why: a ManagedCodexHomeTemporarilyUnavailableError must escape uncaught —
   // the fallbacks below all key off `null`, which means "system default", so
   // swallowing the refusal would launch the wrong account (#STA-4422).
-  let runtimeHomePath = await runtimeHome.prepareForCodexLaunchAsync(target, launchEnv, {
-    unavailableManagedHomePath: launchContext?.unavailableManagedHomePath
-  })
+  let runtimeHomePath = await runtimeHome.prepareForCodexLaunchAsync(
+    target,
+    launchEnv,
+    launchHomeOptions
+  )
   if (runtimeHomePath === null && !realHomeHooksPrepared) {
     // Why: launch prep can reject an untrusted managed home and clear its
     // selection. Establish hook capability for that newly selected lane, then
     // re-resolve if the capability gate rejects it.
     realHomeHooksPrepared = await ensureRealHomeHooksIfSelected()
     if (realHomeHooksPrepared) {
-      runtimeHomePath = await runtimeHome.prepareForCodexLaunchAsync(target, launchEnv, {
-        unavailableManagedHomePath: launchContext?.unavailableManagedHomePath
-      })
+      runtimeHomePath = await runtimeHome.prepareForCodexLaunchAsync(
+        target,
+        launchEnv,
+        launchHomeOptions
+      )
     }
   }
   if (runtimeHomePath === null && target?.runtime !== 'wsl') {

@@ -1,3 +1,4 @@
+import { removeClaudePinnedAccountHome } from './claude-pinned-account-home'
 import type {
   ClaudeManagedAccount,
   ClaudeManagedAccountSummary,
@@ -60,6 +61,9 @@ export class ClaudeAccountSelection {
         await this.syncRuntimeAuth(target)
       }
       await this.removeManagedAuth(accountId, account.managedAuthPath)
+      await removeClaudePinnedAccountHome(accountId).catch((error) =>
+        console.warn('[claude-project-pin] failed to remove pinned account home:', error)
+      )
       this.rateLimits.evictInactiveClaudeCache(accountId)
       await this.rateLimits.refreshForClaudeAccountChange(
         wasSelected ? accountId : undefined,

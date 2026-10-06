@@ -224,7 +224,9 @@ export async function preparePtyIpcSpawnPreflight(ctx: PtyIpcSpawnState): Promis
   )
   ctx.claudeAuth =
     ctx.isClaudeLaunch && ctx.deps.prepareClaudeAuth
-      ? await ctx.deps.prepareClaudeAuth(initialSelectionTarget)
+      ? await ctx.deps.prepareClaudeAuth(initialSelectionTarget, {
+          workspacePath: ctx.cwd
+        })
       : null
   ctx.spawnTiming.mark('auth')
 }

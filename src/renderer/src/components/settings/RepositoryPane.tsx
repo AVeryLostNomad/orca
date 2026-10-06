@@ -24,7 +24,7 @@ import { getRepositoryPaneSearchEntries } from './repository-search'
 import { RepositoryHostSetupsSection } from './RepositoryHostSetupsSection'
 import { RepoSettingsDraftInput } from './RepositorySettingsDraftInput'
 import { RepositoryForkSyncSection } from './RepositoryForkSyncSection'
-import { RepositoryGithubAccountSection } from './RepositoryGithubAccountSection'
+import { RepositoryAccountSections } from './RepositoryAccountSections'
 import { translate } from '@/i18n/i18n'
 import { RepositoryWindowsRuntimeSection } from './RepositoryWindowsRuntimeSection'
 import { matchesRepositoryIdentitySearch } from './repository-identity-search'
@@ -367,12 +367,6 @@ export function RepositoryPane({
               forceVisible={forceFullPaneForRepoMatch}
             />
 
-            <RepositoryGithubAccountSection
-              repo={repo}
-              updateRepo={updateSelectedRepo}
-              forceVisible={forceFullPaneForRepoMatch}
-            />
-
             <RepositoryWorktreeDefaultsSection
               repo={repo}
               settings={repoOwnerSettings}
@@ -393,6 +387,11 @@ export function RepositoryPane({
             />
           </>
         ) : null}
+        <RepositoryAccountSections
+          repo={repo}
+          updateRepo={updateSelectedRepo}
+          forceVisible={forceFullPaneForRepoMatch}
+        />
       </section>
     ) : null,
     hooksSection,

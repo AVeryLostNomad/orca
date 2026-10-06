@@ -9,6 +9,7 @@ import { getRepoHostIdentityForParts } from './repo-host-identity'
 import type { ProjectGroup, ProjectGroupCreatedFrom } from './project-group-types'
 import type { Repo } from './repo-types'
 import { sanitizeRepoIcon } from './repo-icon'
+import { PROJECT_ACCOUNT_PIN_FIELDS, type ProjectAccountPins } from './project-account-pin-types'
 
 export const UNGROUPED_PROJECT_GROUP_KEY = 'project-group:ungrouped'
 
@@ -70,6 +71,17 @@ export function getProjectGroupHostIdentity(
   return getRepoHostIdentityForParts(group.id, getProjectGroupExecutionHostId(group, defaultHostId))
 }
 
+function normalizeProjectGroupAccountPins(raw: Partial<ProjectGroup>): ProjectAccountPins {
+  const pins: ProjectAccountPins = {}
+  for (const field of PROJECT_ACCOUNT_PIN_FIELDS) {
+    const value = raw[field]
+    if (typeof value === 'string' && value.trim()) {
+      pins[field] = value
+    }
+  }
+  return pins
+}
+
 export function normalizeProjectGroups(value: unknown): ProjectGroup[] {
   if (!Array.isArray(value)) {
     return []
@@ -118,6 +130,7 @@ export function normalizeProjectGroups(value: unknown): ProjectGroup[] {
       isCollapsed: raw.isCollapsed === true,
       color: typeof raw.color === 'string' ? raw.color : null,
       icon: sanitizeRepoIcon(raw.icon) ?? null,
+      ...normalizeProjectGroupAccountPins(raw),
       createdAt:
         typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : now,
       updatedAt:
