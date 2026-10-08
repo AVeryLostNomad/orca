@@ -24,7 +24,7 @@ export function TerminalQuickCommandModalModeSwitch({
         <div className="text-xs text-muted-foreground">
           {translate(
             'auto.components.terminal.quick.commands.TerminalQuickCommandModalModeSwitch.b4d749f4cc',
-            'Run in a temporary window that closes when the command exits, instead of a new tab.'
+            'Run in a temporary window that stays open until dismissed, instead of a new tab.'
           )}
         </div>
       </div>

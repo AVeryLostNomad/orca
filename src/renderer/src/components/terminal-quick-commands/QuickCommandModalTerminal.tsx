@@ -3,10 +3,6 @@ import { Loader2, XIcon } from 'lucide-react'
 import TerminalPane from '@/components/terminal-pane/TerminalPane'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import {
-  ORCA_TERMINAL_COMMAND_FINISHED_EVENT,
-  type TerminalCommandFinishedEventDetail
-} from '@/hooks/terminal-command-finished-event'
 import { useAppStore } from '@/store'
 import type { QuickCommandModalRequest } from '@/store/slices/quick-command-modal'
 import { translate } from '@/i18n/i18n'
@@ -15,7 +11,8 @@ import { FOLDER_WORKSPACE_INSTANCE_SEPARATOR } from '../../../../shared/worktree
 
 /**
  * Modal host for `mode: 'modal'` quick commands: an ephemeral terminal over the
- * workspace that runs one command and closes as soon as its shell exits.
+ * workspace that runs one command and stays open until dismissed so its output
+ * can be inspected.
  *
  * The backing tab lives under `<realWorkspaceId>::workspace:<uuid>` rather than
  * the real workspace id: no workspace surface renders that key (no tab-bar
@@ -68,23 +65,6 @@ function QuickCommandModalTerminalContent({
   const setTabCustomTitle = useAppStore((s) => s.setTabCustomTitle)
   const queueTabStartupCommand = useAppStore((s) => s.queueTabStartupCommand)
   const [tabId, setTabId] = useState<string | null>(null)
-
-  // Why: interactive popups stay open; quick-command popups end at OSC 133;D.
-  useEffect(() => {
-    if (!command) {
-      return
-    }
-    const handleCommandFinished = (event: Event): void => {
-      const detail = (event as CustomEvent<TerminalCommandFinishedEventDetail>).detail
-      if (detail?.worktreeId === modalWorktreeId) {
-        onClose()
-      }
-    }
-    window.addEventListener(ORCA_TERMINAL_COMMAND_FINISHED_EVENT, handleCommandFinished)
-    return () => {
-      window.removeEventListener(ORCA_TERMINAL_COMMAND_FINISHED_EVENT, handleCommandFinished)
-    }
-  }, [command, modalWorktreeId, onClose])
 
   useEffect(() => {
     const tab = createTab(modalWorktreeId, undefined, undefined, {
@@ -155,6 +135,10 @@ function QuickCommandModalTerminalContent({
             isVisible
             showSplitButton={false}
             onPtyExit={() => {
+              // Why: keep quick-command output visible after exit; unmount cleans up the tab.
+              if (command) {
+                return
+              }
               closeTab(tabId, { recordInteraction: false, reason: 'pty-exit' })
               onClose()
             }}

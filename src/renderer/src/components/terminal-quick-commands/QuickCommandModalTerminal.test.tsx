@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
   state: {
@@ -29,17 +29,22 @@ const mocks = vi.hoisted(() => ({
     setActiveTabForWorktree: vi.fn(),
     setTabCustomTitle: vi.fn(),
     queueTabStartupCommand: vi.fn()
-  }
+  },
+  paneProps: null as { onPtyExit?: () => void } | null
 }))
 
 vi.mock('@/store', () => ({
   useAppStore: (selector: (state: typeof mocks.state) => unknown) => selector(mocks.state)
 }))
 vi.mock('@/components/terminal-pane/TerminalPane', () => ({
-  default: () => <div className="xterm" data-testid="terminal-pane" tabIndex={0} />
+  default: (props: { onPtyExit?: () => void }) => {
+    mocks.paneProps = props
+    return <div className="xterm" data-testid="terminal-pane" tabIndex={0} />
+  }
 }))
 
 import { QuickCommandModalTerminal } from './QuickCommandModalTerminal'
+import { ORCA_TERMINAL_COMMAND_FINISHED_EVENT } from '@/hooks/terminal-command-finished-event'
 
 afterEach(cleanup)
 
@@ -81,6 +86,41 @@ describe('QuickCommandModalTerminal', () => {
     view.unmount()
     render(<QuickCommandModalTerminal />)
     fireEvent.keyDown(screen.getByTestId('terminal-pane'), { key: 'Escape', code: 'Escape' })
+    expect(mocks.state.closeQuickCommandModal).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a quick-command popup open after the command finishes or its shell exits', () => {
+    mocks.state.quickCommandModal = {
+      requestId: 'popup-1',
+      worktreeId: 'workspace-1',
+      cwd: '/repo/workspace-1',
+      command: {
+        id: 'cmd-1',
+        label: 'Build',
+        action: 'terminal-command',
+        command: 'pnpm build',
+        appendEnter: true,
+        mode: 'modal'
+      }
+    }
+    render(<QuickCommandModalTerminal />)
+
+    window.dispatchEvent(
+      new CustomEvent(ORCA_TERMINAL_COMMAND_FINISHED_EVENT, {
+        detail: { worktreeId: 'workspace-1::workspace:popup-1' }
+      })
+    )
+    act(() => mocks.paneProps?.onPtyExit?.())
+
+    expect(mocks.state.closeQuickCommandModal).not.toHaveBeenCalled()
+    expect(screen.getByTestId('terminal-pane')).toBeInTheDocument()
+  })
+
+  it('closes the interactive popup when its shell exits', () => {
+    render(<QuickCommandModalTerminal />)
+
+    act(() => mocks.paneProps?.onPtyExit?.())
+
     expect(mocks.state.closeQuickCommandModal).toHaveBeenCalledOnce()
   })
 })

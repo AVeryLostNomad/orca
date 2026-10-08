@@ -12,7 +12,7 @@ export type TerminalQuickCommandScope =
 export type TerminalQuickCommandAction = 'terminal-command' | 'agent-prompt'
 
 /** 'tab' spawns a normal terminal tab; 'modal' runs the command in an ephemeral
- *  dialog over the terminal area that closes when the process exits. */
+ *  dialog over the terminal area that stays open until dismissed. */
 export type TerminalQuickCommandMode = 'tab' | 'modal'
 
 export type TerminalQuickCommandBase = {
