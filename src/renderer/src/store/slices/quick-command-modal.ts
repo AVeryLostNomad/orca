@@ -6,6 +6,8 @@ export type QuickCommandModalRequest = {
   /** UUID per launch: remounts the modal content and suffixes the ephemeral tab's worktree id. */
   requestId: string
   command?: TerminalCommandQuickCommand
+  /** Shell text for `command`, ending the shell with the task (see buildPopupTaskStartupCommand). */
+  startupCommand?: string
   /** Real workspace id (worktree or folder key) the command targets. */
   worktreeId: string
   /** Workspace root, resolved at launch so the modal never guesses cwd. */

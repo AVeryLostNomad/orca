@@ -16,8 +16,10 @@ const TERMINAL_PANE_HOOK_SOURCE_PATTERN =
 // toggle in projection (208 hooks, still 8 useMemo).
 // Then chat-state's orchestration dispatch-status subscription went with the
 // paused notice that read it (207 hooks, still 8 useMemo).
+// Then the foundation's onProcessFailed ref, which lets popup hosts replace the
+// failed-exit overlay, added one useRef (208 hooks, still 8 useMemo).
 const PRE_REFACTOR_HOOK_ORDER_SHA256 =
-  '2bbb42427b61e3722114ac37c407230cb7daffbf9b899090c7a635f15731ccad'
+  '70346d832ac27235b7a6b6cec4bf0d82354d16a1b9f12100aaf07ea547e74df1'
 
 const sourceFiles = readdirSync(__dirname)
   .filter((name) => TERMINAL_PANE_HOOK_SOURCE_PATTERN.test(name))
@@ -82,7 +84,7 @@ function readFlattenedHookOrder(): string[] {
 describe('TerminalPane refactor hook parity', () => {
   it('preserves the recursively flattened render hook order', () => {
     const hooks = readFlattenedHookOrder()
-    expect(hooks).toHaveLength(207)
+    expect(hooks).toHaveLength(208)
     expect(hooks.filter((hook) => hook === 'useMemo')).toHaveLength(8)
     expect(createHash('sha256').update(hooks.join('\n')).digest('hex')).toBe(
       PRE_REFACTOR_HOOK_ORDER_SHA256

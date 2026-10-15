@@ -3068,7 +3068,9 @@
             "QuickCommandModalTerminal": {
               "e36e878bae": "Close",
               "b60b83341f": "Starting terminal...",
-              "popupTitle": "Popup Terminal"
+              "popupTitle": "Popup Terminal",
+              "pressAnyKey": "Task finished. Press any key to close.",
+              "taskFailed": "Exited with code {{code}}."
             },
             "TerminalQuickCommandModalModeSwitch": {
               "675e119ac6": "Run in Popup",

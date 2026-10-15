@@ -38,7 +38,8 @@ export function useTerminalPaneFoundation(
     isolatedPaneKey = null,
     showSplitButton = true,
     onPtyExit,
-    onCloseTab
+    onCloseTab,
+    onProcessFailed
   } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const managerRef = useRef<PaneManager | null>(null)
@@ -132,7 +133,13 @@ export function useTerminalPaneFoundation(
   const [paneProcessExitsByPaneId, setPaneProcessExitsByPaneId] = useState<
     Record<number, PaneProcessExit>
   >({})
+  const onProcessFailedRef = useRef(onProcessFailed)
+  onProcessFailedRef.current = onProcessFailed
   const handlePaneProcessDied = useCallback((processExit: PaneProcessExit) => {
+    if (onProcessFailedRef.current) {
+      onProcessFailedRef.current(processExit.exitCode)
+      return
+    }
     setPaneProcessExitsByPaneId((current) => ({
       ...current,
       [processExit.paneId]: processExit

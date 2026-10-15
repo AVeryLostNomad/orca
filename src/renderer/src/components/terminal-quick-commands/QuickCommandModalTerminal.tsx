@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, XIcon } from 'lucide-react'
-import TerminalPane from '@/components/terminal-pane/TerminalPane'
+import TerminalPane, { type TerminalPaneHandle } from '@/components/terminal-pane/TerminalPane'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAppStore } from '@/store'
@@ -8,11 +8,13 @@ import type { QuickCommandModalRequest } from '@/store/slices/quick-command-moda
 import { translate } from '@/i18n/i18n'
 import { flattenTerminalQuickCommand } from '../../../../shared/terminal-quick-commands'
 import { FOLDER_WORKSPACE_INSTANCE_SEPARATOR } from '../../../../shared/worktree/id'
+import { isProvenProcessExit } from '../../../../shared/terminal-exit-cause'
+import { closeIfEscapeUnconsumed, useCloseOnAnyKey } from './quick-command-modal-dismissal'
 
 /**
  * Modal host for `mode: 'modal'` quick commands: an ephemeral terminal over the
- * workspace that runs one command and stays open until dismissed so its output
- * can be inspected.
+ * workspace whose shell exits with its one command, then waits for any key so
+ * its output stays scrollable and selectable until dismissed.
  *
  * The backing tab lives under `<realWorkspaceId>::workspace:<uuid>` rather than
  * the real workspace id: no workspace surface renders that key (no tab-bar
@@ -51,7 +53,7 @@ function QuickCommandModalTerminalContent({
   request: QuickCommandModalRequest
   onClose: () => void
 }): React.JSX.Element {
-  const { command, worktreeId, cwd, requestId } = request
+  const { command, startupCommand, worktreeId, cwd, requestId } = request
   const title =
     command?.label ??
     translate(
@@ -65,6 +67,17 @@ function QuickCommandModalTerminalContent({
   const setTabCustomTitle = useAppStore((s) => s.setTabCustomTitle)
   const queueTabStartupCommand = useAppStore((s) => s.queueTabStartupCommand)
   const [tabId, setTabId] = useState<string | null>(null)
+  const paneRef = useRef<TerminalPaneHandle>(null)
+  const [exitCode, setExitCode] = useState<number | null>(null)
+  // Why: some exit paths keep the pane mounted without calling back, but every
+  // proven exit drops the tab's PTY binding.
+  const livePtyCount = useAppStore((s) => (tabId ? (s.ptyIdsByTabId[tabId]?.length ?? 0) : 0))
+  const [sawPty, setSawPty] = useState(false)
+  if (livePtyCount > 0 && !sawPty) {
+    setSawPty(true)
+  }
+  const taskFinished = Boolean(command) && ((sawPty && livePtyCount === 0) || exitCode !== null)
+  useCloseOnAnyKey(taskFinished, onClose)
 
   useEffect(() => {
     const tab = createTab(modalWorktreeId, undefined, undefined, {
@@ -75,7 +88,9 @@ function QuickCommandModalTerminalContent({
     setActiveTabForWorktree(modalWorktreeId, tab.id)
     if (command) {
       setTabCustomTitle(tab.id, command.label, { recordInteraction: false })
-      queueTabStartupCommand(tab.id, { command: flattenTerminalQuickCommand(command).command })
+      queueTabStartupCommand(tab.id, {
+        command: startupCommand ?? flattenTerminalQuickCommand(command).command
+      })
     }
     setTabId(tab.id)
     return () => {
@@ -89,7 +104,8 @@ function QuickCommandModalTerminalContent({
     modalWorktreeId,
     queueTabStartupCommand,
     setActiveTabForWorktree,
-    setTabCustomTitle
+    setTabCustomTitle,
+    startupCommand
   ])
 
   return (
@@ -97,11 +113,12 @@ function QuickCommandModalTerminalContent({
       aria-describedby={undefined}
       className="flex h-[min(70vh,36rem)] w-[min(92vw,56rem)] max-w-none flex-col gap-0 p-0 sm:max-w-none"
       showCloseButton={false}
-      // Why: standalone popups dismiss on Escape while quick-command TUIs keep it.
       onEscapeKeyDown={(e) => {
-        if (command && e.target instanceof HTMLElement && e.target.closest('.xterm')) {
-          e.preventDefault()
+        if (taskFinished || !(e.target instanceof HTMLElement) || !e.target.closest('.xterm')) {
+          return
         }
+        e.preventDefault()
+        closeIfEscapeUnconsumed(paneRef.current, requestId, onClose)
       }}
       // Why: the terminal takes focus once the PTY paints; Radix's default
       // focus target would tug it away first.
@@ -128,15 +145,20 @@ function QuickCommandModalTerminalContent({
       <div className="relative min-h-0 flex-1 bg-background">
         {tabId ? (
           <TerminalPane
+            ref={paneRef}
             tabId={tabId}
             worktreeId={modalWorktreeId}
             cwd={cwd ?? undefined}
             isActive
             isVisible
             showSplitButton={false}
-            onPtyExit={() => {
+            onPtyExit={(_ptyId, code) => {
               // Why: keep quick-command output visible after exit; unmount cleans up the tab.
               if (command) {
+                // Why: a lost host is not a finished task; only a proven exit ends it.
+                if (code === undefined || isProvenProcessExit(code)) {
+                  setExitCode(code ?? 0)
+                }
                 return
               }
               closeTab(tabId, { recordInteraction: false, reason: 'pty-exit' })
@@ -146,6 +168,7 @@ function QuickCommandModalTerminalContent({
               closeTab(tabId, { recordInteraction: false, reason: 'cleanup' })
               onClose()
             }}
+            {...(command ? { onProcessFailed: setExitCode } : {})}
           />
         ) : (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -157,6 +180,24 @@ function QuickCommandModalTerminalContent({
           </div>
         )}
       </div>
+      {taskFinished ? (
+        <div className="flex shrink-0 items-center gap-1.5 border-t border-border px-2.5 py-1.5 text-[12px] text-muted-foreground">
+          {exitCode !== null && exitCode !== 0 ? (
+            <span className="text-destructive">
+              {translate(
+                'auto.components.terminal.quick.commands.QuickCommandModalTerminal.taskFailed',
+                'Exited with code {{code}}.'
+              ).replace('{{code}}', String(exitCode))}
+            </span>
+          ) : null}
+          <span>
+            {translate(
+              'auto.components.terminal.quick.commands.QuickCommandModalTerminal.pressAnyKey',
+              'Task finished. Press any key to close.'
+            )}
+          </span>
+        </div>
+      ) : null}
     </DialogContent>
   )
 }

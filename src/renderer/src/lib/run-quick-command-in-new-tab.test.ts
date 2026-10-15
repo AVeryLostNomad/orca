@@ -9,6 +9,8 @@ type MockStoreState = {
   setRecentQuickCommandForGroup: ReturnType<typeof vi.fn>
   openQuickCommandModal: ReturnType<typeof vi.fn>
   getKnownWorktreeById: ReturnType<typeof vi.fn>
+  repos: { id: string; path: string; connectionId: string | null }[]
+  settings: null
   tabsByWorktree: Record<string, { id: string }[]>
   unifiedTabsByWorktree: Record<
     string,
@@ -35,6 +37,13 @@ vi.mock('@/store', () => ({
 vi.mock('@/lib/launch-agent-in-new-tab', () => ({
   launchAgentInNewTab: mocks.launchAgentInNewTab
 }))
+vi.mock('@/lib/connection-context', () => ({
+  getConnectionIdFromState: () => null
+}))
+vi.mock('@/lib/local-preflight-context', () => ({
+  getLocalProjectExecutionRuntimeContext: () => undefined
+}))
+vi.mock('@/lib/new-workspace', () => ({ CLIENT_PLATFORM: 'darwin' }))
 
 function createStoreState(): MockStoreState {
   return {
@@ -44,7 +53,9 @@ function createStoreState(): MockStoreState {
     setTabBarOrder: vi.fn(),
     setRecentQuickCommandForGroup: vi.fn(),
     openQuickCommandModal: vi.fn(),
-    getKnownWorktreeById: vi.fn(() => ({ path: '/repos/wt-1' })),
+    getKnownWorktreeById: vi.fn(() => ({ path: '/repos/wt-1', repoId: 'repo-1' })),
+    repos: [{ id: 'repo-1', path: '/repos/wt-1', connectionId: null }],
+    settings: null,
     tabsByWorktree: { 'wt-1': [{ id: 'tab-existing' }, { id: 'tab-new' }] },
     unifiedTabsByWorktree: {
       'wt-1': [{ entityId: 'tab-new', contentType: 'terminal', groupId: 'group-1' }]
@@ -143,6 +154,7 @@ describe('runQuickCommandInNewTab', () => {
     expect(mockState.openQuickCommandModal).toHaveBeenCalledWith({
       requestId: expect.any(String),
       command: expect.objectContaining({ id: 'deploy', mode: 'modal' }),
+      startupCommand: 'pnpm deploy; exit',
       worktreeId: 'wt-1',
       cwd: '/repos/wt-1'
     })

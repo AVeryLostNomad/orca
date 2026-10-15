@@ -133,6 +133,17 @@ export function useTerminalPaneCloseActions(controller: TerminalPaneBindingContr
         if (pane) {
           handleRequestClosePane(pane.id)
         }
+      },
+      getActivePaneInputState: () => {
+        const manager = managerRef.current
+        const pane = manager?.getActivePane() ?? manager?.getPanes()[0]
+        if (!pane) {
+          return null
+        }
+        return {
+          ptyId: paneTransportsRef.current.get(pane.id)?.getPtyId() ?? null,
+          isAlternateScreen: pane.terminal.buffer.active.type === 'alternate'
+        }
       }
     }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- Preserve the pre-split dependency contract.

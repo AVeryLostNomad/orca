@@ -12,6 +12,13 @@ import type {
   TerminalQuickCommand
 } from '../../../shared/terminal-quick-command-types'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { CLIENT_PLATFORM } from '@/lib/new-workspace'
+import { getAgentLaunchPlatformForRepo } from '@/lib/agent-launch-platform'
+import { getConnectionIdFromState } from '@/lib/connection-context'
+import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
+import { resolveLocalWindowsAgentStartupShell } from '../../../shared/windows-terminal-shell'
+import { buildPopupTaskStartupCommand } from '../../../shared/terminal-quick-command-popup-exit'
+import type { AgentStartupShell } from '../../../shared/tui-agent-startup-shell'
 
 export type RunQuickCommandInNewTabArgs = {
   command: TerminalQuickCommand
@@ -157,9 +164,40 @@ function openQuickCommandModal(
   // Why: resolve the workspace root up front — the modal's ephemeral worktree
   // id is synthetic, so the terminal cannot fall back to a workspace lookup.
   const cwd = state.getKnownWorktreeById(worktreeId)?.path ?? null
-  state.openQuickCommandModal({ requestId: createBrowserUuid(), command, worktreeId, cwd })
+  const startupCommand = buildPopupTaskStartupCommand(
+    flattenTerminalQuickCommand(command).command,
+    resolvePopupTaskShell(worktreeId)
+  )
+  state.openQuickCommandModal({
+    requestId: createBrowserUuid(),
+    command,
+    startupCommand,
+    worktreeId,
+    cwd
+  })
   const recentGroupId = groupId ?? state.activeGroupIdByWorktree[worktreeId] ?? null
   if (recentGroupId) {
     state.setRecentQuickCommandForGroup(recentGroupId, historyId)
   }
+}
+
+/** Shell family the popup's default shell runs on, mirroring agent quick launches. */
+function resolvePopupTaskShell(worktreeId: string): AgentStartupShell {
+  const state = useAppStore.getState()
+  const worktree = state.getKnownWorktreeById(worktreeId)
+  const repo = worktree ? state.repos.find((entry) => entry.id === worktree.repoId) : null
+  const connectionId = getConnectionIdFromState(state, worktreeId)
+  const platform = repo
+    ? getAgentLaunchPlatformForRepo(
+        repo,
+        connectionId ? undefined : getLocalProjectExecutionRuntimeContext(state, worktreeId)
+      )
+    : CLIENT_PLATFORM
+  return (
+    resolveLocalWindowsAgentStartupShell({
+      platform,
+      isRemote: Boolean(connectionId),
+      terminalWindowsShell: state.settings?.terminalWindowsShell
+    }) ?? (platform === 'win32' ? 'powershell' : 'posix')
+  )
 }
