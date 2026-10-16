@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { recordSlowMainOperation } from '../observability/main-thread-stall-monitor'
 import type { Store } from '../persistence'
 import type {
   WorkspaceSessionPatch,
@@ -40,8 +41,13 @@ export function registerSessionHandlers(store: Store): void {
   ipcMain.on(
     'session:read-terminal-scrollback-sync',
     (event, args: { ref?: unknown } | undefined) => {
-      event.returnValue =
+      const startedAt = performance.now()
+      const snapshot =
         typeof args?.ref === 'string' ? store.readTerminalScrollbackSnapshot(args.ref) : null
+      recordSlowMainOperation('read_terminal_scrollback_sync', startedAt, {
+        chars: snapshot?.length ?? 0
+      })
+      event.returnValue = snapshot
     }
   )
 }

@@ -2,6 +2,7 @@ import { mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { mkdir, open, rm } from 'node:fs/promises'
 import { durableWriteTempPath, renameDurable, writeFileDurableSync } from '../../durable-file-write'
 import { dirname } from 'node:path'
+import { recordSlowMainOperation } from '../../observability/main-thread-stall-monitor'
 import {
   parseCodexResetCreditAttemptLedger,
   type CodexResetCreditAttemptLedger
@@ -140,8 +141,10 @@ export async function writeToDiskAsync(owner: PrimaryStateWriteOperations): Prom
     return
   }
   const gen = owner[primaryStateWriteOperationsContext].runtime.writeGeneration
+  const buildStartedAt = performance.now()
   const { payload, stateHash, protectedSecretUpdates } =
     owner[primaryStateWriteOperationsContext].serialization.buildStateToSave()
+  recordSlowMainOperation('build_state_to_save', buildStartedAt, { bytes: payload.length })
   // Why: don't rewrite a byte-identical multi-MB file when state nets out to already-persisted.
   if (stateHash === owner[primaryStateWriteOperationsContext].runtime.lastWrittenStateHash) {
     owner[primaryStateWriteOperationsContext].runtime.lastDurableWriteGeneration = Math.max(
@@ -224,8 +227,10 @@ export function writeToDiskSync(
   if (owner[primaryStateWriteOperationsContext].runtime.writesFrozen) {
     return
   }
+  const buildStartedAt = performance.now()
   const { payload, stateHash, protectedSecretUpdates } =
     owner[primaryStateWriteOperationsContext].serialization.buildStateToSave()
+  recordSlowMainOperation('build_state_to_save', buildStartedAt, { bytes: payload.length })
   // Why: matching hash means the file already holds this state; force overrides when an async rename may be racing past the gen check.
   if (
     !opts.force &&

@@ -1,4 +1,5 @@
 import { getPtyIpc } from '../../pty-host-bindings'
+import { recordSlowMainOperation } from '../../../observability/main-thread-stall-monitor'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import { tryGetProviderForPty } from '../provider/registry'
 import { providerSnapshotRequiredPtys } from '../delivery/visibility-state'
@@ -49,6 +50,7 @@ export function installPtySnapshotIpcHandlers(deps: {
         return null
       }
       const scrollbackRows = normalizeSnapshotScrollbackRows(args.opts?.scrollbackRows)
+      const startedAt = performance.now()
       try {
         const runtimeSeqBeforeSnapshot = runtime.getPtyOutputSequence(args.id)
         const providerSnapshotRequired = providerSnapshotRequiredPtys.has(args.id)
@@ -66,6 +68,12 @@ export function installPtySnapshotIpcHandlers(deps: {
           (await runtime.serializeHiddenOutputRecoveryBuffer(args.id, {
             scrollbackRows
           }))
+        // Why: wall time incl. queueing — hang reports correlate it with main.event_loop_stall spans.
+        recordSlowMainOperation('pty_main_buffer_snapshot', startedAt, {
+          source: providerSnapshot ? 'provider' : 'headless',
+          scrollbackRows: scrollbackRows ?? null,
+          chars: snapshot?.data.length ?? 0
+        })
         if (!snapshot || typeof snapshot.seq !== 'number') {
           return snapshot
         }

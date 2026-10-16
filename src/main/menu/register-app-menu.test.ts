@@ -5,13 +5,19 @@ const {
   setApplicationMenuMock,
   getFocusedWindowMock,
   getFocusedWebContentsMock,
-  sendActionToFirstResponderMock
+  sendActionToFirstResponderMock,
+  openLogsDirectoryMock
 } = vi.hoisted(() => ({
   buildFromTemplateMock: vi.fn(),
   setApplicationMenuMock: vi.fn(),
   getFocusedWindowMock: vi.fn(),
   getFocusedWebContentsMock: vi.fn(),
-  sendActionToFirstResponderMock: vi.fn()
+  sendActionToFirstResponderMock: vi.fn(),
+  openLogsDirectoryMock: vi.fn()
+}))
+
+vi.mock('../observability/open-logs-directory', () => ({
+  openLogsDirectory: openLogsDirectoryMock
 }))
 
 vi.mock('electron', () => ({
@@ -414,6 +420,7 @@ describe('registerAppMenu', () => {
     const helpLabels = getSubmenu(template, 'Help').map((item) => item.label)
     expect(helpLabels).toEqual([
       'Report Crash...',
+      'Open Local Stall Logs',
       undefined,
       'Explore Orca',
       'Getting Started with Orca'
@@ -465,6 +472,17 @@ describe('registerAppMenu', () => {
 
     expect(options.onOpenCrashReport).toHaveBeenCalledTimes(1)
     expect(options.onOpenCrashReport).toHaveBeenCalledWith(targetWindow)
+  })
+
+  it('opens the local logs folder from Help', () => {
+    registerAppMenu(buildMenuOptions())
+
+    const stallLogsItem = getSubmenu(getTemplate(), 'Help').find(
+      (entry) => entry.label === 'Open Local Stall Logs'
+    )
+    stallLogsItem?.click?.({} as never, undefined, {} as Electron.KeyboardEvent)
+
+    expect(openLogsDirectoryMock).toHaveBeenCalledTimes(1)
   })
 
   it('exposes an Appearance submenu under View with checkbox items reflecting state', () => {

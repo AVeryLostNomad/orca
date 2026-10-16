@@ -7,6 +7,7 @@ import { getBrowserClientHostId } from '../browser/browser-client-host-id'
 import { formatBrowserClientHostIdArgument } from '../../shared/browser-client-host-id-argument'
 import { markSystemSessionEnding } from '../crash-reporting/expected-teardown-state'
 import { recordDurableCrashBreadcrumb } from '../crash-reporting/durable-crash-breadcrumb'
+import { watchWindowResponsiveness } from '../observability/main-thread-stall-monitor'
 import { clearTrustedUIRendererWebContentsId, setTrustedUIRendererWebContentsId } from '../ipc/ui'
 import type { Store } from '../persistence'
 import { closeDashboardPopout } from './dashboard-popout-window'
@@ -201,6 +202,8 @@ export function createMainWindow(
     state,
     store
   })
+
+  watchWindowResponsiveness(mainWindow, 'main')
 
   mainWindow.on('closed', () => {
     closeDashboardPopout()

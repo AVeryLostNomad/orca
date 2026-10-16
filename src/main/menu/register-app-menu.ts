@@ -7,6 +7,7 @@ import {
 } from '../../shared/keybindings'
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
 import { translateMain } from '../i18n/main-i18n'
+import { openLogsDirectory } from '../observability/open-logs-directory'
 import { createAppMenuSelectionItem } from './app-menu-selection-item'
 import { buildFileMenu } from './app-file-menu'
 
@@ -136,6 +137,11 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   const crashReportItem: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.reportCrash', 'Report Crash...'),
     click: (_menuItem, window) => onOpenCrashReport(window)
+  }
+
+  const openStallLogsItem: Electron.MenuItemConstructorOptions = {
+    label: translateMain('menu.openStallLogs', 'Open Local Stall Logs'),
+    click: () => void openLogsDirectory()
   }
 
   // Why: the macOS app-menu (named after the app) is mandatory on darwin and
@@ -314,6 +320,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     label: translateMain('menu.help', 'Help'),
     submenu: [
       crashReportItem,
+      openStallLogsItem,
       { type: 'separator' },
       featureTourItem,
       setupGuideItem,

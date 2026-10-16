@@ -49,6 +49,10 @@ import {
   type UploadBundleResult
 } from './diagnostic-bundle-upload'
 import { setActiveSink, startSpan } from './tracer'
+import {
+  startMainThreadStallMonitor,
+  stopMainThreadStallMonitor
+} from './main-thread-stall-monitor'
 import { setSecurePathHardeningReporter } from '../../shared/secure-path-hardening-report'
 
 const CI_ENV_VARS = [
@@ -155,6 +159,7 @@ export function initObservability(): ObservabilityConsent {
   }
   installLocalSink()
   installSecurePathHardeningReporter()
+  startMainThreadStallMonitor()
   return c
 }
 
@@ -185,6 +190,7 @@ function installSecurePathHardeningReporter(): void {
 
 export async function shutdownObservability(): Promise<void> {
   setSecurePathHardeningReporter(null)
+  stopMainThreadStallMonitor()
   // Order matters: tracer first so no new pushes arrive while the local sink
   // is closing and flushing buffered lines.
   setActiveSink(null)

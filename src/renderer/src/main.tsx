@@ -17,6 +17,7 @@ import {
 import { installAutomationHostDiagnostic } from './components/automations/automation-host-diagnostics'
 import { applyDocumentTheme } from './lib/document-theme'
 import { installTypingLatencyDiagnostic } from './lib/typing-latency/diagnostic'
+import { installLongFrameDiagnostic } from './lib/long-frame-diagnostic'
 import { shouldEnableReactGrab } from './lib/react-grab-dev-gate'
 import { I18nProvider } from './i18n/I18nProvider'
 import { translate } from './i18n/i18n'
@@ -28,6 +29,7 @@ import { installBrowserClientPageRenderer } from './components/browser-pane/brow
 recordRendererCrashBreadcrumb('renderer_bootstrap_started', { dev: import.meta.env.DEV })
 installRendererCrashDiagnostics()
 installTypingLatencyDiagnostic()
+installLongFrameDiagnostic()
 installAutomationHostDiagnostic()
 
 if (
