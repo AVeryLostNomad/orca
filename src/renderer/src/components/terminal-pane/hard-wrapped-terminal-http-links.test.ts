@@ -125,4 +125,37 @@ describe('hard-wrapped terminal HTTP candidate bounds', () => {
       buildHardWrappedHttpLogicalLineCandidates({ getLine: (y) => rows[y] }, rows.length)[0]?.text
     ).toBe(fullUrl)
   })
+
+  it('reconstructs parenthesized URLs wrapped at the cell edge with trailing cell text', () => {
+    const table = [
+      '│ Pixel 3D RPG Bundle      │ $24.99 │',
+      '│ (https://ultimate-end.it │ $24.99 │',
+      '│ ch.io/pixel-3d-rpg-bundl │        │',
+      '│ e) by Ultimate_End       │        │',
+      '├──────────────────────────┼────────┤',
+      '│ (https://ultimate-end.it │ $9.99  │',
+      '│ ch.io/frost) also sold   │        │',
+      '├──────────────────────────┼────────┤',
+      '│ (https://asset.store/env │ —      │',
+      '│ ironments/pack-290451    │        │',
+      '│ ) by August_9            │        │'
+    ]
+    const rows = table.map(bufferLineWithCellColumns)
+    const urlAt = (y: number): string | undefined =>
+      buildHardWrappedHttpLogicalLineCandidates({ getLine: (row) => rows[row] }, y + 1)[0]?.text
+
+    expect(urlAt(3)).toBe('https://ultimate-end.itch.io/pixel-3d-rpg-bundle')
+    expect(urlAt(6)).toBe('https://ultimate-end.itch.io/frost')
+    expect(urlAt(9)).toBe('https://asset.store/environments/pack-290451')
+  })
+
+  it('does not join the next cell word when an unparenthesized URL ends near the edge', () => {
+    const rows = ['│ https://a.example/path │', '│ more words here        │'].map(
+      bufferLineWithCellColumns
+    )
+
+    expect(
+      buildHardWrappedHttpLogicalLineCandidates({ getLine: (y) => rows[y] }, 2)[0]?.text
+    ).toBeUndefined()
+  })
 })
