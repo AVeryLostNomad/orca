@@ -152,6 +152,20 @@ export function requestEditorTabClose(tabId: string): void {
 
 // Existing reload consumers remain tab/surface oriented. Document ownership is
 // resolved by the receiver from the target owner/path, never from selected UI.
+const externalFileChangeGenerations = new WeakMap<Event, number>()
+let externalFileChangeGenerationCounter = 0
+
+// Why: every listener of one change event shares a generation so their forced reads coalesce.
+export function getEditorExternalFileChangeGeneration(event: Event): number {
+  const existing = externalFileChangeGenerations.get(event)
+  if (existing !== undefined) {
+    return existing
+  }
+  const generation = ++externalFileChangeGenerationCounter
+  externalFileChangeGenerations.set(event, generation)
+  return generation
+}
+
 export function notifyEditorExternalFileChange(target: EditorPathMutationTarget): void {
   window.dispatchEvent(
     new CustomEvent<EditorPathMutationTarget>(ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT, {

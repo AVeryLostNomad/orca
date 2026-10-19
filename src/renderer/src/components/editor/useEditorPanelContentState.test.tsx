@@ -67,6 +67,7 @@ vi.mock('@/store', () => ({
 
 import { useEditorPanelContentState } from './useEditorPanelContentState'
 import { registerReloadGenerationTests } from './useEditorPanelContentState.reload-generation'
+import { registerUnmountedExternalChangeTests } from './useEditorPanelContentState.unmounted-external-change'
 import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 import {
   createEditorWorkingDocumentTestState,
@@ -677,6 +678,21 @@ describe('useEditorPanelContentState', () => {
     },
     reloadContent: (file) => latestReloadContent(file),
     renderProbe
+  })
+
+  registerUnmountedExternalChangeTests({
+    createOpenFile,
+    dispatchExternalFileChange,
+    fileContents: () => latestFileContents,
+    getState: getCanonicalTestState,
+    readRuntimeFileContent: mocks.readRuntimeFileContent,
+    renderProbe,
+    unmountProbe: () => {
+      act(() => root?.unmount())
+      container?.remove()
+      container = null
+      root = null
+    }
   })
 
   it('stamps the disk baseline when a clean tab load resolves', async () => {

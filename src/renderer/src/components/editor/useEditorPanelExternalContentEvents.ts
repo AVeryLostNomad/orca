@@ -2,6 +2,7 @@ import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateA
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import {
+  getEditorExternalFileChangeGeneration,
   getWorkingDocumentsForExternalFileChange,
   ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT,
   ORCA_EDITOR_DOCUMENT_SAVED_EVENT,
@@ -39,19 +40,6 @@ type UseEditorPanelExternalContentEventsParams = {
   setDiffContents: Dispatch<SetStateAction<Record<string, DiffContent>>>
 }
 
-const externalEventGenerations = new WeakMap<Event, number>()
-let externalEventGenerationCounter = 0
-
-function getExternalEventGeneration(event: Event): number {
-  const existing = externalEventGenerations.get(event)
-  if (existing !== undefined) {
-    return existing
-  }
-  const generation = ++externalEventGenerationCounter
-  externalEventGenerations.set(event, generation)
-  return generation
-}
-
 export function useEditorPanelExternalContentEvents({
   activeContentFileIdRef,
   invalidateContent,
@@ -69,7 +57,7 @@ export function useEditorPanelExternalContentEvents({
       if (!detail) {
         return
       }
-      const eventGeneration = getExternalEventGeneration(event)
+      const eventGeneration = getEditorExternalFileChangeGeneration(event)
       const invalidatedDiffFileIds: string[] = []
       const invalidatedFileIds: string[] = []
       const state = useAppStore.getState()

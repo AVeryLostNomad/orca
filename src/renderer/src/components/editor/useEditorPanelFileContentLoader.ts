@@ -179,7 +179,10 @@ export function useEditorPanelFileContentLoader({
         let pending = inFlightFileReads.get(key)
         if (!pending) {
           const promise = documentId
-            ? loadWorkingDocument(documentId, { force: options?.force })
+            ? loadWorkingDocument(documentId, {
+                force: options?.force,
+                externalEventGeneration: options?.externalEventGeneration
+              })
             : (readRuntimeFileContent({
                 settings: readSettings,
                 filePath,

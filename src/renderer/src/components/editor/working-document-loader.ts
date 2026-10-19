@@ -8,12 +8,12 @@ import type { FileContent } from './editor-panel-content-types'
 
 const pendingLoads = new Map<
   WorkingDocumentId,
-  { document: WorkingDocument; promise: Promise<FileContent> }
+  { document: WorkingDocument; promise: Promise<FileContent>; externalEventGeneration?: number }
 >()
 
 export function loadWorkingDocument(
   id: WorkingDocumentId,
-  options?: { force?: boolean }
+  options?: { force?: boolean; externalEventGeneration?: number }
 ): Promise<FileContent> {
   const state = useAppStore.getState()
   const document = state.workingDocuments[id]
@@ -25,6 +25,14 @@ export function loadWorkingDocument(
   }
   const pending = pendingLoads.get(id)
   if (pending && !options?.force && pending.document === document) {
+    return pending.promise
+  }
+  // Why: the controller and a mounted panel both force-reload on the same external event.
+  if (
+    pending &&
+    options?.externalEventGeneration !== undefined &&
+    pending.externalEventGeneration === options.externalEventGeneration
+  ) {
     return pending.promise
   }
   const { target, revision } = document
@@ -89,6 +97,10 @@ export function loadWorkingDocument(
       }
     }
   })
-  pendingLoads.set(id, { document, promise })
+  pendingLoads.set(id, {
+    document,
+    promise,
+    externalEventGeneration: options?.externalEventGeneration
+  })
   return promise
 }
