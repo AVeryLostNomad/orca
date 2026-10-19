@@ -13,13 +13,15 @@ import { resolveCommand, type ResolvedCommand } from './wsl-command-resolution'
 import { annotateWslHostFailure } from './wsl-host-failure'
 import type { GitAdmissionTier, GitExecOptions } from './git-exec-options'
 import { execFileCapture, execFileCaptureToTermination } from './exec-file-capture'
+import { readCapturedGitBuffer, readCapturedGitString } from './git-captured-output'
 import {
   pendingWslDirectGitReadEnvironment,
   directWslGitExitCode,
   isQuietGitControlFlowExit,
   disableDirectWslGitAfterSuccessfulFallback,
   invalidateMissingDirectWslGit,
-  resolveGitCommand
+  resolveGitCommand,
+  withWindowsHostGitBinary
 } from './git-command-resolution'
 import { prepareWindowsHostGitEnvironment } from './windows-host-git-environment'
 import { buildNetworkSshPolicyEnv } from './git-ssh-policy-env'
@@ -263,41 +265,6 @@ export async function gitExecFileAsyncBuffer(
   })
 }
 
-/**
- * Slice a fenced payload out of raw bytes.
- *
- * Why bytes: blob content may be binary, so decoding to a string to find the
- * fence would corrupt it. Returns the buffer untouched when the command was not
- * fenced or the fence is absent.
- */
-function readCapturedGitBuffer(stdout: Buffer, resolved: ResolvedCommand): Buffer {
-  const captured = resolved.captured
-  if (!captured) {
-    return stdout
-  }
-  const beginIndex = stdout.lastIndexOf(captured.beginMarker, undefined, 'utf8')
-  if (beginIndex === -1) {
-    return stdout
-  }
-  const payloadStart = beginIndex + Buffer.byteLength(captured.beginMarker, 'utf8')
-  const endIndex = stdout.indexOf(captured.endMarker, payloadStart, 'utf8')
-  return endIndex === -1 ? stdout.subarray(payloadStart) : stdout.subarray(payloadStart, endIndex)
-}
-
-function readCapturedGitString(stdout: string, resolved: ResolvedCommand): string {
-  const captured = resolved.captured
-  if (!captured) {
-    return stdout
-  }
-  const beginIndex = stdout.lastIndexOf(captured.beginMarker)
-  if (beginIndex === -1) {
-    return stdout
-  }
-  const payloadStart = beginIndex + captured.beginMarker.length
-  const endIndex = stdout.indexOf(captured.endMarker, payloadStart)
-  return endIndex === -1 ? stdout.slice(payloadStart) : stdout.slice(payloadStart, endIndex)
-}
-
 // Why: sync git blocks the main thread; a dead network drive can hang git for minutes without a timeout (issue #7225's 127s freeze).
 const GIT_EXEC_SYNC_TIMEOUT_MS = 15_000
 
@@ -316,8 +283,10 @@ export function gitExecFileSync(
     timeout?: number
   }
 ): string {
-  const resolved = resolveCommand('git', args, options.cwd)
+  // Why cache-only: a sync caller cannot await resolution, but reuses what async git warmed.
+  const resolved = withWindowsHostGitBinary(resolveCommand('git', args, options.cwd), undefined)
   const spawnStartedAt = performance.now()
+  let timedOut = false
   try {
     return execFileSync(resolved.binary, resolved.args, {
       cwd: resolved.cwd,
@@ -327,8 +296,14 @@ export function gitExecFileSync(
       timeout: options.timeout ?? GIT_EXEC_SYNC_TIMEOUT_MS,
       windowsHide: true
     }) as string
+  } catch (error) {
+    timedOut = (error as NodeJS.ErrnoException | null)?.code === 'ETIMEDOUT'
+    throw error
   } finally {
     // Sync exec blocks the main thread for its whole duration — the cost issue #7576 flags.
-    recordSubprocessSpawn(resolved.binary, resolved.args, performance.now() - spawnStartedAt)
+    recordSubprocessSpawn(resolved.binary, resolved.args, performance.now() - spawnStartedAt, {
+      sync: true,
+      timedOut
+    })
   }
 }

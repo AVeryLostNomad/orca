@@ -212,3 +212,29 @@ describe('Windows shell PATH hydration coordination', () => {
     expect(configure).toHaveBeenCalledWith('C:\\Windows\\System32\\cmd.exe', null, null)
   })
 })
+
+describe('Windows shell PATH hydration reporting', () => {
+  it('reports the probed shell and the segments it put ahead of PATH', async () => {
+    const report = vi.fn()
+    const coordinator = createWindowsShellPathHydration({
+      configure: vi.fn(),
+      hydrate: async () => ({
+        ok: true,
+        segments: ['H:\\bin', 'C:\\Program Files\\Git\\mingw64\\bin'],
+        failureReason: 'none'
+      }),
+      merge: () => ['H:\\bin'],
+      resolveGitBashPath: () => 'C:\\Git\\bin\\bash.exe',
+      report
+    })
+
+    await coordinator.hydrate('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    expect(report).toHaveBeenCalledOnce()
+    expect(report.mock.calls[0][0]).toMatchObject({
+      shell: 'bash.exe',
+      added: ['H:\\bin'],
+      result: { ok: true }
+    })
+  })
+})

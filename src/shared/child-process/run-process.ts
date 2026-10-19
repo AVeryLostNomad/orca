@@ -9,6 +9,7 @@ import { forceTerminateProcessTree, signalProcessTree } from './process-tree-ter
 
 import { createOutputSink } from './bounded-output-sink'
 import { createChildTerminationReporter } from './child-termination-reporter'
+import { reportSpawnBlock } from './spawn-block-observer'
 
 export type {
   ChildProcessHandle,
@@ -50,11 +51,22 @@ const BARRIER_UNVERIFIED_EXIT_GRACE_MS = 10_000
  */
 export function spawnProcess(spec: ProcessSpec): ChildProcessWithoutNullStreams {
   const resolved = resolveSpawn(spec, process.platform)
-  return nodeSpawn(
-    resolved.file,
-    [...resolved.args],
-    resolved.options
-  ) as ChildProcessWithoutNullStreams
+  const startedAt = performance.now()
+  try {
+    return nodeSpawn(
+      resolved.file,
+      [...resolved.args],
+      resolved.options
+    ) as ChildProcessWithoutNullStreams
+  } finally {
+    reportSpawnBlock({
+      command: resolved.file,
+      args: resolved.args,
+      blockMs: performance.now() - startedAt,
+      sync: false,
+      timedOut: false
+    })
+  }
 }
 
 /**
@@ -325,12 +337,20 @@ function terminate(child: ChildProcess, signal?: NodeJS.Signals): void {
  */
 export function runProcessSync(spec: ProcessSpec): ProcessResult {
   const resolved = resolveSpawn(spec, process.platform)
+  const startedAt = performance.now()
   const result = nodeSpawnSync(resolved.file, [...resolved.args], {
     ...resolved.options,
     input: spec.input,
     timeout: spec.timeoutMs === null ? undefined : (spec.timeoutMs ?? DEFAULT_PROCESS_TIMEOUT_MS),
     maxBuffer: spec.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
     encoding: 'buffer'
+  })
+  reportSpawnBlock({
+    command: resolved.file,
+    args: resolved.args,
+    blockMs: performance.now() - startedAt,
+    sync: true,
+    timedOut: (result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT'
   })
   if (result.error && (result.error as NodeJS.ErrnoException).code !== 'ETIMEDOUT') {
     throw result.error

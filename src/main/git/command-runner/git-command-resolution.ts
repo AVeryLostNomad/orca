@@ -13,6 +13,7 @@ import {
 import { usesHostGitForWslLinkedWorktree } from '../wsl-linked-worktree-git-routing'
 import { resolveCommand, type ResolvedCommand } from './wsl-command-resolution'
 import type { GitExecOptions } from './git-exec-options'
+import { peekWindowsHostGitBinary } from './windows-host-git-binary'
 
 function wslDistroForCommand(cwd: string | undefined, override?: string): string | null {
   if (process.platform !== 'win32') {
@@ -29,7 +30,10 @@ export function resolveGitCommand(
 ): ResolvedCommand {
   if (usesHostGitForWslLinkedWorktree(options.cwd, options.wslDistro)) {
     // Why: WSL Git resolves a Windows-authored linked-worktree pointer relative to cwd.
-    return { binary: 'git', args, cwd: options.cwd, wsl: null, wslMode: null }
+    return withWindowsHostGitBinary(
+      { binary: 'git', args, cwd: options.cwd, wsl: null, wslMode: null },
+      options.env
+    )
   }
   const distro = directWslGitReadDistro(args, options, forceLoginShell)
   if (distro) {
@@ -113,11 +117,26 @@ export function resolveGitCommandWithoutProbe(
   options: GitExecOptions,
   captureLoginShellOutput = false
 ): ResolvedCommand {
-  return resolveCommand('git', args, options.cwd, options.wslDistro, {
-    useWslLoginShell: Boolean(options.wslDistro),
-    captureLoginShellOutput,
-    terminationBarrier: options.terminationBarrier
-  })
+  return withWindowsHostGitBinary(
+    resolveCommand('git', args, options.cwd, options.wslDistro, {
+      useWslLoginShell: Boolean(options.wslDistro),
+      captureLoginShellOutput,
+      terminationBarrier: options.terminationBarrier
+    }),
+    options.env
+  )
+}
+
+/** Swaps host `git` for the absolute path `prepareWindowsHostGitEnvironment` resolved, when cached. */
+export function withWindowsHostGitBinary(
+  resolved: ResolvedCommand,
+  env: NodeJS.ProcessEnv | undefined
+): ResolvedCommand {
+  if (process.platform !== 'win32' || resolved.wsl !== null || resolved.binary !== 'git') {
+    return resolved
+  }
+  const binary = peekWindowsHostGitBinary(env ?? process.env)
+  return binary ? { ...resolved, binary } : resolved
 }
 
 function isDirectWslGitNotFound(error: unknown, resolved: ResolvedCommand): boolean {

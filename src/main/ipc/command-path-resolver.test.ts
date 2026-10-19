@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { isCommandOnLocalPath } from './command-path-resolver'
+import { isCommandOnLocalPath, resolveCommandOnLocalPath } from './command-path-resolver'
 
 describe('isCommandOnLocalPath', () => {
   it('returns false for an empty command', async () => {
@@ -110,6 +110,34 @@ describe('isCommandOnLocalPath', () => {
           env: { Path: dir, PATHEXT: '.EXE' }
         })
       ).resolves.toBe(true)
+    })
+  })
+
+  describe('resolveCommandOnLocalPath', () => {
+    let first = ''
+    let second = ''
+    beforeAll(async () => {
+      first = await mkdtemp(path.join(tmpdir(), 'cmd-resolver-dirs-a-'))
+      second = await mkdtemp(path.join(tmpdir(), 'cmd-resolver-dirs-b-'))
+      await writeFile(path.join(second, 'tool.exe'), '')
+      await writeFile(path.join(second, 'tool.cmd'), '')
+    })
+    afterAll(async () => {
+      await rm(first, { recursive: true, force: true })
+      await rm(second, { recursive: true, force: true })
+    })
+
+    it('reports every directory it searched up to the match', async () => {
+      const searched: string[] = []
+      const match = await resolveCommandOnLocalPath('tool', {
+        platform: 'win32',
+        env: { PATH: [first, second].join(';') },
+        extensions: ['.com', '.exe'],
+        searchCwd: false,
+        onDirSearched: (dir) => searched.push(dir)
+      })
+      expect(match).toBe(`${path.posix.join(second, 'tool')}.exe`)
+      expect(searched).toEqual([first, second])
     })
   })
 })

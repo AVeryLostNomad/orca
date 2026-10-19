@@ -1,6 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { runProcess, runProcessSync, type ProcessSpec } from '../shared/child-process/run-process'
 import { buildWslExecArgs } from '../shared/wsl-login-shell-command'
+import { measureSyncSpawn } from '../shared/child-process/spawn-block-observer'
 import { resolveWslInteropSpawnCwd } from './wsl-interop-spawn-directory'
 
 type WslAvailabilityCache =
@@ -189,13 +190,15 @@ export function isWslAvailable(): boolean {
   }
 
   try {
-    execFileSync('wsl.exe', ['--status'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: WSL_AVAILABILITY_PROBE_TIMEOUT_MS,
-      // Same reason as the async twin: they share one cache, so a false ENOENT
-      // from either poisons both.
-      cwd: resolveWslInteropSpawnCwd()
-    })
+    measureSyncSpawn('wsl.exe', ['--status'], () =>
+      execFileSync('wsl.exe', ['--status'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: WSL_AVAILABILITY_PROBE_TIMEOUT_MS,
+        // Same reason as the async twin: they share one cache, so a false ENOENT
+        // from either poisons both.
+        cwd: resolveWslInteropSpawnCwd()
+      })
+    )
     return cacheWslAvailabilityProbeResult(null, startedAtGeneration)
   } catch (error) {
     return cacheWslAvailabilityProbeResult(

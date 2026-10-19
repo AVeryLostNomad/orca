@@ -1,6 +1,7 @@
 import { execFile, execFileSync, type ExecFileOptionsWithStringEncoding } from 'node:child_process'
 import { delimiter, join, win32 } from 'node:path'
 import { existsSync } from 'node:fs'
+import { measureSyncSpawn } from '../shared/child-process/spawn-block-observer'
 
 export {
   getCmdExePath,
@@ -120,12 +121,15 @@ function resolveCurrentIdentity(): string | null {
     return knownIdentity
   }
   try {
-    const output = execFileSync(getWhoamiExePath(), ['/user', '/fo', 'csv', '/nh'], {
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      windowsHide: true,
-      timeout: 5000
-    })
+    const args = ['/user', '/fo', 'csv', '/nh']
+    const output = measureSyncSpawn(getWhoamiExePath(), args, () =>
+      execFileSync(getWhoamiExePath(), args, {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true,
+        timeout: 5000
+      })
+    )
     const resolvedIdentity = identityFromWhoamiOutput(output)
     if (resolvedIdentity) {
       cachedIdentity = resolvedIdentity
@@ -195,11 +199,13 @@ export function grantDirAcl(dirPath: string, options?: { recursive?: boolean }):
   // dirs (tens of thousands of cached chromium files), making the startup
   // grant silently fail. Give recursive calls a generous budget.
   const timeout = options?.recursive ? 60_000 : 10_000
-  execFileSync(getIcaclsExePath(), args, {
-    stdio: 'ignore',
-    windowsHide: true,
-    timeout
-  })
+  measureSyncSpawn(getIcaclsExePath(), args, () =>
+    execFileSync(getIcaclsExePath(), args, {
+      stdio: 'ignore',
+      windowsHide: true,
+      timeout
+    })
+  )
 }
 
 export async function grantDirAclAsync(dirPath: string): Promise<void> {

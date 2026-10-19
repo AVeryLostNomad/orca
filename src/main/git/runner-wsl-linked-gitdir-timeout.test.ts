@@ -20,6 +20,12 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
   readFile: readFileMock
 }))
 
+// Why: host git binary resolution stats PATH too; keep it out of the routing stat count.
+vi.mock('./command-runner/windows-host-git-binary', () => ({
+  peekWindowsHostGitBinary: () => null,
+  resolveWindowsHostGitBinary: () => Promise.resolve(null)
+}))
+
 import { gitExecFileAsync } from './runner'
 import { _resetGitAdmissionForTests } from './command-runner/git-subprocess-admission'
 

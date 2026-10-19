@@ -12,6 +12,14 @@ import {
   mergePathSegments,
   type HydrationResult
 } from './hydrate-shell-path'
+import { startSpan } from '../observability/tracer'
+
+export type WindowsShellPathHydrationOutcome = {
+  shell: string
+  durationMs: number
+  result: HydrationResult | null
+  added: string[]
+}
 
 type WindowsShellPathHydrationOptions = {
   configure?: (
@@ -24,6 +32,42 @@ type WindowsShellPathHydrationOptions = {
   resolveGitBashPath?: (shell: string) => string | null
   resolvePowerShellChain?: (family: 'powershell.exe' | 'pwsh.exe') => string[]
   warn?: (error: unknown) => void
+  report?: (outcome: WindowsShellPathHydrationOutcome) => void
+}
+
+// Why: shell segments go ahead of the inherited PATH, and every bare-name spawn stats them
+// synchronously, so a network folder there (Git Bash's `~/bin` on a mapped home) stalls main.
+const MAX_REPORTED_OFF_SYSTEM_DRIVE_SEGMENTS = 5
+
+function isOffSystemDriveSegment(segment: string, systemDrive: string): boolean {
+  const normalized = segment.trim()
+  if (normalized.startsWith('\\\\') || normalized.startsWith('//')) {
+    return true
+  }
+  const drive = /^([a-z]):/i.exec(normalized)?.[1]
+  return drive !== undefined && `${drive}:`.toLowerCase() !== systemDrive.toLowerCase()
+}
+
+export function reportWindowsShellPathHydration(outcome: WindowsShellPathHydrationOutcome): void {
+  const segments = outcome.result?.segments ?? []
+  const systemDrive = process.env.SystemDrive ?? 'C:'
+  const offSystemDrive = segments
+    .map((segment, index) => ({ segment, index }))
+    .filter(({ segment }) => isOffSystemDriveSegment(segment, systemDrive))
+    .slice(0, MAX_REPORTED_OFF_SYSTEM_DRIVE_SEGMENTS)
+    .map(({ segment, index }) => `${index}:${segment}`)
+  const span = startSpan('shell_path.hydration', {
+    attributes: {
+      shell: outcome.shell,
+      ok: outcome.result?.ok ?? false,
+      failureReason: outcome.result ? outcome.result.failureReason : 'threw',
+      durationMs: Math.round(outcome.durationMs),
+      prependedSegmentCount: segments.length,
+      addedSegmentCount: outcome.added.length,
+      offSystemDriveSegments: offSystemDrive.join('; ')
+    }
+  })
+  span.end()
 }
 
 export function createWindowsShellPathHydration(options: WindowsShellPathHydrationOptions = {}) {
@@ -33,6 +77,7 @@ export function createWindowsShellPathHydration(options: WindowsShellPathHydrati
   const resolveGitBashPath = options.resolveGitBashPath ?? resolveWindowsGitBashShellPath
   const resolvePowerShellChain =
     options.resolvePowerShellChain ?? resolveWindowsPowerShellSpawnChain
+  const report = options.report ?? reportWindowsShellPathHydration
   const warn =
     options.warn ??
     ((error: unknown) => {
@@ -40,6 +85,7 @@ export function createWindowsShellPathHydration(options: WindowsShellPathHydrati
     })
   let generation = 0
   let ready = Promise.resolve()
+  let configuredShellName = ''
 
   const setConfiguredShell = (
     shell: string | null | undefined,
@@ -47,6 +93,7 @@ export function createWindowsShellPathHydration(options: WindowsShellPathHydrati
   ): void => {
     const requestedShell = shell?.trim() || 'powershell.exe'
     const basename = pathWin32.basename(requestedShell).toLowerCase()
+    configuredShellName = basename
     const shellFamily: WindowsPowerShellShellFamily =
       basename === 'powershell.exe' || basename === 'pwsh.exe' ? basename : undefined
     const effectivePowerShell = resolveEffectiveWindowsPowerShell({
@@ -80,14 +127,29 @@ export function createWindowsShellPathHydration(options: WindowsShellPathHydrati
         if (requestGeneration !== generation) {
           return
         }
+        const startedAt = performance.now()
+        let result: HydrationResult | null = null
+        let added: string[] = []
         try {
-          const result = await hydrate()
+          result = await hydrate()
           if (requestGeneration === generation && result.ok) {
-            merge(result.segments)
+            added = merge(result.segments)
           }
         } catch (error) {
           if (requestGeneration === generation) {
             warn(error)
+          }
+        }
+        if (requestGeneration === generation) {
+          try {
+            report({
+              shell: configuredShellName,
+              durationMs: performance.now() - startedAt,
+              result,
+              added
+            })
+          } catch {
+            // Diagnostics must never fail PATH hydration.
           }
         }
       })

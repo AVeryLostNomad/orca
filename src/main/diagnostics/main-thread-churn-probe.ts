@@ -1,4 +1,5 @@
 import { writeStartupDiagnosticLine } from '../startup/startup-diagnostics'
+import { reportSpawnBlock } from '../../shared/child-process/spawn-block-observer'
 
 export const MAIN_THREAD_DIAGNOSTICS_ENV = 'ORCA_MAIN_THREAD_DIAGNOSTICS'
 
@@ -87,13 +88,21 @@ const spawnStatsByCommand = new Map<string, SubprocessSpawnStats>()
 /**
  * Record one subprocess spawn from the main process. `blockMs` is how long
  * the synchronous spawn/execFile initiation call held the main thread.
- * No-op unless ORCA_MAIN_THREAD_DIAGNOSTICS=1.
+ * Aggregation is a no-op unless ORCA_MAIN_THREAD_DIAGNOSTICS=1; slow spawns always reach the trace.
  */
 export function recordSubprocessSpawn(
   command: string,
   args: readonly string[],
-  blockMs: number
+  blockMs: number,
+  options: { sync?: boolean; timedOut?: boolean } = {}
 ): void {
+  reportSpawnBlock({
+    command,
+    args,
+    blockMs,
+    sync: options.sync ?? false,
+    timedOut: options.timedOut ?? false
+  })
   if (!isMainThreadDiagnosticsEnabled()) {
     return
   }

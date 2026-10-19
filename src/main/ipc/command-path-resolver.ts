@@ -8,12 +8,18 @@ export type ResolveCommandOptions = {
   env?: NodeJS.ProcessEnv
   /** CWD used only for the win32 "search current directory first" rule. */
   cwd?: string
+  /** Overrides the win32 PATHEXT permutations (e.g. libuv's spawn only tries `.com`/`.exe`). */
+  extensions?: string[]
+  /** Win32 only: whether the cwd is searched before PATH. Defaults to true, matching where.exe. */
+  searchCwd?: boolean
+  /** Called after each directory is probed, with how long its candidates took to stat. */
+  onDirSearched?: (dir: string, elapsedMs: number) => void
 }
 
 // Why: Windows env keys are case-insensitive (PATH is usually stored as `Path`,
 // PATHEXT as `PathExt`), but the merged env object we search is a plain,
 // case-sensitive Record — so look the key up case-insensitively.
-function readEnvCaseInsensitive(env: NodeJS.ProcessEnv, key: string): string | undefined {
+export function readEnvCaseInsensitive(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const direct = env[key]
   if (direct !== undefined) {
     return direct
@@ -68,8 +74,16 @@ export async function isCommandOnLocalPath(
   command: string,
   options: ResolveCommandOptions = {}
 ): Promise<boolean> {
+  return (await resolveCommandOnLocalPath(command, options)) !== null
+}
+
+/** The absolute path `isCommandOnLocalPath` matched, or null when nothing on PATH did. */
+export async function resolveCommandOnLocalPath(
+  command: string,
+  options: ResolveCommandOptions = {}
+): Promise<string | null> {
   if (!command) {
-    return false
+    return null
   }
   const platform = options.platform ?? process.platform
   const env = options.env ?? process.env
@@ -84,10 +98,16 @@ export async function isCommandOnLocalPath(
   const pathDirs = (readEnvCaseInsensitive(env, 'PATH') ?? '').split(delimiter)
   // Why: a slash short-circuits PATH (resolve the command directly), matching
   // which(1). On win32, where.exe searches the current directory first.
-  const searchDirs = hasPathSeparator ? [''] : isWin ? [cwd, ...pathDirs] : pathDirs
-  const extensions = isWin ? getWindowsExtensions(env, command) : ['']
+  const searchDirs = hasPathSeparator
+    ? ['']
+    : isWin && options.searchCwd !== false
+      ? [cwd, ...pathDirs]
+      : pathDirs
+  const extensions = isWin ? (options.extensions ?? getWindowsExtensions(env, command)) : ['']
 
   for (const dir of searchDirs) {
+    const dirStartedAt = performance.now()
+    let match: string | null = null
     for (const ext of extensions) {
       // Why: forward-slash joins so candidates are statable on every platform
       // (Windows fs accepts `/`), keeping the win32 lookup testable off-Windows.
@@ -98,9 +118,14 @@ export async function isCommandOnLocalPath(
         continue
       }
       if (await isExecutableFile(candidate, isWin)) {
-        return true
+        match = candidate
+        break
       }
     }
+    options.onDirSearched?.(dir, performance.now() - dirStartedAt)
+    if (match) {
+      return match
+    }
   }
-  return false
+  return null
 }

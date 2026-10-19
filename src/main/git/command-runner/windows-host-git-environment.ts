@@ -1,6 +1,7 @@
 import { createAbortError } from './abort-error'
 import { resolveGitCommand } from './git-command-resolution'
 import type { ResolvedCommand } from './wsl-command-resolution'
+import { resolveWindowsHostGitBinary } from './windows-host-git-binary'
 
 let waitForWindowsHostGitEnvironment: (() => Promise<void>) | null = null
 
@@ -44,14 +45,17 @@ export function prepareWindowsHostGitEnvironment(
   env: NodeJS.ProcessEnv | undefined,
   signal?: AbortSignal
 ): Promise<NodeJS.ProcessEnv | undefined> | null {
-  if (
-    process.platform !== 'win32' ||
-    resolved.wsl !== null ||
-    waitForWindowsHostGitEnvironment === null
-  ) {
+  if (process.platform !== 'win32' || resolved.wsl !== null) {
     return null
   }
-  const ready = waitForWindowsHostGitEnvironment().then(() => refreshWindowsHostPath(env))
+  const environmentReady = waitForWindowsHostGitEnvironment
+    ? waitForWindowsHostGitEnvironment().then(() => refreshWindowsHostPath(env))
+    : Promise.resolve(env)
+  // Why after hydration: the spawn searches the hydrated PATH, so resolve git against that one.
+  const ready = environmentReady.then(async (readyEnv) => {
+    await resolveWindowsHostGitBinary(readyEnv ?? process.env)
+    return readyEnv
+  })
   if (!signal) {
     return ready
   }

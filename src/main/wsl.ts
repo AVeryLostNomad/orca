@@ -1,5 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { parseWslUncPath, toWindowsWslPath } from '../shared/wsl-paths'
+import { measureSyncSpawn } from '../shared/child-process/spawn-block-observer'
 import { filterUserWslDistros, parseWslDistros } from './wsl-distro-list-output'
 import { wslDistroListRetryDelayMs } from './wsl-distro-retry'
 import {
@@ -53,6 +54,18 @@ export function isWslPath(path: string): boolean {
   return parseWslPath(path) !== null
 }
 
+/** Blocking wsl.exe probe, bounded at 5s and reported to the slow-spawn trace. */
+function execWslSync(args: string[]): string {
+  return measureSyncSpawn('wsl.exe', args, () =>
+    execFileSync('wsl.exe', args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 5000,
+      encoding: 'utf8',
+      cwd: resolveWslInteropSpawnCwd()
+    })
+  )
+}
+
 /**
  * Check whether a WSL UNC working directory exists by testing it inside the
  * distro itself, returning null when the answer can't be determined.
@@ -74,12 +87,7 @@ export function wslUncDirectoryExists(uncPath: string): boolean | null {
     return null
   }
   try {
-    const stdout = execFileSync('wsl.exe', getWslDirectoryProbeArgs(info), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-      encoding: 'utf8',
-      cwd: resolveWslInteropSpawnCwd()
-    })
+    const stdout = execWslSync(getWslDirectoryProbeArgs(info))
     return parseWslDirectoryProbeOutput(stdout)
   } catch {
     return null
@@ -181,12 +189,7 @@ export function listWslDistros(): string[] {
 
   try {
     const probeSequence = ++wslDistroProbeSequence
-    const output = execFileSync('wsl.exe', ['--list', '--quiet'], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-      cwd: resolveWslInteropSpawnCwd()
-    })
+    const output = execWslSync(['--list', '--quiet'])
     return cacheWslDistroList(parseWslDistros(output), probeSequence)
   } catch {
     armWslDistroListRetry()
@@ -284,12 +287,7 @@ export function getWslHome(distro: string): string | null {
   }
 
   try {
-    const home = execFileSync('wsl.exe', ['-d', distro, '--exec', 'bash', '-c', 'echo $HOME'], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-      cwd: resolveWslInteropSpawnCwd()
-    }).trim()
+    const home = execWslSync(['-d', distro, '--exec', 'bash', '-c', 'echo $HOME']).trim()
 
     if (!home || !home.startsWith('/')) {
       return null

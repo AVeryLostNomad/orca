@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import type { BrowserWindow } from 'electron'
 import { _resetTracerForTests, setActiveSink, type TracerSink } from './tracer'
+import { publishSystemResume, publishSystemSuspend } from '../system-power-lifecycle'
 import {
   MAIN_THREAD_STALL_THRESHOLD_MS,
   measureTimerStallMs,
   recordSlowMainOperation,
+  recordSlowSpawn,
   startMainThreadStallMonitor,
   stopMainThreadStallMonitor,
   watchWindowResponsiveness
@@ -70,6 +72,78 @@ describe('startMainThreadStallMonitor', () => {
     expect(records).toHaveLength(1)
     expect(records[0].name).toBe('main.event_loop_stall')
     expect(records[0].attributes.stallMs).toBe(750)
+  })
+})
+
+describe('recordSlowSpawn', () => {
+  it('ignores spawns under the threshold', () => {
+    recordSlowSpawn({ command: 'git', args: ['status'], blockMs: 5, sync: false, timedOut: false })
+    expect(records).toHaveLength(0)
+  })
+
+  it('records a slow spawn and whether uv_spawn had to search PATH', () => {
+    recordSlowSpawn({
+      command: 'git',
+      args: ['-c', 'core.quotepath=false', 'status'],
+      blockMs: 5004.6,
+      sync: false,
+      timedOut: false
+    })
+    recordSlowSpawn({
+      command: 'C:\\Windows\\System32\\whoami.exe',
+      args: ['/user'],
+      blockMs: 5000,
+      sync: true,
+      timedOut: true
+    })
+    expect(records.map((record) => record.attributes)).toEqual([
+      {
+        command: 'git status',
+        binaryIsAbsolute: false,
+        sync: false,
+        timedOut: false,
+        blockMs: 5005
+      },
+      { command: 'whoami', binaryIsAbsolute: true, sync: true, timedOut: true, blockMs: 5000 }
+    ])
+  })
+})
+
+describe('stall attribution', () => {
+  function stallAfter(blockMs: number, during: () => void): Record<string, unknown> {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000)
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    startMainThreadStallMonitor()
+    vi.setSystemTime(1_000_000 + blockMs)
+    during()
+    now = 100 + blockMs
+    vi.advanceTimersByTime(100)
+    const stall = records.find((record) => record.name === 'main.event_loop_stall')
+    expect(stall).toBeDefined()
+    return stall!.attributes
+  }
+
+  it('names the slow spawn that caused the stall', () => {
+    const attributes = stallAfter(5000, () =>
+      recordSlowSpawn({
+        command: 'git',
+        args: ['diff'],
+        blockMs: 4990,
+        sync: false,
+        timedOut: false
+      })
+    )
+    expect(attributes).toMatchObject({ slowSpawn: 'git diff', slowSpawnBlockMs: 4990 })
+    expect(attributes.systemSuspended).toBeUndefined()
+  })
+
+  it('marks a stall that spans a system suspend', () => {
+    const attributes = stallAfter(60_000, () => publishSystemSuspend())
+    publishSystemResume()
+    expect(attributes).toMatchObject({ systemSuspended: true })
+    expect(attributes.slowSpawn).toBeUndefined()
   })
 })
 
