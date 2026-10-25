@@ -22,6 +22,7 @@ import type { BrowserApi } from './api/browser-api'
 import type { CliApi } from './api/cli-install-api'
 import type { CodeServerApi } from './api/code-server-api'
 import type { DataStudioApi } from './api/data-studio-api'
+import type { PrototypesApi } from './api/prototype-api'
 import type { EditorThemesApi } from './api/editor-theme-api'
 import type { LspApi } from './api/lsp-api'
 import type { CrashReportsApi, FeedbackApi } from './api/crash-report-api'
@@ -155,6 +156,7 @@ export type PreloadApi = {
   speech: SpeechApi
   codeServer: CodeServerApi
   dataStudio: DataStudioApi
+  prototypes: PrototypesApi
   editorThemes: EditorThemesApi
   lsp: LspApi
 }

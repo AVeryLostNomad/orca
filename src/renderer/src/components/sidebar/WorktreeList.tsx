@@ -256,6 +256,10 @@ const WorktreeList = React.memo(function WorktreeList({
     },
     [openModal]
   )
+  const handlePromotePrototype = useCallback(
+    (repo: Repo) => openModal('promote-prototype', { repoId: repo.id }),
+    [openModal]
+  )
 
   const handleCreateFolderWorkspace = useCallback(
     (projectGroup: ProjectGroup) => {
@@ -346,6 +350,7 @@ const WorktreeList = React.memo(function WorktreeList({
           externalWorktreeCards.newExternalWorktreeInboxActionState
         }
         handleRemoveProject={handleRemoveProject}
+        handlePromotePrototype={handlePromotePrototype}
         handleCreateGroupFromRepo={projectGroupDialogs.handleCreateGroupFromRepo}
         handleMoveProjectToGroup={projectGroupDialogs.handleMoveProjectToGroup}
         handleRemoveProjectFromGroup={projectGroupDialogs.handleRemoveProjectFromGroup}

@@ -19,7 +19,9 @@ export async function addLocalRepoFromPath(
   store: Store,
   path: string,
   kind: 'git' | 'folder' = 'git',
-  displayName?: string
+  displayName?: string,
+  /** Applied only when a new record is created, never to a deduped existing repo. */
+  extraFields: Partial<Pick<Repo, 'isPrototype' | 'githubAccountRef'>> = {}
 ): Promise<{ repo: Repo; alreadyExisted: boolean } | { error: string }> {
   const repoKind = kind === 'folder' ? 'folder' : 'git'
   if (repoKind === 'git') {
@@ -93,7 +95,8 @@ export async function addLocalRepoFromPath(
           // Why: new Add Project imports are explicit ready host setups; 'legacy-repo' is reserved for older records/projection.
           projectHostSetupMethod: 'imported-existing-folder' as const
         }
-      : {})
+      : {}),
+    ...extraFields
   }
 
   store.addRepo(repo)

@@ -361,10 +361,15 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
                       'Remove Workspace'
                     )
                   : removesProject
-                    ? translate(
-                        'auto.components.sidebar.WorktreeContextMenu.f5ac91531d',
-                        'Remove Project from Orca'
-                      )
+                    ? repo?.isPrototype
+                      ? translate(
+                          'auto.components.sidebar.WorktreeContextMenu.removePrototype',
+                          'Remove Prototype'
+                        )
+                      : translate(
+                          'auto.components.sidebar.WorktreeContextMenu.f5ac91531d',
+                          'Remove Project from Orca'
+                        )
                     : lineageDescendantCount > 0
                       ? translate(
                           'auto.components.sidebar.WorktreeContextMenu.deleteWithDescendants',

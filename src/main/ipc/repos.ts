@@ -13,6 +13,7 @@ import { registerRepoFolderPickerHandlers } from './repos/repo-folder-picker-han
 import { registerRepoCloneHandlers } from './repos/repo-clone-lifecycle'
 import { registerRepoGitUsernameHandler } from './repos/repo-git-username-handler'
 import { registerBaseRefQueryHandlers } from './repos/base-ref-query-handlers'
+import { PROTOTYPE_IPC_CHANNELS, registerPrototypeHandlers } from './repos/prototype-handlers'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 
 export function registerRepoHandlers(
@@ -67,6 +68,9 @@ export function registerRepoHandlers(
   ipcMain.removeHandler('sparsePresets:list')
   ipcMain.removeHandler('sparsePresets:save')
   ipcMain.removeHandler('sparsePresets:remove')
+  for (const channel of PROTOTYPE_IPC_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
 
   registerRepoCatalogHandlers(mainWindow, store)
   registerProjectHostSetupHandlers(mainWindow, store)
@@ -80,4 +84,5 @@ export function registerRepoHandlers(
   registerRepoCloneHandlers(mainWindow, store)
   registerRepoGitUsernameHandler(store)
   registerBaseRefQueryHandlers(store)
+  registerPrototypeHandlers(mainWindow, store)
 }

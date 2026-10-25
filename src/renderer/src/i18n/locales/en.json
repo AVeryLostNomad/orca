@@ -5263,7 +5263,10 @@
           "b79b39d865": "Remove Project",
           "removeDescriptionSsh": "This only removes {{name}} from Orca. Its files stay on {{host}} — re-add that SSH host to recover it.",
           "removeDescriptionLocal": "This only removes {{name}} from Orca. It is still on your disk.",
-          "removeDescriptionVmRecipe": "This removes {{name}} from Orca. Its VM recipe determines whether the environment and its files are permanently deleted."
+          "removeDescriptionVmRecipe": "This removes {{name}} from Orca. Its VM recipe determines whether the environment and its files are permanently deleted.",
+          "removeDescriptionPrototype": "This permanently deletes {{name}}, its files, and its worktrees from your disk.",
+          "removePrototype": "Remove Prototype",
+          "deletePrototype": "Delete"
         },
         "ScrollToCurrentWorkspaceToolbarButton": {
           "23989bb663": "Reveal active workspace"
@@ -5354,7 +5357,9 @@
           "ca6f729da2": "New workspace ({{value0}})",
           "a30e34eb5c": "Close workspace board",
           "views": "Sidebar view",
-          "moreActions": "More workspace actions"
+          "moreActions": "More workspace actions",
+          "newWorktree": "New Worktree",
+          "newPrototype": "New Prototype"
         },
         "SidebarNav": {
           "80611a8b10": "Search",
@@ -5658,7 +5663,8 @@
           "deleteWorktree": "Delete Worktree",
           "sleepWithDescendants": "Sleep with Descendants ({{value0}})",
           "sleepWithDescendantsDescription": "Close active panels in this workspace and every nested descendant to free up memory and CPU.",
-          "deleteWithDescendants": "Delete with Descendants…"
+          "deleteWithDescendants": "Delete with Descendants…",
+          "removePrototype": "Remove Prototype"
         },
         "WorktreeList": {
           "7a8b9c0d1e": "Update required",
@@ -5706,7 +5712,9 @@
           "sidebarRowMissing": "Target no longer exists",
           "failedUnnestWorkspace": "Failed to unnest workspace",
           "customizeGroupAppearance": "Customize icon and color",
-          "groupAppearanceUpdateFailed": "Failed to update group icon and color"
+          "groupAppearanceUpdateFailed": "Failed to update group icon and color",
+          "promotePrototype": "Promote to Project…",
+          "removePrototype": "Remove Prototype"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -6335,6 +6343,27 @@
           "cancel": "Cancel",
           "saving": "Saving…",
           "save": "Save"
+        },
+        "prototypes": {
+          "creating": "Creating prototype…",
+          "createFailed": "Could not create prototype",
+          "created": "Prototype created",
+          "deleteFilesFailed": "Prototype removed, but its files were not deleted",
+          "deleted": "Prototype deleted",
+          "promoted": "Promoted to project"
+        },
+        "PromotePrototypeDialog": {
+          "title": "Promote to Project",
+          "description": "Moves {{name}} out of the prototypes folder and keeps it as a regular project. Its open terminals will close.",
+          "name": "Name",
+          "location": "Location",
+          "browse": "Browse…",
+          "publish": "Create a GitHub repository and push",
+          "private": "Private",
+          "public": "Public",
+          "noGithub": "Connect a GitHub account with `gh auth login` to publish automatically.",
+          "cancel": "Cancel",
+          "promote": "Promote"
         }
       },
       "shared": {

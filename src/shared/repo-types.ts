@@ -114,6 +114,8 @@ export type Repo = {
   claudeAccountId?: string | null
   /** Pinned managed Codex account id for local agent launches. Undefined = inherit from the group, else the global selection. */
   codexAccountId?: string | null
+  /** Scratch project Orca provisioned under the prototypes root; removing it deletes its files. */
+  isPrototype?: boolean
 }
 
 /**

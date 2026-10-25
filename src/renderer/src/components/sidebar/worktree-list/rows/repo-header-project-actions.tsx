@@ -6,6 +6,7 @@ import {
   FolderInput,
   FolderPlus,
   Plus,
+  Rocket,
   Shapes,
   SlidersHorizontal,
   Trash2
@@ -69,6 +70,7 @@ export type RepoHeaderProjectActions = {
   onMoveProjectToGroup: (repo: Repo, groupId: string) => void
   onRemoveProjectFromGroup: (repo: Repo) => void
   onRemoveProject: (repo: Repo) => void
+  onPromotePrototype: (repo: Repo) => void
   onCreateForRepo: (projectId: string) => void
 }
 
@@ -173,9 +175,20 @@ export function RepoHeaderProjectActionsMenu({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
+        {repo.isPrototype ? (
+          <DropdownMenuItem onSelect={() => actions.onPromotePrototype(repo)}>
+            <Rocket className="size-3.5" />
+            {translate(
+              'auto.components.sidebar.WorktreeList.promotePrototype',
+              'Promote to Project…'
+            )}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem variant="destructive" onSelect={() => actions.onRemoveProject(repo)}>
           <Trash2 className="size-3.5" />
-          {translate('auto.components.sidebar.WorktreeList.c83968f87f', 'Remove Project')}
+          {repo.isPrototype
+            ? translate('auto.components.sidebar.WorktreeList.removePrototype', 'Remove Prototype')
+            : translate('auto.components.sidebar.WorktreeList.c83968f87f', 'Remove Project')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

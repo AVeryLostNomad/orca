@@ -9,6 +9,8 @@ import SidebarHeader from './SidebarHeader'
 
 const mocks = vi.hoisted(() => ({
   openWorkspaceCreationComposerWithTourHandoff: vi.fn(),
+  createPrototypeAndOpen: vi.fn(),
+  runtimeTargetKind: { current: 'local' as 'local' | 'environment' },
   popoverContentProps: { current: null as Record<string, unknown> | null },
   toast: vi.fn()
 }))
@@ -22,6 +24,7 @@ type MockState = {
   openModal: (modal: string, data?: unknown) => void
   updateSettings: (patch: Record<string, unknown>) => void
   activeContextualTourId: string | null
+  activeContextualTourStepIndex?: number
   settings?: {
     experimentalAgentDashboardPopout?: boolean
     agentsSidebarIntroShown?: boolean
@@ -54,7 +57,10 @@ vi.mock('./workspace-options-menu-items', () => ({
   WorkspaceOptionsMenuItems: () => null
 }))
 
-vi.mock('@/hooks/useShortcutLabel', () => ({ useShortcutLabel: () => '⌘N' }))
+vi.mock('@/hooks/useShortcutLabel', () => ({
+  useShortcutLabel: () => '⌘N',
+  useOptionalShortcutLabel: () => '⌘N'
+}))
 
 vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -67,6 +73,14 @@ vi.mock('../contextual-tours/workspace-creation-tour-handoff', () => ({
 }))
 
 vi.mock('sonner', () => ({ toast: mocks.toast }))
+
+vi.mock('./prototype-actions', () => ({
+  createPrototypeAndOpen: mocks.createPrototypeAndOpen
+}))
+
+vi.mock('@/runtime/runtime-rpc-client', () => ({
+  getActiveRuntimeTarget: () => ({ kind: mocks.runtimeTargetKind.current })
+}))
 
 // Deterministic popover: expose the open flag instead of relying on radix portals.
 vi.mock('@/components/ui/popover', () => ({
@@ -92,8 +106,34 @@ function newWorkspaceButton(): HTMLButtonElement {
   return button
 }
 
+function openNewWorkspaceMenu(): void {
+  act(() => {
+    newWorkspaceButton().dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, button: 0 })
+    )
+  })
+}
+
+function newWorkspaceMenuItem(label: string): HTMLElement | undefined {
+  return [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
+    item.textContent?.includes(label)
+  )
+}
+
+function selectNewWorkspaceMenuItem(label: string): void {
+  const item = newWorkspaceMenuItem(label)
+  if (!item) {
+    throw new Error(`${label} menu item not rendered`)
+  }
+  act(() => {
+    item.click()
+  })
+}
+
 beforeEach(() => {
   mocks.openWorkspaceCreationComposerWithTourHandoff.mockClear()
+  mocks.createPrototypeAndOpen.mockClear()
+  mocks.runtimeTargetKind.current = 'local'
   mocks.toast.mockClear()
   mockState = {
     repos: [],
@@ -122,12 +162,9 @@ describe('SidebarHeader', () => {
       root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
     })
 
-    const button = newWorkspaceButton()
-    expect(button.disabled).toBe(false)
-
-    act(() => {
-      button.click()
-    })
+    expect(newWorkspaceButton().disabled).toBe(false)
+    openNewWorkspaceMenu()
+    selectNewWorkspaceMenuItem('New Worktree')
 
     expect(mocks.openWorkspaceCreationComposerWithTourHandoff).toHaveBeenCalledTimes(1)
   })
@@ -138,12 +175,53 @@ describe('SidebarHeader', () => {
       root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
     })
 
-    act(() => {
-      newWorkspaceButton().click()
-    })
+    openNewWorkspaceMenu()
+    selectNewWorkspaceMenuItem('New Worktree')
 
     expect(newWorkspaceButton().disabled).toBe(false)
     expect(mocks.openWorkspaceCreationComposerWithTourHandoff).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers New Prototype after New Worktree for local projects', () => {
+    act(() => {
+      root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
+    })
+
+    openNewWorkspaceMenu()
+    const labels = [...document.body.querySelectorAll('[role="menuitem"]')].map(
+      (item) => item.textContent
+    )
+    expect(labels.map((label) => label?.replace('⌘N', ''))).toEqual([
+      'New Worktree',
+      'New Prototype'
+    ])
+
+    selectNewWorkspaceMenuItem('New Prototype')
+    expect(mocks.createPrototypeAndOpen).toHaveBeenCalledTimes(1)
+    expect(mocks.openWorkspaceCreationComposerWithTourHandoff).not.toHaveBeenCalled()
+  })
+
+  it('hides New Prototype when a remote runtime owns projects', () => {
+    mocks.runtimeTargetKind.current = 'environment'
+    act(() => {
+      root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
+    })
+
+    openNewWorkspaceMenu()
+    expect(newWorkspaceMenuItem('New Worktree')).toBeTruthy()
+    expect(newWorkspaceMenuItem('New Prototype')).toBeUndefined()
+  })
+
+  it('opens the composer directly while the parallel-work tour points at the button', () => {
+    mockState.activeContextualTourId = 'workspace-agent-sessions'
+    mockState.activeContextualTourStepIndex = 1
+    act(() => {
+      root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
+    })
+
+    openNewWorkspaceMenu()
+    expect(mocks.openWorkspaceCreationComposerWithTourHandoff).toHaveBeenCalledTimes(1)
+    expect(newWorkspaceMenuItem('New Worktree')).toBeUndefined()
   })
 
   it('opens agent activity from the bell button', () => {
@@ -253,9 +331,8 @@ describe('SidebarHeader', () => {
     expect(container.querySelector('[aria-label="New workspace"]')).toBeTruthy()
     expect(container.querySelector('[aria-label="More workspace actions"]')).toBeTruthy()
 
-    act(() => {
-      newWorkspaceButton().click()
-    })
+    openNewWorkspaceMenu()
+    selectNewWorkspaceMenuItem('New Worktree')
     expect(mocks.openWorkspaceCreationComposerWithTourHandoff).toHaveBeenCalledTimes(1)
   })
 

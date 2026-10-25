@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
+import { removePrototype } from './prototype-actions'
 import {
   getRepoExecutionHostId,
   isRuntimeOwnedSshTargetId,
@@ -41,6 +42,14 @@ const RemoveFolderDialog = React.memo(function RemoveFolderDialog() {
         .find((repo) => repo.id === repoId && (!hostId || getRepoExecutionHostId(repo) === hostId))
         ?.connectionId?.trim() ?? null
   )
+  const isPrototype = useAppStore((s) =>
+    s.repos.some(
+      (repo) =>
+        repo.id === repoId &&
+        repo.isPrototype === true &&
+        (!hostId || getRepoExecutionHostId(repo) === hostId)
+    )
+  )
   const sshHostLabel = useAppStore((s) => {
     if (!sshConnectionId) {
       return null
@@ -55,34 +64,42 @@ const RemoveFolderDialog = React.memo(function RemoveFolderDialog() {
   // Why: fragment concatenation around the styled name cannot be reordered by
   // SOV locales (#9294). Translate one full sentence with the name as a
   // sentinel token, then split on it to re-apply the inline emphasis.
-  const description = isRuntimeOwnedSshTargetId(sshConnectionId)
+  const description = isPrototype
     ? translate(
-        'auto.components.sidebar.RemoveFolderDialog.removeDescriptionVmRecipe',
-        'This removes {{name}} from Orca. Its VM recipe determines whether the environment and its files are permanently deleted.',
+        'auto.components.sidebar.RemoveFolderDialog.removeDescriptionPrototype',
+        'This permanently deletes {{name}}, its files, and its worktrees from your disk.',
         { name: NAME_TOKEN }
       )
-    : sshHostLabel
+    : isRuntimeOwnedSshTargetId(sshConnectionId)
       ? translate(
-          'auto.components.sidebar.RemoveFolderDialog.removeDescriptionSsh',
-          'This only removes {{name}} from Orca. Its files stay on {{host}} — re-add that SSH host to recover it.',
-          { name: NAME_TOKEN, host: sshHostLabel }
-        )
-      : translate(
-          'auto.components.sidebar.RemoveFolderDialog.removeDescriptionLocal',
-          'This only removes {{name}} from Orca. It is still on your disk.',
+          'auto.components.sidebar.RemoveFolderDialog.removeDescriptionVmRecipe',
+          'This removes {{name}} from Orca. Its VM recipe determines whether the environment and its files are permanently deleted.',
           { name: NAME_TOKEN }
         )
+      : sshHostLabel
+        ? translate(
+            'auto.components.sidebar.RemoveFolderDialog.removeDescriptionSsh',
+            'This only removes {{name}} from Orca. Its files stay on {{host}} — re-add that SSH host to recover it.',
+            { name: NAME_TOKEN, host: sshHostLabel }
+          )
+        : translate(
+            'auto.components.sidebar.RemoveFolderDialog.removeDescriptionLocal',
+            'This only removes {{name}} from Orca. It is still on your disk.',
+            { name: NAME_TOKEN }
+          )
   const [descriptionBeforeName, descriptionAfterName] = description.split(NAME_TOKEN)
 
   const handleConfirm = useCallback(() => {
-    if (repoId) {
+    if (repoId && isPrototype) {
+      void removePrototype(repoId)
+    } else if (repoId) {
       void removeProject(repoId, {
         ...(hostId ? { hostId } : {}),
         errorFeedback: 'toast'
       })
     }
     closeModal()
-  }, [closeModal, hostId, removeProject, repoId])
+  }, [closeModal, hostId, isPrototype, removeProject, repoId])
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -98,7 +115,15 @@ const RemoveFolderDialog = React.memo(function RemoveFolderDialog() {
       <DialogContent className="max-w-sm sm:max-w-sm" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle className="text-sm">
-            {translate('auto.components.sidebar.RemoveFolderDialog.b79b39d865', 'Remove Project')}
+            {isPrototype
+              ? translate(
+                  'auto.components.sidebar.RemoveFolderDialog.removePrototype',
+                  'Remove Prototype'
+                )
+              : translate(
+                  'auto.components.sidebar.RemoveFolderDialog.b79b39d865',
+                  'Remove Project'
+                )}
           </DialogTitle>
           <DialogDescription className="text-xs">
             {descriptionBeforeName}
@@ -111,7 +136,9 @@ const RemoveFolderDialog = React.memo(function RemoveFolderDialog() {
             {translate('auto.components.sidebar.RemoveFolderDialog.d36883e046', 'Cancel')}
           </Button>
           <Button variant="destructive" onClick={handleConfirm}>
-            {translate('auto.components.sidebar.RemoveFolderDialog.4dc5b5065b', 'Remove')}
+            {isPrototype
+              ? translate('auto.components.sidebar.RemoveFolderDialog.deletePrototype', 'Delete')
+              : translate('auto.components.sidebar.RemoveFolderDialog.4dc5b5065b', 'Remove')}
           </Button>
         </DialogFooter>
       </DialogContent>
