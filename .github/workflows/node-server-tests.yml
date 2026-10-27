@@ -60,9 +60,11 @@ concurrency:
 
 jobs:
   changes:
+    # Fork: a template build needs every qualification lane; a push-triggered caller must not scope them away.
     if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft != true)
+      !inputs.build_template &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft != true))
     runs-on: ${{ (inputs.fast_runners || github.event_name == 'pull_request' || github.event_name == 'schedule') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:

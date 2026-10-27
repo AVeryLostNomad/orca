@@ -552,8 +552,9 @@ it('keeps every platform job and runs them when detection is skipped or fails', 
   expect(workflow.on).toHaveProperty('workflow_call')
   expect(workflow.on).not.toHaveProperty('push')
   expect(workflow.on.schedule).toHaveLength(1)
+  // Fork: template builds skip detection so a push-triggered release caller qualifies every lane.
   expect(workflow.jobs.changes.if).toBe(
-    "github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft != true)"
+    "!inputs.build_template && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft != true))"
   )
   expect(workflow.jobs.changes.steps[0].with['fetch-depth']).toBe(2)
   expect(workflow.jobs.changes.steps[0].with['persist-credentials']).toBe(false)
