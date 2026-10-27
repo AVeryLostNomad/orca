@@ -16,6 +16,7 @@ import { waitForSessionReady } from './helpers/store'
 test('@golden recovers an empty combined-only draft after workspace switching and quit/relaunch', async ({
   testRepoPath
 }, testInfo) => {
+  // Spans workspace switches plus a full quit and relaunch of the app.
   test.setTimeout(240_000)
   const fixture = createGoldenWorktree(testRepoPath, 'combined-draft-restart')
   seedGoldenSourceEdit(fixture.worktreePath)

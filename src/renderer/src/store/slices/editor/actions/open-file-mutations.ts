@@ -1,25 +1,32 @@
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import type { EditorSlice } from '../types/editor-slice'
-import type { OpenFile } from '../types/open-file'
 
 export function createOpenFileMutations(
   set: EditorSet,
   get: EditorGet
-): Pick<EditorSlice, 'setActiveFile' | 'reorderFiles' | 'clearUntitled'> {
+): Pick<EditorSlice, 'setActiveFile' | 'setTerminalArtifactGrant' | 'clearUntitled'> {
   return {
-    setActiveFile: (fileId) => {
+    setActiveFile: (fileId, targetWorktreeId) => {
+      if (!get().openFiles.some((file) => file.id === fileId)) {
+        return
+      }
       set((s) => {
         const file = s.openFiles.find((f) => f.id === fileId)
         const worktreeId = file?.worktreeId
+        // Floating/background activation stays workspace-local or violates agent-auto-ack’s global-selection invariant.
+        const scopeWorktreeId = targetWorktreeId ?? worktreeId ?? s.activeWorktreeId
         return {
-          activeFileId: fileId,
+          ...(scopeWorktreeId === s.activeWorktreeId ? { activeFileId: fileId } : {}),
           activeFileIdByWorktree: worktreeId
             ? { ...s.activeFileIdByWorktree, [worktreeId]: fileId }
             : s.activeFileIdByWorktree
         }
       })
       const state = get()
-      const worktreeId = state.activeWorktreeId
+      const worktreeId =
+        targetWorktreeId ??
+        state.openFiles.find((file) => file.id === fileId)?.worktreeId ??
+        state.activeWorktreeId
       if (!worktreeId) {
         return
       }
@@ -37,23 +44,15 @@ export function createOpenFileMutations(
       }
     },
 
-    reorderFiles: (fileIds) =>
-      set((s) => {
-        const reorderedSet = new Set(fileIds)
-        const byId = new Map(s.openFiles.map((f) => [f.id, f]))
-        const reordered = fileIds.map((id) => byId.get(id)).filter(Boolean) as OpenFile[]
-        // Replace the reordered subset in-place: keep other-worktree files at their positions
-        const result: OpenFile[] = []
-        let ri = 0
-        for (const f of s.openFiles) {
-          if (reorderedSet.has(f.id)) {
-            result.push(reordered[ri++])
-          } else {
-            result.push(f)
-          }
-        }
-        return { openFiles: result }
-      }),
+    // Why: never touches readOnly, which also guards transcripts and keeps dirty drafts out of sessions.
+    setTerminalArtifactGrant: (fileId, grantId) =>
+      set((s) => ({
+        openFiles: s.openFiles.map((f) =>
+          f.id === fileId && f.terminalArtifactGrantId !== grantId
+            ? { ...f, terminalArtifactGrantId: grantId }
+            : f
+        )
+      })),
 
     clearUntitled: (fileId) =>
       set((s) => ({

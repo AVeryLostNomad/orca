@@ -4,9 +4,10 @@ import {
   Ellipsis,
   Eye,
   FolderInput,
-  FolderPlus,
+  FolderTree,
   Plus,
   Rocket,
+  // `Shapes` is lucide-react's own export name; exempted in config/oxlint-anti-slop.json.
   Shapes,
   SlidersHorizontal,
   Trash2
@@ -25,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
-import { getRepositoryIconSectionId } from '@/components/settings/repository-settings-targets'
+import { getRepositoryIconSectionId } from '@/components/settings/repository/repository-settings-targets'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorktreeVisibilityDefaults } from '../../../../../../shared/global-settings-types'
@@ -59,7 +60,15 @@ function getWorktreeVisibilityMenuLabel(
     isLegacyRepoForExternalWorktreeVisibility(repo),
     visibilityDefaults
   )
-  return visibility === 'show' ? 'Hide non-Orca worktrees' : 'Show hidden worktrees'
+  return visibility === 'show'
+    ? translate(
+        'auto.components.sidebar.repoHeaderProjectActions.hideNonOrcaWorktrees',
+        'Hide non-Orca worktrees'
+      )
+    : translate(
+        'auto.components.sidebar.repoHeaderProjectActions.showHiddenWorktrees',
+        'Show hidden worktrees'
+      )
 }
 
 export type RepoHeaderProjectActions = {
@@ -146,7 +155,8 @@ export function RepoHeaderProjectActionsMenu({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onSelect={() => actions.onCreateGroupFromRepo(repo)}>
-          <FolderPlus className="size-3.5" />
+          {/* Not FolderPlus: that now means "Add project" in the sidebar header above. */}
+          <FolderTree className="size-3.5" />
           {translate('auto.components.sidebar.WorktreeList.cbfd565f83', 'New group from project')}
         </DropdownMenuItem>
         {projectGroupsForRepo.length > 0 ? (

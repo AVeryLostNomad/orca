@@ -3,6 +3,7 @@ import { recordSubprocessSpawn } from '../../diagnostics/main-thread-churn-probe
 import { startGitSpan } from '../../observability/instrumentation'
 import { createAbortError } from './abort-error'
 import { resolveGitCommand } from './git-command-resolution'
+import { pendingWslDriveCheckoutGitRouting } from '../wsl-drive-checkout-git-routing'
 import { untranslatedGitOutputEnv } from './git-process-env'
 import {
   applyGitAccountEnv,
@@ -13,11 +14,9 @@ import {
 import { prepareWindowsHostGitEnvironment } from './windows-host-git-environment'
 import type { GitAdmissionTier } from './git-exec-options'
 import { acquireGitAdmission } from './git-subprocess-admission'
+import { classifyGitCommand } from '../../../shared/git-command-classification'
+import { buildNetworkSshPolicyEnv } from './git-ssh-policy-env'
 
-/**
- * Spawn a git child process. Drop-in replacement for
- * `spawn('git', args, { cwd, stdio, ... })`.
- */
 export type GitSpawnOptions = SpawnOptions & {
   cwd: string
   wslDistro?: string
@@ -31,6 +30,10 @@ export async function gitSpawnAfterWindowsEnvironmentReady(
   if (options.signal?.aborted) {
     throw createAbortError()
   }
+  const lineEndingsReady = pendingWslDriveCheckoutGitRouting(args, options)
+  if (lineEndingsReady) {
+    await lineEndingsReady
+  }
   const resolved = resolveGitCommand(args, {
     cwd: options.cwd,
     ...(options.wslDistro ? { wslDistro: options.wslDistro } : {}),
@@ -41,11 +44,19 @@ export async function gitSpawnAfterWindowsEnvironmentReady(
   if (options.signal?.aborted) {
     throw createAbortError()
   }
-  const account = await resolveGitAccountForCommand(args, options.cwd, env)
-  return withGitAdmission(args, {
-    ...options,
-    env: applyGitAccountEnv(env ?? process.env, account)
-  }).catch((error: unknown) => {
+  const policyEnv =
+    classifyGitCommand(args) === 'network'
+      ? (await buildNetworkSshPolicyEnv({ ...options, env }, args)).env
+      : env
+  const account = await resolveGitAccountForCommand(args, options.cwd, policyEnv)
+  const spawnEnv =
+    account.credential || account.identity
+      ? applyGitAccountEnv(policyEnv ?? process.env, account)
+      : policyEnv
+  return withGitAdmission(
+    args,
+    spawnEnv === options.env ? options : { ...options, env: spawnEnv }
+  ).catch((error: unknown) => {
     if (isGitAuthFailure(error)) {
       invalidateGitAccountTokenForAuthFailure(account)
     }

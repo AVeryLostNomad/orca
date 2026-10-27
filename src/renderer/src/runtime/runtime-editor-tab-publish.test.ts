@@ -10,11 +10,11 @@ const { callRuntimeRpc, closeWebRuntimeSessionTab, recordWebSessionCloseIntent }
 )
 
 vi.mock('@/lib/worktree-runtime-owner', () => ({
-  getRuntimeEnvironmentIdForWorktree: (_state: unknown, worktreeId: string) =>
+  runtimeEnvironmentIdOrLocalUnlessTwin: (_state: unknown, worktreeId: string) =>
     worktreeId === 'runtime-worktree' ? 'env-1' : null
 }))
 vi.mock('./runtime-rpc-client', () => ({ callRuntimeRpc }))
-vi.mock('./web-runtime-session', () => ({ closeWebRuntimeSessionTab }))
+vi.mock('./web-runtime-session-tab-lifecycle', () => ({ closeWebRuntimeSessionTab }))
 vi.mock('./web-session-close-intent', () => ({ recordWebSessionCloseIntent }))
 
 import {

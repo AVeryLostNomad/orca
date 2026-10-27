@@ -4,7 +4,6 @@ import {
   isDivergentPullReconciliationError,
   isNoUpstreamError,
   isStaleInfoPushRejection,
-  MERGE_RECONCILIATION_PULL_ARGS,
   normalizeGitErrorMessage,
   pullArgsSpecifyReconciliation,
   pushTargetRemoteBranchExists,
@@ -17,6 +16,20 @@ afterEach(() => {
 })
 
 describe('normalizeGitErrorMessage', () => {
+  it.each(['push', 'pull', 'fetch', 'upstream'] as const)(
+    'classifies noninteractive credential refusal for %s',
+    (operation) => {
+      for (const stderr of [
+        'fatal: unable to get password from user',
+        "fatal: could not read Password for 'https://user@example.com': terminal prompts disabled"
+      ]) {
+        expect(normalizeGitErrorMessage(new Error(stderr), operation)).toBe(
+          'Authentication failed. Check your remote credentials.'
+        )
+      }
+    }
+  )
+
   it('keeps the submodule name when a recursive push is rejected', () => {
     const error = new Error(
       "Command failed: git push\nPushing submodule 'find-cmux-followers'\n" +
@@ -212,7 +225,7 @@ describe('runPullWithDivergenceFallback', () => {
 
     await runPullWithDivergenceFallback([], runPull)
 
-    expect(calls).toEqual([[], [...MERGE_RECONCILIATION_PULL_ARGS]])
+    expect(calls).toEqual([[], ['--no-rebase']])
     expect(runPull).toHaveBeenCalledTimes(2)
   })
 

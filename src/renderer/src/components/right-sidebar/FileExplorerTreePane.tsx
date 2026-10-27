@@ -8,7 +8,8 @@ import type {
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { useWorkspaceFileBrowserActionPredicate } from '@/lib/file-preview'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { translate } from '@/i18n/i18n'
 import type { RuntimeFileListState } from '@/components/quick-open-file-list'
 import type { OpenFile } from '@/store/slices/editor'
@@ -51,6 +52,7 @@ type FileExplorerTreePaneProps = {
   isNativeDragOver: boolean
   onNativeDragOver: (event: React.DragEvent<HTMLDivElement>) => void
   onNativeDragLeave: (event: React.DragEvent<HTMLDivElement>) => void
+  fileDropOwnerRef: (root: HTMLElement | null) => void
   onRowDragStartCapture: (event: React.DragEvent<HTMLDivElement>) => void
   onRowDragEndCapture: (event: React.DragEvent<HTMLDivElement>) => void
 }
@@ -79,6 +81,7 @@ export function FileExplorerTreePane({
   isNativeDragOver,
   onNativeDragOver,
   onNativeDragLeave,
+  fileDropOwnerRef,
   onRowDragStartCapture,
   onRowDragEndCapture
 }: FileExplorerTreePaneProps): React.JSX.Element {
@@ -141,20 +144,20 @@ export function FileExplorerTreePane({
   const supportsFolderDownload = useAppStore((s) =>
     connectionId ? s.sshConnectionStates.get(connectionId)?.supportsFolderDownload === true : false
   )
-  const activeRuntimeEnvironmentId = useAppStore((s) =>
-    getRuntimeEnvironmentIdForWorktree(s, activeWorktreeId)
+  const ownerRuntimeEnvironmentId = useAppStore((s) =>
+    runtimeEnvironmentIdOrLocalUnlessTwin(s, activeWorktreeId)
   )
   const runtimeDownloadContext = useMemo(
     () =>
-      activeRuntimeEnvironmentId && activeWorktreeId && worktreePath
+      ownerRuntimeEnvironmentId && activeWorktreeId && worktreePath
         ? {
-            settings: { activeRuntimeEnvironmentId },
+            target: runtimeTargetForOwnerEnvironment(ownerRuntimeEnvironmentId),
             worktreeId: activeWorktreeId,
             worktreePath,
             connectionId: connectionId ?? undefined
           }
         : null,
-    [activeRuntimeEnvironmentId, activeWorktreeId, connectionId, worktreePath]
+    [ownerRuntimeEnvironmentId, activeWorktreeId, connectionId, worktreePath]
   )
 
   const renderContextMenu = useCallback(
@@ -206,13 +209,13 @@ export function FileExplorerTreePane({
 
   return (
     <div
+      ref={fileDropOwnerRef}
       className={cn(
         'absolute inset-0 flex min-h-0 flex-col overflow-hidden',
         explorerView !== 'files' && 'pointer-events-none invisible',
         isNativeDragOver && explorerView === 'files' && !nativeDropDir && 'bg-border'
       )}
-      data-native-file-drop-target={isFilesViewActive ? 'file-explorer' : undefined}
-      data-native-file-drop-dir={nativeDropDir ?? visibleFilesWorktreePath ?? undefined}
+      data-file-explorer-drop-dir={nativeDropDir ?? visibleFilesWorktreePath ?? undefined}
       onClick={activation.handleClick}
       onDoubleClick={(event) => {
         activation.handleDoubleClick(event)
@@ -220,7 +223,8 @@ export function FileExplorerTreePane({
       }}
       onKeyDown={handleKeyDown}
       onContextMenuCapture={backgroundMenu.handleBackgroundContextMenuCapture}
-      onDragOver={onNativeDragOver}
+      // Why: capture phase — the OS drop owner stops native dragover before it bubbles.
+      onDragOverCapture={onNativeDragOver}
       onDragLeave={onNativeDragLeave}
       onDragStartCapture={onRowDragStartCapture}
       onDragEndCapture={onRowDragEndCapture}

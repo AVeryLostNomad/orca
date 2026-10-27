@@ -20,12 +20,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { translate } from '@/i18n/i18n'
-import { getWorktreeGitIdentityDisplay } from '@/lib/worktree-git-identity-display'
+import { getWorktreeGitIdentityDisplay } from '../../../../../../shared/worktree/git-identity-display'
 import {
   formatWorkspaceCreateError,
   getWorkspaceCreateErrorToastMessage
 } from '@/lib/workspace-create-error-format'
 import { useAppStore } from '@/store'
+import { selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import type { MoveChangesTarget } from './use-move-changes'
 
 /**
@@ -51,7 +52,7 @@ export function SourceControlMoveChangesDialog({
   const [mode, setMode] = useState<'pick' | 'create'>('pick')
   const [newWorktreeName, setNewWorktreeName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-  const worktrees = useAppStore((s) => s.worktreesByRepo[repoId])
+  const worktrees = useAppStore((s) => selectWorktreesByRepo(s)[repoId])
   const createWorktree = useAppStore((s) => s.createWorktree)
 
   const candidates = useMemo(

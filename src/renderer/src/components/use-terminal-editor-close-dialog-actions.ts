@@ -11,11 +11,25 @@ import { getEditorClosePlan } from '@renderer/store/slices/editor/working-docume
 import { translate } from '@/i18n/i18n'
 import type { TerminalEditorCloseQueueController } from './use-terminal-editor-close-queue'
 
+export type TerminalEditorCloseDialogActionsInput = Pick<
+  TerminalEditorCloseQueueController,
+  | 'cancelEditorCloseQueue'
+  | 'closedReactionsRef'
+  | 'completeEditorCloseForDocument'
+  | 'discardWorkingDocument'
+  | 'inFlightSaveDocumentIdRef'
+  | 'isClosingRef'
+  | 'pendingEditorCloseState'
+  | 'queueEditorCloseRequests'
+  | 'releaseCloseDialogGuardAfterDebounce'
+>
+
 export function useTerminalEditorCloseDialogActions(
-  controller: TerminalEditorCloseQueueController
+  controller: TerminalEditorCloseDialogActionsInput
 ) {
   const {
     cancelEditorCloseQueue,
+    closedReactionsRef,
     completeEditorCloseForDocument,
     discardWorkingDocument,
     inFlightSaveDocumentIdRef,
@@ -133,10 +147,15 @@ export function useTerminalEditorCloseDialogActions(
 
   useEffect(() => {
     const onRequestEditorClose = (event: Event): void => {
-      const tabId = (event as CustomEvent<EditorRequestTabCloseDetail>).detail?.tabId
-      if (tabId) {
-        queueEditorCloseRequests([tabId])
+      const detail = (event as CustomEvent<EditorRequestTabCloseDetail>).detail
+      const tabId = detail?.tabId
+      if (!tabId) {
+        return
       }
+      if (detail.onClosed) {
+        closedReactionsRef.current.set(tabId, detail.onClosed)
+      }
+      queueEditorCloseRequests([tabId])
     }
     window.addEventListener(
       ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT,
@@ -147,7 +166,7 @@ export function useTerminalEditorCloseDialogActions(
         ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT,
         onRequestEditorClose as EventListener
       )
-  }, [queueEditorCloseRequests])
+  }, [closedReactionsRef, queueEditorCloseRequests])
 
   return { handleSaveDialogSave, handleSaveDialogDiscard, handleSaveDialogCancel }
 }

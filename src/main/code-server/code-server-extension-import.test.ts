@@ -54,11 +54,17 @@ describe('mergeExtensionsMetadata', () => {
   })
 })
 
+type ExtensionManifestFixture = { publisher: string; name: string; version: string }
+
 describe('importExtensionsFromEditor', () => {
   let sourceDir: string
   let targetDir: string
 
-  async function writeExtension(root: string, folder: string, manifest: object): Promise<void> {
+  async function writeExtension(
+    root: string,
+    folder: string,
+    manifest: ExtensionManifestFixture
+  ): Promise<void> {
     await mkdir(join(root, folder), { recursive: true })
     await writeFile(join(root, folder, 'package.json'), JSON.stringify(manifest))
   }

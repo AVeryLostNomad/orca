@@ -1,8 +1,10 @@
 import React from 'react'
 import { ChevronDown } from 'lucide-react'
+import { ProjectHeaderHostTooltip } from './ProjectHeaderHostLabel'
+import type { ProjectHeaderHostContext } from './project-header-host-context'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
-import type { AppState } from '@/store/types'
+import type { RepoSshGateResolver } from '@/hooks/use-repo-ssh-gate-resolver'
 import type { FolderWorkspacePathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import { isConfirmedStaleFolderPathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
@@ -12,11 +14,15 @@ import type {
   WorkspaceStatus,
   WorkspaceStatusDefinition
 } from '../../../../../../shared/worktree/types'
-import type { GroupHeaderRow, WorktreeGroupBy } from '../grouping/row-types'
-import { PINNED_GROUP_KEY } from '../grouping/group-keys'
+import type {
+  GroupHeaderRow,
+  WorktreeGroupBy
+} from '../../../../../../shared/sidebar-list/row-types'
+import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
 import { getWorkspaceStatusFromGroupKey } from '../../workspace-status'
 import { getVirtualRowTransform } from '../viewport/virtual-rows'
-import { resolveProjectGroupHeaderColor, resolveRepoHeaderColor } from '../../project-header-color'
+import { getSidebarHeaderVisual } from './header-visuals'
+import { resolveProjectGroupHeaderColor } from '../../project-header-color'
 import { getRepoHeaderCreateState } from '../../repo-header-create-state'
 import { ProjectHeaderActions } from '../../ProjectHeaderActions'
 import {
@@ -24,6 +30,7 @@ import {
   WORKTREE_SECTION_HEADER_PADDING_LEFT
 } from './indentation'
 import { SectionHeaderTitle } from './SectionHeaderTitle'
+import { getProjectGroupHeaderColors, ProjectGroupStickyFrame } from './ProjectGroupStickyFrame'
 import {
   ProjectGroupCreateWorkspaceButton,
   ProjectGroupHeaderMenu
@@ -42,10 +49,11 @@ import { getWorktreeOptionId } from './option-dom'
 
 export type SectionHeaderRowContext = {
   groupBy: WorktreeGroupBy
+  projectHeaderHostContexts?: ReadonlyMap<string, ProjectHeaderHostContext>
   collapsedGroups: Set<string>
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
   projectGroups: readonly ProjectGroup[]
-  sshConnectionStates: AppState['sshConnectionStates']
+  getRepoSshGate: RepoSshGateResolver
   highlightedRevealRowKey: string | null
   dragOverStatus: WorkspaceStatus | null
   pinDragOver: boolean
@@ -88,7 +96,8 @@ export function renderWorktreeSectionHeaderRow(args: {
   const { headerDrag } = ctx
   const isRepoHeader = ctx.groupBy === 'repo' && row.repo !== undefined
   const isProjectGroupHeader = ctx.groupBy === 'repo' && row.projectGroup !== undefined
-  const projectIdForHeader = isRepoHeader ? row.repo!.id : undefined
+  const headerRepo = isRepoHeader ? row.repo : undefined
+  const projectIdForHeader = headerRepo?.id
   const projectGroupIdForHeader =
     isProjectGroupHeader && !row.repo && typeof row.projectGroup?.id === 'string'
       ? row.projectGroup.id
@@ -145,22 +154,20 @@ export function renderWorktreeSectionHeaderRow(args: {
       ? getWorkspaceStatusFromGroupKey(row.key, ctx.workspaceStatuses)
       : null
   const isPinnedHeader = row.key === PINNED_GROUP_KEY
+  const headerVisual = getSidebarHeaderVisual(row.icon, ctx.workspaceStatuses)
+  const label = row.label ?? headerVisual.label ?? ''
+  const hostContext =
+    ctx.groupBy === 'repo' ? ctx.projectHeaderHostContexts?.get(row.key) : undefined
   const repoHeaderColor = resolveProjectGroupHeaderColor({
     groupBy: ctx.groupBy,
     headerKey: row.key,
     badgeColor: row.repo?.badgeColor
   })
-  const projectGroupColor =
-    isProjectGroupHeader && !row.repo && row.projectGroup && 'color' in row.projectGroup
-      ? resolveRepoHeaderColor(row.projectGroup.color)
-      : undefined
   const createState = row.repo
     ? getRepoHeaderCreateState({
         repo: row.repo,
-        label: row.label,
-        sshStatus: row.repo.connectionId
-          ? (ctx.sshConnectionStates.get(row.repo.connectionId)?.status ?? null)
-          : null
+        label,
+        sshGate: ctx.getRepoSshGate(row.repo)
       })
     : null
   const folderBackedProjectGroup =
@@ -177,18 +184,13 @@ export function renderWorktreeSectionHeaderRow(args: {
         projectGroupId: folderBackedProjectGroup.id
       })
     : null
-  const isHeaderCollapsed = ctx.collapsedGroups.has(row.key)
-  const showStickyGroupFrame =
-    isActiveStickyHeader &&
-    !isHeaderCollapsed &&
-    projectGroupColor !== undefined &&
-    row.projectGroup &&
-    'color' in row.projectGroup &&
-    typeof row.projectGroup.color === 'string' &&
-    row.projectGroup.color.trim() !== ''
-  const groupFrameBoundary = showStickyGroupFrame
-    ? `1px solid color-mix(in srgb, ${projectGroupColor} 24%, var(--sidebar-border))`
-    : undefined
+  const collapseKey = row.collapseKey ?? row.key
+  const isHeaderCollapsed = ctx.collapsedGroups.has(collapseKey)
+  const { projectGroupColor, stickyGroupFrameColor } = getProjectGroupHeaderColors(
+    row,
+    isProjectGroupHeader,
+    isActiveStickyHeader && !isHeaderCollapsed
+  )
   // Why: repo/project/status/pinned share compact section chrome; flat "All" stays a simple label.
   const showHeaderCollapseAffordance =
     row.count > 0 &&
@@ -209,210 +211,200 @@ export function renderWorktreeSectionHeaderRow(args: {
         // Why: drop the inter-group spacer once the header pins so it sits flush at top (see getActiveStickyHeaderIndexForScroll).
         args.hasHeaderTopSpacing && !isActiveStickyHeader && 'pt-1',
         isActiveStickyHeader
-          ? cn('sticky z-20 bg-worktree-sidebar', showStickyGroupFrame ? 'top-0' : '-top-px')
+          ? cn('sticky z-20 bg-worktree-sidebar', stickyGroupFrameColor ? 'top-0' : '-top-px')
           : 'absolute top-0'
       )}
       style={isActiveStickyHeader ? undefined : { transform: getVirtualRowTransform(vItem.start) }}
     >
       {/* Keep the group frame above the sticky header's opaque scroll backing. */}
-      {showStickyGroupFrame && (
-        <div
-          aria-hidden="true"
-          data-project-group-sticky-frame=""
-          className="pointer-events-none absolute inset-y-0 box-border rounded-t-sm"
-          style={{
-            left: Math.max(1, getProjectGroupHeaderPaddingLeft(row.projectGroupDepth ?? 0) - 8),
-            right: 4 + (row.projectGroupDepth ?? 0) * 4,
-            backgroundColor: `color-mix(in srgb, ${projectGroupColor} 6%, var(--worktree-sidebar))`,
-            borderLeft: groupFrameBoundary,
-            borderRight: groupFrameBoundary,
-            borderTop: groupFrameBoundary
-          }}
-        />
+      {stickyGroupFrameColor && (
+        <ProjectGroupStickyFrame color={stickyGroupFrameColor} depth={row.projectGroupDepth ?? 0} />
       )}
-      <div
-        id={getWorktreeOptionId(row.key)}
-        role="button"
-        tabIndex={0}
-        aria-expanded={showHeaderCollapseAffordance ? !isHeaderCollapsed : undefined}
-        data-repo-header-id={projectIdForHeader}
-        data-repo-header-index={repoHeaderIndex}
-        data-repo-header-bucket={repoHeaderBucketKey}
-        data-repo-header-section-end={
-          projectIdForHeader
-            ? headerDrag.repoHeaderSectionEndByRepoId.get(projectIdForHeader)
-            : undefined
-        }
-        // Why: row keeps handle attrs so indent/padding still arms drag; grab
-        // cursor lives only on the title surface so … / + never inherit it.
-        data-repo-header-drag-handle={isDraggableRepoHeader ? '' : undefined}
-        data-project-group-header-id={projectGroupIdForHeader}
-        data-project-group-header-index={projectGroupHeaderIndex}
-        data-project-group-header-bucket={projectGroupHeaderBucketKey}
-        data-project-group-header-section-end={
-          projectGroupIdForHeader
-            ? headerDrag.projectGroupHeaderSectionEndByGroupId.get(projectGroupIdForHeader)
-            : undefined
-        }
-        data-project-group-header-drag-handle={isDraggableProjectGroupHeader ? '' : undefined}
-        data-workspace-status-drop-target={headerWorkspaceStatus ? '' : undefined}
-        data-workspace-status={headerWorkspaceStatus ?? undefined}
-        data-workspace-pin-drop-target={isPinnedHeader ? '' : undefined}
-        className={cn(
-          // Why: no row-level grab — only the title surface below shows the hand;
-          // actions use cursor-pointer so … / + never look reorderable.
-          'group relative flex h-7 w-full items-center gap-1.5 pr-2 text-left transition-all',
-          !(isDraggableRepoHeader || isDraggableProjectGroupHeader) && 'cursor-pointer',
-          ctx.highlightedRevealRowKey === row.key &&
-            'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/50',
-          (isDraggingThis || isDraggingThisProjectGroup) &&
-            'bg-accent/80 ring-1 ring-ring/40 shadow-md rounded-md scale-[1.01]',
-          isProjectGroupDropTarget &&
-            'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/60',
-          headerWorkspaceStatus &&
-            ctx.dragOverStatus === headerWorkspaceStatus &&
-            'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',
-          isPinnedHeader &&
-            ctx.pinDragOver &&
-            'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',
-          row.repo && 'overflow-hidden'
-        )}
-        style={{
-          // Why: non-project headers like "All" are flat-list labels; don't reserve project hierarchy indent.
-          paddingLeft:
-            isRepoHeader || isProjectGroupHeader
-              ? getProjectGroupHeaderPaddingLeft(row.projectGroupDepth ?? 0)
-              : WORKTREE_SECTION_HEADER_PADDING_LEFT
-        }}
-        onDragOver={
-          isPinnedHeader
-            ? ctx.onWorkspacePinDragOver
-            : headerWorkspaceStatus
-              ? (event) => ctx.onWorkspaceStatusDragOver(event, headerWorkspaceStatus)
-              : undefined
-        }
-        onDragLeave={
-          isPinnedHeader
-            ? ctx.onWorkspacePinDragLeave
-            : headerWorkspaceStatus
-              ? ctx.onWorkspaceStatusDragLeave
-              : undefined
-        }
-        onDrop={
-          headerWorkspaceStatus
-            ? (event) => ctx.onWorkspaceStatusDrop(event, headerWorkspaceStatus)
-            : undefined
-        }
-        onPointerDown={
-          isDraggableRepoHeader && projectIdForHeader
-            ? (event) => headerDrag.repoDrag.onHandlePointerDown(event, projectIdForHeader)
-            : isDraggableProjectGroupHeader && projectGroupIdForHeader
-              ? (event) =>
-                  headerDrag.projectGroupDrag.onHandlePointerDown(event, projectGroupIdForHeader)
-              : undefined
-        }
-        onClick={(event) => {
-          if (shouldIgnoreRepoHeaderToggle(event)) {
-            return
-          }
-          ctx.toggleGroupWithScrollAnchor(row.key)
-        }}
-        onKeyDown={(e) => {
-          if (shouldIgnoreRepoHeaderToggle(e)) {
-            return
-          }
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            ctx.toggleGroupWithScrollAnchor(row.key)
-          }
-        }}
-      >
-        {/* Why: grab cursor on icon+title only. Row still has handle attrs so
-            indent/padding can arm drag; actions are excluded via data-repo-header-actions.
-            self-stretch fills h-7 so grab matches the full title column height. */}
+      <ProjectHeaderHostTooltip label={label} context={hostContext}>
         <div
+          id={getWorktreeOptionId(row.key)}
+          role="button"
+          tabIndex={0}
+          aria-label={hostContext ? `${label} — ${hostContext.label}` : undefined}
+          aria-expanded={showHeaderCollapseAffordance ? !isHeaderCollapsed : undefined}
+          data-repo-header-id={projectIdForHeader}
+          data-repo-header-index={repoHeaderIndex}
+          data-repo-header-bucket={repoHeaderBucketKey}
+          data-repo-header-section-end={
+            projectIdForHeader
+              ? headerDrag.repoHeaderSectionEndByRepoId.get(projectIdForHeader)
+              : undefined
+          }
+          // Padding remains a drag handle; only the title shows grab so action buttons never inherit it.
           data-repo-header-drag-handle={isDraggableRepoHeader ? '' : undefined}
+          data-project-group-header-id={projectGroupIdForHeader}
+          data-project-group-header-index={projectGroupHeaderIndex}
+          data-project-group-header-bucket={projectGroupHeaderBucketKey}
+          data-project-group-header-section-end={
+            projectGroupIdForHeader
+              ? headerDrag.projectGroupHeaderSectionEndByGroupId.get(projectGroupIdForHeader)
+              : undefined
+          }
           data-project-group-header-drag-handle={isDraggableProjectGroupHeader ? '' : undefined}
+          data-workspace-status-drop-target={headerWorkspaceStatus ? '' : undefined}
+          data-workspace-status={headerWorkspaceStatus ?? undefined}
+          data-workspace-pin-drop-target={isPinnedHeader ? '' : undefined}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-1.5 self-stretch',
-            (isDraggableRepoHeader || isDraggableProjectGroupHeader) &&
-              'cursor-grab active:cursor-grabbing'
+            // Keep grab on the title; action buttons use pointer cursors.
+            'group relative flex h-7 w-full items-center gap-1.5 pr-2 text-left transition-all',
+            !(isDraggableRepoHeader || isDraggableProjectGroupHeader) && 'cursor-pointer',
+            ctx.highlightedRevealRowKey === row.key &&
+              'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/50',
+            (isDraggingThis || isDraggingThisProjectGroup) &&
+              'bg-accent/80 ring-1 ring-ring/40 shadow-md rounded-md scale-[1.01]',
+            isProjectGroupDropTarget &&
+              'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/60',
+            headerWorkspaceStatus &&
+              ctx.dragOverStatus === headerWorkspaceStatus &&
+              'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',
+            isPinnedHeader &&
+              ctx.pinDragOver &&
+              'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',
+            row.repo && 'overflow-hidden'
           )}
+          style={{
+            // Why: non-project headers like "All" are flat-list labels; don't reserve project hierarchy indent.
+            paddingLeft:
+              isRepoHeader || isProjectGroupHeader
+                ? getProjectGroupHeaderPaddingLeft(row.projectGroupDepth ?? 0)
+                : WORKTREE_SECTION_HEADER_PADDING_LEFT
+          }}
+          onDragOver={
+            isPinnedHeader
+              ? ctx.onWorkspacePinDragOver
+              : headerWorkspaceStatus
+                ? (event) => ctx.onWorkspaceStatusDragOver(event, headerWorkspaceStatus)
+                : undefined
+          }
+          onDragLeave={
+            isPinnedHeader
+              ? ctx.onWorkspacePinDragLeave
+              : headerWorkspaceStatus
+                ? ctx.onWorkspaceStatusDragLeave
+                : undefined
+          }
+          onDrop={
+            headerWorkspaceStatus
+              ? (event) => ctx.onWorkspaceStatusDrop(event, headerWorkspaceStatus)
+              : undefined
+          }
+          onPointerDown={
+            isDraggableRepoHeader && headerRepo
+              ? (event) => headerDrag.repoDrag.onHandlePointerDown(event, headerRepo)
+              : isDraggableProjectGroupHeader && projectGroupIdForHeader
+                ? (event) =>
+                    headerDrag.projectGroupDrag.onHandlePointerDown(event, projectGroupIdForHeader)
+                : undefined
+          }
+          onClick={(event) => {
+            if (shouldIgnoreRepoHeaderToggle(event)) {
+              return
+            }
+            ctx.toggleGroupWithScrollAnchor(collapseKey)
+          }}
+          onKeyDown={(e) => {
+            if (shouldIgnoreRepoHeaderToggle(e)) {
+              return
+            }
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              ctx.toggleGroupWithScrollAnchor(collapseKey)
+            }
+          }}
         >
-          <SectionHeaderTitle
-            row={row}
-            repoHeaderColor={repoHeaderColor}
-            projectGroupColor={projectGroupColor}
-            projectGroupPathStatus={projectGroupPathStatus}
-            isRepoHeader={isRepoHeader}
-            isProjectGroupHeader={isProjectGroupHeader}
-          />
-        </div>
+          {/* Stretch the title’s grab area to row height; action attributes exclude buttons while padding still arms drag. */}
+          <div
+            data-repo-header-drag-handle={isDraggableRepoHeader ? '' : undefined}
+            data-project-group-header-drag-handle={isDraggableProjectGroupHeader ? '' : undefined}
+            className={cn(
+              'flex min-w-0 flex-1 items-center gap-1.5 self-stretch',
+              hostContext && 'can-hover:pr-18',
+              (isDraggableRepoHeader || isDraggableProjectGroupHeader) &&
+                'cursor-grab active:cursor-grabbing'
+            )}
+          >
+            <SectionHeaderTitle
+              row={row}
+              label={label}
+              headerVisual={headerVisual}
+              hostContext={hostContext}
+              repoHeaderColor={repoHeaderColor}
+              projectGroupColor={projectGroupColor}
+              projectGroupPathStatus={projectGroupPathStatus}
+              isRepoHeader={isRepoHeader}
+            />
+          </div>
 
-        <ProjectHeaderActions>
-          {showHeaderCollapseAffordance ? (
-            <div
-              className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
-              data-repo-header-collapse-affordance=""
-              aria-hidden
-              onPointerDown={handleRepoHeaderCollapseAffordancePointerDown}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                ctx.toggleGroupWithScrollAnchor(row.key)
-              }}
-            >
-              <ChevronDown
-                className={cn('size-3.5 transition-transform', isHeaderCollapsed && '-rotate-90')}
+          <ProjectHeaderActions>
+            {showHeaderCollapseAffordance ? (
+              <div
+                className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
+                data-repo-header-collapse-affordance=""
+                aria-hidden
+                onPointerDown={handleRepoHeaderCollapseAffordancePointerDown}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  ctx.toggleGroupWithScrollAnchor(collapseKey)
+                }}
+              >
+                <ChevronDown
+                  className={cn('size-3.5 transition-transform', isHeaderCollapsed && '-rotate-90')}
+                />
+              </div>
+            ) : null}
+
+            {isProjectGroupHeader && !row.repo && projectGroupIdForHeader ? (
+              <ProjectGroupHeaderMenu
+                groupId={projectGroupIdForHeader}
+                hostId={projectGroupHostIdForHeader}
+                label={label}
+                onChangeIcon={ctx.onChangeProjectGroupIcon}
+                onOpenAccounts={
+                  projectGroupHostIdForHeader?.startsWith('runtime:')
+                    ? undefined
+                    : ctx.onOpenProjectGroupAccounts
+                }
+                onRename={ctx.onRenameProjectGroup}
+                onDelete={ctx.onDeleteProjectGroup}
               />
-            </div>
-          ) : null}
+            ) : null}
 
-          {isProjectGroupHeader && !row.repo && projectGroupIdForHeader ? (
-            <ProjectGroupHeaderMenu
-              groupId={projectGroupIdForHeader}
-              hostId={projectGroupHostIdForHeader}
-              label={row.label}
-              onChangeIcon={ctx.onChangeProjectGroupIcon}
-              onOpenAccounts={
-                projectGroupHostIdForHeader?.startsWith('runtime:')
-                  ? undefined
-                  : ctx.onOpenProjectGroupAccounts
-              }
-              onRename={ctx.onRenameProjectGroup}
-              onDelete={ctx.onDeleteProjectGroup}
-            />
-          ) : null}
+            {folderBackedProjectGroup ? (
+              <ProjectGroupCreateWorkspaceButton
+                projectGroup={folderBackedProjectGroup}
+                label={label}
+                pathStatus={projectGroupPathStatus}
+                disabled={isFolderWorkspaceCreateDisabled(projectGroupPathStatus)}
+                onCreate={ctx.onCreateFolderWorkspace}
+              />
+            ) : null}
 
-          {folderBackedProjectGroup ? (
-            <ProjectGroupCreateWorkspaceButton
-              projectGroup={folderBackedProjectGroup}
-              label={row.label}
-              pathStatus={projectGroupPathStatus}
-              disabled={isFolderWorkspaceCreateDisabled(projectGroupPathStatus)}
-              onCreate={ctx.onCreateFolderWorkspace}
-            />
-          ) : null}
+            {row.repo && ctx.groupBy === 'repo' ? (
+              <RepoHeaderProjectActionsMenu
+                repo={row.repo}
+                label={label}
+                projectGroups={ctx.projectGroups}
+                actions={ctx.projectActions}
+              />
+            ) : null}
 
-          {row.repo && ctx.groupBy === 'repo' ? (
-            <RepoHeaderProjectActionsMenu
-              repo={row.repo}
-              label={row.label}
-              projectGroups={ctx.projectGroups}
-              actions={ctx.projectActions}
-            />
-          ) : null}
-
-          {row.repo && ctx.groupBy === 'repo' ? (
-            <RepoHeaderCreateWorkspaceButton
-              repo={row.repo}
-              label={row.label}
-              createState={createState}
-              onCreateForRepo={ctx.projectActions.onCreateForRepo}
-            />
-          ) : null}
-        </ProjectHeaderActions>
-      </div>
+            {row.repo && ctx.groupBy === 'repo' ? (
+              <RepoHeaderCreateWorkspaceButton
+                repo={row.repo}
+                label={label}
+                createState={createState}
+                onCreateForRepo={ctx.projectActions.onCreateForRepo}
+              />
+            ) : null}
+          </ProjectHeaderActions>
+        </div>
+      </ProjectHeaderHostTooltip>
     </div>
   )
 }

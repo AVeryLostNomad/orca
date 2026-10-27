@@ -5,11 +5,11 @@ import { REBASE_FROM_BASE_RPC_TIMEOUT_MS } from '../../../shared/git-rebase-sour
 import type { GitPushTarget } from '../../../shared/worktree/types'
 import { splitWorktreeIdForFilesystem } from '../../../shared/worktree/id'
 import { resolveLocalWorktreePath, type RuntimeGitContext } from './runtime-git-client-context'
-import { callRuntimeRpc, getActiveRuntimeTarget } from './runtime-rpc-client'
+import { callRuntimeRpc } from './runtime-rpc-client'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 
 export async function abortRuntimeGitMerge(context: RuntimeGitContext): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.abortMerge({
       worktreePath: resolveLocalWorktreePath(context),
@@ -26,7 +26,7 @@ export async function abortRuntimeGitMerge(context: RuntimeGitContext): Promise<
 }
 
 export async function abortRuntimeGitRebase(context: RuntimeGitContext): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.abortRebase({
       worktreePath: resolveLocalWorktreePath(context),
@@ -46,7 +46,7 @@ export async function getRuntimeGitUpstreamStatus(
   context: RuntimeGitContext,
   pushTarget?: GitPushTarget
 ): Promise<GitUpstreamStatus> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     return window.api.git.upstreamStatus({
       worktreePath: resolveLocalWorktreePath(context),
@@ -69,7 +69,7 @@ export async function fetchRuntimeGit(
   context: RuntimeGitContext,
   pushTarget?: GitPushTarget
 ): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.fetch({
       worktreePath: resolveLocalWorktreePath(context),
@@ -94,7 +94,7 @@ export async function syncRuntimeGitForkDefaultBranch(
   context: RuntimeGitContext,
   expectedUpstream: GitForkSyncExpectedUpstream
 ): Promise<GitForkSyncResult> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     return window.api.git.syncFork({
       worktreePath: resolveLocalWorktreePath(context),
@@ -114,7 +114,7 @@ export async function pullRuntimeGit(
   context: RuntimeGitContext,
   pushTarget?: GitPushTarget
 ): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.pull({
       worktreePath: resolveLocalWorktreePath(context),
@@ -139,7 +139,7 @@ export async function fastForwardRuntimeGit(
   context: RuntimeGitContext,
   pushTarget?: GitPushTarget
 ): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.fastForward({
       worktreePath: resolveLocalWorktreePath(context),
@@ -164,7 +164,7 @@ export async function rebaseRuntimeGitFromBase(
   context: RuntimeGitContext,
   baseRef: string
 ): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.rebaseFromBase({
       worktreePath: resolveLocalWorktreePath(context),
@@ -185,7 +185,7 @@ export async function pushRuntimeGit(
   context: RuntimeGitContext,
   args: { publish?: boolean; pushTarget?: GitPushTarget; forceWithLease?: boolean } = {}
 ): Promise<void> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     await window.api.git.push({
       worktreePath: resolveLocalWorktreePath(context),
@@ -214,7 +214,7 @@ export async function commitRuntimeGit(
   context: RuntimeGitContext,
   message: string
 ): Promise<{ success: boolean; error?: string }> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     return window.api.git.commit({
       worktreePath: resolveLocalWorktreePath(context),
@@ -234,7 +234,7 @@ export async function moveRuntimeGitChangesToWorktree(
   context: RuntimeGitContext,
   target: { worktreeId: string; worktreePath: string }
 ): Promise<GitMoveChangesResult> {
-  const runtimeTarget = getActiveRuntimeTarget(context.settings)
+  const runtimeTarget = context.target
   if (runtimeTarget.kind === 'local' || !context.worktreeId) {
     return window.api.git.moveChanges({
       worktreePath: resolveLocalWorktreePath(context),

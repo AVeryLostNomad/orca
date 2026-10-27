@@ -175,8 +175,11 @@ export function getWorkingDocumentTarget(
   }
 }
 
-export function isWorkingDocumentWritableFile(file: Pick<OpenFile, 'mode' | 'readOnly'>): boolean {
-  return file.mode === 'edit' && file.readOnly !== true
+export function isWorkingDocumentWritableFile(
+  file: Pick<OpenFile, 'mode' | 'readOnly' | 'csvPreviewOnly'>
+): boolean {
+  // Paged CSV previews hold placeholder data that must never become an editable buffer.
+  return file.mode === 'edit' && file.readOnly !== true && file.csvPreviewOnly !== true
 }
 
 export function isWorkingDocumentDiffFile(
@@ -186,7 +189,7 @@ export function isWorkingDocumentDiffFile(
 }
 
 export function isWorkingDocumentFile(
-  file: Pick<OpenFile, 'mode' | 'diffSource' | 'readOnly'>
+  file: Pick<OpenFile, 'mode' | 'diffSource' | 'readOnly' | 'csvPreviewOnly'>
 ): boolean {
   return isWorkingDocumentWritableFile(file) || isWorkingDocumentDiffFile(file)
 }

@@ -23,8 +23,7 @@ import { useClampedVirtualScrollOffsetSync } from '@/hooks/virtualizer-clamped-s
 
 export type WorktreeListVirtualizer = ReturnType<typeof useWorktreeListVirtualizer>
 
-// The TanStack virtualizer plus the row-identity guards that stop a recycled DOM node
-// from writing a stale height into the wrong slot.
+// Guard virtual row identity so recycled DOM nodes cannot overwrite another slot’s measured height.
 export function useWorktreeListVirtualizer(args: {
   renderRows: RenderRow[]
   firstHeaderIndex: number
@@ -135,11 +134,16 @@ export function useWorktreeListVirtualizer(args: {
   })
   // Why: TanStack's default correction writes scrollTop while cards remeasure mid-wheel, which feels like rubber-banding.
   // TODO(scroll-origin-migration): wall-clock suppression misclassifies under jank; migrate to programmaticScrollMarks + restoreSignal (see CombinedDiffViewer).
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (_item, _delta, instance) =>
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
     shouldAdjustWorktreeSidebarMeasuredRowScroll({
       isScrolling: instance.isScrolling,
       now: window.performance.now(),
-      suppressUntil: args.suppressMeasurementAdjustmentUntilRef.current
+      suppressUntil: args.suppressMeasurementAdjustmentUntilRef.current,
+      itemStart: item.start,
+      itemEnd: item.end,
+      scrollOffset: (instance.scrollOffset ?? scrollOffsetRef.current) + instance.scrollAdjustments,
+      isFirstMeasurement: !instance.itemSizeCache.has(item.key),
+      scrollDirection: instance.scrollDirection
     })
   // Why: a stale offset past the DOM clamp pins a later header in flow, covering row 0 and blanking its own slot.
   useClampedVirtualScrollOffsetSync(virtualizer, scrollRef)

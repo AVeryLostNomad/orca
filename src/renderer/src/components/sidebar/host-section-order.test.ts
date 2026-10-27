@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { orderHostSectionOptions } from './host-section-order'
-import type { SidebarHostOption as HostSectionOption } from './sidebar-host-options'
+import { orderHostSectionOptions } from '../../../../shared/sidebar-list/host-section-order'
+import type { HostSectionOption } from '../../../../shared/sidebar-list/host-section-rows'
 
 const host = (id: HostSectionOption['id'], label = id): HostSectionOption => ({
   id,
   kind: id === 'local' ? 'local' : id.startsWith('ssh:') ? 'ssh' : 'runtime',
   label,
   detail: 'Host',
-  health: id === 'local' ? 'local' : 'available',
-  presence: 'project'
+  health: id === 'local' ? 'local' : 'available'
 })
 
 describe('orderHostSectionOptions', () => {

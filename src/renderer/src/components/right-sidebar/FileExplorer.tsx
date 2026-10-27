@@ -6,11 +6,15 @@ import type {
   FileTreeRenamingItem
 } from '@pierre/trees'
 import { useAppStore } from '@/store'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
+import { getWorkspaceFileRevealOwner } from '@/lib/reveal-in-file-manager'
+import { getRouteForLocalPathOpenOwner } from '@/lib/local-path-open-guard'
 import { useActiveWorktree, useRepoById } from '@/store/selectors'
 import { basename, getRelativePathInsideRoot } from '@/lib/path'
 import { cn } from '@/lib/utils'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import { getVisibleFileExplorerWorktreePath } from './file-explorer-reset'
+import { getFileExplorerOperationOwnerFromState } from './file-explorer-operation-owner'
 import { FileExplorerNameFilter } from './FileExplorerNameFilter'
 import { FileExplorerQueryStrip } from './FileExplorerQueryStrip'
 import { FileExplorerToolbar } from './FileExplorerToolbar'
@@ -45,6 +49,13 @@ function FileExplorerFiles(): React.JSX.Element {
   const activeWorktreeId = useAppStore((s) => s.activeWorktreeId)
   const activeWorktree = useActiveWorktree()
   const activeRepo = useRepoById(activeWorktree?.repoId ?? null)
+  // Why: a folder workspace has no repo row, so only the catalog owner names its SSH host.
+  const openInOwner = useAppStore((s) =>
+    getWorkspaceFileRevealOwner(s, activeWorktreeId, {
+      connectionId: activeRepo?.connectionId,
+      runtimeEnvironmentId: runtimeEnvironmentIdOrLocalUnlessTwin(s, activeWorktreeId)
+    })
+  )
   const collapseAllDirs = useAppStore((s) => s.collapseAllDirs)
   const activeFileId = useAppStore((s) => s.activeFileId)
   const openFiles = useAppStore((s) => s.openFiles)
@@ -123,7 +134,12 @@ function FileExplorerFiles(): React.JSX.Element {
     refreshFileList,
     applyExternalFileMutations
   })
-  const dragOut = useFileTreeDragOut({ worktreePath, selectedPaths })
+  const dragOut = useFileTreeDragOut({
+    activeWorktreeId,
+    worktreePath,
+    operationOwner: fileList.operationOwner,
+    selectedPaths
+  })
   const nativeImport = useFileTreeNativeImport({
     model,
     activeWorktreeId,
@@ -243,7 +259,8 @@ function FileExplorerFiles(): React.JSX.Element {
       <FileExplorerToolbar
         repoName={repoName}
         worktreePath={worktreePath}
-        connectionId={activeRepo?.connectionId ?? null}
+        {...getRouteForLocalPathOpenOwner(openInOwner)}
+        workspaceId={activeWorktreeId}
         refresh={manualRefresh}
         canRefresh={isFilesViewActive}
         canCollapseAll={canCollapseAll}
@@ -314,6 +331,7 @@ function FileExplorerFiles(): React.JSX.Element {
           isNativeDragOver={nativeImport.isNativeDragOver}
           onNativeDragOver={nativeImport.handleNativeDragOver}
           onNativeDragLeave={nativeImport.handleNativeDragLeave}
+          fileDropOwnerRef={nativeImport.fileDropOwnerRef}
           onRowDragStartCapture={dragOut.handleDragStartCapture}
           onRowDragEndCapture={dragOut.handleDragEndCapture}
         />
@@ -342,7 +360,11 @@ function FileExplorerFiles(): React.JSX.Element {
 const FileExplorerFilesMemo = React.memo(FileExplorerFiles)
 
 function FileExplorer(): React.JSX.Element {
-  return <FileExplorerFilesMemo />
+  const ownerKey = useAppStore((state) =>
+    JSON.stringify(getFileExplorerOperationOwnerFromState(state, state.activeWorktreeId))
+  )
+  // Different hosts can expose the same path; their explorer caches must have separate lifetimes.
+  return <FileExplorerFilesMemo key={ownerKey} />
 }
 
 export default React.memo(FileExplorer)

@@ -1,25 +1,22 @@
+import type { MobileProjectSectionCatalog } from '../../../../shared/mobile-project-sections-contract'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import type { AppState } from '@/store/types'
 import type {
   RuntimeMobileSessionSnapshotTab,
-  RuntimeMobileSessionTabsSnapshot,
-  RuntimeMobileTerminalTheme
+  RuntimeMobileSessionTabsSnapshot
 } from '../../../../shared/runtime-types'
 import type {
-  AgentStatusProjectionCache,
   BrowserPagesProjectionCache,
   BrowserWorkspacesProjectionCache,
   MobileSessionWorktreeInputs,
   OpenFileIndexes,
   OpenFilesProjectionCache,
-  RegisteredTerminalTab,
   TabsProjectionCache,
   WorkingDocumentsProjectionCache,
   WorkingDocumentVersionsCache
 } from './types'
 
 export const NO_TRANSPORT_GRACE_MS = 10_000
-export const AGENT_STATUS_SYNC_UPDATED_AT_BUCKET_MS = 30_000
 export const RUNTIME_GRAPH_SYNC_COALESCE_MS = 16
 
 export const EMPTY_ACTIVE_BROWSER_TAB_ID_BY_WORKTREE: AppState['activeBrowserTabIdByWorktree'] = {}
@@ -36,18 +33,19 @@ export const EMPTY_WORKTREE_OPEN_FILE_IDS: readonly string[] = []
 
 export const mobilePublicationEpoch = `renderer:${createBrowserUuid()}`
 
-export type RegisteredTerminalTabKey = string
+function noPublishedProjectSectionCatalog(): MobileProjectSectionCatalog | null {
+  return null
+}
+
+const NO_PUBLISHED_ACTIVE_GROUPS: Readonly<Record<string, string>> = {}
 
 export const graphState = {
-  registeredTabs: new Map<RegisteredTerminalTabKey, RegisteredTerminalTab>(),
-  tabRegisteredAt: new Map<RegisteredTerminalTabKey, number>(),
   syncScheduled: false,
   syncInFlight: false,
   syncPendingAfterFlight: false,
   syncEnabled: false,
   syncTimer: null as ReturnType<typeof setTimeout> | null,
   getStoreState: null as (() => AppState) | null,
-  mobileSessionSnapshotVersion: 0,
   mobileSessionSnapshotCacheByWorktree: new Map<
     string,
     {
@@ -58,7 +56,6 @@ export const graphState = {
   >(),
   publishedMobileSessionSnapshotByWorktree: new Map<string, RuntimeMobileSessionTabsSnapshot>(),
   cachedTabsProjection: null as TabsProjectionCache | null,
-  cachedAgentStatusProjection: null as AgentStatusProjectionCache | null,
   cachedOpenFilesProjection: null as OpenFilesProjectionCache | null,
   cachedWorkingDocumentsProjection: null as WorkingDocumentsProjectionCache | null,
   cachedWorkingDocumentVersions: null as WorkingDocumentVersionsCache | null,
@@ -66,42 +63,13 @@ export const graphState = {
   cachedBrowserPagesProjection: null as BrowserPagesProjectionCache | null,
   cachedOpenFileIndexesSource: null as AppState['openFiles'] | null,
   cachedOpenFileIndexes: null as OpenFileIndexes | null,
-  cachedMobileTerminalThemeSettings: null as AppState['settings'] | null,
-  cachedMobileTerminalThemeAppTheme: null as AppState['appThemeTerminalTheme'] | null,
-  cachedMobileTerminalThemeSystemPrefersDark: null as boolean | null,
-  cachedMobileTerminalTheme: undefined as RuntimeMobileTerminalTheme | undefined,
-  hasCachedMobileTerminalTheme: false
-}
-
-export function registeredTerminalTabKey(
-  worktreeId: string,
-  tabId: string
-): RegisteredTerminalTabKey {
-  return `${worktreeId}\0${tabId}`
-}
-
-export function findRegisteredTerminalTab(
-  tabId: string,
-  worktreeId?: string
-): { key: RegisteredTerminalTabKey; tab: RegisteredTerminalTab } | null {
-  if (worktreeId !== undefined) {
-    const key = registeredTerminalTabKey(worktreeId, tabId)
-    const tab = graphState.registeredTabs.get(key)
-    return tab ? { key, tab } : null
-  }
-
-  let match: { key: RegisteredTerminalTabKey; tab: RegisteredTerminalTab } | null = null
-  for (const [key, tab] of graphState.registeredTabs) {
-    if (tab.tabId !== tabId) {
-      continue
-    }
-    // A tab id without its worktree is ambiguous; callers must fail closed.
-    if (match) {
-      return null
-    }
-    match = { key, tab }
-  }
-  return match
+  mobileSessionSnapshotVersion: 0,
+  /** Last group grid sizes main accepted, so a refit republishes only when one changed. */
+  publishedTerminalGroupGridSizesKey: '',
+  /** Last sidebar Project catalog main accepted, so the graph carries it only when it changed. */
+  publishedProjectSectionCatalog: noPublishedProjectSectionCatalog(),
+  /** Each workspace's active group as main last accepted it (layout-owner builds). */
+  publishedActiveGroups: NO_PUBLISHED_ACTIVE_GROUPS
 }
 
 /** IDs occurring more than once cannot address the legacy tab-keyed runtime maps safely. */

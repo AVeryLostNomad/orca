@@ -1,20 +1,23 @@
+import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { AppState } from '../../store/types'
+import { resolveAgentDashboardMode } from '../../components/dashboard/agent-dashboard-open-mode'
 
 export function toggleAgentDashboardFromShortcut(
   state: Pick<
     AppState,
-    | 'settingsOpen'
-    | 'settings'
-    | 'agentDashboardDrawerOpen'
-    | 'setSidebarOpen'
-    | 'setAgentDashboardDrawerOpen'
-  >,
+    'settingsOpen' | 'agentDashboardDrawerOpen' | 'setSidebarOpen' | 'setAgentDashboardDrawerOpen'
+  > & {
+    settings: Pick<
+      GlobalSettings,
+      'experimentalAgentDashboardPopout' | 'experimentalAgentDashboardMode'
+    > | null
+  },
   openPopout: () => void
 ): void {
   if (state.settingsOpen || state.settings?.experimentalAgentDashboardPopout !== true) {
     return
   }
-  if (state.settings.experimentalAgentDashboardMode === 'popout') {
+  if (resolveAgentDashboardMode(state.settings) === 'popout') {
     openPopout()
     return
   }

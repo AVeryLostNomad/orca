@@ -2,15 +2,21 @@ import { randomUUID } from 'node:crypto'
 import { ipcMain } from 'electron'
 import type { GithubPatAccountMeta } from '../../shared/github/github-account-ref'
 import { appStarSourceSchema } from '../../shared/gh-star-source'
-import type { Store } from '../persistence'
+import { resolveGhAccountRequiredHost } from '../github/account-binding-required-host'
 import { diagnoseGhAuth } from '../github/auth-diagnose'
 import { checkOrcaStarred, getAuthenticatedViewer, starOrca } from '../github/client'
+import {
+  listGhAccountBindingInventory,
+  validateGhAccountBinding
+} from '../github/gh-account-binding-inventory'
 import { deleteGithubPatToken, saveGithubPatToken } from '../github/github-pat-store'
 import { invalidateGithubAccountToken } from '../github/github-account-env'
 import { resolveGithubAuthorIdentity } from '../github/github-author-identity'
 import { getRateLimit } from '../github/rate-limit'
+import type { Store } from '../persistence'
 import { getCohortAtEmit } from '../telemetry/cohort-classifier'
 import { track } from '../telemetry/client'
+import { assertRegisteredGitHubRepo, getGitHubLocalGitOptionArgs } from './github-repo-routing'
 
 export function registerGitHubAccountHandlers(store: Store): void {
   ipcMain.handle('gh:viewer', () => getAuthenticatedViewer())
@@ -66,4 +72,31 @@ export function registerGitHubAccountHandlers(store: Store): void {
     invalidateGithubAccountToken(`pat:${args.id}`)
     return true
   })
+
+  ipcMain.handle(
+    'gh:listBindableAccounts',
+    async (_event, args: { repoPath: string; repoId?: string; refreshCapability?: boolean }) => {
+      const repo = assertRegisteredGitHubRepo(args, store)
+      const localGitOptions = getGitHubLocalGitOptionArgs(store, repo)[0] ?? {}
+      const requiredHost = await resolveGhAccountRequiredHost(repo, localGitOptions)
+      return listGhAccountBindingInventory(localGitOptions, {
+        refreshCapability: args.refreshCapability === true,
+        ...(requiredHost ? { requiredHost } : {})
+      })
+    }
+  )
+
+  ipcMain.handle(
+    'gh:validateAccountBinding',
+    async (_event, args: { repoPath: string; repoId?: string; host: string; user: string }) => {
+      const repo = assertRegisteredGitHubRepo(args, store)
+      const localGitOptions = getGitHubLocalGitOptionArgs(store, repo)[0] ?? {}
+      const requiredHost = await resolveGhAccountRequiredHost(repo, localGitOptions)
+      return validateGhAccountBinding(
+        { host: args.host, user: args.user },
+        localGitOptions,
+        requiredHost ? { requiredHost } : {}
+      )
+    }
+  )
 }

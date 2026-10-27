@@ -1,3 +1,4 @@
+import { collectCollidingRetractionPaneKeys } from './retraction-pane-ownership'
 import type { WebSessionTabsSyncState } from './state'
 import type { applyActiveStateUpdates } from './apply-active-state'
 import { buildMirroredAgentStatusPatch } from './agent-status-patch'
@@ -9,13 +10,13 @@ import { isWebSessionTabsWorktreeRemovalFrame } from './session-tabs-inventory-a
 
 type FinalPatchContext = ReturnType<typeof applyActiveStateUpdates>
 
-/** Build the minimal store patch after all reconciliation stages have completed. */
 export function buildWebSessionTabsFinalPatch(
   context: FinalPatchContext
 ): WebSessionTabsSyncState | Partial<WebSessionTabsSyncState> {
   const {
     state,
     snapshot,
+    environmentId,
     worktreeId,
     now,
     batchContext,
@@ -34,6 +35,7 @@ export function buildWebSessionTabsFinalPatch(
     nextTabBarOrderByWorktree,
     nextPtyIdsByTabId,
     nextTerminalLayoutsByTabId,
+    nextLocalOnlyScrollbackByTabId,
     nextUnreadTerminalTabs,
     pendingStartupByTabId,
     nextPendingStartupByTabId,
@@ -52,23 +54,34 @@ export function buildWebSessionTabsFinalPatch(
     nextActiveTabTypeByWorktree
   } = context
 
+  // Capture ownership before the batch reducer removes rows from its mutable state.
+  const retractionPaneKeys = collectCollidingRetractionPaneKeys(
+    state,
+    removedTerminalResourceIds,
+    environmentId,
+    worktreeId,
+    batchContext
+  )
   const agentStatusPatch = buildMirroredAgentStatusPatch(
     state,
     currentTerminalTabs,
     terminalSurfaceTabs,
     mirroredTerminalTabs,
+    environmentId,
+    worktreeId,
+    new Set(isWebSessionTabsWorktreeRemovalFrame(snapshot) ? [] : removedTerminalResourceIds),
     now,
     batchContext
   )
-  // A tombstone clears all environments' view of a worktree; it is not a terminal retraction.
+  // A tombstone clears this host's view of a worktree; it is not a terminal retraction.
   const retractedTabSweepPatch = isWebSessionTabsWorktreeRemovalFrame(snapshot)
     ? null
     : buildRetractedMirroredTabSweepPatch(
         state,
-        worktreeId,
         nextTabsByWorktree,
         agentStatusPatch,
         removedTerminalResourceIds,
+        retractionPaneKeys,
         batchContext
       )
   const remirroredClosedTabLiftPatch = buildRemirroredClosedTabMarkerLiftPatch(
@@ -104,6 +117,9 @@ export function buildWebSessionTabsFinalPatch(
     ...(nextPtyIdsByTabId !== state.ptyIdsByTabId ? { ptyIdsByTabId: nextPtyIdsByTabId } : {}),
     ...(nextTerminalLayoutsByTabId !== state.terminalLayoutsByTabId
       ? { terminalLayoutsByTabId: nextTerminalLayoutsByTabId }
+      : {}),
+    ...(nextLocalOnlyScrollbackByTabId !== state.localOnlyScrollbackByTabId
+      ? { localOnlyScrollbackByTabId: nextLocalOnlyScrollbackByTabId }
       : {}),
     ...(nextUnreadTerminalTabs !== state.unreadTerminalTabs
       ? { unreadTerminalTabs: nextUnreadTerminalTabs }

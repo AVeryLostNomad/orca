@@ -5,6 +5,7 @@ import { translate } from '@/i18n/i18n'
 import { NotesSendMenu, type NotesSendMenuScope } from './NotesSendMenu'
 import { buildEditorSelectionAgentPrompt } from './editor-selection-agent-prompt'
 import type { MonacoMarkdownSelectionAnnotationTarget } from './monaco-markdown-selection-annotation'
+import type { DiffCommentDeliverySnapshot } from '@/store/slices/diffComments'
 
 type AskAgentSelectionPopoverProps = {
   target: MonacoMarkdownSelectionAnnotationTarget
@@ -14,7 +15,7 @@ type AskAgentSelectionPopoverProps = {
   onClose: () => void
 }
 
-type SelectionNote = { selectedText: string }
+type SelectionNote = DiffCommentDeliverySnapshot
 
 export function AskAgentSelectionPopover({
   target,
@@ -35,18 +36,8 @@ export function AskAgentSelectionPopover({
 
   const startLine = target.startLine ?? target.lineNumber
   const endLine = target.lineNumber
-  const prompt = useMemo(
-    () =>
-      buildEditorSelectionAgentPrompt({
-        question,
-        relativePath,
-        startLine,
-        endLine,
-        language,
-        selectedText: target.selectedText
-      }),
-    [question, relativePath, startLine, endLine, language, target.selectedText]
-  )
+  // Why a note-shaped selection: the send menu tracks in-flight sends by note identity.
+  const selectionNoteId = useId()
   const scopes = useMemo<NotesSendMenuScope<SelectionNote>[]>(
     () => [
       {
@@ -55,11 +46,28 @@ export function AskAgentSelectionPopover({
           'auto.components.editor.AskAgentSelectionPopover.scopeLabel',
           'Code selection'
         ),
-        notes: [{ selectedText: target.selectedText }],
-        prompt
+        notes: [
+          {
+            id: selectionNoteId,
+            filePath: relativePath,
+            lineNumber: endLine,
+            startLine,
+            body: question,
+            selectedText: target.selectedText
+          }
+        ],
+        formatPrompt: () =>
+          buildEditorSelectionAgentPrompt({
+            question,
+            relativePath,
+            startLine,
+            endLine,
+            language,
+            selectedText: target.selectedText
+          })
       }
     ],
-    [prompt, target.selectedText]
+    [selectionNoteId, question, relativePath, startLine, endLine, language, target.selectedText]
   )
 
   // Why: Monaco doesn't bubble React clicks, so outside-dismiss needs a

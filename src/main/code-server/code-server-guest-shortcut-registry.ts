@@ -1,6 +1,6 @@
 import { webContents } from 'electron'
 import type { KeybindingOverrides } from '../../shared/keybindings'
-import { BROWSER_PAGE_ZOOM_STEP } from '../../shared/browser-page-zoom'
+import { nextBrowserPageZoomLevel } from '../../shared/browser-page-zoom'
 import { setupGuestShortcutForwarding } from '../browser/browser-guest-shortcut-forwarding'
 import type { ShouldForwardDictationShortcut } from '../browser/browser-guest-shortcut-dispatch'
 
@@ -40,12 +40,7 @@ export function registerCodeServerGuest(args: {
       if (guest.isDestroyed()) {
         return
       }
-      if (direction === 'reset') {
-        guest.setZoomLevel(0)
-        return
-      }
-      const step = direction === 'in' ? BROWSER_PAGE_ZOOM_STEP : -BROWSER_PAGE_ZOOM_STEP
-      guest.setZoomLevel(guest.getZoomLevel() + step)
+      guest.setZoomLevel(nextBrowserPageZoomLevel(guest.getZoomLevel(), direction))
     }
   })
   const onDestroyed = (): void => unregisterCodeServerGuest(codeServerTabId)

@@ -10,7 +10,7 @@ import {
   getWorkspaceNotesFilePath,
   getWorkspaceNotesRoot
 } from '../workspace-notes-paths'
-import { authorizeExternalPath } from './filesystem-auth'
+import { registerAppOwnedAllowedRoot } from './filesystem/filesystem-allowed-roots'
 
 function isEEXIST(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
@@ -37,7 +37,7 @@ export async function ensureWorkspaceNotesFile(
   const dir = getWorkspaceNotesDir(workspaceId)
   await mkdir(dir, { recursive: true })
   // Authorize after creation so symlinked profile roots also receive their canonical grant.
-  authorizeExternalPath(getWorkspaceNotesRoot())
+  registerAppOwnedAllowedRoot(getWorkspaceNotesRoot())
   // meta.json records ownership so GC can reverse the hashed dir name.
   await writeIfMissing(
     join(dir, 'meta.json'),

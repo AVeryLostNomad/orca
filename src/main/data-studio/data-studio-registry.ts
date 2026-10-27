@@ -258,3 +258,8 @@ export function getDataStudioRegistry(): DataStudioRegistry {
   }
   return registry
 }
+
+/** Quit teardown: never construct the registry just to stop it. */
+export function shutdownDataStudioRegistryIfStarted(): Promise<void> {
+  return registry ? registry.shutdownAll() : Promise.resolve()
+}

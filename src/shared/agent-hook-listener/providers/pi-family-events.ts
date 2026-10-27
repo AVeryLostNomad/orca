@@ -3,17 +3,13 @@ import {
   type ParsedAgentStatusPayload
 } from '../../agent-status-types'
 import { isAskUserQuestionTool } from '../../agent-question-answered-intent'
-import {
-  codexRosterToSnapshots,
-  finishCodexSubagent,
-  upsertCodexSubagent,
-  type CodexSubagentRoster
-} from '../../codex-subagent-roster'
 import { clearPaneTurnCacheState, type HookListenerState } from '../listener-state'
 import { resolvePrompt, resolveToolState } from '../prompt-fields'
 import { extractToolFields, isNewTurnEvent } from '../provider-event-routing'
 import { readString } from '../tool-input-preview'
+import { parseOmpPlanReviewPrompt } from '../../omp-plan-review-prompt'
 
+/** Normalize Pi/OMP/Prime lifecycle, question waits and live roster/model evidence; ignore events with no status. */
 export function normalizePiCompatibleEvent(
   state: HookListenerState,
   agentType: 'pi' | 'omp' | 'prime-agent',
@@ -23,35 +19,61 @@ export function normalizePiCompatibleEvent(
   hookPayload: Record<string, unknown>
 ): ParsedAgentStatusPayload | null {
   if (agentType !== 'omp' && eventName === 'session_start') {
-    // Why: Pi's session_start fires on TUI open/resume; discard stale turn details, no working row before user activity.
+    // Open/resume is idle; discard stale turn details without starting work.
     clearPaneTurnCacheState(state, paneKey)
-    state.piFamilySubagentRosterByPaneKey.delete(paneKey)
-    state.piFamilyLeadStateByPaneKey.delete(paneKey)
-    return null
-  }
-  if (eventName === 'subagent_start' || eventName === 'subagent_end') {
-    return normalizePiFamilySubagentLifecycleEvent(
-      state,
-      agentType,
-      eventName,
-      paneKey,
-      hookPayload
-    )
+    // Why: a custom modal can switch sessions before its promise resolves.
+    if (agentType !== 'pi' || hookPayload.ui_prompt_active !== true) {
+      return null
+    }
   }
 
-  // Why: gate on the event's own tool_name so a stale cached question can't re-enter blocked.
+  // Only OMP stamps provider/id on every post.
+  const model = readString(hookPayload, 'model')
+  const modelSwitchCommand =
+    hookPayload.model_switch_command === 'orca-model' ? 'orca-model' : undefined
+  // Each post carries the whole live roster; absence means none.
+  const subagents = hookPayload.subagents
+  if (eventName === 'model_select' || eventName === 'subagents_update') {
+    // Restate inter-turn model/child changes on an existing visible row; hidden resume placeholders carry no state.
+    const previous = state.lastStatusByPaneKey.get(paneKey)
+    if (
+      !previous ||
+      previous.providerSessionOnly === true ||
+      previous.payload.agentType !== agentType ||
+      (eventName === 'model_select' && !model)
+    ) {
+      return null
+    }
+    return normalizeAgentStatusPayload({
+      ...previous.payload,
+      ...(eventName === 'model_select' ? { model, modelSwitchCommand } : {}),
+      subagents,
+      ...finishedPiFamilySubagentStamp(previous.payload.subagents, subagents)
+    })
+  }
+
+  // Use this event's tool_name so a cached question cannot reopen its wait.
   const toolName = readString(hookPayload, 'tool_name')
   const isPiCompatibleAsk =
     ((agentType === 'pi' && isAskUserQuestionTool(toolName)) ||
       (agentType === 'omp' && toolName === 'ask')) &&
     (eventName === 'tool_call' || eventName === 'tool_execution_start')
+  // OMP emits approvals only after policy chooses a human prompt; ambient approval_mode (even yolo) cannot override that verdict.
   const isOmpApprovalRequest = agentType === 'omp' && eventName === 'tool_approval_requested'
   const isOmpApprovalResolution = agentType === 'omp' && eventName === 'tool_approval_resolved'
+  const isOmpPlanReview = agentType === 'omp' && eventName === 'plan_review_requested'
+  const isOmpPlanReviewEnd = agentType === 'omp' && eventName === 'plan_review_resolved'
+  const isPiUiPrompt =
+    agentType === 'pi' && (eventName === 'ui_prompt_start' || hookPayload.ui_prompt_active === true)
+  const isPiUiPromptEnd = agentType === 'pi' && eventName === 'ui_prompt_end'
+  // Why: Pi posts this only for a compaction between a finished reply and its settle.
+  const isPiCompactionStart = agentType === 'pi' && eventName === 'compaction_start'
 
-  const stateName =
-    isPiCompatibleAsk || isOmpApprovalRequest
+  let stateName =
+    isPiCompatibleAsk || isOmpApprovalRequest || isOmpPlanReview
       ? 'blocked'
       : isOmpApprovalResolution ||
+          isPiCompactionStart ||
           eventName === 'before_agent_start' ||
           eventName === 'agent_start' ||
           eventName === 'tool_call' ||
@@ -63,10 +85,25 @@ export function normalizePiCompatibleEvent(
           ? 'done'
           : null
 
-  if (!stateName) {
+  if (isPiUiPrompt) {
+    stateName = 'waiting'
+  } else if (isPiUiPromptEnd || isOmpPlanReviewEnd) {
+    stateName = hookPayload.is_idle === true ? 'done' : 'working'
+  }
+
+  if (
+    !stateName ||
+    (stateName === 'working' && holdsOmpApproval(state, agentType, eventName, paneKey)) ||
+    (eventName === 'agent_end' && holdsOmpPlanReview(state, agentType, hookPayload, paneKey))
+  ) {
     return null
   }
-  state.piFamilyLeadStateByPaneKey.set(paneKey, stateName)
+  // Lead completion and session replacement are their own news, not a child finish.
+  const previousRow = state.lastStatusByPaneKey.get(paneKey)
+  const subagentFinish =
+    eventName !== 'agent_end' && previousRow?.payload.agentType === agentType
+      ? finishedPiFamilySubagentStamp(previousRow.payload.subagents, subagents)
+      : {}
 
   const snapshot = resolveToolState(
     state,
@@ -81,68 +118,81 @@ export function normalizePiCompatibleEvent(
       resetOnNewTurn: isNewTurnEvent(agentType, eventName)
     }),
     agentType,
+    model,
+    modelSwitchCommand,
     toolName: snapshot.toolName,
     toolInput: snapshot.toolInput,
     interactivePrompt: snapshot.interactivePrompt,
     lastAssistantMessage: snapshot.lastAssistantMessage,
     lastAssistantMessageIsToolOutput: snapshot.lastAssistantMessageIsToolOutput,
-    subagents: codexRosterToSnapshots(state.piFamilySubagentRosterByPaneKey.get(paneKey))
+    subagents,
+    ...subagentFinish,
+    // Why: a compaction row and its settle carry one finish time, so the reply is announced once.
+    turnCompletedAt: hookPayload.turn_completed_at,
+    // Why: the extension ends a run whose session was replaced; that is not a completed turn.
+    ...(eventName === 'agent_end' && hookPayload.session_boundary === true
+      ? { sessionBoundary: true }
+      : {})
   })
 }
 
-function getOrCreatePiFamilySubagentRoster(
-  state: HookListenerState,
-  paneKey: string
-): CodexSubagentRoster {
-  let roster = state.piFamilySubagentRosterByPaneKey.get(paneKey)
-  if (!roster) {
-    roster = new Map()
-    state.piFamilySubagentRosterByPaneKey.set(paneKey, roster)
-  }
-  return roster
+/** Posts carry the whole live roster, so a child listed before and absent now just finished. */
+function finishedPiFamilySubagentStamp(
+  previous: ParsedAgentStatusPayload['subagents'],
+  next: unknown
+): Pick<ParsedAgentStatusPayload, 'subagentCompletedAt' | 'subagentCompletedLabel'> {
+  const nextIds = new Set(
+    Array.isArray(next)
+      ? next.flatMap((child: unknown) =>
+          typeof child === 'object' && child !== null && 'id' in child ? [child.id] : []
+        )
+      : []
+  )
+  // Restatements spread the previous row, so clear a stale stamp when nothing finished.
+  const finished = previous?.find((child) => !nextIds.has(child.id))
+  return finished
+    ? {
+        subagentCompletedAt: Date.now(),
+        subagentCompletedLabel: finished.description ?? finished.agentType
+      }
+    : { subagentCompletedAt: undefined, subagentCompletedLabel: undefined }
 }
 
-/** OMP runs subagents in-process, so the status extension reports their lifecycle on the lead's
- *  pane. A child finishing is never the pane's completion: re-emit the cached lead state with the
- *  refreshed roster and stamp the finish so the renderer can offer it as its own notification. */
-function normalizePiFamilySubagentLifecycleEvent(
+const OMP_APPROVAL_RELEASE_EVENTS: ReadonlySet<unknown> = new Set([
+  'tool_approval_resolved',
+  'plan_review_resolved',
+  'before_agent_start',
+  'agent_start'
+])
+
+/** OMP tool_execution_start may precede the human decision; only approval resolution/new turn clears it. ask waits end with their own tool. */
+function holdsOmpApproval(
   state: HookListenerState,
   agentType: 'pi' | 'omp' | 'prime-agent',
-  eventName: 'subagent_start' | 'subagent_end',
-  paneKey: string,
-  hookPayload: Record<string, unknown>
-): ParsedAgentStatusPayload | null {
-  const subagentId = readString(hookPayload, 'subagent_id')
-  if (!subagentId) {
-    return null
+  eventName: unknown,
+  paneKey: string
+): boolean {
+  if (agentType !== 'omp' || OMP_APPROVAL_RELEASE_EVENTS.has(eventName)) {
+    return false
   }
-  const label = readString(hookPayload, 'subagent_label')
-  const roster = getOrCreatePiFamilySubagentRoster(state, paneKey)
-  const now = Date.now()
-  let subagentCompletedAt: number | undefined
-  if (eventName === 'subagent_start') {
-    upsertCodexSubagent(roster, subagentId, { description: label, state: 'working' }, now)
-  } else {
-    finishCodexSubagent(roster, subagentId)
-    subagentCompletedAt = now
-    if (roster.size === 0) {
-      state.piFamilySubagentRosterByPaneKey.delete(paneKey)
-    }
+  const previous = state.lastStatusByPaneKey.get(paneKey)?.payload
+  return (
+    previous?.agentType === 'omp' && previous.state === 'blocked' && previous.toolName !== 'ask'
+  )
+}
+
+/** Earlier async children can emit agent_end under an open plan overlay; only review resolution/new session clears it. */
+function holdsOmpPlanReview(
+  state: HookListenerState,
+  agentType: 'pi' | 'omp' | 'prime-agent',
+  hookPayload: Record<string, unknown>,
+  paneKey: string
+): boolean {
+  if (agentType !== 'omp' || hookPayload.session_boundary === true) {
+    return false
   }
-  // Why: a child ending with no lead evidence proves the parent is alive to receive its result.
-  const leadState = state.piFamilyLeadStateByPaneKey.get(paneKey) ?? 'working'
-  const snapshot = state.lastToolByPaneKey.get(paneKey) ?? {}
-  return normalizeAgentStatusPayload({
-    state: leadState,
-    prompt: resolvePrompt(state, paneKey, '', { resetOnNewTurn: false }),
-    agentType,
-    toolName: snapshot.toolName,
-    toolInput: snapshot.toolInput,
-    interactivePrompt: snapshot.interactivePrompt,
-    lastAssistantMessage: snapshot.lastAssistantMessage,
-    lastAssistantMessageIsToolOutput: snapshot.lastAssistantMessageIsToolOutput,
-    subagentCompletedAt,
-    subagentCompletedLabel: subagentCompletedAt !== undefined ? label : undefined,
-    subagents: codexRosterToSnapshots(state.piFamilySubagentRosterByPaneKey.get(paneKey))
-  })
+  const previous = state.lastStatusByPaneKey.get(paneKey)?.payload
+  return (
+    previous?.state === 'blocked' && parseOmpPlanReviewPrompt(previous.interactivePrompt) !== null
+  )
 }

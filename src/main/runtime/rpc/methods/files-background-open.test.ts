@@ -33,8 +33,18 @@ describe('background file open RPCs', () => {
         activate: false
       })
     )
+    await dispatcher.dispatch(
+      makeRequest('files.open', {
+        worktree: 'id:wt-1',
+        relativePath: 'docs/other.md',
+        activate: false,
+        navigation: 'all'
+      })
+    )
 
-    expect(runtime.openMobileFile).toHaveBeenCalledWith('id:wt-1', 'docs/readme.md', false)
-    expect(runtime.openMobileDiff).toHaveBeenCalledWith('id:wt-1', 'docs/readme.md', false, false)
+    expect(runtime.openMobileFile).toHaveBeenCalledWith('id:wt-1', 'docs/readme.md', 'caller')
+    expect(runtime.openMobileDiff).toHaveBeenCalledWith('id:wt-1', 'docs/readme.md', false, 'caller')
+    // An explicit navigation wins over the legacy flag.
+    expect(runtime.openMobileFile).toHaveBeenCalledWith('id:wt-1', 'docs/other.md', 'all')
   })
 })

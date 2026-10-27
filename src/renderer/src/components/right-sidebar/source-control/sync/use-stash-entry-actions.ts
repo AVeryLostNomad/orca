@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
-import { applyRuntimeGitStash, dropRuntimeGitStash } from '@/runtime/runtime-git-client'
+import { applyRuntimeGitStash, dropRuntimeGitStash } from '@/runtime/runtime-git-stash-client'
 import { translate } from '@/i18n/i18n'
 import type { GitStashEntry } from '../../../../../../shared/git-stash'
 import { describeStashError } from './stash-naming'

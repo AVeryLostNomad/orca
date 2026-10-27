@@ -2,6 +2,7 @@ import type { AppState } from '../../../types'
 import { assertEditorFileOperationCurrent } from '@/lib/editor-file-operation-owner'
 import { buildOwnedEditorFileId } from '../file-ids/editor-file-ids'
 import type { OpenFile } from '../types/open-file'
+import { getWorkingDocumentForFile } from '../working-document-state'
 import type {
   RestoredEditorOwnerMigration,
   RestoredEditorOwnerResult
@@ -10,7 +11,7 @@ import type {
 export type RestoredEditorOwnerFail = {
   ok: false
   reason: Extract<RestoredEditorOwnerResult, { ok: false }>['reason']
-  patch: Pick<AppState, 'openFiles'>
+  patch: Pick<AppState, 'openFiles'> & Partial<Pick<AppState, 'workingDocuments'>>
 }
 
 export type RestoredEditorOwnerReady = {
@@ -19,6 +20,21 @@ export type RestoredEditorOwnerReady = {
   newFileId: string
   previewIdMigrations: Map<string, string>
   operationProvenance: RestoredEditorOwnerMigration['targetOperationProvenance']
+}
+
+/** A refused move releases the save gate its pending migration held on the document. */
+function clearPendingOwnerMigration(s: AppState, fileId: string): RestoredEditorOwnerFail['patch'] {
+  const document = getWorkingDocumentForFile(s, fileId)
+  if (!document?.pendingOwnerMigration) {
+    return { openFiles: s.openFiles }
+  }
+  return {
+    openFiles: s.openFiles,
+    workingDocuments: {
+      ...s.workingDocuments,
+      [document.id]: { ...document, pendingOwnerMigration: undefined }
+    }
+  }
 }
 
 export function resolveRestoredEditorOwnerDestination(
@@ -46,7 +62,7 @@ export function resolveRestoredEditorOwnerDestination(
     return {
       ok: false,
       reason: 'owner-changed',
-      patch: { openFiles: s.openFiles }
+      patch: clearPendingOwnerMigration(s, args.fileId)
     }
   }
   const operationProvenance = args.targetOperationProvenance
@@ -80,7 +96,7 @@ export function resolveRestoredEditorOwnerDestination(
     return {
       ok: false,
       reason: 'collision',
-      patch: { openFiles: s.openFiles }
+      patch: clearPendingOwnerMigration(s, args.fileId)
     }
   }
 

@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useAppStore } from '../store'
 import { getEditorClosePlan } from '@renderer/store/slices/editor/working-document-state'
 import { isPinnedActiveEditorTab } from './terminal-workspace-model'
+import { selectWorkspaceSurface } from '@/lib/workspace-surface-reveal'
 import type {
   PendingEditorCloseState,
   TerminalEditorCloseFoundation
@@ -13,11 +14,11 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
     activeWorktreeId,
     closeFile,
     closeUnifiedTab,
+    closedReactionsRef,
     pendingEditorCloseState,
     proceedToNativeWindowClose,
     setActiveFile,
     setActiveTabType,
-    setActiveWorktree,
     setPendingEditorCloseState,
     windowCloseAfterDirtyRef
   } = controller
@@ -30,6 +31,17 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
     windowCloseAfterDirtyRef.current = null
     proceedToNativeWindowClose(pendingWindowClose.isQuitting)
   }, [proceedToNativeWindowClose, windowCloseAfterDirtyRef])
+
+  const settleClosedTabs = useCallback(
+    (closedIds: ReadonlySet<string>) => {
+      for (const id of closedIds) {
+        const onClosed = closedReactionsRef.current.get(id)
+        closedReactionsRef.current.delete(id)
+        onClosed?.()
+      }
+    },
+    [closedReactionsRef]
+  )
 
   const advanceEditorCloseQueue = useCallback(
     (requestedState: PendingEditorCloseState | null = pendingEditorCloseState) => {
@@ -55,6 +67,13 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
 
       const nextDocumentId = plan.dirtyDocumentIds[0] ?? null
       if (!nextDocumentId) {
+        // Requests may name a file id or a tab id; collect both before the tabs disappear.
+        const closedIds = new Set<string>(plan.tabIds)
+        for (const tab of Object.values(useAppStore.getState().unifiedTabsByWorktree ?? {}).flat()) {
+          if (closedIds.has(tab.id) && tab.entityId) {
+            closedIds.add(tab.entityId)
+          }
+        }
         for (const tabId of plan.tabIds) {
           if (
             Object.values(useAppStore.getState().unifiedTabsByWorktree ?? {}).some((tabs) =>
@@ -66,6 +85,7 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
             closeFile(tabId)
           }
         }
+        settleClosedTabs(closedIds)
         setPendingEditorCloseState(null)
         completeWindowCloseIfRequested()
         return
@@ -89,12 +109,13 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
               .openFiles.find((file) => file.id === (unifiedTab?.entityId ?? nextTabId))
           })()
         : undefined
-      if (nextTab && nextTab.worktreeId !== useAppStore.getState().activeWorktreeId) {
-        setActiveWorktree(nextTab.worktreeId)
+      const activeState = useAppStore.getState()
+      if (nextTab && nextTab.worktreeId !== activeState.activeWorktreeId) {
+        selectWorkspaceSurface(activeState, nextTab.worktreeId)
       }
       if (nextTab) {
         setActiveFile(nextTab.id)
-        setActiveTabType('editor')
+        setActiveTabType('editor', nextTab.worktreeId)
       }
       setPendingEditorCloseState(nextState)
     },
@@ -105,8 +126,8 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
       pendingEditorCloseState,
       setActiveFile,
       setActiveTabType,
-      setActiveWorktree,
-      setPendingEditorCloseState
+      setPendingEditorCloseState,
+      settleClosedTabs
     ]
   )
 
@@ -157,8 +178,9 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
 
   const cancelEditorCloseQueue = useCallback(() => {
     windowCloseAfterDirtyRef.current = null
+    closedReactionsRef.current.clear()
     setPendingEditorCloseState(null)
-  }, [setPendingEditorCloseState, windowCloseAfterDirtyRef])
+  }, [closedReactionsRef, setPendingEditorCloseState, windowCloseAfterDirtyRef])
 
   const handleCloseFile = useCallback(
     (tabId: string) => {

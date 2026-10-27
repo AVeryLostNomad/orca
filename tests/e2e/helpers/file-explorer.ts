@@ -8,8 +8,8 @@ import { expect } from '@stablyai/playwright-test'
  * component with an open shadow root — standard locators pierce it). Rows
  * carry `data-item-path` with the POSIX worktree-relative path.
  */
-export function fileExplorerRow(page: Page, relativePath: string): Locator {
-  return page.locator(`file-tree-container [data-item-path="${relativePath}"]`)
+export function fileExplorerRow(scope: Page | Locator, relativePath: string): Locator {
+  return scope.locator(`file-tree-container [data-item-path="${relativePath}"]`)
 }
 
 /**
@@ -19,8 +19,8 @@ export function fileExplorerRow(page: Page, relativePath: string): Locator {
  * each duplicated for overflow measurement), so textContent never contains
  * the contiguous file name. Rows expose the basename as aria-label instead.
  */
-export function fileExplorerRowByName(page: Page, name: string): Locator {
-  return page.locator(`file-tree-container [data-item-path][aria-label="${name}"]`)
+export function fileExplorerRowByName(scope: Page | Locator, name: string): Locator {
+  return scope.locator(`file-tree-container [data-item-path][aria-label="${name}"]`)
 }
 
 /** Open the right sidebar file explorer and wait for store state to match. */
@@ -32,10 +32,7 @@ export async function openFileExplorer(page: Page): Promise<void> {
     }
 
     const state = store.getState()
-    // Why: hidden Electron runs do not reliably deliver Cmd/Ctrl+Shift+E or
-    // expose the sidebar DOM in time for locator-based setup. Drive the same
-    // store state the shortcut would update so file-open specs cover the
-    // explorer workflow instead of hidden-window input timing.
+    // Set the shortcut’s store state directly because hidden windows cannot reliably deliver the setup chord.
     state.setRightSidebarTab('explorer')
     state.setRightSidebarOpen(true)
   })
@@ -51,13 +48,7 @@ export async function openFileExplorer(page: Page): Promise<void> {
     .toBe(true)
 }
 
-/**
- * Open the first matching seeded file via the store.
- *
- * Why: the tests assert file-open behavior, not DOM tree rendering. Opening a
- * stable seeded file through the same editor store action avoids hidden-window
- * explorer DOM flakiness while still exercising Orca's editor tab model.
- */
+// Use the production open-file store action to isolate editor behavior from hidden-window explorer timing.
 export async function clickFileInExplorer(
   page: Page,
   candidates: string[]

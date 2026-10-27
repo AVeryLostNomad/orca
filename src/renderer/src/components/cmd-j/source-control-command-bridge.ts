@@ -1,4 +1,4 @@
-import type { DropdownActionKind } from '@/components/right-sidebar/source-control-dropdown-item-types'
+import type { DropdownActionKind } from '../../../../shared/source-control-dropdown-item-types'
 
 export type PendingSourceControlAction = {
   kind: DropdownActionKind

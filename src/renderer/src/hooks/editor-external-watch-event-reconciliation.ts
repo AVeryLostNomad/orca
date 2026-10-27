@@ -24,20 +24,39 @@ import {
   scheduleSelfWriteAwareEditorExternalReload,
   type EditorExternalWatchNotification
 } from './editor-external-watch-disk-verification'
+import {
+  reconcileEditorTabsAfterOverflow,
+  supersedeOverflowProbesForBatch
+} from './editor-external-watch-overflow'
+import { WATCH_BATCH_INTERVAL_MS } from '../../../shared/filesystem-watch-batch-window'
 
-const EXTERNAL_MUTATION_DEBOUNCE_MS = 75
+function isTargetList(
+  found: EditorExternalWatchTarget | readonly EditorExternalWatchTarget[] | undefined
+): found is readonly EditorExternalWatchTarget[] {
+  return Array.isArray(found)
+}
+
+// Debounce macOS atomic delete/create halves for two batch intervals plus stat jitter, allowing recreation to cancel the tombstone.
+export const EXTERNAL_MUTATION_DEBOUNCE_MS = WATCH_BATCH_INTERVAL_MS * 2 + 50
+
 type PendingDeleteTimer = {
   documentId: WorkingDocumentId
   timer: ReturnType<typeof setTimeout>
 }
 
 export function buildEditorExternalWatchEventHandler(
-  findTarget: (
+  // Several workspaces can share one root (two folder workspaces on a directory); each reconciles its own documents.
+  findTargets: (
     worktreePath: string,
-    runtimeEnvironmentId: string | null
-  ) => EditorExternalWatchTarget | undefined
+    runtimeEnvironmentId: string | null,
+    connectionId: string | undefined
+  ) => EditorExternalWatchTarget | readonly EditorExternalWatchTarget[] | undefined
 ): {
-  handleFsChanged: (payload: FsChangedPayload, runtimeEnvironmentId?: string | null) => void
+  handleFsChanged: (
+    payload: FsChangedPayload,
+    runtimeEnvironmentId?: string | null,
+    onlyTarget?: EditorExternalWatchTarget
+  ) => void
   dispose: () => void
 } {
   const pendingDeletes = new Map<string, PendingDeleteTimer>()
@@ -49,20 +68,30 @@ export function buildEditorExternalWatchEventHandler(
 
   const handleFsChanged = (
     payload: FsChangedPayload,
-    runtimeEnvironmentId: string | null = null
+    runtimeEnvironmentId: string | null = null,
+    onlyTarget?: EditorExternalWatchTarget
   ): void => {
-    const target = findTarget(payload.worktreePath, runtimeEnvironmentId)
-    if (!target) {
+    // A re-watch resync is about one workspace; fanning it out would clear another's marks and reload its documents.
+    const found =
+      onlyTarget ?? findTargets(payload.worktreePath, runtimeEnvironmentId, payload.connectionId)
+    const targets = isTargetList(found) ? found : found ? [found] : []
+    if (targets.length === 0) {
       return
     }
+    // This app-level hook owns watcher subscriptions; other consumers listen here so they don't fight over watch ownership.
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(
         new CustomEvent<WorktreeFileChangeEventDetail>(ORCA_WORKTREE_FILE_CHANGE_EVENT, {
-          detail: { payload, runtimeEnvironmentId: target.runtimeEnvironmentId }
+          detail: { payload, runtimeEnvironmentId: targets[0].runtimeEnvironmentId }
         })
       )
     }
+    for (const target of targets) {
+      reconcileTarget(payload, target)
+    }
+  }
 
+  const reconcileTarget = (payload: FsChangedPayload, target: EditorExternalWatchTarget): void => {
     const stateAtStart = useAppStore.getState()
     const batchPaths = indexEditorExternalWatchBatchPaths(payload, stateAtStart.workingDocuments, {
       worktreeId: target.worktreeId,
@@ -70,6 +99,7 @@ export function buildEditorExternalWatchEventHandler(
       runtimeEnvironmentId: target.runtimeEnvironmentId,
       ...getLocalWindowsWslAliasOption(target)
     })
+    supersedeOverflowProbesForBatch(batchPaths, stateAtStart.workingDocuments)
     for (const createdPath of batchPaths.createOrUpdatePaths.keys()) {
       const key = pendingKey(target.worktreeId, target.runtimeEnvironmentId, createdPath)
       const pending = pendingDeletes.get(key)
@@ -145,9 +175,7 @@ export function buildEditorExternalWatchEventHandler(
     }
 
     if (payload.events.some((event) => event.kind === 'overflow')) {
-      for (const notification of collectOverflowEditorExternalReloadTargets(target)) {
-        scheduleDebouncedEditorExternalReload(notification)
-      }
+      reconcileEditorTabsAfterOverflow(target, payload.resync === true)
       return
     }
 
@@ -213,34 +241,6 @@ export function buildEditorExternalWatchEventHandler(
   }
 
   return { handleFsChanged, dispose }
-}
-
-export function collectOverflowEditorExternalReloadTargets(
-  target: Pick<EditorExternalWatchTarget, 'worktreeId' | 'worktreePath'> &
-    Partial<Pick<EditorExternalWatchTarget, 'runtimeEnvironmentId' | 'allowLocalWindowsWslAliases'>>
-): EditorExternalWatchNotification[] {
-  const state = useAppStore.getState()
-  const notifications: EditorExternalWatchNotification[] = []
-  for (const document of Object.values(state.workingDocuments)) {
-    if (
-      document.target.worktreeId !== target.worktreeId ||
-      document.target.owner.runtimeEnvironmentId !== (target.runtimeEnvironmentId ?? null) ||
-      document.isDirty
-    ) {
-      continue
-    }
-    if (document.externalMutation) {
-      state.setWorkingDocumentExternalState(document.id, { externalMutation: undefined })
-    }
-    notifications.push({
-      worktreeId: target.worktreeId,
-      worktreePath: target.worktreePath,
-      relativePath: document.target.relativePath,
-      runtimeEnvironmentId: target.runtimeEnvironmentId ?? null,
-      ...getLocalWindowsWslAliasOption(target)
-    })
-  }
-  return notifications
 }
 
 function hasRenameCorrelatedCreate(

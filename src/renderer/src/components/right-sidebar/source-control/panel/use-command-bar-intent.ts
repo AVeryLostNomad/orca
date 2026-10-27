@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { DropdownActionKind } from '../../source-control-dropdown-item-types'
+import type { DropdownActionKind } from '../../../../../../shared/source-control-dropdown-item-types'
 import {
   consumePendingSourceControlAction,
   subscribePendingSourceControlAction

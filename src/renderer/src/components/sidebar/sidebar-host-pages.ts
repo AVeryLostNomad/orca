@@ -1,34 +1,30 @@
 import type { AppState } from '@/store/types'
-import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
-import type { Worktree } from '../../../../shared/worktree/types'
 import {
   LOCAL_EXECUTION_HOST_ID,
   getExecutionHostLabel,
   getRepoExecutionHostId,
-  getSettingsFocusedExecutionHostId,
   getWorktreeExecutionHostId,
   parseExecutionHostId,
   type ExecutionHostId
 } from '../../../../shared/execution-host'
 import { getHostDisplayLabelOverrides } from '../../../../shared/host-setting-overrides'
 import { buildSidebarHostOptions, type SidebarHostOption } from './sidebar-host-options'
-import { orderHostSectionOptions } from './host-section-order'
+import { orderHostSectionOptions } from '../../../../shared/sidebar-list/host-section-order'
 import {
   createFolderWorkspaceRowHostIdResolver,
   getProjectGroupExecutionHostIdForRows,
   getVisibleSidebarHostIdSet
-} from './worktree-list/listing/host-filtering'
+} from '../../../../shared/sidebar-list/host-filtering'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 
 /** One horizontally paged sidebar: every row on it belongs to this execution host. */
 export type SidebarHostPage = SidebarHostOption
 
-export type SidebarHostContent = {
+export type SidebarHostContent = Pick<AppState, 'folderWorkspaces' | 'worktreesByRepo'> & {
   repos: readonly Repo[]
   projectGroups: readonly ProjectGroup[]
-  folderWorkspaces: readonly FolderWorkspace[]
-  worktreesByRepo: Readonly<Record<string, readonly Worktree[]>>
   defaultHostId: ExecutionHostId
 }
 
@@ -51,10 +47,10 @@ export function collectSidebarContentHostIds(content: SidebarHostContent): Set<E
     content.projectGroups,
     content.defaultHostId
   )
-  for (const folderWorkspace of content.folderWorkspaces) {
+  for (const folderWorkspace of selectFolderWorkspaces(content)) {
     hostIds.add(resolveFolderHostId(folderWorkspace))
   }
-  for (const [repoId, worktrees] of Object.entries(content.worktreesByRepo)) {
+  for (const [repoId, worktrees] of Object.entries(selectWorktreesByRepo(content))) {
     const repo = repoById.get(repoId)
     // Why: rows drop worktrees whose repo is unknown, so they never earn a page.
     if (!repo) {
@@ -139,7 +135,10 @@ export function resolveActiveSidebarHostPage(
   )
 }
 
-/** Store-snapshot form of the pager's page list, for callers outside React. */
+/**
+ * Store-snapshot form of the pager's page list, for callers outside React. `defaultHostId` is the
+ * row pipeline's host for rows that record none.
+ */
 export function getSidebarHostPagesFromState(
   state: Pick<
     AppState,
@@ -156,9 +155,11 @@ export function getSidebarHostPagesFromState(
     | 'visibleWorkspaceHostIds'
     | 'workspaceHostScope'
     | 'sidebarHostPageId'
-  >
+    | 'wslHostStatuses'
+    | 'wslHostServerFiles'
+  >,
+  defaultHostId: ExecutionHostId
 ): { pages: SidebarHostPage[]; activePage: SidebarHostPage } {
-  const defaultHostId = getSettingsFocusedExecutionHostId(state.settings)
   const repos = state.repos ?? []
   const pages = buildSidebarHostPages({
     hostOptions: buildSidebarHostOptions({
@@ -168,14 +169,17 @@ export function getSidebarHostPagesFromState(
       settings: state.settings,
       runtimeEnvironments: state.runtimeEnvironments,
       runtimeStatusByEnvironmentId: state.runtimeStatusByEnvironmentId,
-      hostLabelOverrides: getHostDisplayLabelOverrides(state.settings)
+      hostLabelOverrides: getHostDisplayLabelOverrides(state.settings),
+      wslHostStatuses: state.wslHostStatuses,
+      wslHostsEnabled: state.settings?.experimentalWslHosts === true,
+      wslHostServerFilesMissing: state.wslHostServerFiles === 'missing'
     }),
     workspaceHostOrder: state.workspaceHostOrder ?? [],
     contentHostIds: collectSidebarContentHostIds({
       repos,
       projectGroups: state.projectGroups ?? [],
-      folderWorkspaces: state.folderWorkspaces ?? [],
-      worktreesByRepo: state.worktreesByRepo ?? {},
+      folderWorkspaces: selectFolderWorkspaces(state) ?? [],
+      worktreesByRepo: selectWorktreesByRepo(state) ?? {},
       defaultHostId
     }),
     visibleHostIdSet: getVisibleSidebarHostIdSet(

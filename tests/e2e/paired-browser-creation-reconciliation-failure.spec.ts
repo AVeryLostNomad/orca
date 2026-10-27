@@ -1,7 +1,6 @@
 import type { Page, TestInfo } from '@stablyai/playwright-test'
 import { RuntimeClient } from '../../src/cli/runtime/client'
 import { expect, test } from './helpers/orca-app'
-import { fileExplorerRowByName, openFileExplorer } from './helpers/file-explorer'
 import { readHostBrowserPageIds, readHostTabs } from './helpers/host-session-tabs'
 import {
   launchHeadlessPairedRuntimeHost,
@@ -127,12 +126,6 @@ async function runReconciliationFailureJourney(args: {
       })
       .toMatchObject({ terminalTabIds: expect.arrayContaining([expect.any(String)]) })
 
-    await openFileExplorer(page)
-    const fixtureRow = fileExplorerRowByName(page, FIXTURE_NAME)
-    await expect(fixtureRow).toBeVisible({ timeout: 30_000 })
-    await fixtureRow.click()
-    const openPreviewToSide = page.getByRole('button', { name: 'Open Preview to the Side' })
-    await expect(openPreviewToSide).toBeVisible({ timeout: 30_000 })
     const baselineClient = await readClientTabs(page, worktreeId)
     expect(baselineClient.terminalTabIds).not.toHaveLength(0)
     const baselineHostBrowserIds = await readHostBrowserPageIds(args.hostClient, args.repoPath)
@@ -166,8 +159,7 @@ async function runReconciliationFailureJourney(args: {
     }
 
     expect(await readHostBrowserPageIds(args.hostClient, args.repoPath)).toContain(createdPageId)
-    // The managed-browser action stages one tab in the active group while the host create is held.
-    // The rollback assertions prove that optimism is unwound rather than stranded.
+    // Hold host creation after the real menu stages an optimistic tab, then require rollback to remove it.
     const heldClient = await readClientTabs(page, worktreeId)
     const addedSince = (baseline: string[], held: string[]): string[] => {
       expect(held).toEqual(expect.arrayContaining(baseline))
@@ -190,7 +182,6 @@ async function runReconciliationFailureJourney(args: {
         () => (window as FaultWindow).__webRuntimeBrowserCreationFault?.release() ?? false
       )
     ).toBe(true)
-
     await expect(
       page.getByText('The paired runtime could not create a managed browser tab.')
     ).toBeVisible({ timeout: 30_000 })
@@ -271,12 +262,6 @@ async function runCapabilityFailureJourney(args: {
       })
       .toMatchObject({ terminalTabIds: expect.arrayContaining([expect.any(String)]) })
 
-    await openFileExplorer(page)
-    const fixtureRow = fileExplorerRowByName(page, FIXTURE_NAME)
-    await expect(fixtureRow).toBeVisible({ timeout: 30_000 })
-    await fixtureRow.click()
-    const openPreviewToSide = page.getByRole('button', { name: 'Open Preview to the Side' })
-    await expect(openPreviewToSide).toBeVisible({ timeout: 30_000 })
     const baselineClient = await readClientTabs(page, worktreeId)
     const baselineHost = await readStableHostTabs(args.hostClient, args.repoPath)
 
@@ -292,8 +277,7 @@ async function runCapabilityFailureJourney(args: {
     await expect(page.getByText(/E2E forced browser capability rejection/)).toBeVisible({
       timeout: 30_000
     })
-    // Why: baseline equality alone also holds for a create that was rolled back. A null page id is
-    // what separates rejecting before the host create from undoing one afterwards.
+    // Require null page id: baseline equality also holds when a successful host create is later rolled back.
     expect(
       await page.evaluate(
         () => (window as FaultWindow).__webRuntimeBrowserCreationFault?.snapshot() ?? null
@@ -328,9 +312,7 @@ test('rolls back a headed-host browser when client reconciliation times out @hea
   const offer = await createRuntimeDesktopPairingOffer(orcaPage)
   const userDataDir = await electronApp.evaluate(({ app }) => app.getPath('userData'))
   await runReconciliationFailureJourney({
-    // Why 30s: browser.tabList on a headed host with no live browser tab first activates the
-    // browser view and waits up to 8s for a webview registration before answering; a 5s client
-    // times out before the runtime ever replies.
+    // Allow browser.tabList’s initial view activation/webview registration, which can exceed the client’s usual 5s.
     hostClient: new RuntimeClient(userDataDir, 30_000),
     offer,
     repoPath: testRepoPath,
@@ -351,9 +333,7 @@ test('cleans up a headed-host browser when capability rejects before create @hea
   const offer = await createRuntimeDesktopPairingOffer(orcaPage)
   const userDataDir = await electronApp.evaluate(({ app }) => app.getPath('userData'))
   await runCapabilityFailureJourney({
-    // Why 30s: browser.tabList on a headed host with no live browser tab first activates the
-    // browser view and waits up to 8s for a webview registration before answering; a 5s client
-    // times out before the runtime ever replies.
+    // Allow browser.tabList’s initial view activation/webview registration, which can exceed the client’s usual 5s.
     hostClient: new RuntimeClient(userDataDir, 30_000),
     offer,
     repoPath: testRepoPath,

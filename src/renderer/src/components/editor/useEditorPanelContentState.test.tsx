@@ -30,21 +30,28 @@ function getCanonicalTestState(): Record<string, unknown> {
   return state
 }
 
-vi.mock('@/runtime/runtime-file-client', () => ({
+vi.mock('@/runtime/runtime-file-read-client', () => ({
+  readRuntimeFileContent: mocks.readRuntimeFileContent
+}))
+
+vi.mock('@/runtime/runtime-file-routing', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getRuntimeFileReadScope: vi.fn(
     (
       settings: { activeRuntimeEnvironmentId?: string | null } | null | undefined,
       connectionId?: string
     ) => connectionId ?? settings?.activeRuntimeEnvironmentId ?? null
-  ),
-  readRuntimeFileContent: mocks.readRuntimeFileContent,
-  subscribeRuntimeFileChanges: vi.fn()
+  )
 }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-diff-client', () => ({
   getRuntimeGitBranchDiff: mocks.getRuntimeGitBranchDiff,
   getRuntimeGitCommitDiff: vi.fn(),
-  getRuntimeGitDiff: mocks.getRuntimeGitDiff,
+  getRuntimeGitDiff: mocks.getRuntimeGitDiff
+}))
+
+vi.mock('@/runtime/runtime-git-client-context', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getRuntimeGitScope: vi.fn(() => null)
 }))
 
@@ -53,6 +60,8 @@ vi.mock('@/lib/connection-context', () => ({
   getConnectionIdForFile: mocks.getConnectionIdForFile,
   isWorktreeConnectionResolved: mocks.isWorktreeConnectionResolved
 }))
+
+vi.mock('@/lib/worktree-host-connection-phase', () => import('./local-host-test-fixture'))
 
 vi.mock('@/lib/runtime-workspace-file-route', () => ({
   findWorkspaceFileRoute: vi.fn(() => null)
@@ -66,13 +75,13 @@ vi.mock('@/store', () => ({
 }))
 
 import { useEditorPanelContentState } from './useEditorPanelContentState'
-import { registerReloadGenerationTests } from './useEditorPanelContentState.reload-generation'
+import { registerReloadGenerationTests } from './useEditorPanelContentState.reload-generation.test-support'
 import { registerUnmountedExternalChangeTests } from './useEditorPanelContentState.unmounted-external-change'
 import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 import {
   createEditorWorkingDocumentTestState,
   primeEditorWorkingDocumentTestState
-} from './editor-working-document-test-state'
+} from './editor-working-document-state.test-support'
 import { getDiskBaselineSignature } from './diff-content-signature'
 import { ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT } from './editor-autosave'
 
@@ -334,15 +343,17 @@ describe('useEditorPanelContentState', () => {
     })
 
     await vi.waitFor(() => expect(latestFileContents[activeFile.id]?.content).toBe('log line'))
-    // Why: AI Vault only surfaces client-local logs, so the worktree's SSH target must
-    // not capture this read — it stays a granted client-local path.
-    expect(authorizeExternalPath).toHaveBeenCalledWith({ targetPath: logPath })
+    // AI Vault logs are client-local user-named paths and must not inherit workspace SSH ownership.
     expect(mocks.readRuntimeFileContent).toHaveBeenCalledWith(
-      expect.objectContaining({ connectionId: undefined, includeLocalLogMetadata: true })
+      expect.objectContaining({
+        connectionId: undefined,
+        includeLocalLogMetadata: true,
+        access: { kind: 'user-file' }
+      })
     )
   })
 
-  it('re-authorizes a client-local external tab before reading it', async () => {
+  it('reads a client-local external tab on the client', async () => {
     const activeFile = createOpenFile({
       id: '/Users/me/notes/audit.md',
       filePath: '/Users/me/notes/audit.md',
@@ -361,35 +372,9 @@ describe('useEditorPanelContentState', () => {
     })
 
     await vi.waitFor(() => expect(latestFileContents[activeFile.id]?.content).toBe('# local'))
-    expect(authorizeExternalPath).toHaveBeenCalledWith({ targetPath: '/Users/me/notes/audit.md' })
-  })
-
-  it('rejects an unstamped external tab in a remote runtime workspace', async () => {
-    const activeFile = createOpenFile({
-      id: '/work/reports/audit.md',
-      filePath: '/work/reports/audit.md',
-      relativePath: '/work/reports/audit.md',
-      worktreeId: 'repo-runtime::/work/demo-project'
-    })
-    mocks.getState.mockReturnValue({
-      settings: { activeRuntimeEnvironmentId: 'runtime-1' },
-      openFiles: []
-    })
-
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
-
-    await act(async () => {
-      root?.render(<HookProbe activeFile={activeFile} openFiles={[activeFile]} />)
-    })
-
-    await vi.waitFor(() =>
-      expect(latestFileContents[activeFile.id]?.loadError).toBe(
-        'External local files are not available for remote workspaces.'
-      )
+    expect(mocks.readRuntimeFileContent).toHaveBeenCalledWith(
+      expect.objectContaining({ filePath: '/Users/me/notes/audit.md', connectionId: undefined })
     )
-    expect(mocks.readRuntimeFileContent).not.toHaveBeenCalled()
   })
 
   it('rejects an external SSH-host tab after its target owner changes', async () => {
@@ -413,9 +398,10 @@ describe('useEditorPanelContentState', () => {
       root?.render(<HookProbe activeFile={activeFile} openFiles={[activeFile]} />)
     })
 
+    // The working document's owner capture refuses the changed host before any read.
     await vi.waitFor(() =>
-      expect(latestFileContents[activeFile.id]?.loadError).toBe(
-        'External SSH files are not available after the workspace host changes.'
+      expect(latestFileContents[activeFile.id]?.loadError).toMatch(
+        /Couldn't verify which host owns this file|External SSH files are not available/
       )
     )
     expect(mocks.readRuntimeFileContent).not.toHaveBeenCalled()

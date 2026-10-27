@@ -26,16 +26,23 @@ function getCanonicalTestState(): Record<string, unknown> {
   return state
 }
 
-vi.mock('@/runtime/runtime-file-client', () => ({
-  getRuntimeFileReadScope: vi.fn(() => null),
-  readRuntimeFileContent: mocks.readRuntimeFileContent,
-  subscribeRuntimeFileChanges: vi.fn()
+vi.mock('@/runtime/runtime-file-read-client', () => ({
+  readRuntimeFileContent: mocks.readRuntimeFileContent
 }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-file-routing', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getRuntimeFileReadScope: vi.fn(() => null)
+}))
+
+vi.mock('@/runtime/runtime-git-diff-client', () => ({
   getRuntimeGitBranchDiff: vi.fn(),
   getRuntimeGitCommitDiff: vi.fn(),
-  getRuntimeGitDiff: mocks.getRuntimeGitDiff,
+  getRuntimeGitDiff: mocks.getRuntimeGitDiff
+}))
+
+vi.mock('@/runtime/runtime-git-client-context', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getRuntimeGitScope: vi.fn(() => null)
 }))
 
@@ -44,6 +51,8 @@ vi.mock('@/lib/connection-context', () => ({
   getConnectionIdForFile: vi.fn(),
   isWorktreeConnectionResolved: vi.fn(() => true)
 }))
+
+vi.mock('@/lib/worktree-host-connection-phase', () => import('./local-host-test-fixture'))
 
 vi.mock('@/lib/runtime-workspace-file-route', () => ({
   findWorkspaceFileRoute: vi.fn(() => null)
@@ -61,7 +70,7 @@ import { useEditorPanelContentState } from './useEditorPanelContentState'
 import {
   createEditorWorkingDocumentTestState,
   primeEditorWorkingDocumentTestState
-} from './editor-working-document-test-state'
+} from './editor-working-document-state.test-support'
 
 type Deferred<T> = {
   promise: Promise<T>

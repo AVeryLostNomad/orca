@@ -1,4 +1,10 @@
 import { getAppearancePaneSearchEntries } from '@/components/settings/appearance-search'
+import { getChatAppearanceSearchEntries } from '@/components/settings/chat-appearance-search'
+import { getChatBehaviorSearchEntries } from '@/components/settings/chat-behavior-search'
+import { getChatNamingSearchEntry } from '@/components/settings/chat-naming-search'
+import { getChatInlineVisualsSearchEntry } from '@/components/settings/chat-inline-visuals-search'
+import { getChatPermissionSearchEntry } from '@/components/settings/chat-permission-search'
+import { getChatProvidersSearchEntry } from '@/components/settings/chat-providers-search'
 import { getEditorPaneSearchEntries } from '@/components/settings/editor-search'
 import { getInputPaneSearchEntries } from '@/components/settings/input-search'
 import { getNotificationsPaneSearchEntries } from '@/components/settings/notifications-search'
@@ -6,13 +12,24 @@ import { getShortcutsPaneSearchEntries } from '@/components/settings/shortcuts-s
 import { getStatsPaneSearchEntries } from '@/components/stats/stats-search'
 import { translate } from '@/i18n/i18n'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
-import { BarChart3, Bell, FileCode2, Keyboard, Palette, TextCursorInput } from 'lucide-react'
+import {
+  BarChart3,
+  Bell,
+  FileCode2,
+  Keyboard,
+  MessageSquare,
+  Palette,
+  TextCursorInput
+} from 'lucide-react'
 import type { SettingsNavigationBuildOptions } from './settings-navigation-build-options'
 
 export function buildInterfaceSettingsSections({
   isMac,
   isWindows,
   isWebClient,
+  nativeChatEnabled,
+  hostQueuesMessages,
+  typedChatPermissions,
   managedBrowserCreationEnabled,
   mobileEmulatorCreationEnabled
 }: SettingsNavigationBuildOptions): SettingsNavSection[] {
@@ -27,12 +44,40 @@ export function buildInterfaceSettingsSections({
       ),
       icon: Palette,
       searchEntries: getAppearancePaneSearchEntries({
-        showWarpImport: showDesktopOnlySettings,
+        showDesktopThemeImports: showDesktopOnlySettings,
         showSystemTray: showDesktopOnlySettings && isWindows,
         showMenuBarIcon: showDesktopOnlySettings && isMac
       }),
       group: 'interface'
     },
+    ...(nativeChatEnabled
+      ? [
+          {
+            id: 'chat',
+            title: translate('settings.appearance.chat.title', 'Chat'),
+            description: translate(
+              'settings.chat.description',
+              'Choose how chats look and behave.'
+            ),
+            icon: MessageSquare,
+            searchEntries: [
+              getChatPermissionSearchEntry(typedChatPermissions),
+              ...getChatAppearanceSearchEntries(),
+              ...getChatBehaviorSearchEntries().filter(
+                (entry) => hostQueuesMessages || entry.targetSectionId !== 'chat-queue-follow-ups'
+              ),
+              ...(showDesktopOnlySettings
+                ? [
+                    getChatProvidersSearchEntry(),
+                    getChatNamingSearchEntry(),
+                    getChatInlineVisualsSearchEntry()
+                  ]
+                : [])
+            ],
+            group: 'interface'
+          }
+        ]
+      : []),
     {
       id: 'editor',
       title: translate('auto.hooks.useSettingsNavigationMetadata.editorTitle', 'Editor'),
@@ -92,7 +137,7 @@ export function buildInterfaceSettingsSections({
       title: translate('auto.hooks.useSettingsNavigationMetadata.d72a58b5b9', 'Stats & Usage'),
       description: translate(
         'auto.hooks.useSettingsNavigationMetadata.b351014180',
-        'Orca stats plus Claude, Codex, OpenCode token analytics and Grok subscription usage.'
+        'Orca stats plus Claude, Codex, OpenCode, Muse token analytics and Grok subscription usage.'
       ),
       icon: BarChart3,
       searchEntries: getStatsPaneSearchEntries(),

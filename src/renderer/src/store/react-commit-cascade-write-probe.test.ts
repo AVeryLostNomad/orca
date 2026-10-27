@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 import { withReactCommitCascadeWriteProbe } from './react-commit-cascade-write-probe'
+import type { ReactCommitCascadeWriteBoundary } from '@/lib/react-commit-cascade-store-write-samples'
 
 const { probe, noteWrite } = vi.hoisted(() => ({
   probe: { armed: false },
@@ -8,7 +9,7 @@ const { probe, noteWrite } = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/react-commit-cascade-store-write-samples', () => ({
   reactCommitCascadeWriteProbe: probe,
-  noteReactCommitCascadeStoreWrite: (boundary: object, partial: unknown) =>
+  noteReactCommitCascadeStoreWrite: (boundary: ReactCommitCascadeWriteBoundary, partial: unknown) =>
     noteWrite(boundary, partial)
 }))
 
@@ -26,8 +27,7 @@ beforeEach(() => {
 })
 
 describe('withReactCommitCascadeWriteProbe', () => {
-  // Why this matters most: this wraps every write the app makes. A diagnostic
-  // that throws here would drop the write and take app state with it.
+  // Diagnostics wrap every write; throwing would drop app state.
   it('lands the write even when the sampler throws', () => {
     noteWrite.mockImplementation(() => {
       throw new Error('sampler exploded')
@@ -39,8 +39,7 @@ describe('withReactCommitCascadeWriteProbe', () => {
     expect(useProbedStore.getState().ticks).toBe(3)
   })
 
-  // Why asserted: create() copies api.setState onto the hook AFTER the creator
-  // runs, so a middleware that forgets this line leaves store.setState unprobed.
+  // create copies api.setState onto the hook after creator runs; require the middleware to cover that path too.
   it('routes the api setState through the probe', () => {
     const useProbedStore = createProbedStore()
     probe.armed = true

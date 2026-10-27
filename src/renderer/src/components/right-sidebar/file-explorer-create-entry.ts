@@ -3,7 +3,8 @@ import { useAppStore } from '@/store'
 import { detectLanguage } from '@/lib/language-detect'
 import { basename } from '@/lib/path'
 import { extractIpcErrorMessage } from '@/lib/rename-file'
-import { createRuntimePath, deleteRuntimePath } from '@/runtime/runtime-file-client'
+import { createRuntimePath, deleteRuntimePath } from '@/runtime/runtime-file-mutation-client'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import { commitFileExplorerOp } from './fileExplorerUndoRedo'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import { captureFileExplorerOperationGuard } from './file-explorer-operation-owner'
@@ -38,7 +39,7 @@ export async function createExplorerEntryOnDisk({
     const operationGuard = captureFileExplorerOperationGuard(worktreeId, operationOwner)
     const operationRoute = operationGuard.route
     const fileContext = {
-      settings: operationRoute.settings,
+      target: operationRoute.target,
       worktreeId,
       worktreePath,
       connectionId: operationRoute.connectionId,
@@ -55,7 +56,7 @@ export async function createExplorerEntryOnDisk({
         await deleteRuntimePath(
           {
             ...fileContext,
-            settings: currentRoute.settings,
+            target: currentRoute.target,
             connectionId: currentRoute.connectionId
           },
           fullPath,
@@ -68,7 +69,7 @@ export async function createExplorerEntryOnDisk({
         await createRuntimePath(
           {
             ...fileContext,
-            settings: currentRoute.settings,
+            target: currentRoute.target,
             connectionId: currentRoute.connectionId
           },
           fullPath,
@@ -78,7 +79,7 @@ export async function createExplorerEntryOnDisk({
       }
     })
     if (kind === 'file') {
-      const runtimeEnvironmentId = fileContext.settings.activeRuntimeEnvironmentId?.trim() || null
+      const runtimeEnvironmentId = runtimeTargetEnvironmentId(fileContext.target)
       useAppStore.getState().openFile(
         {
           filePath: fullPath,

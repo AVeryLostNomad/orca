@@ -1,14 +1,35 @@
-/**
- * Seeded git repo for Orca E2E fixtures: creation and validity checks for the
- * disposable test repo (plus its secondary worktree) that specs operate on.
- */
-
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { TEST_REPO_PATH_FILE } from '../global-setup'
+import { cleanupTestRepository } from '../global-teardown'
+
+export async function provideWorkerTestRepository(
+  provideFixture: (repository: string) => Promise<void>
+): Promise<void> {
+  const persistedRepoPath = existsSync(TEST_REPO_PATH_FILE)
+    ? readFileSync(TEST_REPO_PATH_FILE, 'utf-8').trim()
+    : ''
+  const repoPath = isValidGitRepo(persistedRepoPath) ? persistedRepoPath : createSeededTestRepo()
+  try {
+    await provideFixture(repoPath)
+  } finally {
+    if (existsSync(repoPath)) {
+      cleanupTestRepository(repoPath)
+    }
+    rmSync(TEST_REPO_PATH_FILE, { force: true })
+  }
+}
 
 export function isValidGitRepo(repoPath: string): boolean {
   if (!repoPath || !existsSync(repoPath)) {
@@ -28,16 +49,9 @@ export function isValidGitRepo(repoPath: string): boolean {
   }
 }
 
-export function createSeededTestRepo(
-  options: { persistPathForRun?: boolean; publishPath?: boolean } = {}
-): string {
-  // Why: realpathSync so the seeded path matches the store's repo.path on
-  // macOS, where os.tmpdir() (/var/...) symlinks to /private/var/... and the
-  // app canonicalizes repo.path via `git rev-parse --show-toplevel` on add.
-  // Why: a per-run parent dir keeps the repo and its sibling worktrees out of
-  // reach of other concurrent runs' teardown, which cleans by name prefix.
-  const runParentDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-run-')))
-  const testRepoDir = mkdtempSync(path.join(runParentDir, 'orca-e2e-repo-'))
+export function createSeededTestRepo(options: { publishPath?: boolean } = {}): string {
+  // Canonicalize macOS /var symlinks to match Git’s repo.path after add.
+  const testRepoDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-repo-')))
 
   execSync('git init', { cwd: testRepoDir, stdio: 'pipe' })
   execSync('git config user.email "e2e@test.local"', { cwd: testRepoDir, stdio: 'pipe' })
@@ -60,15 +74,14 @@ export function createSeededTestRepo(
   execSync('git add -A', { cwd: testRepoDir, stdio: 'pipe' })
   execSync('git commit -m "Initial commit for E2E tests"', { cwd: testRepoDir, stdio: 'pipe' })
 
-  // Why: worker-scoped fixture fallbacks can run in parallel; UUIDs avoid
-  // colliding on the same temp repo/worktree when workers start together.
+  // Worker-scoped fallbacks can run together; UUIDs prevent temp worktree collisions.
   const worktreeDir = path.join(testRepoDir, '..', `orca-e2e-worktree-${randomUUID()}`)
   execSync(`git worktree add "${worktreeDir}" -b e2e-secondary`, {
     cwd: testRepoDir,
     stdio: 'pipe'
   })
 
-  if ((options.publishPath ?? options.persistPathForRun) !== false) {
+  if (options.publishPath !== false) {
     writeFileSync(TEST_REPO_PATH_FILE, testRepoDir)
   }
   return testRepoDir
@@ -81,7 +94,12 @@ export function createSeededTestRepo(
 export async function providePrivateSeededTestRepo(
   provideFixture: (repoPath: string) => Promise<void>
 ): Promise<void> {
-  const repoPath = createSeededTestRepo({ persistPathForRun: false })
-  await provideFixture(repoPath)
-  rmSync(path.dirname(repoPath), { recursive: true, force: true })
+  const repoPath = createSeededTestRepo({ publishPath: false })
+  try {
+    await provideFixture(repoPath)
+  } finally {
+    if (existsSync(repoPath)) {
+      cleanupTestRepository(repoPath)
+    }
+  }
 }

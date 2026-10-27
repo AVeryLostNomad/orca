@@ -18,9 +18,12 @@ export type DiffSection = {
   loading: boolean
   loadOnDemand?: boolean
   error?: string
+  // Why: working documents own edit state; these remain for upstream section-save paths.
+  dirty?: boolean
+  /** A save was refused because disk changed since this section loaded. */
+  saveConflict?: true
   diffResult: GitDiffResult | null
   largeDiffRenderLimit: LargeDiffRenderLimit | null
-  // Why: combined sections keep Monaco models by path; bump on reload so
-  // refetched git content does not replay through keepCurrent* model reuse.
+  // Bump on refetch so path-owned retained Monaco models cannot replay old content.
   contentGeneration?: number
 }

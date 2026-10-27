@@ -67,7 +67,7 @@ describe('useCompleteGitRepoAdd', () => {
 
     await complete('repo-1', 'clone_url')
 
-    expect(finishProjectAdd).toHaveBeenCalledWith('repo-1', 'clone_url', undefined)
+    expect(finishProjectAdd).toHaveBeenCalledWith('repo-1', 'clone_url', undefined, undefined)
     expect(mocks.finishProjectAddWithDefaultCheckout).not.toHaveBeenCalled()
   })
 })

@@ -1,10 +1,20 @@
 import type React from 'react'
+import { Suspense } from 'react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { useAppStore } from '../../store'
 import { Separator } from '../ui/separator'
 import { EditorCoreSettingsSection } from './EditorCoreSettingsSection'
 import { EditorDiffMarkdownSettingsSection } from './EditorDiffMarkdownSettingsSection'
-import { EditorSettingsPreview } from './EditorSettingsPreview'
+import { lazyWithRetry } from '@/lib/lazy-with-retry'
+
+// Why lazy: the preview boots Monaco; settings sections must not pull it in eagerly.
+const EditorSettingsPreview = lazyWithRetry(
+  () =>
+    import('./EditorSettingsPreview').then((module) => ({
+      default: module.EditorSettingsPreview
+    })),
+  { reloadKey: 'editor-settings-preview' }
+)
 
 type EditorPaneProps = {
   settings: GlobalSettings
@@ -50,7 +60,9 @@ export function EditorPane({
           same element loses to `.flex` in the utilities cascade. */}
       <div className="grid grid-cols-1 items-start gap-6 @3xl/editor-pane:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] @3xl/editor-pane:gap-8">
         <div className="min-w-0 @3xl/editor-pane:sticky @3xl/editor-pane:top-0 @3xl/editor-pane:order-2 @3xl/editor-pane:self-start">
-          <EditorSettingsPreview settings={settings} />
+          <Suspense fallback={null}>
+            <EditorSettingsPreview settings={settings} />
+          </Suspense>
         </div>
         <div className="min-w-0 @3xl/editor-pane:order-1">{sections}</div>
       </div>

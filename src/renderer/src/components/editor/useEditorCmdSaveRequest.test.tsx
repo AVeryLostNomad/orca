@@ -36,14 +36,14 @@ describe('useEditorCmdSaveRequest', () => {
       root.render(
         <>
           <SaveProbe
-            activeTabId="tab-a"
+            ownerTabId="tab-a"
             activeDocumentId={'document-a' as never}
             enabled
             isUntitled={false}
             onSave={save}
           />
           <SaveProbe
-            activeTabId="tab-b"
+            ownerTabId="tab-b"
             activeDocumentId={'document-b' as never}
             enabled
             isUntitled={false}
@@ -65,13 +65,7 @@ describe('useEditorCmdSaveRequest', () => {
     const save = vi.fn(async () => false)
     act(() => {
       root.render(
-        <SaveProbe
-          activeTabId="untitled"
-          activeDocumentId={null}
-          enabled
-          isUntitled
-          onSave={save}
-        />
+        <SaveProbe ownerTabId="untitled" activeDocumentId={null} enabled isUntitled onSave={save} />
       )
     })
     act(() => {

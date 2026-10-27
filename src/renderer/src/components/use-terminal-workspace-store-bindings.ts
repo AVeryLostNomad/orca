@@ -59,7 +59,6 @@ export function useTerminalWorkspaceStoreBindings(controller: TerminalWorkspaceF
   const ensureWorktreeRootGroup = useAppStore((state) => state.ensureWorktreeRootGroup)
   const reconcileWorktreeTabModel = useAppStore((state) => state.reconcileWorktreeTabModel)
   const discardWorkingDocument = useAppStore((state) => state.discardWorkingDocument)
-  const setTabBarOrder = useAppStore((state) => state.setTabBarOrder)
   const tabBarOrderByWorktree = useAppStore((state) => state.tabBarOrderByWorktree)
   const tabBarOrder = renderedActiveWorktreeId
     ? tabBarOrderByWorktree[renderedActiveWorktreeId]
@@ -109,7 +108,6 @@ export function useTerminalWorkspaceStoreBindings(controller: TerminalWorkspaceF
     ensureWorktreeRootGroup,
     reconcileWorktreeTabModel,
     discardWorkingDocument,
-    setTabBarOrder,
     tabBarOrderByWorktree,
     tabBarOrder,
     activityTerminalPortals

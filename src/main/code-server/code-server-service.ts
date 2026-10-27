@@ -10,3 +10,8 @@ export function getCodeServerService(): CodeServerProvider {
   }
   return manager
 }
+
+/** Quit teardown: never construct the manager (and its profile dirs) just to stop it. */
+export function shutdownCodeServerServiceIfStarted(): Promise<void> {
+  return manager ? manager.shutdown() : Promise.resolve()
+}

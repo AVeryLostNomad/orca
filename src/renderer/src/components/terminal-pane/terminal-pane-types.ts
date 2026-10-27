@@ -20,8 +20,3 @@ export type TerminalPaneActiveInputState = {
   /** Full-screen TUIs (vim, less, htop) own every key while on the alternate screen. */
   isAlternateScreen: boolean
 }
-
-export type TerminalPaneHandle = {
-  closeActivePane: () => void
-  getActivePaneInputState: () => TerminalPaneActiveInputState | null
-}

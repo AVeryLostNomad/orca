@@ -3,33 +3,28 @@ import type {
   PendingSidebarRowReveal,
   PendingSidebarWorktreeReveal
 } from '@/store/slices/ui/ui-slice-contract-core'
-import { getProjectHostSetupProjectionFromState } from '@/store/project-host-setup-selector'
+import {
+  getProjectHostSetupProjectionFromState,
+  type ProjectCatalogReadState
+} from '@/store/project-host-setup-selector'
 import { getRepoMapFromState } from '@/store/selectors'
 import {
   getRepoExecutionHostId,
-  getSettingsFocusedExecutionHostId,
   getWorktreeExecutionHostId,
   normalizeExecutionHostId,
   type ExecutionHostId
 } from '../../../../shared/execution-host'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
-import { getProjectGroupHeaderKey } from './worktree-list/grouping/group-keys'
+import { getProjectGroupHeaderKey } from '../../../../shared/sidebar-list/group-keys'
 import {
   createFolderWorkspaceRowHostIdResolver,
   getProjectGroupExecutionHostIdForRows
-} from './worktree-list/listing/host-filtering'
+} from '../../../../shared/sidebar-list/host-filtering'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import type { SidebarHostPage } from './sidebar-host-pages'
 
-type RevealHostState = Pick<
-  AppState,
-  | 'repos'
-  | 'projects'
-  | 'projectHostSetups'
-  | 'projectGroups'
-  | 'folderWorkspaces'
-  | 'worktreesByRepo'
-  | 'settings'
->
+type RevealHostState = ProjectCatalogReadState &
+  Pick<AppState, 'repos' | 'projectGroups' | 'folderWorkspaces' | 'worktreesByRepo'>
 
 function getFolderWorkspaceRevealHostIds(
   state: RevealHostState,
@@ -38,7 +33,7 @@ function getFolderWorkspaceRevealHostIds(
 ): ExecutionHostId[] {
   const projectGroups = state.projectGroups ?? []
   const resolveHostId = createFolderWorkspaceRowHostIdResolver(projectGroups, defaultHostId)
-  return (state.folderWorkspaces ?? [])
+  return (selectFolderWorkspaces(state) ?? [])
     .filter((folderWorkspace) => folderWorkspace.id === folderWorkspaceId)
     .map(resolveHostId)
 }
@@ -74,12 +69,15 @@ function getRowRevealHostIds(
   return []
 }
 
-/** Hosts whose sidebar page renders a reveal target; empty when the target names no host. */
+/**
+ * Hosts whose sidebar page renders a reveal target; empty when the target names no host.
+ * `defaultHostId` is the row pipeline's host for rows that record none.
+ */
 export function getSidebarRevealTargetHostIds(
   state: RevealHostState,
-  reveal: PendingSidebarWorktreeReveal | PendingSidebarRowReveal
+  reveal: PendingSidebarWorktreeReveal | PendingSidebarRowReveal,
+  defaultHostId: ExecutionHostId
 ): ExecutionHostId[] {
-  const defaultHostId = getSettingsFocusedExecutionHostId(state.settings)
   if ('rowKey' in reveal) {
     return getRowRevealHostIds(state, reveal.rowKey, defaultHostId)
   }
@@ -92,7 +90,7 @@ export function getSidebarRevealTargetHostIds(
     return getFolderWorkspaceRevealHostIds(state, folderScope.folderWorkspaceId, defaultHostId)
   }
   const repoMap = getRepoMapFromState(state)
-  return Object.values(state.worktreesByRepo ?? {})
+  return Object.values(selectWorktreesByRepo(state) ?? {})
     .flat()
     .filter((worktree) => worktree.id === reveal.worktreeId)
     .map((worktree) =>

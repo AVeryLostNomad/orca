@@ -12,6 +12,7 @@ export function getWorktreeJumpPaletteResultCount(
         controller.projectTargetItems.length +
         controller.middleItems.length +
         controller.openTabItems.length +
+        controller.taskItems.length +
         controller.fileItems.length +
         Number(controller.showQuickAi)
     : controller.selectableItems.length

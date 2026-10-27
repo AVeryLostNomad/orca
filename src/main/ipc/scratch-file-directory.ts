@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { app } from 'electron'
-import { authorizeExternalPath } from './filesystem-auth'
+import { registerAppOwnedAllowedRoot } from './filesystem/filesystem-allowed-roots'
 
 const SCRATCH_FILE_DIRNAME = 'scratch-files'
 
@@ -12,6 +12,6 @@ export async function ensureScratchFileDirectory(): Promise<string> {
   await mkdir(dir, { recursive: true })
   // Why: like the floating workspace dir, authorize only this app-owned
   // directory instead of widening filesystem access beyond repo roots.
-  authorizeExternalPath(dir)
+  registerAppOwnedAllowedRoot(dir)
   return dir
 }

@@ -1,6 +1,7 @@
 import { useAppStore } from '@/store'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { resolveDefaultAgentForNewTab } from '@/lib/agent-tab-shortcuts'
+import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 
 export type QuickAiMatchCounts = {
   worktrees: number
@@ -56,6 +57,7 @@ export function launchQuickAi(args: { query: string }): LaunchQuickAiResult {
     return { launched: false, reason: 'no-agent-available' }
   }
   const result = launchAgentInNewTab({
+    requestId: newAgentLaunchRequestId(),
     agent,
     worktreeId,
     prompt: args.query.trim(),

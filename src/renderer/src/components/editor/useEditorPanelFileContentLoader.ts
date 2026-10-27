@@ -2,9 +2,10 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import type { OpenFile } from '@/store/slices/editor'
 import { getConnectionIdForFile, isWorktreeConnectionResolved } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
-import { buildWorkingDocumentTarget } from '@/store/slices/editor/working-document'
-import { getRuntimeFileReadScope, readRuntimeFileContent } from '@/runtime/runtime-file-client'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
+import { getRuntimeFileReadScope } from '@/runtime/runtime-file-routing'
+import { readEditorCsvFileContent } from './csv/csv-file-content'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import { findWorkspaceFileRoute } from '@/lib/runtime-workspace-file-route'
 import {
   LOCAL_EXECUTION_HOST_ID,
@@ -16,9 +17,18 @@ import {
   type FileContent,
   type InFlightContentRead
 } from './editor-panel-content-types'
+import { describeEditorFileLoadFailure } from './editor-file-load-failure'
 import type { EditorPanelContentLoadOptions } from './useEditorPanelExternalContentEvents'
 import { migrateRestoredEditorFileOwner } from './migrate-restored-editor-file-owner'
-import { loadWorkingDocument } from './working-document-loader'
+import { loadWorkingDocument, retainEditableTabDocument } from './working-document-loader'
+import { findRestoredEditorWorkspaceRuntimeOwner } from './restored-editor-workspace-runtime-owner'
+import type { RuntimeWorkspaceFileRoute } from '@/lib/runtime-workspace-file-route'
+import { editorTabFileAccess, isClientLocalReadOnlyTab } from '@/lib/local-file-access'
+import { isFloatingWorkspaceId } from '../../../../shared/floating-workspace-worktree'
+import { grantRestoredHostFile } from './restored-host-file-grant'
+import { captureRuntimeEnvironmentRequestRevision } from '@/runtime/runtime-environment-revision'
+import { chatScratchFileAddress } from '@/runtime/runtime-chat-scratch-file-address'
+import { applyEditorFileLoadFailure } from './editor-deleted-file-reload'
 
 const inFlightFileReads = new Map<string, InFlightContentRead<FileContent>>()
 
@@ -63,51 +73,83 @@ export function useEditorPanelFileContentLoader({
       fileReadGenerationCounterRef.current = generation
       fileReadGenerationRef.current[id] = generation
       outstandingFileReadsRef.current[id] = generation
+      let readConnectionId: string | undefined
       try {
         const resolvedConnectionId = getConnectionIdForFile(worktreeId ?? null, filePath)
         const connectionId = resolvedConnectionId ?? undefined
         const restoredOpenFile = openFilesRef.current.find((file) => file.id === id)
-        if (
-          restoredOpenFile?.externalSshTargetId &&
-          connectionId &&
-          connectionId !== restoredOpenFile.externalSshTargetId
-        ) {
-          throw new Error('External SSH files are not available after the workspace host changes.')
-        }
-        const activeSettings = useAppStore.getState().settings
-        const readSettings = settingsForRuntimeOwner(
-          activeSettings,
-          restoredOpenFile?.runtimeEnvironmentId
-        )
-        // Why: liveTail tabs are AI Vault logs discovered on this client, so the
-        // worktree's SSH owner must never be inferred for them (a stamp still routes).
         const isLiveTailLogTab =
           restoredOpenFile?.readOnly === true && restoredOpenFile.liveTail === true
-        let readConnectionId = connectionId
+        // Client-local tabs must not inherit workspace SSH/runtime ownership; explicit stamps still route.
+        const isClientLocalTab = restoredOpenFile
+          ? isClientLocalReadOnlyTab(restoredOpenFile)
+          : false
+        const readTarget: RuntimeClientTarget =
+          isClientLocalTab && restoredOpenFile?.runtimeEnvironmentId === undefined
+            ? { kind: 'local' }
+            : requireRuntimeTargetForFileOwner(
+                useAppStore.getState(),
+                worktreeId,
+                restoredOpenFile?.runtimeEnvironmentId
+              )
+        const readOwnerEnvironmentId =
+          readTarget.kind === 'environment' ? readTarget.environmentId : undefined
+        readConnectionId = connectionId
         let readWorktreeId = worktreeId
+        let readGrantId = restoredOpenFile?.terminalArtifactGrantId
+        let readGrantPairing: number | undefined
         let readRelativePath = restoredOpenFile?.relativePath ?? relativePath
+        // Re-owning re-keys the tab, which starts a fresh load under the new owner.
+        const reownRestoredFile = async (
+          route: RuntimeWorkspaceFileRoute,
+          runtimeEnvironmentId: string | null
+        ): Promise<void> => {
+          const migration = await migrateRestoredEditorFileOwner(id, route, runtimeEnvironmentId)
+          if (!migration.ok) {
+            throw new Error(
+              migration.reason === 'collision'
+                ? 'The sibling file is already open; close one tab before restoring it.'
+                : 'The sibling file owner changed while the tab was restoring.'
+            )
+          }
+          fileReadGenerationRef.current[id] = ++fileReadGenerationCounterRef.current
+          setFileContents((prev) => {
+            const next = { ...prev }
+            delete next[id]
+            return next
+          })
+        }
+        const workspaceRuntimeOwner =
+          restoredOpenFile && !isClientLocalTab
+            ? findRestoredEditorWorkspaceRuntimeOwner(
+                useAppStore.getState(),
+                restoredOpenFile,
+                worktreeId
+              )
+            : null
+        if (workspaceRuntimeOwner) {
+          await reownRestoredFile(
+            workspaceRuntimeOwner.route,
+            workspaceRuntimeOwner.runtimeEnvironmentId
+          )
+          return
+        }
         if (
+          !isClientLocalTab &&
           resolvedConnectionId === undefined &&
-          !readSettings?.activeRuntimeEnvironmentId?.trim() &&
+          !readOwnerEnvironmentId &&
           !isWorktreeConnectionResolved(worktreeId ?? null)
         ) {
-          // Why: the backing repo hasn't hydrated yet (SSH still connecting), so
-          // we can't tell local from remote. Reading locally would deny a remote
-          // path with a terminal "access denied" (#6648); fail retryably instead.
+          // Unhydrated owners may be remote; fail retryably rather than turning a bad client-local read into terminal access denial.
           throw new Error(WORKTREE_OWNER_NOT_READY_ERROR)
         }
         if (restoredOpenFile?.filePath === filePath && restoredOpenFile.relativePath === filePath) {
-          // Why: an out-of-worktree absolute path in an SSH workspace belongs to the
-          // remote host, so the resolved connection owns it even when the tab predates
-          // (or was opened outside) the terminal-link path that stamps the target id.
+          // Absolute paths in SSH workspaces belong to their resolved host, including legacy tabs without terminal-link stamps.
           const externalSshOwnerId =
             restoredOpenFile.externalSshTargetId?.trim() ||
-            (isLiveTailLogTab ? undefined : connectionId)
-          const runtimeEnvironmentId = isLiveTailLogTab
-            ? undefined
-            : readSettings?.activeRuntimeEnvironmentId?.trim()
-          if (isLiveTailLogTab) {
-            await window.api.fs.authorizeExternalPath({ targetPath: filePath })
+            (isClientLocalTab ? undefined : connectionId)
+          const runtimeEnvironmentId = isClientLocalTab ? undefined : readOwnerEnvironmentId
+          if (isClientLocalTab) {
             readConnectionId = undefined
           } else {
             const currentState = useAppStore.getState()
@@ -116,64 +158,61 @@ export function useEditorPanelFileContentLoader({
               : runtimeEnvironmentId
                 ? toRuntimeExecutionHostId(runtimeEnvironmentId)
                 : LOCAL_EXECUTION_HOST_ID
-            const route = findWorkspaceFileRoute(currentState, executionHostId, filePath)
+            // Floating files stay in their panel even when a project also contains the path.
+            const route = isFloatingWorkspaceId(worktreeId)
+              ? null
+              : findWorkspaceFileRoute(currentState, executionHostId, filePath)
             if (route && route.worktreeId !== worktreeId) {
-              const migration = await migrateRestoredEditorFileOwner(
-                id,
-                route,
-                runtimeEnvironmentId ?? null
-              )
-              if (!migration.ok) {
-                throw new Error(
-                  migration.reason === 'collision'
-                    ? 'The sibling file is already open; close one tab before restoring it.'
-                    : 'The sibling file owner changed while the tab was restoring.'
-                )
-              }
-              fileReadGenerationRef.current[id] = ++fileReadGenerationCounterRef.current
-              setFileContents((prev) => {
-                const next = { ...prev }
-                delete next[id]
-                return next
-              })
+              await reownRestoredFile(route, runtimeEnvironmentId ?? null)
               return
             }
-            if (runtimeEnvironmentId && !route) {
-              throw new Error('External local files are not available for remote workspaces.')
+            if (
+              runtimeEnvironmentId &&
+              !route &&
+              !readGrantId &&
+              !chatScratchFileAddress(filePath)
+            ) {
+              readGrantPairing =
+                readTarget.kind === 'environment'
+                  ? captureRuntimeEnvironmentRequestRevision(readTarget.environmentId)
+                  : undefined
+              const restored = await grantRestoredHostFile(
+                readTarget,
+                readWorktreeId,
+                filePath,
+                readGrantPairing
+              )
+              readGrantId = restored.grantId
+              // Why: a read-only grant stays off the tab, so its save asks the host again and is refused.
+              if (!restored.readOnly) {
+                useAppStore.getState().setTerminalArtifactGrant(id, readGrantId)
+              }
             }
             if (!externalSshOwnerId) {
-              // Why: client-local external tabs need their main-process path grant
-              // refreshed because that authorization is only held in memory.
-              await window.api.fs.authorizeExternalPath({ targetPath: filePath })
-              // Why: that grant covers the client path, so this read must stay off the
-              // worktree's SSH host.
+              // Client-local external tabs must stay off the workspace’s SSH host.
               readConnectionId = undefined
             }
           }
         }
         const state = useAppStore.getState()
-        const memberTabIds = Object.values(state.unifiedTabsByWorktree).flatMap((tabs) =>
-          tabs.filter((tab) => tab.entityId === id).map((tab) => tab.id)
-        )
         const documentId =
-          restoredOpenFile && !restoredOpenFile.readOnly && !isLiveTailLogTab
-            ? (memberTabIds.length ? memberTabIds : [id]).map((tabId) =>
-                state.retainWorkingDocument(
-                  tabId,
-                  buildWorkingDocumentTarget(state, restoredOpenFile)
-                )
-              )[0]
+          restoredOpenFile && !isLiveTailLogTab
+            ? retainEditableTabDocument(state, restoredOpenFile)
             : undefined
-        const readScope = getRuntimeFileReadScope(readSettings, readConnectionId)
-        const key = inFlightReadKey(readScope, filePath)
+        const existingDocument = documentId ? state.workingDocuments[documentId] : undefined
+        const readScope = getRuntimeFileReadScope(readTarget, readConnectionId)
+        const access = restoredOpenFile ? editorTabFileAccess(state, restoredOpenFile) : undefined
+        const allowPagedPreview = !restoredOpenFile?.isDirty && !existingDocument?.isDirty
+        // Keep file authorization and editable drafts isolated between concurrent reads.
+        // A background read refused for a stopped distro must not answer a user's waking read.
+        const key = `${inFlightReadKey(readScope, filePath)}::${access?.kind ?? ''}${allowPagedPreview ? '' : '::editable'}${options?.wakeWslDistro ? '::wake' : ''}`
         const registeredRead = inFlightFileReads.get(key)
         if (
           options?.force &&
           (options.externalEventGeneration === undefined ||
             registeredRead?.externalEventGeneration !== options.externalEventGeneration)
         ) {
-          // Why: forced reloads must not attach to a currently registered read
-          // started before the external change landed.
+          // Forced reloads must bypass reads started before the external change.
           inFlightFileReads.delete(key)
         }
         let pending = inFlightFileReads.get(key)
@@ -181,17 +220,31 @@ export function useEditorPanelFileContentLoader({
           const promise = documentId
             ? loadWorkingDocument(documentId, {
                 force: options?.force,
-                externalEventGeneration: options?.externalEventGeneration
+                externalEventGeneration: options?.externalEventGeneration,
+                readArgs: {
+                  access,
+                  terminalArtifactGrantId: readGrantId,
+                  expectedEnvironmentPairingRevision: readGrantPairing,
+                  ...(options?.wakeWslDistro ? { wakeWslDistro: true } : {})
+                }
               })
-            : (readRuntimeFileContent({
-                settings: readSettings,
-                filePath,
-                relativePath: readRelativePath,
-                worktreeId: readWorktreeId,
-                connectionId: readConnectionId,
-                expectedExternalSshTargetId: restoredOpenFile?.externalSshTargetId,
-                includeLocalLogMetadata: isLiveTailLogTab
-              }) as Promise<FileContent>)
+            : readEditorCsvFileContent(
+                {
+                  target: readTarget,
+                  filePath,
+                  relativePath: readRelativePath,
+                  worktreeId: readWorktreeId,
+                  connectionId: readConnectionId,
+                  expectedExternalSshTargetId: restoredOpenFile?.externalSshTargetId,
+                  includeLocalLogMetadata: isLiveTailLogTab,
+                  access,
+                  terminalArtifactGrantId: readGrantId,
+                  expectedEnvironmentPairingRevision: readGrantPairing,
+                  pageOversizedBinary: true,
+                  ...(options?.wakeWslDistro ? { wakeWslDistro: true } : {})
+                },
+                allowPagedPreview
+              )
           pending = { externalEventGeneration: options?.externalEventGeneration, promise }
           inFlightFileReads.set(key, pending)
           queueMicrotask(() => {
@@ -204,17 +257,29 @@ export function useEditorPanelFileContentLoader({
         if (fileReadGenerationRef.current[id] !== generation) {
           return
         }
+        if (result.csvPreview && restoredOpenFile?.isDirty) {
+          throw new Error(
+            'CSV grew too large for editing. Your draft has been kept; reopen the file to preview it.'
+          )
+        }
+        if (result.csvPreview || restoredOpenFile?.csvPreviewOnly) {
+          useAppStore.getState().setCsvPreviewOnly(id, Boolean(result.csvPreview))
+        }
         delete fileLoadRetryAttemptsRef.current[id]
         setFileContents((prev) => ({ ...prev, [id]: result }))
       } catch (err) {
         if (fileReadGenerationRef.current[id] !== generation) {
           return
         }
-        const message = err instanceof Error ? err.message : String(err)
-        setFileContents((prev) => ({
-          ...prev,
-          [id]: { content: '', isBinary: false, loadError: message }
-        }))
+        const failure = describeEditorFileLoadFailure(err, worktreeId, readConnectionId)
+        applyEditorFileLoadFailure({
+          error: err,
+          fileId: id,
+          filePath,
+          tabs: openFilesRef.current,
+          failure,
+          setFileContents
+        })
       } finally {
         if (outstandingFileReadsRef.current[id] === generation) {
           delete outstandingFileReadsRef.current[id]

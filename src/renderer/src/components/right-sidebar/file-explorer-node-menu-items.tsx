@@ -20,9 +20,16 @@ import { useAppStore } from '@/store'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { detectLanguage } from '@/lib/language-detect'
 import { openFileInBrowserTab } from '@/lib/file-preview'
-import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
 import { translate } from '@/i18n/i18n'
-import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
+import { LocalOnlyMenuHint } from '@/components/local-only-menu-hint'
+import {
+  getRevealInFileManagerLabel,
+  getWorkspaceFileRevealOwner,
+  revealInFileManager
+} from '@/lib/reveal-in-file-manager'
+import { isRevealOrEditorOpenBlocked } from '@/lib/local-path-open-guard'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import type { TreeNode } from './file-explorer-types'
 import {
   shouldShowCollapseFolderAction,
@@ -35,14 +42,6 @@ import {
 import { copyFileToOsClipboard, downloadRemoteFile } from './file-explorer-row-file-transfer'
 
 const isMac = navigator.userAgent.includes('Mac')
-const isLinux = navigator.userAgent.includes('Linux')
-
-/** Platform-appropriate label: macOS → Finder, Windows → File Explorer, Linux → Files */
-const revealLabel = isMac
-  ? 'Reveal in Finder'
-  : isLinux
-    ? 'Open Containing Folder'
-    : 'Reveal in File Explorer'
 
 /**
  * Menu primitive slots so the same items render inside a Radix ContextMenu
@@ -51,6 +50,7 @@ const revealLabel = isMac
 export type FileExplorerMenuPrimitives = {
   Item: React.ComponentType<{
     onSelect?: (event: Event) => void
+    disabled?: boolean
     variant?: 'default' | 'destructive'
     children?: React.ReactNode
   }>
@@ -121,6 +121,13 @@ export function FileExplorerNodeMenuItems({
     supportsFolderDownload
   )
   const showCopyFileAction = shouldShowCopyFileAction(node, connectionId, selectionSize)
+  const revealOwner = useAppStore((s) =>
+    getWorkspaceFileRevealOwner(s, s.activeWorktreeId, {
+      connectionId,
+      runtimeEnvironmentId: runtimeEnvironmentIdOrLocalUnlessTwin(s, s.activeWorktreeId)
+    })
+  )
+  const revealBlocked = isRevealOrEditorOpenBlocked(revealOwner)
   const handleOpenInOrcaBrowser = useCallback(() => {
     if (!activeWorktreeId) {
       return
@@ -266,27 +273,12 @@ export function FileExplorerNodeMenuItems({
         </Item>
       )}
       <Item
-        onSelect={() => {
-          const state = useAppStore.getState()
-          const activeWorktree = Object.values(state.worktreesByRepo)
-            .flat()
-            .find((worktree) => worktree.id === activeWorktreeId)
-          const activeRepo = activeWorktree
-            ? state.repos.find((repo) => repo.id === activeWorktree.repoId)
-            : null
-          if (
-            isLocalPathOpenBlocked(state.settings, {
-              connectionId: activeRepo?.connectionId ?? null
-            })
-          ) {
-            showLocalPathOpenBlockedToast()
-            return
-          }
-          window.api.shell.openPath(node.path)
-        }}
+        disabled={revealBlocked}
+        onSelect={() => void revealInFileManager(node.path, revealOwner)}
       >
         <ExternalLink />
-        {revealLabel}
+        {getRevealInFileManagerLabel()}
+        {revealBlocked ? <LocalOnlyMenuHint /> : null}
       </Item>
       <Separator />
       <Item onSelect={() => onStartRename(node)}>

@@ -31,7 +31,7 @@ vi.mock('../startup/hydrate-shell-path', () => ({
   ),
   mergePathSegments: vi.fn(() => [])
 }))
-vi.mock('../../shared/child-process/run-process', () => ({ spawnProcess: spawnMock }))
+vi.mock('@orca/process-host', () => ({ spawnProcess: spawnMock }))
 vi.mock('node:child_process', () => ({ spawn: spawnMock, execFile: vi.fn() }))
 vi.mock('node:net', () => ({ createServer: createServerMock }))
 vi.mock('node:fs', async (importOriginal) => {

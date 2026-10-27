@@ -6,6 +6,7 @@ import type { Tab } from '../../../shared/tab-types'
 import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import type { AppState } from '@/store/types'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import { translate } from '@/i18n/i18n'
 
 /** Permanent tabs have no close/unpin affordance anywhere and survive every bulk close. */
@@ -51,13 +52,16 @@ export function resolveWorkspaceDisplayName(
   state: Pick<AppState, 'worktreesByRepo' | 'folderWorkspaces'>,
   workspaceId: string
 ): string {
-  const worktreeName = findWorktreeById(state.worktreesByRepo, workspaceId)?.displayName?.trim()
+  const worktreeName = findWorktreeById(
+    selectWorktreesByRepo(state),
+    workspaceId
+  )?.displayName?.trim()
   if (worktreeName) {
     return worktreeName
   }
   const scope = parseWorkspaceKey(workspaceId)
   if (scope?.type === 'folder') {
-    const folderName = state.folderWorkspaces
+    const folderName = selectFolderWorkspaces(state)
       .find((workspace) => workspace.id === scope.folderWorkspaceId)
       ?.name?.trim()
     if (folderName) {

@@ -13,6 +13,7 @@ import { getUntitledFileRoot } from './untitled-file-rename-path'
 import { translate } from '@/i18n/i18n'
 import type { ArtifactWriteRequest } from '../../../../shared/artifacts'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 
 type EditorPanelRenderModel = ReturnType<typeof getEditorPanelRenderModel>
 
@@ -39,18 +40,17 @@ type EditorPanelShellProps = {
   onOpenDiffTargetFile: (preferredMarkdownViewMode?: 'rich') => void
   onOpenPreviewToSide: () => void
   onOpenMarkdownPreview: () => void
-  onOpenContainingFolder: () => void
   onToggleSideBySide: () => void
   onEditorToggleChange: (next: EditorToggleValue) => void
   onToggleMarkdownTableOfContents: () => void
   onToggleMarkdownFrontmatter: () => void
   onExportMarkdownToPdf: () => void
-  createMarkdownArtifactRequest?: () => Promise<ArtifactWriteRequest>
+  createArtifactRequest?: () => Promise<ArtifactWriteRequest>
   onContentChange: (content: string) => void
   onContentChangeForFile: (file: OpenFile, content: string) => void
   onSave: () => Promise<boolean>
   onSaveForDocument: (documentId: WorkingDocumentId | null) => Promise<boolean>
-  onReloadContent: (file: OpenFile) => void
+  onReloadContent: (file: OpenFile, options?: { wakeWslDistro?: boolean }) => void
   onCloseMarkdownTableOfContents: () => void
   onCloseRenameDialog: () => void
   onRenameConfirm: (newRelPath: string) => Promise<void>
@@ -80,13 +80,12 @@ export function EditorPanelShell({
   onOpenDiffTargetFile,
   onOpenPreviewToSide,
   onOpenMarkdownPreview,
-  onOpenContainingFolder,
   onToggleSideBySide,
   onEditorToggleChange,
   onToggleMarkdownTableOfContents,
   onToggleMarkdownFrontmatter,
   onExportMarkdownToPdf,
-  createMarkdownArtifactRequest,
+  createArtifactRequest,
   onContentChange,
   onContentChangeForFile,
   onSave,
@@ -127,13 +126,12 @@ export function EditorPanelShell({
           onOpenDiffTargetFile={onOpenDiffTargetFile}
           onOpenPreviewToSide={onOpenPreviewToSide}
           onOpenMarkdownPreview={onOpenMarkdownPreview}
-          onOpenContainingFolder={onOpenContainingFolder}
           onToggleSideBySide={onToggleSideBySide}
           onEditorToggleChange={onEditorToggleChange}
           onToggleMarkdownTableOfContents={onToggleMarkdownTableOfContents}
           onToggleMarkdownFrontmatter={onToggleMarkdownFrontmatter}
           onExportMarkdownToPdf={onExportMarkdownToPdf}
-          createMarkdownArtifactRequest={createMarkdownArtifactRequest}
+          createArtifactRequest={createArtifactRequest}
         />
       )}
       <Suspense fallback={<EditorLoadingFallback />}>
@@ -174,7 +172,7 @@ export function EditorPanelShell({
             ? getUntitledFileRoot(
                 renameDialogFile,
                 findWorktreeById(
-                  useAppStore.getState().worktreesByRepo,
+                  selectWorktreesByRepo(useAppStore.getState()),
                   renameDialogFile.worktreeId
                 )?.path
               )

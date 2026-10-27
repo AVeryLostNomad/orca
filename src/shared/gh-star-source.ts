@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 const APP_STAR_SOURCE_VALUES = ['settings', 'landing'] as const
 
-// Why: renderer-originated IPC is untrusted, so main validates against this
-// closed enum before attaching source context to successful star telemetry.
+// Main validates untrusted renderer sources against this closed enum before attaching star telemetry.
 export const appStarSourceSchema = z.enum(APP_STAR_SOURCE_VALUES)
 export type AppStarSource = z.infer<typeof appStarSourceSchema>

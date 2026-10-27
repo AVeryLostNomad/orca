@@ -54,6 +54,7 @@ test('@golden opens an inline Git change peek from the gutter with navigation, d
   testRepoPath,
   registerPostElectronShutdownCleanup
 }, testInfo) => {
+  // Drives peek navigation, dismissal and revert, each waiting on a debounced Git refresh.
   test.setTimeout(120_000)
   const pageErrors: string[] = []
   orcaPage.on('pageerror', (error) => pageErrors.push(error.message))

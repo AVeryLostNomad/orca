@@ -2,8 +2,9 @@ import type { StoreApi } from 'zustand'
 import type { AppState } from '@/store'
 import type { WorkingDocument, WorkingDocumentId } from '@/store/slices/editor/working-document'
 import { getConnectionIdForFile } from '@/lib/connection-context'
-import { readRuntimeFileContent } from '@/runtime/runtime-file-client'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
+import { readRuntimeFileContent } from '@/runtime/runtime-file-read-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { runtimePathsExist } from '@/runtime/runtime-path-existence-batch'
 import { canAutoSaveWorkingDocument } from './editor-autosave'
 import { getDiskBaselineSignature } from './diff-content-signature'
 import { markWorkingDocumentChangedOnDisk } from './editor-changed-on-disk-mark'
@@ -13,6 +14,8 @@ type AppStoreApi = Pick<StoreApi<AppState>, 'getState' | 'subscribe'>
 const VERIFY_RETRY_MS = 2_000
 const VERIFY_SLOW_RETRY_MS = 15_000
 const VERIFY_FAST_ATTEMPTS = 30
+// Why bounded: a disk that can never be checked must not loop; guarded saves refuse newer disk anyway.
+export const MAX_VERIFY_ATTEMPTS = VERIFY_FAST_ATTEMPTS + 10
 const MAX_CONCURRENT_VERIFY_READS = 3
 
 export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
@@ -33,13 +36,28 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
     return connectionId
   }
 
+  // Why: client filesystem stats would falsely report runtime-host files missing.
   const probeDocumentMissing = async (document: WorkingDocument): Promise<boolean> => {
-    const settings = settingsForRuntimeOwner(
-      store.getState().settings,
-      document.target.owner.runtimeEnvironmentId
-    )
-    if (settings?.activeRuntimeEnvironmentId?.trim()) {
-      return false
+    const owner = runtimeTargetForOwnerEnvironment(document.target.owner.runtimeEnvironmentId)
+    if (owner.kind !== 'local') {
+      try {
+        const { filePath, relativePath } = document.target
+        const [row] = await runtimePathsExist(
+          {
+            target: owner,
+            worktreeId: document.target.worktreeId,
+            worktreePath: filePath.slice(0, Math.max(0, filePath.length - relativePath.length - 1)),
+            connectionId: connectionIdForDocument(document)
+          },
+          [filePath],
+          undefined,
+          // Why: only a per-path ENOENT on the owning host proves absence.
+          { codedAbsenceOnly: true }
+        )
+        return row !== undefined && 'exists' in row && !row.exists
+      } catch {
+        return false
+      }
     }
     try {
       return (
@@ -56,12 +74,8 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
   const verify = async (document: WorkingDocument): Promise<void> => {
     let retryScheduled = false
     try {
-      const state = store.getState()
       const result = await readRuntimeFileContent({
-        settings: settingsForRuntimeOwner(
-          state.settings,
-          document.target.owner.runtimeEnvironmentId
-        ),
+        target: runtimeTargetForOwnerEnvironment(document.target.owner.runtimeEnvironmentId),
         filePath: document.target.filePath,
         relativePath: document.target.relativePath,
         worktreeId: document.target.worktreeId,
@@ -76,11 +90,9 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
         return
       }
       const wasPending = liveDocument.pendingDiskBaselineVerification === true
-      store
-        .getState()
-        .setWorkingDocumentExternalState(document.id, {
-          pendingDiskBaselineVerification: undefined
-        })
+      store.getState().setWorkingDocumentExternalState(document.id, {
+        pendingDiskBaselineVerification: undefined
+      })
       if (
         !wasPending ||
         result.isBinary ||
@@ -105,11 +117,9 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
           return
         }
         const wasPending = liveDocument.pendingDiskBaselineVerification === true
-        store
-          .getState()
-          .setWorkingDocumentExternalState(document.id, {
-            pendingDiskBaselineVerification: undefined
-          })
+        store.getState().setWorkingDocumentExternalState(document.id, {
+          pendingDiskBaselineVerification: undefined
+        })
         if (wasPending && liveDocument.isDirty && liveDocument.externalMutation !== 'changed') {
           store
             .getState()
@@ -119,6 +129,12 @@ export function attachRestoredTabConflictScan(store: AppStoreApi): () => void {
       }
       const attempts = (attemptsByDocumentId.get(document.id) ?? 0) + 1
       attemptsByDocumentId.set(document.id, attempts)
+      if (attempts >= MAX_VERIFY_ATTEMPTS) {
+        store.getState().setWorkingDocumentExternalState(document.id, {
+          pendingDiskBaselineVerification: undefined
+        })
+        return
+      }
       retryScheduled = true
       const timer = setTimeout(
         () => {

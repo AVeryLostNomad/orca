@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawnProcess } from '@orca/process-host'
 import { existsSync, mkdirSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { hydrateShellPath } from '../startup/hydrate-shell-path'
@@ -33,10 +33,11 @@ function runCommand(
   env: NodeJS.ProcessEnv
 ): Promise<{ ok: boolean; output: string }> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, {
+    const child = spawnProcess({
+      program: command,
+      args,
       env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
+      stdio: ['ignore', 'pipe', 'pipe']
     })
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => {

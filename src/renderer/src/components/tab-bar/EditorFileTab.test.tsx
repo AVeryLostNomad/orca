@@ -1,3 +1,4 @@
+import type * as ReactModule from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenFile } from '../../store/slices/editor'
 
@@ -22,7 +23,7 @@ const appStoreMocks = vi.hoisted(() => ({
 const renameFileOnDiskMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react', async () => {
-  const actual = await vi.importActual<typeof import('react')>('react') // eslint-disable-line @typescript-eslint/consistent-type-imports -- vi.importActual requires inline import()
+  const actual = await vi.importActual<typeof ReactModule>('react')
   return {
     ...actual,
     useEffect: () => {},
@@ -48,6 +49,10 @@ vi.mock('react', async () => {
     }
   }
 })
+
+vi.mock('./use-tab-strip-slot-props', () => ({
+  useTabStripSlotProps: () => ({ className: '', 'data-tab-strip-slot': '' })
+}))
 
 vi.mock('@dnd-kit/sortable', () => ({
   useSortable: () => ({
@@ -157,6 +162,9 @@ vi.mock('@/components/ui/input', () => ({
 }))
 
 vi.mock('@/components/ui/tooltip', () => ({
+  TooltipProvider: function TooltipProvider(props: { children?: unknown }) {
+    return props.children
+  },
   Tooltip: function Tooltip(props: { children?: unknown }) {
     return { type: 'Tooltip', props }
   },
@@ -164,6 +172,12 @@ vi.mock('@/components/ui/tooltip', () => ({
     return { type: 'TooltipContent', props }
   },
   TooltipTrigger: function TooltipTrigger(props: { children?: unknown }) {
+    return props.children
+  }
+}))
+
+vi.mock('./TabHoverCard', () => ({
+  TabHoverCard: function TabHoverCard(props: { children?: unknown }) {
     return props.children
   }
 }))
@@ -189,8 +203,19 @@ vi.mock('@/store/selectors', () => ({
 }))
 
 vi.mock('@/store', () => {
-  const useAppStore = (selector: (state: { openMarkdownPreview: typeof vi.fn }) => unknown) =>
-    selector({ openMarkdownPreview: appStoreMocks.openMarkdownPreview })
+  // Editor tabs read file-mutation state from the working-document model.
+  const useAppStore = (
+    selector: (state: {
+      openMarkdownPreview: typeof vi.fn
+      workingDocuments: Record<string, never>
+      workingDocumentIdsByTab: Record<string, never>
+    }) => unknown
+  ) =>
+    selector({
+      openMarkdownPreview: appStoreMocks.openMarkdownPreview,
+      workingDocuments: {},
+      workingDocumentIdsByTab: {}
+    })
   useAppStore.getState = appStoreMocks.getState
   return { useAppStore }
 })
@@ -198,10 +223,6 @@ vi.mock('@/store', () => {
 vi.mock('../right-sidebar/status-display', () => ({
   STATUS_COLORS: {},
   STATUS_LABELS: {}
-}))
-
-vi.mock('./SortableTab', () => ({
-  CLOSE_ALL_CONTEXT_MENUS_EVENT: 'orca-close-all-context-menus'
 }))
 
 vi.mock('./drop-indicator', () => ({
@@ -213,11 +234,6 @@ vi.mock('./drop-indicator', () => ({
 
 vi.mock('@/components/editor/markdown-preview-controls', () => ({
   canOpenMarkdownPreview: () => false
-}))
-
-vi.mock('@/lib/local-path-open-guard', () => ({
-  shouldBlockEditorTabLocalOpen: () => false,
-  showLocalPathOpenBlockedToast: vi.fn()
 }))
 
 type ReactElementLike = {
@@ -256,7 +272,7 @@ async function renderEditorFileTab(
     hasTabsToRight: false,
     hasTabsToLeft: false,
     tabCount: 1,
-    statusByRelativePath: new Map(),
+    gitStatus: null,
     onActivate,
     onClose: () => {},
     onCloseOthers: () => {},
@@ -406,9 +422,7 @@ describe('EditorFileTab rename menu', () => {
     const firstRender = expandNode((await renderEditorFileTab(file, onActivate)).element)
     const renameItem = findMenuItemByText(firstRender, 'Rename')
 
-    // Why: New Markdown tabs are real on-disk files even while marked
-    // isUntitled; the tab menu must let users rename the screenshot-style
-    // "untitled-N.md" files directly.
+    // Untitled Markdown tabs already exist on disk and must remain renameable.
     expect(renameItem.props.disabled).toBe(false)
     selectRenameFromMenu(firstRender)
 
@@ -458,7 +472,8 @@ describe('EditorFileTab rename menu', () => {
       oldPath: '/repo/untitled-5.md',
       newName: '日本語.md',
       worktreeId: 'wt-1',
-      worktreePath: '/repo'
+      worktreePath: '/repo',
+      documentScoped: false
     })
   })
 

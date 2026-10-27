@@ -3,7 +3,7 @@ import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import type { Row } from './worktree-list/grouping/row-types'
+import type { HostSectionRow } from '../../../../shared/sidebar-list/host-section-rows'
 import { getRenderedWorktreesInSidebarOrder } from './worktree-sidebar-row-preference'
 
 const repo: Repo = {
@@ -36,7 +36,7 @@ function worktree(id: string, isPinned = false): Worktree {
   }
 }
 
-function item(workspace: Worktree, sectionKey: string): Row {
+function item(workspace: Worktree, sectionKey: string): HostSectionRow {
   return {
     type: 'item',
     rowKey: `${sectionKey}:${workspace.id}`,
@@ -45,7 +45,6 @@ function item(workspace: Worktree, sectionKey: string): Row {
     repo,
     depth: 0,
     groupDepth: 0,
-    lineageTrail: [],
     isLastLineageChild: false,
     lineageChildCount: 0
   }
@@ -84,7 +83,7 @@ describe('getRenderedWorktreesInSidebarOrder', () => {
   it('keeps folder workspaces in visual order while preferring natural pinned rows', () => {
     const pinned = worktree('pinned', true)
     const afterFolder = worktree('after-folder')
-    const rows: Row[] = [
+    const rows: HostSectionRow[] = [
       item(pinned, 'pinned'),
       {
         type: 'folder-workspace',

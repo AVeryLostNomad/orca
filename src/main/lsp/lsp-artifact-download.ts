@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream, mkdirSync } from 'node:fs'
 import { copyFile } from 'node:fs/promises'
-import { spawn } from 'node:child_process'
 import { createGunzip } from 'node:zlib'
 import { isAbsolute, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { net } from 'electron'
+import { spawnProcess } from '@orca/process-host'
 import { tarExecutable } from '../data-studio/ads-server-installer'
 
 export class LspInstallError extends Error {}
@@ -94,9 +94,10 @@ export function extractTarGz(
       '--exclude',
       pattern
     ])
-    const child = spawn(tarExecutable(), ['-xzf', archive, '-C', destination, ...excludeArgs], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true
+    const child = spawnProcess({
+      program: tarExecutable(),
+      args: ['-xzf', archive, '-C', destination, ...excludeArgs],
+      stdio: ['ignore', 'ignore', 'pipe']
     })
     let stderrTail = ''
     child.stderr?.on('data', (chunk: Buffer) => {
@@ -119,9 +120,10 @@ export function extractZip(archive: string, destination: string): Promise<void> 
   return new Promise((resolve, reject) => {
     mkdirSync(destination, { recursive: true })
     const runTar = (): void => {
-      const child = spawn(tarExecutable(), ['-xf', archive, '-C', destination], {
-        stdio: ['ignore', 'ignore', 'pipe'],
-        windowsHide: true
+      const child = spawnProcess({
+        program: tarExecutable(),
+        args: ['-xf', archive, '-C', destination],
+        stdio: ['ignore', 'ignore', 'pipe']
       })
       let stderrTail = ''
       child.stderr?.on('data', (chunk: Buffer) => {
@@ -145,16 +147,16 @@ export function extractZip(archive: string, destination: string): Promise<void> 
       })
     }
     const runPowershellFallback = (): void => {
-      const child = spawn(
-        'powershell.exe',
-        [
+      const child = spawnProcess({
+        program: 'powershell.exe',
+        args: [
           '-NoProfile',
           '-NonInteractive',
           '-Command',
           `Expand-Archive -LiteralPath "${archive}" -DestinationPath "${destination}" -Force`
         ],
-        { stdio: 'ignore', windowsHide: true }
-      )
+        stdio: 'ignore'
+      })
       child.on('error', reject)
       child.on('exit', (code) => {
         if (code === 0) {

@@ -15,10 +15,6 @@ import { useSourceControlUpstreamStatusFetch } from '../sync/use-upstream-status
 import { useSourceControlPanelFoundation } from './use-panel-foundation'
 import { useCommandBarSourceControlIntent } from './use-command-bar-intent'
 
-/**
- * The panel's single entry point: foundation, then the flows that act on it, then the action model
- * the chrome renders from. The rendered tree reads only this.
- */
 export function useSourceControlPanelModel() {
   const foundation = useSourceControlPanelFoundation()
   const commitFlows = useSourceControlCommitFlows(foundation)
@@ -29,7 +25,7 @@ export function useSourceControlPanelModel() {
     reviewFlows
   )
   const {
-    activeRepoSettings,
+    activeRepoTarget,
     activeWorktree,
     activeWorktreeId,
     branchEntries,
@@ -144,7 +140,7 @@ export function useSourceControlPanelModel() {
     handleActionInvoke: actionDispatch.handleActionInvoke
   })
   useSourceControlUpstreamStatusFetch({
-    activeRepoSettings,
+    activeRepoTarget,
     activeWorktree,
     activeWorktreeId,
     fetchUpstreamStatus,
@@ -155,7 +151,7 @@ export function useSourceControlPanelModel() {
   const gitHistoryCommitActions = useGitHistoryCommitActions({
     activeWorktreeId,
     worktreePath,
-    activeRepoSettings,
+    activeRepoTarget,
     resolveSplitTargetGroupId
   })
   const noteOpening = useSourceControlNoteOpening({
@@ -169,13 +165,13 @@ export function useSourceControlPanelModel() {
     sourceControlRef
   })
   const entryMutations = useSourceControlEntryMutations({
-    activeRepoSettings,
+    activeRepoTarget,
     activeWorktreeId,
     worktreePath,
     refreshActiveGitStatusAfterMutation
   })
   const moveChanges = useSourceControlMoveChanges({
-    activeRepoSettings,
+    activeRepoTarget,
     activeWorktreeId,
     worktreePath,
     entries,
@@ -187,7 +183,7 @@ export function useSourceControlPanelModel() {
     refreshActiveGitStatusAfterMutation
   })
   const stashes = useSourceControlStashes({
-    activeRepoSettings,
+    activeRepoTarget,
     activeWorktreeId,
     worktreePath,
     branchName,
@@ -202,7 +198,7 @@ export function useSourceControlPanelModel() {
     worktreeMap
   })
   const discardConfirmation = useSourceControlDiscardConfirmation({
-    activeRepoSettings,
+    activeRepoTarget,
     activeWorktreeId,
     worktreePath,
     grouped,

@@ -1,19 +1,15 @@
 import { execFileSync, type SpawnOptions } from 'node:child_process'
 import { withGitSpan } from '../../observability/instrumentation'
-import { recordSubprocessSpawn } from '../../diagnostics/main-thread-churn-probe'
+import { measureSyncSubprocess } from '../../diagnostics/sync-subprocess-measurement'
 import {
   resolveGitFetchHeadCommand,
   runWithGitFetchHeadLock
 } from '../../../shared/git-fetch-head-lock'
-import {
-  isWslLinkedWorktreeGitRoutingCandidate,
-  prepareWslLinkedWorktreeGitRouting
-} from '../wsl-linked-worktree-git-routing'
+import { pendingWslDriveCheckoutGitRouting } from '../wsl-drive-checkout-git-routing'
 import { resolveCommand, type ResolvedCommand } from './wsl-command-resolution'
-import { annotateWslHostFailure } from './wsl-host-failure'
+import { annotateWslHostFailure, isTransientWslFailure } from './wsl-host-failure'
 import type { GitAdmissionTier, GitExecOptions } from './git-exec-options'
 import { execFileCapture, execFileCaptureToTermination } from './exec-file-capture'
-import { readCapturedGitBuffer, readCapturedGitString } from './git-captured-output'
 import {
   pendingWslDirectGitReadEnvironment,
   directWslGitExitCode,
@@ -26,31 +22,30 @@ import {
 import { prepareWindowsHostGitEnvironment } from './windows-host-git-environment'
 import { buildNetworkSshPolicyEnv } from './git-ssh-policy-env'
 import { nonInteractiveGitEnv, untranslatedGitOutputEnv } from './git-process-env'
-import {
-  applyGitAccountEnv,
-  invalidateGitAccountTokenForAuthFailure,
-  isGitAuthFailure,
-  resolveGitAccountForCommand
-} from './github-account-env'
+import { gitAccountEnvForCommand, invalidateGitAccountOnAuthFailure } from './github-account-env'
 import { acquireGitAdmission } from './git-subprocess-admission'
 import { GitCommandTimeoutError, gitCommandTimeoutMs } from './git-command-timeout'
+import { classifyGitCommand } from '../../../shared/git-command-classification'
+import { createAbortError } from './abort-error'
+import { readCapturedGitBuffer, readCapturedGitString } from './captured-git-output'
+import { runUnlessGitCwdKnownMissing } from './missing-git-spawn-cwd'
+import { trackGitWorktreeMutation } from '../git-worktree-mutation-state'
 
-/**
- * Async git command execution. Drop-in replacement for
- * `execFileAsync('git', args, { cwd, encoding, ... })`.
- */
 async function gitExecFileAsyncUnlocked(
   args: string[],
-  options: GitExecOptions
+  options: GitExecOptions,
+  terminationState: { current: Promise<void> | null }
 ): Promise<{ stdout: string; stderr: string }> {
-  // Why: span the user-visible `git <subcommand>` form, not the resolved binary, so dashboards group by intent.
+  // Trace caller intent rather than the resolved binary so WSL and native commands group together.
   return withGitSpan(
     { args, ...(options.cwd !== undefined ? { cwd: options.cwd } : {}) },
     async (span) => {
-      if (isWslLinkedWorktreeGitRoutingCandidate(options.cwd, options.wslDistro)) {
-        await prepareWslLinkedWorktreeGitRouting(options.cwd, options.wslDistro, {
-          signal: options.signal
-        })
+      if (options.onStderr && options.terminationBarrier) {
+        throw new Error('onStderr is not supported with terminationBarrier.')
+      }
+      const checkoutRoutingReady = pendingWslDriveCheckoutGitRouting(args, options)
+      if (checkoutRoutingReady) {
+        await checkoutRoutingReady
       }
       const readEnvironmentReady = pendingWslDirectGitReadEnvironment(args, options)
       if (readEnvironmentReady) {
@@ -70,25 +65,24 @@ async function gitExecFileAsyncUnlocked(
         false,
         effectiveOptions.captureWslLoginShellOutput
       )
-      const policy = effectiveOptions.useConfiguredSshCommandForNetwork
-        ? await buildNetworkSshPolicyEnv(effectiveOptions)
-        : { env: nonInteractiveGitEnv(effectiveOptions.env), mode: 'default' as const }
-      const account = await resolveGitAccountForCommand(
-        args,
-        effectiveOptions.cwd,
-        effectiveOptions.env
-      )
-      const accountEnv = applyGitAccountEnv(policy.env, account)
-      const grant = await acquireGitAdmission({
-        args,
-        cwd: options.cwd,
-        wslDistro: options.wslDistro,
-        tier: options.admissionTier,
-        signal: options.signal
-      })
+      const policy =
+        effectiveOptions.useConfiguredSshCommandForNetwork || classifyGitCommand(args) === 'network'
+          ? await buildNetworkSshPolicyEnv(effectiveOptions, args)
+          : { env: nonInteractiveGitEnv(effectiveOptions.env), mode: 'default' as const }
+      const acct = gitAccountEnvForCommand(args, effectiveOptions, policy.env)
+      // Await only a real lookup: an extra tick here defers admission ordering.
+      const { account, env: accountEnv } = acct instanceof Promise ? await acct : acct
+      const grant = options.admissionExempt
+        ? { queueWaitMs: 0, release: () => {} }
+        : await acquireGitAdmission({
+            args,
+            cwd: options.cwd,
+            wslDistro: options.wslDistro,
+            tier: options.admissionTier,
+            signal: options.admissionSignal ?? options.signal
+          })
       span?.setAttribute('git.queue_wait_ms', grant.queueWaitMs)
       const timeoutMs = gitCommandTimeoutMs(args, options.timeout, options.timeoutMsForTest)
-      const terminationState: { current: Promise<void> | null } = { current: null }
       const capture = (
         command: ResolvedCommand
       ): Promise<{ stdout: string | Buffer; stderr: string | Buffer }> => {
@@ -106,7 +100,9 @@ async function gitExecFileAsyncUnlocked(
           signal: options.signal,
           terminationBarrier: options.terminationBarrier,
           admissionTier: options.admissionTier,
+          spawnOnWorkerThread: options.spawnOnWorkerThread,
           onChildTerminated: reportTerminated,
+          ...(options.onStderr ? { onStderr: options.onStderr } : {}),
           ...(timeoutMs === undefined
             ? {}
             : { createTimeoutError: () => new GitCommandTimeoutError(timeoutMs) })
@@ -119,7 +115,7 @@ async function gitExecFileAsyncUnlocked(
               command.termination
             )
           : execFileCapture(command.binary, command.args, captureOptions)
-        // Why: a dead WSL distro fails with an empty stderr, so the span would carry no cause at all.
+        // Add a cause when a dead WSL distro returns empty stderr.
         return captured.catch((error: unknown) => {
           throw annotateWslHostFailure(error, command)
         })
@@ -131,6 +127,8 @@ async function gitExecFileAsyncUnlocked(
         } catch (error) {
           if (
             directWslGitExitCode(error, resolved) !== null &&
+            // A WSL service failure says nothing about the direct git environment.
+            !isTransientWslFailure(error) &&
             !isQuietGitControlFlowExit(error) &&
             !options.signal?.aborted
           ) {
@@ -154,9 +152,7 @@ async function gitExecFileAsyncUnlocked(
           if (options.useConfiguredSshCommandForNetwork && error && typeof error === 'object') {
             Object.assign(error, { gitSshPolicyMode: policy.mode })
           }
-          if (isGitAuthFailure(error)) {
-            invalidateGitAccountTokenForAuthFailure(account)
-          }
+          invalidateGitAccountOnAuthFailure(error, account)
           throw error
         }
         const { stdout, stderr } = result
@@ -166,6 +162,10 @@ async function gitExecFileAsyncUnlocked(
         }
       }
       try {
+        options.admissionSignal?.throwIfAborted()
+        if (options.canStart?.() === false) {
+          throw createAbortError()
+        }
         return await runCapturedCommand()
       } finally {
         const termination = terminationState.current
@@ -183,22 +183,31 @@ export function gitExecFileAsync(
   args: string[],
   options: GitExecOptions
 ): Promise<{ stdout: string; stderr: string }> {
+  const releaseMutation = trackGitWorktreeMutation(args, options)
+  const terminationState: { current: Promise<void> | null } = { current: null }
   const command = resolveGitFetchHeadCommand(args, options.cwd)
-  return command.needsLock
-    ? runWithGitFetchHeadLock(
-        command.cwd,
-        options.signal,
-        () => gitExecFileAsyncUnlocked(args, options),
-        command.gitDir
-      )
-    : gitExecFileAsyncUnlocked(args, options)
+  // Missing folders start no child and must not record a git.exec span.
+  const result = runUnlessGitCwdKnownMissing(options, () =>
+    command.needsLock
+      ? runWithGitFetchHeadLock(
+          command.cwd,
+          options.signal,
+          () => gitExecFileAsyncUnlocked(args, options, terminationState),
+          command.gitDir
+        )
+      : gitExecFileAsyncUnlocked(args, options, terminationState)
+  )
+  return result.finally(() => {
+    // A timed-out caller can settle before its child exits.
+    if (terminationState.current) {
+      void terminationState.current.then(releaseMutation)
+    } else {
+      releaseMutation()
+    }
+  })
 }
 
-/**
- * Async git command execution that returns a Buffer.
- * Used for reading binary blobs (git show).
- */
-export async function gitExecFileAsyncBuffer(
+async function gitExecFileAsyncBufferInSpan(
   args: string[],
   options: {
     cwd: string
@@ -209,21 +218,22 @@ export async function gitExecFileAsyncBuffer(
     wslDistro?: string
     preferWslDirectGit?: boolean
     admissionTier?: GitAdmissionTier
+    signal?: AbortSignal
+    stdin?: string
   }
 ): Promise<{ stdout: Buffer }> {
   return withGitSpan({ args, cwd: options.cwd }, async (span) => {
-    if (isWslLinkedWorktreeGitRoutingCandidate(options.cwd, options.wslDistro)) {
-      await prepareWslLinkedWorktreeGitRouting(options.cwd, options.wslDistro)
+    const checkoutRoutingReady = pendingWslDriveCheckoutGitRouting(args, options)
+    if (checkoutRoutingReady) {
+      await checkoutRoutingReady
     }
     const readEnvironmentReady = pendingWslDirectGitReadEnvironment(args, options)
     if (readEnvironmentReady) {
       await readEnvironmentReady
     }
-    // `git show` is a read, so this normally runs with no shell at all. The fence
-    // still matters for the login-shell fallback: these are raw blob bytes going
-    // straight to the diff/blob viewer, where a banner becomes file content.
+    // Fence fallback login-shell output so rc banners cannot become raw blob content.
     let resolved = resolveGitCommand(args, options, false, true)
-    const environmentReady = prepareWindowsHostGitEnvironment(resolved, undefined)
+    const environmentReady = prepareWindowsHostGitEnvironment(resolved, undefined, options.signal)
     if (environmentReady) {
       await environmentReady
     }
@@ -232,7 +242,8 @@ export async function gitExecFileAsyncBuffer(
       args,
       cwd: options.cwd,
       wslDistro: options.wslDistro,
-      tier: options.admissionTier
+      tier: options.admissionTier,
+      signal: options.signal
     })
     span?.setAttribute('git.queue_wait_ms', grant.queueWaitMs)
     const timeoutMs = gitCommandTimeoutMs(args, options.timeout, options.timeoutMsForTest)
@@ -242,9 +253,11 @@ export async function gitExecFileAsyncBuffer(
       termination = new Promise<void>((resolve) => {
         reportTerminated = resolve
       })
-      const { stdout } = (await execFileCapture(resolved.binary, resolved.args, {
+      const { stdout } = await execFileCapture(resolved.binary, resolved.args, {
         cwd: resolved.cwd,
         encoding: 'buffer',
+        signal: options.signal,
+        stdin: options.stdin,
         maxBuffer: options.maxBuffer,
         timeout: timeoutMs,
         env: untranslatedGitOutputEnv(options.env),
@@ -253,7 +266,10 @@ export async function gitExecFileAsyncBuffer(
         ...(timeoutMs === undefined
           ? {}
           : { createTimeoutError: () => new GitCommandTimeoutError(timeoutMs) })
-      })) as { stdout: Buffer }
+      })
+      if (!Buffer.isBuffer(stdout)) {
+        throw new Error('Git buffer capture returned text instead of bytes')
+      }
       return { stdout: readCapturedGitBuffer(stdout, resolved) }
     } finally {
       if (termination) {
@@ -265,15 +281,17 @@ export async function gitExecFileAsyncBuffer(
   })
 }
 
-// Why: sync git blocks the main thread; a dead network drive can hang git for minutes without a timeout (issue #7225's 127s freeze).
+// Bound synchronous Git: a dead network drive can freeze the main thread.
 const GIT_EXEC_SYNC_TIMEOUT_MS = 15_000
 
-/**
- * Sync git command execution. Drop-in replacement for
- * `execFileSync('git', args, { cwd, encoding, ... })`.
- *
- * Returns trimmed stdout as a string.
- */
+export function gitExecFileAsyncBuffer(
+  args: string[],
+  options: Parameters<typeof gitExecFileAsyncBufferInSpan>[1]
+): Promise<{ stdout: Buffer }> {
+  return runUnlessGitCwdKnownMissing(options, () => gitExecFileAsyncBufferInSpan(args, options))
+}
+
+/** Return trimmed stdout; prefer async execution to avoid blocking main. */
 export function gitExecFileSync(
   args: string[],
   options: {
@@ -285,10 +303,9 @@ export function gitExecFileSync(
 ): string {
   // Why cache-only: a sync caller cannot await resolution, but reuses what async git warmed.
   const resolved = withWindowsHostGitBinary(resolveCommand('git', args, options.cwd), undefined)
-  const spawnStartedAt = performance.now()
-  let timedOut = false
-  try {
-    return execFileSync(resolved.binary, resolved.args, {
+  // Sync exec blocks the main thread for its whole duration.
+  const run = () =>
+    execFileSync(resolved.binary, resolved.args, {
       cwd: resolved.cwd,
       encoding: options.encoding ?? 'utf-8',
       env: untranslatedGitOutputEnv(),
@@ -296,14 +313,5 @@ export function gitExecFileSync(
       timeout: options.timeout ?? GIT_EXEC_SYNC_TIMEOUT_MS,
       windowsHide: true
     }) as string
-  } catch (error) {
-    timedOut = (error as NodeJS.ErrnoException | null)?.code === 'ETIMEDOUT'
-    throw error
-  } finally {
-    // Sync exec blocks the main thread for its whole duration — the cost issue #7576 flags.
-    recordSubprocessSpawn(resolved.binary, resolved.args, performance.now() - spawnStartedAt, {
-      sync: true,
-      timedOut
-    })
-  }
+  return measureSyncSubprocess(resolved, run)
 }

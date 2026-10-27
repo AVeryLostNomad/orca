@@ -7,7 +7,9 @@ export function installPierreMonacoWidgetKeybindings(
   widgetRoot: HTMLElement,
   editorInstance: editor.IStandaloneCodeEditor
 ): () => void {
-  const keybindings = StandaloneServices.get(IKeybindingService)
+  const keybindings = StandaloneServices.get<{
+    dispatchEvent(event: StandardKeyboardEvent, target: HTMLElement): boolean
+  }>(IKeybindingService)
   const onKeyDown = (event: KeyboardEvent): void => {
     // Standalone Monaco only listens on its editor container, not overflow portals.
     if (

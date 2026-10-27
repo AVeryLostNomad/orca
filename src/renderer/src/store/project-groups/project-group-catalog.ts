@@ -1,9 +1,10 @@
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import { getProjectGroupHostIdentity } from '../../../../shared/project-groups'
-import { callRuntimeRpc, type RuntimeClientTarget } from '../../runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { catalogOwnsHost, getProjectGroupHostId } from '../slices/project-group-owner-routing'
-import { getRuntimeTargetHostId } from '../runtime-target-host'
-import { projectGroupWithFetchedOwner } from './project-group-owner-stamping'
+import { getRuntimeTargetHostId } from '../../runtime/runtime-client-target'
+import { adoptFromEndpoint } from '../adopt-from-endpoint'
 import { mergeByIdentity, unchangedMergeSource } from '../catalog-identity'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 
@@ -49,7 +50,9 @@ export async function fetchProjectGroupCatalogForTarget(
           })
         ).groups
   return {
-    projectGroups: fetchedGroups.map((group) => projectGroupWithFetchedOwner(group, target)),
+    projectGroups: fetchedGroups.map((group) =>
+      adoptFromEndpoint(target, { kind: 'projectGroup', row: group })
+    ),
     hostId: getRuntimeTargetHostId(target)
   }
 }

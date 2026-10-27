@@ -9,12 +9,11 @@ const mocks = vi.hoisted(() => ({
   storeState: {
     settings: { activeRuntimeEnvironmentId: null as string | null },
     repos: [] as Repo[],
-    projects: [],
-    projectHostSetups: [],
+    endpointProjects: [],
+    endpointProjectHostSetups: [],
     worktreesByRepo: {} as Record<string, unknown[]>
   },
   createRepo: vi.fn(),
-  createRemoteRepo: vi.fn(),
   diagnoseAuth: vi.fn(),
   resolveAuthorIdentity: vi.fn(),
   callRuntimeRpc: vi.fn(),
@@ -80,10 +79,7 @@ vi.mock('sonner', () => ({
   }
 }))
 
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  getActiveRuntimeTarget: () => ({ kind: 'local' }),
-  callRuntimeRpc: mocks.callRuntimeRpc
-}))
+vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc: mocks.callRuntimeRpc }))
 
 const STATE_NAME = 0
 const STATE_PARENT_PATH = 1
@@ -119,12 +115,11 @@ describe('useCreateRepo default-checkout handoff', () => {
     mocks.stateValues[STATE_GITHUB_ACCOUNTS_LOADING] = false
     mocks.stateValues[STATE_GITHUB_ACCOUNT_REF] = null
     mocks.storeState.repos = []
-    mocks.storeState.projects = []
-    mocks.storeState.projectHostSetups = []
+    mocks.storeState.endpointProjects = []
+    mocks.storeState.endpointProjectHostSetups = []
     mocks.storeState.worktreesByRepo = {}
     mocks.localStorageValues.clear()
     mocks.createRepo.mockReset()
-    mocks.createRemoteRepo.mockReset()
     mocks.diagnoseAuth.mockReset()
     mocks.resolveAuthorIdentity.mockReset()
     mocks.storeState.settings.activeRuntimeEnvironmentId = null
@@ -138,7 +133,6 @@ describe('useCreateRepo default-checkout handoff', () => {
       api: {
         repos: {
           create: mocks.createRepo,
-          createRemote: mocks.createRemoteRepo,
           pickDirectory: vi.fn()
         },
         gh: {
@@ -166,13 +160,13 @@ describe('useCreateRepo default-checkout handoff', () => {
     expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
       requireAuthoritative: true
     })
-    expect(mocks.storeState.projects).toEqual(
+    expect(mocks.storeState.endpointProjects).toEqual(
       expect.arrayContaining([expect.objectContaining({ sourceRepoIds: [repo.id] })])
     )
-    expect(mocks.storeState.projectHostSetups).toEqual(
+    expect(mocks.storeState.endpointProjectHostSetups).toEqual(
       expect.arrayContaining([expect.objectContaining({ repoId: repo.id, path: repo.path })])
     )
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
+    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, undefined)
     expect(mocks.localStorageValues.get('orca.createProject.lastParent.local')).toBe('/projects')
   })
 
@@ -246,7 +240,7 @@ describe('useCreateRepo default-checkout handoff', () => {
     expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
       requireAuthoritative: true
     })
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
+    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, undefined)
     expect(mocks.stateSetters[STATE_ERROR_MESSAGE]).not.toHaveBeenCalledWith(
       'Could not refresh project worktrees. Try again.'
     )
@@ -280,38 +274,6 @@ describe('useCreateRepo default-checkout handoff', () => {
     expect(mocks.onGitRepoReady).not.toHaveBeenCalled()
   })
 
-  it('creates projects through the SSH host when an SSH target is selected', async () => {
-    const repo = makeRepo({ connectionId: 'ssh-1', path: '/srv/created' })
-    mocks.createRemoteRepo.mockResolvedValue({ repo })
-    mocks.fetchWorktrees.mockResolvedValue(true)
-    const { useCreateRepo } = await import('./useCreateRepo')
-
-    const result = useCreateRepo(mocks.fetchWorktrees, vi.fn(), mocks.onGitRepoReady, {
-      sshTargetId: 'ssh-1'
-    })
-    await result.handleCreate()
-
-    expect(mocks.createRemoteRepo).toHaveBeenCalledWith({
-      connectionId: 'ssh-1',
-      parentPath: '/projects',
-      name: 'created',
-      kind: 'git'
-    })
-    expect(mocks.createRepo).not.toHaveBeenCalled()
-    expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
-      requireAuthoritative: true,
-      executionHostId: 'ssh:ssh-1'
-    })
-    expect(mocks.storeState.repos).toContainEqual({
-      ...repo,
-      executionHostId: 'ssh:ssh-1'
-    })
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'ssh:ssh-1')
-    expect(mocks.localStorageValues.get('orca.createProject.lastParent.ssh:ssh-1')).toBe(
-      '/projects'
-    )
-  })
-
   it('creates projects through the selected runtime environment', async () => {
     const repo = makeRepo({ path: '/srv/created' })
     mocks.callRuntimeRpc.mockResolvedValue({ repo })
@@ -338,7 +300,6 @@ describe('useCreateRepo default-checkout handoff', () => {
       '/projects'
     )
     expect(mocks.createRepo).not.toHaveBeenCalled()
-    expect(mocks.createRemoteRepo).not.toHaveBeenCalled()
     expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
       requireAuthoritative: true,
       executionHostId: 'runtime:env-1'
@@ -348,5 +309,17 @@ describe('useCreateRepo default-checkout handoff', () => {
       executionHostId: 'runtime:env-1'
     })
     expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'runtime:env-1')
+  })
+
+  it('never creates on this computer while the chosen host is unresolved', async () => {
+    const { useCreateRepo } = await import('./useCreateRepo')
+
+    const result = useCreateRepo(mocks.fetchWorktrees, vi.fn(), mocks.onGitRepoReady, {
+      hostId: null,
+      runtimeEnvironmentId: null
+    })
+    await result.handleCreate()
+
+    expect(mocks.createRepo).not.toHaveBeenCalled()
   })
 })

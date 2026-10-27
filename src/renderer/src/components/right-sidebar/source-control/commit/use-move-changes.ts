@@ -6,10 +6,9 @@ import {
 } from '@/components/editor/editor-autosave'
 import { getConnectionId } from '@/lib/connection-context'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
-import {
-  moveRuntimeGitChangesToWorktree,
-  type RuntimeGitContext
-} from '@/runtime/runtime-git-client'
+import { requireGitOwnerTarget } from '../../worktree-git-owner-target'
+import type { RuntimeClientTarget } from '../../../../../../shared/runtime-client-target'
+import { moveRuntimeGitChangesToWorktree } from '@/runtime/runtime-git-sync-client'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
@@ -40,7 +39,7 @@ export type MoveChangesTarget = {
 
 /** Owns the "Move changes to another worktree" dialog and its execution. */
 export function useSourceControlMoveChanges({
-  activeRepoSettings,
+  activeRepoTarget,
   activeWorktreeId,
   worktreePath,
   entries,
@@ -51,7 +50,7 @@ export function useSourceControlMoveChanges({
   clearSelection,
   refreshActiveGitStatusAfterMutation
 }: {
-  activeRepoSettings: RuntimeGitContext['settings']
+  activeRepoTarget: RuntimeClientTarget | null
   activeWorktreeId: string | null
   worktreePath: string | null
   entries: GitStatusEntry[]
@@ -95,13 +94,13 @@ export function useSourceControlMoveChanges({
       const paths = entries.map((entry) => entry.path)
       try {
         const runtimeEnvironmentId =
-          useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() || null
+          activeRepoTarget?.kind === 'environment' ? activeRepoTarget.environmentId : null
         await quiesceDocumentsForPaths(activeWorktreeId, paths, runtimeEnvironmentId)
         const connectionId = getConnectionId(activeWorktreeId) ?? undefined
         const result = await moveRuntimeGitChangesToWorktree(
           {
             // Why: route the move by the repo OWNER host, not the focused runtime.
-            settings: activeRepoSettings,
+            target: requireGitOwnerTarget(activeRepoTarget),
             worktreeId: activeWorktreeId,
             worktreePath,
             connectionId
@@ -194,7 +193,7 @@ export function useSourceControlMoveChanges({
       }
     },
     [
-      activeRepoSettings,
+      activeRepoTarget,
       activeWorktreeId,
       clearSelection,
       entries,

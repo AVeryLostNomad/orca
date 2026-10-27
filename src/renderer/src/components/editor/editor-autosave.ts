@@ -9,6 +9,14 @@ import type {
   WorkingDocumentOwner
 } from '@/store/slices/editor/working-document'
 import { clampNumber } from '@/lib/terminal-theme'
+import type { OpenFile } from '@/store/slices/editor'
+import { resolveEditorOwnerRoute } from '@/lib/editor-file-operation-owner'
+import type { WorktreeOperationRouteState } from '@/lib/worktree-operation-route'
+import { joinPath } from '@/lib/path'
+import { isLocalWindowsDesktopClient } from '@/lib/desktop-window-chrome'
+import { externalChangePathKeyFor } from './external-change-path-key'
+import { areLocalWindowsWslPathAliases } from '../../../../shared/cross-platform-path'
+import { isAutosavePausedForNonUtf8File } from './editor-non-utf8-autosave-pause'
 
 export const ORCA_EDITOR_QUIESCE_DOCUMENT_SAVE_EVENT = 'orca:editor-quiesce-document-save'
 export const ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT = 'orca:editor-external-file-change'
@@ -16,6 +24,8 @@ export const ORCA_EDITOR_REQUEST_DOCUMENT_SAVE_EVENT = 'orca:editor-request-docu
 export const ORCA_EDITOR_DOCUMENT_SAVED_EVENT = 'orca:editor-document-saved'
 export const ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT = 'orca:editor-request-cmd-save'
 export const ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT = 'orca:editor-request-tab-close'
+/** File-keyed close requests share the tab event; the close queue maps a file id to its tabs. */
+export const ORCA_EDITOR_REQUEST_FILE_CLOSE_EVENT = ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT
 
 export type EditorPathMutationTarget = {
   worktreeId: string
@@ -27,6 +37,10 @@ export type EditorPathMutationTarget = {
 
 export type EditorDocumentSaveTarget = {
   documentId: WorkingDocumentId
+  /** Only the conflict banner's Overwrite sets this. */
+  overwrite?: true
+  /** Only the user's confirmation to replace a non-UTF-8 file's unreadable characters sets this. */
+  convertToUtf8?: true
 }
 
 export type EditorDocumentSaveDetail = EditorDocumentSaveTarget & {
@@ -38,6 +52,10 @@ export type EditorDocumentSaveDetail = EditorDocumentSaveTarget & {
 export type EditorDocumentSaveQuiesceDetail = EditorDocumentSaveTarget & {
   claim: () => void
   resolve: () => void
+  /** Receives the release for an autosave hold taken after the quiesce settles. */
+  onHold?: (release: () => void) => void
+  /** A pending producer refused to commit (e.g. an unresolved CSV cell); no hold is kept. */
+  reject?: (message: string) => void
 }
 
 export type EditorDocumentSavedDetail = {
@@ -49,10 +67,20 @@ export type EditorDocumentSavedDetail = {
 
 export type EditorRequestTabCloseDetail = {
   tabId: string
+  /** Runs once the tab actually closes — after save or discard, never on cancel. */
+  onClosed?: () => void
 }
 
 export type EditorRequestCmdSaveDetail = {
   tabId: string
+}
+
+export function isExternalReloadableEditorTab(file: OpenFile): boolean {
+  return (
+    file.mode === 'edit' ||
+    file.mode === 'markdown-preview' ||
+    (file.mode === 'diff' && (file.diffSource === 'unstaged' || file.diffSource === 'staged'))
+  )
 }
 
 export function canAutoSaveWorkingDocument(document: WorkingDocument): boolean {
@@ -68,13 +96,18 @@ export function isAutosaveSuspendedForWorkingDocument(
     | 'pendingDiskBaselineVerification'
     | 'pendingLiveDiskVerification'
     | 'pendingOwnerMigration'
-  >
+  > & { target?: WorkingDocument['target'] }
 ): boolean {
   return (
     document.externalMutation === 'changed' ||
     document.pendingDiskBaselineVerification === true ||
     document.pendingLiveDiskVerification === true ||
-    document.pendingOwnerMigration === true
+    document.pendingOwnerMigration === true ||
+    (document.target !== undefined &&
+      isAutosavePausedForNonUtf8File({
+        filePath: document.target.filePath,
+        runtimeEnvironmentId: document.target.owner.runtimeEnvironmentId
+      }))
   )
 }
 
@@ -90,15 +123,48 @@ export function normalizeAutoSaveDelayMs(value: unknown): number {
 
 export function getWorkingDocumentsForExternalFileChange(
   workingDocuments: Record<WorkingDocumentId, WorkingDocument>,
-  target: EditorPathMutationTarget
+  target: EditorPathMutationTarget,
+  /** The changed workspace's execution host; lets other workspaces' views of the file match. */
+  targetExecutionHostId?: string | null
 ): WorkingDocument[] {
   const runtimeEnvironmentId = target.runtimeEnvironmentId?.trim() || null
-  return Object.values(workingDocuments).filter(
-    (document) =>
-      document.target.worktreeId === target.worktreeId &&
-      document.target.relativePath === target.relativePath &&
-      document.target.owner.runtimeEnvironmentId === runtimeEnvironmentId
-  )
+  const absolutePath = joinPath(target.worktreePath, target.relativePath)
+  // Why: Windows roots fold drive/separator spellings so watcher paths still match open documents.
+  const pathKey = externalChangePathKeyFor(target.worktreePath)
+  const absolutePathKey = pathKey(absolutePath)
+  return Object.values(workingDocuments).filter((document) => {
+    if ((document.target.owner.runtimeEnvironmentId ?? null) !== runtimeEnvironmentId) {
+      return false
+    }
+    // A document is shared by every workspace's view; only the same host may match by path.
+    const sameScope =
+      document.target.worktreeId === target.worktreeId ||
+      (targetExecutionHostId != null &&
+        document.target.owner.executionHostId === targetExecutionHostId)
+    if (!sameScope) {
+      return false
+    }
+    return (
+      document.target.relativePath === target.relativePath ||
+      pathKey(document.target.filePath) === absolutePathKey ||
+      (target.allowLocalWindowsWslAliases === true &&
+        isLocalWindowsDesktopClient() &&
+        areLocalWindowsWslPathAliases(document.target.filePath, absolutePath))
+    )
+  })
+}
+
+/** The changed workspace's execution host, so other workspaces' views of the file also match. */
+export function getExternalChangeExecutionHostId(
+  state: WorktreeOperationRouteState,
+  worktreeId: string
+): string | null {
+  try {
+    const owner = resolveEditorOwnerRoute(state, worktreeId)
+    return owner.kind === 'resolved' ? owner.route.executionHostId : null
+  } catch {
+    return null
+  }
 }
 
 export async function requestEditorDocumentSave(target: EditorDocumentSaveTarget): Promise<void> {
@@ -142,13 +208,46 @@ export async function quiesceDocumentSave(documentId: WorkingDocumentId): Promis
   })
 }
 
-export function requestEditorTabClose(tabId: string): void {
+/** Quiesce, then hold autosave of the document until the returned release runs (e.g. after a git discard). */
+export async function holdDocumentAutosave(documentId: WorkingDocumentId): Promise<() => void> {
+  let release = (): void => {}
+  await new Promise<void>((resolve, reject) => {
+    let claimed = false
+    window.dispatchEvent(
+      new CustomEvent<EditorDocumentSaveQuiesceDetail>(ORCA_EDITOR_QUIESCE_DOCUMENT_SAVE_EVENT, {
+        detail: {
+          documentId,
+          claim: () => {
+            claimed = true
+          },
+          resolve,
+          reject: (message) => reject(new Error(message)),
+          onHold: (hold) => {
+            release = hold
+          }
+        }
+      })
+    )
+    if (!claimed) {
+      resolve()
+    }
+  })
+  return release
+}
+
+export function requestEditorTabClose(
+  tabId: string,
+  options?: Pick<EditorRequestTabCloseDetail, 'onClosed'>
+): void {
   window.dispatchEvent(
     new CustomEvent<EditorRequestTabCloseDetail>(ORCA_EDITOR_REQUEST_TAB_CLOSE_EVENT, {
-      detail: { tabId }
+      detail: { tabId, ...options }
     })
   )
 }
+
+/** The close queue resolves a file id to its unified tabs, so file-keyed callers share the tab event. */
+export const requestEditorFileClose = requestEditorTabClose
 
 // Existing reload consumers remain tab/surface oriented. Document ownership is
 // resolved by the receiver from the target owner/path, never from selected UI.

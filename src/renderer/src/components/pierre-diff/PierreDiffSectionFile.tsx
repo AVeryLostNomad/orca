@@ -2,6 +2,7 @@ import React from 'react'
 import { EditProvider } from '@pierre/diffs/react'
 import type { CreateEditor, FileDiffProps } from '@pierre/diffs/react'
 import { Plus } from 'lucide-react'
+import { translate } from '@/i18n/i18n'
 import type { PierreDiffAnnotationData, PierreDiffDraft } from './pierre-diff-comment-annotations'
 import { PierreDiffCommentAnnotation } from './pierre-diff-comment-annotations'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
@@ -59,7 +60,13 @@ export function PierreDiffSectionFile({
             ? (getHoveredLine) => (
                 <button
                   type="button"
-                  aria-label={addLineCommentLabel ?? 'Add note'}
+                  aria-label={
+                    addLineCommentLabel ??
+                    translate(
+                      'auto.components.pierreDiff.PierreDiffSectionFile.addNote',
+                      'Add note'
+                    )
+                  }
                   className="flex size-4 cursor-pointer items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm"
                   onClick={() => {
                     const hovered = getHoveredLine()

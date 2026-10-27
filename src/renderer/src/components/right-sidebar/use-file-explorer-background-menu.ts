@@ -1,7 +1,7 @@
 import type React from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useState } from 'react'
-import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/components/tab-bar/SortableTab'
+import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import { resolveFileTreeRowFromEvent } from './use-file-tree-activation'
 
 type UseFileExplorerBackgroundMenuResult = {

@@ -1,123 +1,64 @@
-import React, { useCallback, useState } from 'react'
-import { Ellipsis, FolderPlus } from 'lucide-react'
+import React from 'react'
+import { FolderPlus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
 import SidebarWorkspaceOptionsMenu from './SidebarWorkspaceOptionsMenu'
 import { SidebarNewWorkspaceMenu } from './sidebar-new-workspace-menu'
-import { SidebarCountBadge } from './sidebar-count-badge'
-import {
-  useWorkspaceOptionsFilterBadge,
-  WorkspaceOptionsMenuItems
-} from './workspace-options-menu-items'
 
-export const SIDEBAR_HEADER_WIDE_MIN_WIDTH = 235
-
-function CompactWorkspaceOverflow({
-  preserveWorkspaceBoardOpen,
-  onMenuOpenChange
+function AddProjectButton({
+  preserveWorkspaceBoardOpen
 }: {
   preserveWorkspaceBoardOpen: boolean
-  onMenuOpenChange?: (open: boolean) => void
 }): React.JSX.Element {
   const openModal = useAppStore((s) => s.openModal)
-  const [open, setOpen] = useState(false)
-  const { hasAnyFilter, activeFilterCount } = useWorkspaceOptionsFilterBadge()
-  const boardAttr = preserveWorkspaceBoardOpen ? '' : undefined
-
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      setOpen(next)
-      onMenuOpenChange?.(next)
-    },
-    [onMenuOpenChange]
-  )
+  const label = translate('auto.components.sidebar.SidebarHeader.addProject', 'Add project')
 
   return (
-    <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              type="button"
-              className="relative text-muted-foreground"
-              aria-label={translate(
-                'auto.components.sidebar.SidebarHeader.moreActions',
-                'More workspace actions'
-              )}
-              data-workspace-board-preserve-open={boardAttr}
-            >
-              <Ellipsis className="size-3.5" strokeWidth={2.25} />
-              {hasAnyFilter ? <SidebarCountBadge count={activeFilterCount} /> : null}
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={6}>
-          {translate('auto.components.sidebar.SidebarHeader.moreActions', 'More workspace actions')}
-        </TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent
-        side="right"
-        align="start"
-        sideOffset={8}
-        className="w-72 pb-2"
-        data-workspace-board-preserve-open={boardAttr}
-      >
-        <WorkspaceOptionsMenuItems preserveWorkspaceBoardOpen={preserveWorkspaceBoardOpen} />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => openModal('add-repo')}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          type="button"
+          className="text-muted-foreground"
+          aria-label={label}
+          data-workspace-board-preserve-open={preserveWorkspaceBoardOpen ? '' : undefined}
+          onClick={() => openModal('add-repo')}
+        >
           <FolderPlus className="size-3.5" strokeWidth={2.25} />
-          {translate('auto.components.sidebar.SidebarHeader.25a95899c9', 'Add Project')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
 export function SidebarHeaderActions({
   onWorkspaceBoardMenuOpenChange,
-  hideWorkspaceOptions = false
+  agentsViewActive = false,
+  activityOptionsTarget
 }: {
   onWorkspaceBoardMenuOpenChange: (open: boolean) => void
-  hideWorkspaceOptions?: boolean
+  agentsViewActive?: boolean
+  activityOptionsTarget?: React.Ref<HTMLDivElement>
 }): React.JSX.Element {
-  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
-  const compact = sidebarWidth < SIDEBAR_HEADER_WIDE_MIN_WIDTH
-
-  if (compact) {
-    return (
-      <div className="flex shrink-0 items-center gap-1">
-        <SidebarNewWorkspaceMenu />
-        {hideWorkspaceOptions ? null : (
-          <CompactWorkspaceOverflow
+  return (
+    <div className="flex shrink-0 items-center gap-1" data-sidebar-header-actions="">
+      <div ref={activityOptionsTarget} className="flex size-6 shrink-0 items-center">
+        {agentsViewActive ? null : (
+          <SidebarWorkspaceOptionsMenu
             preserveWorkspaceBoardOpen
             onMenuOpenChange={onWorkspaceBoardMenuOpenChange}
           />
         )}
       </div>
-    )
-  }
-
-  return (
-    <div className="flex shrink-0 items-center gap-1">
-      {hideWorkspaceOptions ? null : (
-        <SidebarWorkspaceOptionsMenu
-          preserveWorkspaceBoardOpen
-          onMenuOpenChange={onWorkspaceBoardMenuOpenChange}
-        />
-      )}
-
-      <SidebarNewWorkspaceMenu />
+      <AddProjectButton preserveWorkspaceBoardOpen />
+      {/* Worktree or prototype; the menu replaces the plain new-workspace button. */}
+      <SidebarNewWorkspaceMenu preserveWorkspaceBoardOpen />
     </div>
   )
 }

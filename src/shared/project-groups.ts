@@ -10,16 +10,9 @@ import type { ProjectGroup, ProjectGroupCreatedFrom } from './project-group-type
 import type { Repo } from './repo-types'
 import { sanitizeRepoIcon } from './repo-icon'
 import { PROJECT_ACCOUNT_PIN_FIELDS, type ProjectAccountPins } from './project-account-pin-types'
+import { createNonSecureContextUuid } from './non-secure-context-uuid'
 
 export const UNGROUPED_PROJECT_GROUP_KEY = 'project-group:ungrouped'
-
-function createProjectGroupId(): string {
-  const randomUUID = globalThis.crypto?.randomUUID
-  if (randomUUID) {
-    return randomUUID.call(globalThis.crypto)
-  }
-  return `project-group-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
 
 export function normalizeProjectGroupName(name: string, fallback = 'Untitled group'): string {
   const trimmed = name.trim()
@@ -37,7 +30,7 @@ export function createProjectGroup(input: {
 }): ProjectGroup {
   const now = input.now ?? Date.now()
   return {
-    id: createProjectGroupId(),
+    id: createNonSecureContextUuid(),
     name: normalizeProjectGroupName(input.name),
     parentPath: input.parentPath ?? null,
     connectionId: input.connectionId ?? null,
@@ -129,7 +122,8 @@ export function normalizeProjectGroups(value: unknown): ProjectGroup[] {
         typeof raw.tabOrder === 'number' && Number.isFinite(raw.tabOrder) ? raw.tabOrder : 0,
       isCollapsed: raw.isCollapsed === true,
       color: typeof raw.color === 'string' ? raw.color : null,
-      icon: sanitizeRepoIcon(raw.icon) ?? null,
+      // Keep an absent icon absent so normalized rows round-trip byte-identically (orcad catalog).
+      ...(raw.icon === undefined ? {} : { icon: sanitizeRepoIcon(raw.icon) ?? null }),
       ...normalizeProjectGroupAccountPins(raw),
       createdAt:
         typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : now,
@@ -250,8 +244,7 @@ export function collectProjectGroupSubtreeIds(
       continue
     }
     subtreeIds.add(groupId)
-    // Why: imported project-group trees can be very wide; `push(...children)`
-    // can exceed V8's argument limit while collecting descendants.
+    // Wide imported trees can exceed V8’s spread argument limit; append children individually.
     for (const childGroupId of childGroupsByParentIdentity.get(
       getRepoHostIdentityForParts(groupId, rootHostId)
     ) ?? []) {
@@ -261,9 +254,7 @@ export function collectProjectGroupSubtreeIds(
   return subtreeIds
 }
 
-/** Manual rank for a project inside a group bucket. Explicit
- *  `projectGroupOrder` wins; otherwise fall back to global repo order so drag
- *  midpoint math and sidebar sorting stay aligned. */
+/** Use explicit group rank, else global repo rank, so drag midpoint math and sidebar order agree. */
 export function getEffectiveProjectGroupManualRank(
   repo: Pick<Repo, 'id' | 'projectGroupOrder'> | undefined,
   repoOrderRankById?: ReadonlyMap<string, number>,
@@ -298,4 +289,11 @@ export function getNextProjectGroupOrder(repos: readonly Repo[], groupId: string
     }
   }
   return max + 1
+}
+
+/** Deduplicate group IDs in first-seen order with last-copy values, matching id-keyed lookup behavior across host copies (#30045). */
+export function getDistinctProjectGroups<T extends Pick<ProjectGroup, 'id'>>(
+  projectGroups: readonly T[]
+): T[] {
+  return [...new Map(projectGroups.map((group) => [group.id, group])).values()]
 }

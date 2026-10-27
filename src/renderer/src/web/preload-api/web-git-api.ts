@@ -6,6 +6,8 @@ import type { GitMoveChangesResult } from '../../../../shared/git-move-changes'
 import { createWebGitRemoteUrlApi } from './web-git-remote-url-api'
 import { createWebGitStashApi } from './web-git-stash-api'
 import { callRuntimeResult } from './web-runtime-calls'
+import { mutateGitPath, mutateGitPaths } from './web-git-mutations'
+import { requireGitStageWorktreeScopeReceipt } from '../../../../shared/git-stage-worktree-scope'
 import { requireActiveEnvironment, updateEnvironmentFromResponse } from './web-runtime-session'
 import {
   resolveRuntimeFilePath,
@@ -96,6 +98,12 @@ export function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
         worktree: toRuntimeWorktreeSelector(worktree.id),
         limit,
         baseRef
+      })
+    },
+    mutationInFlight: async ({ worktreePath }) => {
+      const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
+      return callRuntimeResult('git.mutationInFlight', {
+        worktree: toRuntimeWorktreeSelector(worktree.id)
       })
     },
     conflictOperation: async ({ worktreePath }) => {
@@ -244,8 +252,19 @@ export function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
     }),
     cancelGeneratePullRequestFields: () => Promise.resolve(),
     stage: async ({ worktreePath, filePath }) => mutateGitPath('git.stage', worktreePath, filePath),
-    bulkStage: async ({ worktreePath, filePaths }) =>
-      mutateGitPaths('git.bulkStage', worktreePath, filePaths),
+    bulkStage: async ({ worktreePath, filePaths, scope }) => {
+      if (!scope) {
+        return mutateGitPaths('git.bulkStage', worktreePath, filePaths)
+      }
+      const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
+      // Why no paths: an older host strips `scope` and stages `filePaths`, so an empty list makes that a no-op.
+      const reply = await callRuntimeResult<unknown>('git.bulkStage', {
+        worktree: toRuntimeWorktreeSelector(worktree.id),
+        filePaths: [],
+        scope
+      })
+      requireGitStageWorktreeScopeReceipt(reply, scope)
+    },
     unstage: async ({ worktreePath, filePath }) =>
       mutateGitPath('git.unstage', worktreePath, filePath),
     bulkUnstage: async ({ worktreePath, filePaths }) =>
@@ -270,28 +289,4 @@ export function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
     ...createWebGitStashApi(),
     ...createWebGitRemoteUrlApi()
   }
-}
-
-export async function mutateGitPath(
-  method: string,
-  worktreePath: string,
-  filePath: string
-): Promise<void> {
-  const file = await resolveRuntimeFilePath(filePath, worktreePath)
-  await callRuntimeResult(method, {
-    worktree: toRuntimeWorktreeSelector(file.worktree.id),
-    filePath: file.relativePath
-  })
-}
-
-export async function mutateGitPaths(
-  method: string,
-  worktreePath: string,
-  filePaths: string[]
-): Promise<void> {
-  const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
-  await callRuntimeResult(method, {
-    worktree: toRuntimeWorktreeSelector(worktree.id),
-    filePaths
-  })
 }

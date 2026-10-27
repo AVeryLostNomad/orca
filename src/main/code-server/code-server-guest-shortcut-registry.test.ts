@@ -1,3 +1,4 @@
+import { nextBrowserPageZoomLevel } from '../../shared/browser-page-zoom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { webContentsFromIdMock } = vi.hoisted(() => ({
@@ -117,7 +118,7 @@ describe('registerCodeServerGuest', () => {
 
     const isMac = process.platform === 'darwin'
     triggerKeyDown(emit, { key: '=', code: 'Equal', meta: isMac, control: !isMac })
-    expect(mocks.setZoomLevel).toHaveBeenCalledWith(0.5)
+    expect(mocks.setZoomLevel).toHaveBeenCalledWith(nextBrowserPageZoomLevel(0, 'in'))
 
     triggerKeyDown(emit, { key: '0', code: 'Digit0', meta: isMac, control: !isMac })
     expect(mocks.setZoomLevel).toHaveBeenCalledWith(0)

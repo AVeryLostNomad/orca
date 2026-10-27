@@ -9,7 +9,7 @@ import { SCRATCH_FILE_NAME_PATTERN } from '@/lib/create-scratch-file'
 import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner'
 import { executeOpenEditorPathMove } from '@/lib/execute-open-editor-path-move'
 import { joinPath } from '@/lib/path'
-import { runtimePathExists } from '@/runtime/runtime-file-client'
+import { runtimePathExists } from '@/runtime/runtime-file-metadata-client'
 import { quiesceDocumentSave, requestEditorDocumentSave } from './editor-autosave'
 import { getUntitledFileRoot } from './untitled-file-rename-path'
 

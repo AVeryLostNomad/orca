@@ -271,7 +271,7 @@ test('@golden scrolls long Pierre code rows without scrolling the diff frame', a
           line.textContent?.includes('n15')
         )!
         let frame = 0
-        for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+        for (let node: Element | null = element; node; node = node.parentElement) {
           frame = Math.max(frame, node.scrollLeft)
         }
         const nativeTextLeft =

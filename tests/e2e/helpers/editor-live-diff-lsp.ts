@@ -3,7 +3,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Locator, Page } from '@stablyai/playwright-test'
 import type { PublishDiagnosticsParams } from 'vscode-languageserver-protocol'
-import { runProcess } from '../../../src/shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import { expect } from './orca-app'
 
 const SUPPORT = 'live-lsp-support.ts'

@@ -4,7 +4,7 @@
 
 import { win32 as pathWin32 } from 'node:path'
 import type { BrowserWindow } from 'electron'
-import type { SpawnBlock } from '../../shared/child-process/spawn-block-observer'
+import type { SpawnBlock } from '../diagnostics/spawn-block-observer'
 import { classifySubprocessCommand } from '../diagnostics/main-thread-churn-probe'
 import { subscribeSystemPowerLifecycle } from '../system-power-lifecycle'
 import { startSpan } from './tracer'

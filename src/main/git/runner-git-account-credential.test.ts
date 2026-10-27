@@ -91,11 +91,15 @@ describe('git account credential injection', () => {
 
   function mockExecResult(error: Error | null = null): { env: () => NodeJS.ProcessEnv } {
     let capturedEnv: NodeJS.ProcessEnv = {}
-    execFileMock.mockImplementation((_cmd, _args, options, callback) => {
-      capturedEnv = options.env
+    execFileMock.mockImplementation((_cmd, args: string[], options, callback) => {
+      // Fail only the network command; upstream probes local config (SSH policy) first.
+      const failed = gitNetworkSubcommand(args) ? error : null
+      if (failed || !error) {
+        capturedEnv = options.env
+      }
       const child = createMockChild()
-      callback(error, '', '')
-      queueMicrotask(() => child.emit('close', error ? 1 : 0))
+      callback(failed, '', '')
+      queueMicrotask(() => child.emit('close', failed ? 1 : 0))
       return child
     })
     return { env: () => capturedEnv }

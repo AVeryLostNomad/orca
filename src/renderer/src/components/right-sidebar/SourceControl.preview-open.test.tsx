@@ -2,7 +2,7 @@
 
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { within } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type {
@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => {
     bulkStageRuntimeGitPaths: vi.fn(),
     refreshGitStatusForWorktree: vi.fn(),
     quiesceDocumentSave: vi.fn(),
+    holdDocumentAutosave: vi.fn(),
     notifyEditorExternalFileChange: vi.fn(),
     statRuntimePath: vi.fn()
   }
@@ -86,7 +87,7 @@ vi.mock('@/components/confirmation-dialog-context', () => ({
   useConfirmationDialog: () => vi.fn().mockResolvedValue(true)
 }))
 
-vi.mock('@/runtime/runtime-git-client', async (importOriginal) => {
+vi.mock('@/runtime/runtime-git-working-tree-client', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
@@ -101,6 +102,7 @@ vi.mock('@/runtime/runtime-file-metadata-client', () => ({
 
 vi.mock('@/components/editor/editor-autosave', () => ({
   quiesceDocumentSave: mocks.calls.quiesceDocumentSave,
+  holdDocumentAutosave: mocks.calls.holdDocumentAutosave,
   notifyEditorExternalFileChange: mocks.calls.notifyEditorExternalFileChange
 }))
 
@@ -158,6 +160,7 @@ function resetState(overrides: Partial<Record<string, unknown>> = {}): void {
   mocks.calls.bulkStageRuntimeGitPaths.mockResolvedValue(undefined)
   mocks.calls.refreshGitStatusForWorktree.mockResolvedValue(undefined)
   mocks.calls.quiesceDocumentSave.mockResolvedValue(undefined)
+  mocks.calls.holdDocumentAutosave.mockResolvedValue(() => {})
   mocks.calls.statRuntimePath.mockResolvedValue({ size: 1, isDirectory: false, mtime: 1 })
   mocks.state = {
     workingDocuments: {},
@@ -166,6 +169,9 @@ function resetState(overrides: Partial<Record<string, unknown>> = {}): void {
     groupsByWorktree: { [mocks.activeWorktree.id]: [{ id: 'group-1', activeTabId: null }] },
     repos: [mocks.activeRepo],
     worktreesByRepo: { [mocks.activeRepo.id]: [mocks.activeWorktree] },
+    sshConnectionStates: new Map(),
+    sshStateByEnvironment: new Map(),
+    runtimeStatusByEnvironmentId: new Map(),
     rightSidebarOpen: false,
     rightSidebarTab: 'source-control',
     gitStatusByWorktree: { [mocks.activeWorktree.id]: [] },
@@ -184,8 +190,6 @@ function resetState(overrides: Partial<Record<string, unknown>> = {}): void {
     runtimeEnvironments: [],
     runtimeEnvironmentCatalogHydrated: true,
     removedRuntimeEnvironmentIds: new Set(),
-    sshConnectionStates: {},
-    sshStateByEnvironment: {},
     hostedReviewCache: {},
     prCache: {},
     commitMessageGenerationRecords: {},
@@ -303,6 +307,14 @@ function clickBranchRow(init: MouseEventInit = {}): void {
   })
 }
 
+// Disclosure state persists per worktree across mounts, so only expand when collapsed.
+function expandBranchSection(): void {
+  const header = within(container).getByRole('button', { name: /Committed on Branch/ })
+  if (header.getAttribute('aria-expanded') !== 'true') {
+    act(() => header.click())
+  }
+}
+
 async function doubleClickBranchRow(): Promise<void> {
   const label = [...container.querySelectorAll('span')].find(
     (candidate) => candidate.textContent === 'branch.ts'
@@ -320,33 +332,37 @@ async function doubleClickBranchRow(): Promise<void> {
 }
 
 describe('SourceControl preview row opens', () => {
-  it('passes preview=true when plain uncommitted row clicks open diff tabs', () => {
+  it.each([
+    ['src/file.ts', 'src/staged.ts', 'typescript'],
+    ['report.html', 'staged.html', 'html'],
+    ['REPORT.HTM', 'STAGED.HTM', 'html']
+  ])('opens %s and %s as preview diff tabs on plain clicks', (path, stagedPath, language) => {
     resetState({
       gitStatusByWorktree: {
         [mocks.activeWorktree.id]: [
-          gitEntry({ path: 'src/file.ts' }),
-          gitEntry({ path: 'src/staged.ts', area: 'staged' })
+          gitEntry({ path }),
+          gitEntry({ path: stagedPath, area: 'staged' })
         ]
       }
     })
     renderSourceControl()
 
-    clickUncommitted('src/file.ts')
-    clickUncommitted('src/staged.ts')
+    clickUncommitted(path)
+    clickUncommitted(stagedPath)
 
     expect(mocks.calls.openDiff).toHaveBeenCalledWith(
       mocks.activeWorktree.id,
-      '/repo/wt/src/file.ts',
-      'src/file.ts',
-      'typescript',
+      `/repo/wt/${path}`,
+      path,
+      language,
       false,
       { targetGroupId: undefined, preview: true }
     )
     expect(mocks.calls.openDiff).toHaveBeenCalledWith(
       mocks.activeWorktree.id,
-      '/repo/wt/src/staged.ts',
-      'src/staged.ts',
-      'typescript',
+      `/repo/wt/${stagedPath}`,
+      stagedPath,
+      language,
       true,
       { targetGroupId: undefined, preview: true }
     )
@@ -470,7 +486,8 @@ describe('SourceControl preview row opens', () => {
     resetState({
       gitStatusByWorktree: {
         [mocks.activeWorktree.id]: [
-          gitEntry({ path: 'docs/readme.md' }),
+          gitEntry({ path: 'docs/readme.md', status: 'untracked', area: 'untracked' }),
+          gitEntry({ path: 'docs/existing.md' }),
           gitEntry({
             path: 'src/conflict.ts',
             conflictKind: 'both_modified',
@@ -482,12 +499,21 @@ describe('SourceControl preview row opens', () => {
     renderSourceControl()
 
     clickUncommitted('docs/readme.md')
+    clickUncommitted('docs/existing.md')
     clickUncommitted('src/conflict.ts')
 
     expect(mocks.calls.openDiff).toHaveBeenCalledWith(
       mocks.activeWorktree.id,
       '/repo/wt/docs/readme.md',
       'docs/readme.md',
+      'markdown',
+      false,
+      { targetGroupId: undefined, preview: true }
+    )
+    expect(mocks.calls.openDiff).toHaveBeenCalledWith(
+      mocks.activeWorktree.id,
+      '/repo/wt/docs/existing.md',
+      'docs/existing.md',
       'markdown',
       false,
       { targetGroupId: undefined, preview: true }
@@ -501,12 +527,30 @@ describe('SourceControl preview row opens', () => {
     )
   })
 
-  it('scopes discard autosave quiesce and reload notifications to the active runtime', async () => {
+  it('scopes discard autosave quiesce and reload notifications to the repo owner runtime', async () => {
     resetState({
       gitStatusByWorktree: { [mocks.activeWorktree.id]: [gitEntry({ path: 'src/file.ts' })] }
     })
+    // Route discard by owner stamp even when another server is focused.
+    Object.assign(mocks.activeRepo, { executionHostId: 'runtime:runtime-remote' })
+    onTestFinished(() => {
+      Object.assign(mocks.activeRepo, { executionHostId: 'local' })
+    })
+    // Same path open on the owner runtime and on the focused one; only the owner's may be held.
+    const documentFor = (id: string, runtimeEnvironmentId: string) => ({
+      id,
+      target: {
+        worktreeId: mocks.activeWorktree.id,
+        relativePath: 'src/file.ts',
+        owner: { runtimeEnvironmentId }
+      }
+    })
+    mocks.state.workingDocuments = {
+      'doc-owner': documentFor('doc-owner', 'runtime-remote'),
+      'doc-other': documentFor('doc-other', 'runtime-other')
+    }
     renderSourceControl()
-    mocks.state.settings = { activeRuntimeEnvironmentId: 'runtime-remote' }
+    mocks.state.settings = { activeRuntimeEnvironmentId: 'runtime-other' }
 
     const row = container.querySelector<HTMLDivElement>('[data-source-control-path="src/file.ts"]')
     const discardButton = row?.querySelector<HTMLButtonElement>(
@@ -526,7 +570,9 @@ describe('SourceControl preview row opens', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.calls.quiesceDocumentSave).not.toHaveBeenCalled()
+    expect(mocks.calls.holdDocumentAutosave.mock.calls.map(([documentId]) => documentId)).toEqual([
+      'doc-owner'
+    ])
     expect(mocks.calls.notifyEditorExternalFileChange).toHaveBeenCalledWith({
       worktreeId: mocks.activeWorktree.id,
       worktreePath: '/repo/wt',
@@ -629,11 +675,7 @@ describe('SourceControl preview row opens', () => {
       gitBranchCompareSummaryByWorktree: { [mocks.activeWorktree.id]: branchSummary() }
     })
     renderSourceControl()
-    act(() =>
-      within(container)
-        .getByRole('button', { name: /Committed on Branch/ })
-        .click()
-    )
+    expandBranchSection()
 
     clickBranchRow()
 
@@ -653,11 +695,7 @@ describe('SourceControl preview row opens', () => {
       gitBranchCompareSummaryByWorktree: { [mocks.activeWorktree.id]: branchSummary() }
     })
     renderSourceControl()
-    act(() =>
-      within(container)
-        .getByRole('button', { name: /Committed on Branch/ })
-        .click()
-    )
+    expandBranchSection()
 
     await doubleClickBranchRow()
 

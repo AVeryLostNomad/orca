@@ -1,3 +1,4 @@
+import { installRealWorkerThreadChildProcesses } from '../worker-thread-child-process/worker-thread-child-process-real.test-fixtures'
 import { spawnSync } from 'node:child_process'
 import { existsSync, realpathSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -38,6 +39,9 @@ vi.mock('../git/runner', async (importOriginal) => ({
 import { createPrototype } from './prototype-provisioning'
 import { preflightPrototypePromotion, promotePrototype } from './prototype-promotion'
 import { deletePrototypeFiles } from './prototype-removal'
+
+// Git runs through the worker-thread child process host.
+installRealWorkerThreadChildProcesses()
 
 function git(cwd: string, args: string[]): string {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' })

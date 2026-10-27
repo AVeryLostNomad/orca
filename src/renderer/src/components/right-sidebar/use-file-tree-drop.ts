@@ -60,7 +60,7 @@ export function useFileTreeDrop({
             )
             const operationRoute = operationGuard.route
             const fileContext = {
-              settings: operationRoute.settings,
+              target: operationRoute.target,
               worktreeId: activeWorktreeId,
               worktreePath,
               connectionId: operationRoute.connectionId,

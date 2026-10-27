@@ -16,7 +16,8 @@ const comparison = vi.hoisted(() => ({
 
 vi.mock('@/lib/diff-comparison/comparison-client', () => comparison)
 
-import { buildMonacoGitGutterDecorations, MonacoGitGutterController } from './use-monaco-git-gutter'
+import { MonacoGitGutterController } from './use-monaco-git-gutter'
+import { buildMonacoGitGutterDecorations } from './monaco-git-gutter-decorations'
 
 const models: monaco.editor.ITextModel[] = []
 

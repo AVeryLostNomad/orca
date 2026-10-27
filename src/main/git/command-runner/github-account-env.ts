@@ -105,22 +105,54 @@ type ResolvedGitAccount = {
   identity: GitAccountCommitIdentity | null
 }
 
-export async function resolveGitAccountForCommand(
+const NO_GIT_ACCOUNT: ResolvedGitAccount = { credential: null, identity: null }
+
+/** Synchronous when no lookup applies, so ordinary git calls reach admission without an extra tick. */
+export function resolveGitAccountForCommand(
   args: readonly string[],
   cwd: string | undefined,
   callerEnv: NodeJS.ProcessEnv | undefined
-): Promise<ResolvedGitAccount> {
-  const credential =
-    gitAccountCredentialResolver && gitNetworkSubcommand(args)
-      ? await gitAccountCredentialResolver(cwd)
-      : null
-  const identity =
+): ResolvedGitAccount | Promise<ResolvedGitAccount> {
+  const credentialResolver =
+    gitAccountCredentialResolver && gitNetworkSubcommand(args) ? gitAccountCredentialResolver : null
+  const identityResolver =
     gitAccountIdentityResolver &&
     gitCommitIdentitySubcommand(args) &&
     !callerProvidesGitIdentityEnv(callerEnv)
-      ? await gitAccountIdentityResolver(cwd)
+      ? gitAccountIdentityResolver
       : null
-  return { credential, identity }
+  if (!credentialResolver && !identityResolver) {
+    return NO_GIT_ACCOUNT
+  }
+  return (async () => ({
+    credential: credentialResolver ? await credentialResolver(cwd) : null,
+    identity: identityResolver ? await identityResolver(cwd) : null
+  }))()
+}
+
+type GitAccountEnv = { account: ResolvedGitAccount; env: NodeJS.ProcessEnv }
+
+/** The pinned account plus the env carrying it; synchronous when no lookup applies. */
+export function gitAccountEnvForCommand(
+  args: readonly string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv },
+  baseEnv: NodeJS.ProcessEnv
+): GitAccountEnv | Promise<GitAccountEnv> {
+  const pending = resolveGitAccountForCommand(args, options.cwd, options.env)
+  const withEnv = (account: ResolvedGitAccount): GitAccountEnv => ({
+    account,
+    env: applyGitAccountEnv(baseEnv, account)
+  })
+  return pending instanceof Promise ? pending.then(withEnv) : withEnv(pending)
+}
+
+export function invalidateGitAccountOnAuthFailure(
+  error: unknown,
+  account: ResolvedGitAccount
+): void {
+  if (isGitAuthFailure(error)) {
+    invalidateGitAccountTokenForAuthFailure(account)
+  }
 }
 
 export function applyGitAccountEnv(
@@ -190,14 +222,15 @@ export function ghAccountInjectionAllowed(
   )
 }
 
-export async function resolveGhAccountForCommand(
+/** Returns null synchronously when no lookup applies, so unbound gh calls still spawn without a tick. */
+export function resolveGhAccountForCommand(
   args: readonly string[],
   options: GhAccountInjectionOptions & { cwd?: string }
-): Promise<{ ref: string; token: string } | null> {
+): Promise<{ ref: string; token: string } | null> | null {
   if (!ghAccountEnvResolver || !ghAccountInjectionAllowed(args, options)) {
     return null
   }
-  return await ghAccountEnvResolver(options.cwd ?? options.accountCwdHint)
+  return ghAccountEnvResolver(options.cwd ?? options.accountCwdHint)
 }
 
 export function applyGhAccountEnv(

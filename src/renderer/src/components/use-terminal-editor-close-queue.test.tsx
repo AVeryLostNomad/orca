@@ -20,6 +20,8 @@ function closeController() {
   return {
     activeWorktreeId: 'wt-a',
     closeFile: vi.fn(),
+    closeUnifiedTab: vi.fn(),
+    closedReactionsRef: { current: new Map() },
     pendingEditorCloseState: null,
     proceedToNativeWindowClose: vi.fn(),
     setActiveFile: vi.fn(),

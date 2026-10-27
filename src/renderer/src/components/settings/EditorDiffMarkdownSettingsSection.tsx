@@ -10,7 +10,6 @@ import {
 import { translate } from '@/i18n/i18n'
 import { RichMarkdownSpellcheckSetting } from './RichMarkdownSpellcheckSetting'
 
-
 type EditorDiffMarkdownSettingsSectionProps = {
   settings: GlobalSettings
   updateSettings: (updates: Partial<GlobalSettings>) => void
@@ -80,7 +79,6 @@ export function EditorDiffMarkdownSettingsSection({
           ]}
         />
       </SearchableSetting>
-
 
       <SearchableSetting
         title={translate(
@@ -197,7 +195,7 @@ export function EditorDiffMarkdownSettingsSection({
         )}
         description={translate(
           'auto.components.settings.GeneralEditorSettingsSection.5f02e6fb21',
-          'Show local markdown review note controls in rich editor mode.'
+          'Show local markdown review note controls in markdown files.'
         )}
         keywords={['markdown', 'review', 'notes', 'annotations', 'agents']}
       >
@@ -208,7 +206,7 @@ export function EditorDiffMarkdownSettingsSection({
           )}
           description={translate(
             'auto.components.settings.GeneralEditorSettingsSection.f80603d293',
-            'Show local markdown note controls in rich editor mode and agent handoff actions.'
+            'Show markdown note controls in every markdown view and include markdown notes in agent handoff actions.'
           )}
           checked={settings.markdownReviewToolsEnabled}
           onChange={() =>

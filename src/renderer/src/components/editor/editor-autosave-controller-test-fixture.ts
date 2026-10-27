@@ -1,10 +1,67 @@
-// Why: shared rig for autosave-controller suites — the controller needs a
-// real editor store slice plus a window stub (event target, timers, fs
-// bridge), and duplicating that per test file bloats suites past max-lines.
+// Use a real editor slice and isolated window/filesystem bridge across autosave suites.
 import { vi } from 'vitest'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { createEditorSlice } from '@/store/slices/editor'
 import type { AppState } from '@/store'
+import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
+import { emptyTabLayoutState } from '@/store/slices/editor-slice-test-harness'
+import { getDiskBaselineSignature } from '../../../../shared/disk-baseline-signature'
+import {
+  compareDiskWritePrecondition,
+  type FileWriteDiskPrecondition
+} from '../../../../shared/file-write-disk-precondition'
+
+export type FakeEditorDisk = {
+  files: Map<string, string>
+  fs: {
+    writeFile: ReturnType<typeof vi.fn>
+    deletePath: ReturnType<typeof vi.fn>
+    stat: ReturnType<typeof vi.fn>
+  }
+}
+
+/** Back the filesystem stub with in-memory disk contents so assertions observe landed writes. */
+export function createFakeEditorDisk(initialFiles: Record<string, string> = {}): FakeEditorDisk {
+  const files = new Map(Object.entries(initialFiles))
+  return {
+    files,
+    fs: {
+      writeFile: vi.fn(
+        async ({
+          filePath,
+          content,
+          diskPrecondition
+        }: {
+          filePath: string
+          content: string
+          diskPrecondition?: FileWriteDiskPrecondition
+        }) => {
+          const diskConflict = diskPrecondition
+            ? compareDiskWritePrecondition(diskPrecondition, files.get(filePath) ?? null, content)
+            : null
+          if (diskConflict === 'identical') {
+            return { ok: true, unchanged: true }
+          }
+          if (diskConflict) {
+            return { ok: false, diskConflict }
+          }
+          files.set(filePath, content)
+          return { ok: true }
+        }
+      ),
+      deletePath: vi.fn(async ({ targetPath }: { targetPath: string }) => {
+        files.delete(targetPath)
+      }),
+      stat: vi.fn(async ({ filePath }: { filePath: string }) => {
+        const content = files.get(filePath)
+        if (content === undefined) {
+          throw new Error(`ENOENT: no such file ${filePath}`)
+        }
+        return { size: content.length, isDirectory: false, mtime: 0 }
+      })
+    }
+  }
+}
 
 export type EditorWindowStub = {
   addEventListener: Window['addEventListener']
@@ -12,17 +69,13 @@ export type EditorWindowStub = {
   dispatchEvent: Window['dispatchEvent']
   setTimeout: Window['setTimeout']
   clearTimeout: Window['clearTimeout']
-  api: {
-    fs: {
-      writeFile: ReturnType<typeof vi.fn>
-    }
-  }
+  api: { fs: FakeEditorDisk['fs'] }
 }
 
-/** Stubs the global window with an isolated event target and fs bridge;
- *  returns the writeFile mock for assertions. */
-export function stubEditorWindow(): ReturnType<typeof vi.fn> {
-  const writeFile = vi.fn().mockResolvedValue(undefined)
+/** Stubs the global window with an isolated event target backed by `disk`. */
+export function stubEditorWindowWithDisk(
+  disk: FakeEditorDisk = createFakeEditorDisk()
+): FakeEditorDisk {
   const eventTarget = new EventTarget()
   vi.stubGlobal('window', {
     addEventListener: eventTarget.addEventListener.bind(eventTarget),
@@ -30,18 +83,20 @@ export function stubEditorWindow(): ReturnType<typeof vi.fn> {
     dispatchEvent: eventTarget.dispatchEvent.bind(eventTarget),
     setTimeout: globalThis.setTimeout.bind(globalThis),
     clearTimeout: globalThis.clearTimeout.bind(globalThis),
-    api: {
-      fs: {
-        writeFile
-      }
-    }
+    api: { fs: disk.fs }
   } satisfies EditorWindowStub)
-  return writeFile
+  return disk
+}
+
+/** Return the isolated window filesystem’s write mock. */
+export function stubEditorWindow(): ReturnType<typeof vi.fn> {
+  return stubEditorWindowWithDisk().fs.writeFile
 }
 
 export function createEditorStore(): StoreApi<AppState> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any -- a partial store; tests read only the slices it builds.
   return createStore<any>()((...args: any[]) => ({
+    ...emptyTabLayoutState(),
     activeWorktreeId: 'wt-1',
     repos: [],
     worktreesByRepo: {
@@ -58,5 +113,46 @@ export function createEditorStore(): StoreApi<AppState> {
       editorAutoSaveDelayMs: 1000
     },
     ...createEditorSlice(...(args as Parameters<typeof createEditorSlice>))
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: as above.
   })) as unknown as StoreApi<AppState>
+}
+
+/** Store with a local worktree at /repo and an open, untouched untitled note at /repo/`fileName`. */
+export function createUntitledNoteStore(fileName: string): StoreApi<AppState> {
+  const store = createEditorStore()
+  store.setState({
+    worktreesByRepo: {
+      'repo-1': [makeWorktree({ id: 'wt-1', repoId: 'repo-1', path: '/repo', hostId: 'local' })]
+    },
+    browserTabsByWorktree: {},
+    tabsByWorktree: {},
+    activeBrowserTabIdByWorktree: {},
+    unifiedTabsByWorktree: {}
+  })
+  store.getState().openFile({
+    filePath: `/repo/${fileName}`,
+    relativePath: fileName,
+    worktreeId: 'wt-1',
+    language: 'markdown',
+    mode: 'edit',
+    isUntitled: true
+  })
+  return store
+}
+
+/** Stamp loaded-document baselines in fixtures; guarded saves need a known disk version. */
+export function withLoadedBaselines<T extends Pick<StoreApi<AppState>, 'getState'>>(
+  store: T,
+  disk?: FakeEditorDisk
+): T {
+  const state = store.getState()
+  for (const document of Object.values(state.workingDocuments)) {
+    if (document.lastKnownDiskSignature === undefined) {
+      const loaded = disk ? disk.files.get(document.target.filePath) : ''
+      if (loaded !== undefined) {
+        state.setWorkingDocumentDiskBaseline(document.id, getDiskBaselineSignature(loaded))
+      }
+    }
+  }
+  return store
 }

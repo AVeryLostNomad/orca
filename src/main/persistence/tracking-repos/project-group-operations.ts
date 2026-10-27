@@ -1,5 +1,6 @@
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
+import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
 import {
   createProjectGroup,
   getProjectGroupExecutionHostId,
@@ -15,7 +16,44 @@ import {
 } from '../../../shared/project-account-pin-types'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
 import { projectGroupWorkspaceKey } from '../../../shared/project-group-workspace'
-import { removeWorkspaceSessionOwner } from '../restoring-sessions/session-owner-removal'
+import { removeWorkspaceSessionOwnersEverywhere } from '../restoring-sessions/session-owner-removal'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/** Cheap presence check over owner-keyed maps and owner-tagged rows. */
+function sessionMentionsOwnerKey(
+  session: WorkspaceSessionState | undefined,
+  ownerKey: string
+): boolean {
+  if (!session) {
+    return false
+  }
+  if (session.activeWorkspaceKey === ownerKey || session.activeWorktreeId === ownerKey) {
+    return true
+  }
+  const values: unknown[] = Object.values(session)
+  for (const value of values) {
+    if (!value || typeof value !== 'object') {
+      continue
+    }
+    if (Array.isArray(value)) {
+      if (value.some((entry: unknown) => entry === ownerKey)) {
+        return true
+      }
+      continue
+    }
+    if (ownerKey in value) {
+      return true
+    }
+    const rows: unknown[] = Object.values(value)
+    if (rows.some((row) => isRecord(row) && row.worktreeId === ownerKey)) {
+      return true
+    }
+  }
+  return false
+}
 
 export type ProjectGroupMutationOperations = {
   state: PersistedState
@@ -57,7 +95,7 @@ export class ProjectGroupPersistenceOperations {
     createdFrom: ProjectGroup['createdFrom']
   }): ProjectGroup {
     let maxOrder = -1
-    // Why: persisted group lists can be large enough to exceed spread limits.
+    // Large persisted lists can exceed spread argument limits.
     for (const existingGroup of this.state.projectGroups ?? []) {
       maxOrder = Math.max(maxOrder, existingGroup.tabOrder)
     }
@@ -169,31 +207,31 @@ export class ProjectGroupPersistenceOperations {
     if ((this.state.projectGroups?.length ?? 0) === before) {
       return false
     }
-    // Why: groups are sidebar organization only, so deleting one ungroups its repos rather than deleting them.
+    // Sidebar grouping does not own repos; ungroup them rather than delete them.
     this.state.repos = this.state.repos.map((repo) =>
       repo.projectGroupId && deletedGroupIds.has(repo.projectGroupId)
         ? { ...repo, projectGroupId: null }
         : repo
     )
+    // Group-wide workspaces are derived from the group, so their sessions go with it.
+    const sessions = [
+      this.state.workspaceSession,
+      ...Object.values(this.state.workspaceSessionsByHostId ?? {})
+    ]
     const removedFolderWorkspaceKeys = new Set(
-      [...deletedGroupIds].map((groupId) => projectGroupWorkspaceKey(groupId))
+      [...deletedGroupIds]
+        .map((id) => projectGroupWorkspaceKey(id))
+        // Skip the clone-and-prune pass when no session ever opened the group workspace.
+        .filter((key) => sessions.some((session) => sessionMentionsOwnerKey(session, key)))
     )
-    for (const workspaceKey of removedFolderWorkspaceKeys) {
-      this.state.workspaceSession = removeWorkspaceSessionOwner(
-        this.state.workspaceSession,
-        workspaceKey
-      )!
-    }
     for (const workspace of this.state.folderWorkspaces ?? []) {
       if (deletedGroupIds.has(workspace.projectGroupId)) {
         removedFolderWorkspaceKeys.add(folderWorkspaceKey(workspace.id))
-        this.state.workspaceSession = removeWorkspaceSessionOwner(
-          this.state.workspaceSession,
-          folderWorkspaceKey(workspace.id)
-        )!
         this.removeWorkspaceLineageForFolderParent(workspace.id)
       }
     }
+    // Remove all partition copies or folder layouts could resurrect on load.
+    removeWorkspaceSessionOwnersEverywhere(this.state, removedFolderWorkspaceKeys)
     this.state.folderWorkspaces = (this.state.folderWorkspaces ?? []).filter(
       (workspace) => !deletedGroupIds.has(workspace.projectGroupId)
     )

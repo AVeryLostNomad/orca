@@ -1,23 +1,6 @@
-/**
- * Memory dashboard collector.
- *
- * One snapshot covers two sources:
- *   - Orca's own Electron processes, via `getAppEnvironment().getAppMetrics()`, bucketed
- *     into main / renderer / other.
- *   - Each registered PTY's process subtree, enumerated once from a host-
- *     wide process sweep (PowerShell CIM with a Typeperf fallback on Windows).
- *
- * Memory samples are held in a per-key ring (one key per worktree, plus
- * a reserved app-total key) so the UI can draw a trend sparkline.
- *
- * Concurrent callers coalesce onto a single in-flight sweep so a burst of
- * renderer polls never produces overlapping child processes.
- */
-
 import { exec } from 'node:child_process'
-import os from 'node:os'
 import { promisify } from 'node:util'
-import { enumerateWindowsProcessResources } from './windows-process-resource-collector'
+import os from 'node:os'
 import { getAppEnvironment, type AppEnvironment } from '../../shared/app-environment'
 import type {
   AppMemory,
@@ -27,12 +10,20 @@ import type {
   WorktreeMemory
 } from '../../shared/process-stats-types'
 import { ORPHAN_WORKTREE_ID } from '../../shared/constants'
-import type { Store } from '../persistence'
-import { getAllEmbeddedEditorPids } from '../code-server/code-server-process-registry'
-import { collectHostMemory } from './host-memory'
-import { collectSubtree, parsePsOutput, type ProcIndex, type ProcRow } from './process-snapshot'
-import { getProcessMemoryMetric } from './process-memory-metric'
 import { listRegisteredPtys } from './pty-registry'
+import { enumerateWindowsProcessResources } from './windows-process-resource-collector'
+import { collectHostMemory } from './host-memory'
+import { getProcessMemoryMetric } from './process-memory-metric'
+import { getAllEmbeddedEditorPids } from '../code-server/code-server-process-registry'
+import { readDarwinProcessFootprints } from './darwin-process-footprint'
+import { getLocalDaemonPid } from './local-daemon-pid'
+import {
+  buildProcessIndex,
+  collectSubtree,
+  parsePsOutput,
+  type ProcIndex,
+  type ProcRow
+} from './process-index'
 import {
   createEmptyWorktreeMemoryBucket,
   pushAppMemoryHistory,
@@ -41,6 +32,7 @@ import {
   readMemoryHistory,
   resolveWorktreeMemoryNames,
   sweepStaleMemoryHistory,
+  type MemorySnapshotStore,
   type WorktreeMemoryBucket
 } from './memory-snapshot-buckets'
 import {
@@ -50,23 +42,13 @@ import {
   snapshotCommitFields
 } from './memory-snapshot-values'
 
-const execAsync = promisify(exec)
-const PS_EXEC_TIMEOUT_MS = 5_000
-const PS_MAX_BUFFER = 10 * 1024 * 1024
-
-export type MemorySnapshotStore = Pick<Store, 'getRepo' | 'getWorktreeMeta'>
-
-// ─── Module state ───────────────────────────────────────────────────
+export type { MemorySnapshotStore } from './memory-snapshot-buckets'
+export { collectSubtree, parsePsOutput } from './process-index'
 
 let inflight: Promise<MemorySnapshot> | null = null
 
-// ─── Public API ─────────────────────────────────────────────────────
-
 export async function collectMemorySnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> {
-  // Why: coalescing relies on the persistence store being a process-wide
-  // singleton at runtime. Concurrent callers all hand in the same instance,
-  // so it is safe to return the existing in-flight promise (which was
-  // kicked off with that same store) rather than starting a second sweep.
+  // Runtime callers share one process-wide store, so coalesced sweeps use the same data source.
   if (inflight) {
     return inflight
   }
@@ -81,13 +63,39 @@ export async function collectMemorySnapshot(store: MemorySnapshotStore): Promise
   return inflight
 }
 
-// ─── Internals ──────────────────────────────────────────────────────
+const execAsync = promisify(exec)
+const PS_EXEC_TIMEOUT_MS = 5_000
+const PS_MAX_BUFFER = 10 * 1024 * 1024
 
-// ─── Electron app process bucketing ─────────────────────────────────
+async function enumerateProcesses(): Promise<ProcIndex> {
+  const platform = os.platform()
+  const [rows, footprints] = await Promise.all([
+    platform === 'win32' ? enumerateWindows() : enumerateUnix(),
+    platform === 'darwin' ? readDarwinProcessFootprints() : Promise.resolve(null)
+  ])
+  return buildProcessIndex(rows, footprints, getProcessMemoryMetric(platform))
+}
 
-// Electron-only buckets from app.getAppMetrics(); the `editor` bucket (the
-// code-server subtree) is added in runSnapshot from the host `ps` sweep, since
-// code-server is a plain spawned child, not one of Electron's own processes.
+async function enumerateUnix(): Promise<ProcRow[]> {
+  // Force dot decimals: parseFloat silently truncates locale-formatted comma values.
+  try {
+    const { stdout } = await execAsync('ps -eo pid=,ppid=,pcpu=,rss=', {
+      maxBuffer: PS_MAX_BUFFER,
+      timeout: PS_EXEC_TIMEOUT_MS,
+      env: { ...process.env, LC_ALL: 'C', LANG: 'C' }
+    })
+    return parsePsOutput(stdout)
+  } catch (err) {
+    console.warn('[memory] ps enumeration failed', err)
+    return []
+  }
+}
+
+async function enumerateWindows(): Promise<ProcRow[]> {
+  return enumerateWindowsProcessResources()
+}
+
+// The `editor` bucket (code-server subtrees) comes from the host sweep, not getAppMetrics.
 type AppBucketsRaw = Omit<AppMemory, 'history' | 'editor'>
 
 function electronMetricMemoryBytes(
@@ -98,9 +106,7 @@ function electronMetricMemoryBytes(
   if (typeof hostMemory === 'number' && Number.isFinite(hostMemory) && hostMemory > 0) {
     return hostMemory
   }
-  // Why: on macOS, getAppEnvironment().getAppMetrics().workingSetSize can include large shared
-  // Chromium/Electron mappings. Prefer the host RSS sweep used elsewhere, but
-  // keep workingSetSize as a fallback when the process disappears mid-snapshot.
+  // Prefer host RSS over shared macOS Electron mappings; retain Electron fallback for vanished processes.
   return clampMemoryMetric(proc.memory?.workingSetSize) * 1024
 }
 
@@ -109,15 +115,14 @@ function bucketElectronMetrics(processIndex: ProcIndex): AppBucketsRaw {
   const renderer = { cpu: 0, memory: 0, privateMemory: 0 }
   const other = { cpu: 0, memory: 0, privateMemory: 0 }
 
+  const electronPids = new Set<number>()
   for (const proc of getAppEnvironment().getAppMetrics()) {
+    electronPids.add(proc.pid)
     const cpu = clampMemoryMetric(proc.cpu?.percentCPUUsage)
     const memoryBytes = electronMetricMemoryBytes(proc, processIndex)
-    // Why the host row rather than Electron's own metric: getAppMetrics has no
-    // commit figure for helper processes, and the sweep already indexed them.
+    // Electron does not report helper-process commit; reuse the host sweep.
     const privateBytes = clampMemoryMetric(processIndex.byPid.get(proc.pid)?.privateMemory)
 
-    // Why: lowercase once so future Electron versions emitting different
-    // casing ('browser' vs 'Browser') still bucket correctly.
     const type = (typeof proc.type === 'string' ? proc.type : '').toLowerCase()
     let target = other
     if (type === 'browser') {
@@ -129,6 +134,15 @@ function bucketElectronMetrics(processIndex: ProcIndex): AppBucketsRaw {
     target.cpu += cpu
     target.memory += memoryBytes
     target.privateMemory += privateBytes
+  }
+
+  // The terminal daemon is detached from Electron, so getAppMetrics omits it; its PTY children stay with their worktrees.
+  const daemonPid = getLocalDaemonPid()
+  const daemon = daemonPid === null ? undefined : processIndex.byPid.get(daemonPid)
+  if (daemon && !electronPids.has(daemon.pid)) {
+    other.cpu += daemon.cpu
+    other.memory += daemon.memory
+    other.privateMemory += clampMemoryMetric(daemon.privateMemory)
   }
 
   const usage = (bucket: typeof main): UsageValues => ({
@@ -149,12 +163,8 @@ function bucketElectronMetrics(processIndex: ProcIndex): AppBucketsRaw {
   }
 }
 
-// ─── Embedded editor (code-server) attribution ──────────────────────
-
-// Sum every embedded code-server process subtree (the shared editor plus the
-// per-repo Data Studio servers). The shared server belongs to the app footprint,
-// not to one worktree. `claimed` prevents double-counting a subtree already
-// attributed to a terminal.
+// Embedded code-server subtrees (shared editor + per-repo Data Studio) belong to the app footprint;
+// `claimed` keeps a pid already attributed to a terminal from being counted twice.
 function collectEditorBucket(index: ProcIndex, claimed: Set<number>): UsageValues {
   let cpu = 0
   let memory = 0
@@ -181,17 +191,12 @@ function collectEditorBucket(index: ProcIndex, claimed: Set<number>): UsageValue
   }
 }
 
-// ─── Main collection path ───────────────────────────────────────────
-
 async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> {
   const [processIndex, host] = await Promise.all([enumerateProcesses(), collectHostMemory()])
   const appBuckets = bucketElectronMetrics(processIndex)
   const ptys = listRegisteredPtys()
 
-  // Why: when two PTYs share an ancestor in the process tree (e.g. a
-  // supervisor, or a shell that re-execed), a naive walk would double-count
-  // that ancestor's memory. Track which pids have already been claimed and
-  // attribute to the first PTY (registration order) to see each pid.
+  // Attribute overlapping PTY trees once, in registration order.
   const claimed = new Set<number>()
 
   const orphan = createEmptyWorktreeMemoryBucket(
@@ -219,8 +224,6 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
         claimed.add(pid)
         sessionCpu += row.cpu
         sessionMemory += row.memory
-        // Why the whole subtree: an agent's committed bytes live in the
-        // children it spawned (codex.exe, MCP servers), not in the shell.
         sessionPrivateMemory += clampMemoryMetric(row.privateMemory)
       }
     }
@@ -259,8 +262,7 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
     bucket.sessions.push(session)
   }
 
-  // Fold the shared code-server subtree into the app bucket after the PTY loop
-  // so any process claimed by a terminal keeps its single attribution.
+  // After the PTY loop so a terminal-claimed process keeps its single attribution.
   const editor = collectEditorBucket(processIndex, claimed)
   const appTotals: AppBucketsRaw & { editor: UsageValues } = {
     ...appBuckets,
@@ -278,9 +280,7 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
     bucketList.push(orphan)
   }
 
-  // Why: record this sweep's samples *before* reading back history, so the
-  // returned arrays end with the freshly-collected value. Each write also
-  // acts as a keep-alive so active worktrees survive the staleness sweep.
+  // Write before reading history to include this sample and refresh active-worktree retention.
   const now = Date.now()
   pushAppMemoryHistory(appTotals.memory, now)
   for (const bucket of bucketList) {
@@ -307,7 +307,7 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
     app: { ...appTotals, history: readAppMemoryHistory() },
     worktrees,
     host,
-    processMemoryMetric: getProcessMemoryMetric(),
+    processMemoryMetric: processIndex.memoryMetric,
     ...snapshotCommitFields(
       processIndex.hasPrivateMemory,
       clampMemoryMetric(appTotals.privateMemory) + sessionPrivateTotal
@@ -315,43 +315,5 @@ async function runSnapshot(store: MemorySnapshotStore): Promise<MemorySnapshot> 
     totalCpu: appTotals.cpu + sessionCpuTotal,
     totalMemory: appTotals.memory + sessionMemoryTotal,
     collectedAt: now
-  }
-}
-async function enumerateProcesses(): Promise<ProcIndex> {
-  const rows =
-    os.platform() === 'win32' ? await enumerateWindowsProcessResources() : await enumerateUnix()
-  const byPid = new Map<number, ProcRow>()
-  const childrenOf = new Map<number, number[]>()
-  let hasPrivateMemory = false
-
-  for (const row of rows) {
-    byPid.set(row.pid, row)
-    hasPrivateMemory ||= row.privateMemory !== undefined
-    const siblings = childrenOf.get(row.ppid)
-    if (siblings) {
-      siblings.push(row.pid)
-    } else {
-      childrenOf.set(row.ppid, [row.pid])
-    }
-  }
-
-  return { byPid, childrenOf, hasPrivateMemory }
-}
-
-async function enumerateUnix(): Promise<ProcRow[]> {
-  // Why: `-o pcpu` formats the percentage with the current locale's decimal
-  // separator (e.g. "12,5" on de_DE). parseFloat is locale-agnostic and
-  // silently drops the fractional part at a comma. Forcing C locale keeps
-  // decimals as dots.
-  try {
-    const { stdout } = await execAsync('ps -eo pid=,ppid=,pcpu=,rss=', {
-      maxBuffer: PS_MAX_BUFFER,
-      timeout: PS_EXEC_TIMEOUT_MS,
-      env: { ...process.env, LC_ALL: 'C', LANG: 'C' }
-    })
-    return parsePsOutput(stdout)
-  } catch (err) {
-    console.warn('[memory] ps enumeration failed', err)
-    return []
   }
 }

@@ -3,7 +3,7 @@ import { useAppStore } from '@/store'
 import { createProgrammaticScrollMarks } from '@/hooks/programmatic-scroll-marks'
 import { useWorkspaceFileBrowserActionPredicate } from '@/lib/file-preview'
 import { openReviewWorkingFile } from '@/lib/review-working-file'
-import { selectWorktreeDiffCommentsOrEmpty } from '@/store/worktree-diff-comments-selector'
+import { useVisibleWorktreeDiffComments } from '../../diff-comments/use-visible-worktree-diff-comments'
 import type { OpenFile } from '@/store/slices/editor'
 import '@/lib/monaco-setup'
 import { ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT } from '../editor-autosave'
@@ -22,6 +22,7 @@ import { useCombinedDiffSectionRetry } from './load-sections/use-combined-diff-s
 import { useCombinedDiffSectionRevalidation } from './load-sections/use-combined-diff-section-revalidation'
 import { useCombinedDiffViewPersist } from './remember-view/use-combined-diff-view-persist'
 import { useCombinedDiffViewRestore } from './remember-view/use-combined-diff-view-restore'
+import { buildCombinedDiffViewTabSuccession } from './remember-view/combined-diff-view-tab-scope'
 import { useCombinedDiffDirectScrollInput } from './scroll-viewport/use-combined-diff-direct-scroll-input'
 import { useCombinedDiffScrollAnchors } from './scroll-viewport/use-combined-diff-scroll-anchors'
 import { useCombinedDiffScrollPersistence } from './scroll-viewport/use-combined-diff-scroll-persistence'
@@ -42,11 +43,13 @@ import { useCombinedDiffWorkingDocuments } from './use-combined-diff-working-doc
 export default function CombinedDiffViewer({
   file,
   viewStateKey,
-  tabId
+  tabId,
+  viewStateScopeId
 }: {
   file: OpenFile
   viewStateKey: string
   tabId: string
+  viewStateScopeId?: string
 }): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const gitStatusEntries = useAppStore(
@@ -61,9 +64,8 @@ export default function CombinedDiffViewer({
   const openBranchAllDiffs = useAppStore((s) => s.openBranchAllDiffs)
   const updateSettings = useAppStore((s) => s.updateSettings)
   const clearDiffComments = useAppStore((s) => s.clearDiffComments)
-  const diffCommentsForWorktree = useAppStore((s) =>
-    selectWorktreeDiffCommentsOrEmpty(s, file.worktreeId)
-  )
+  const { comments: diffCommentsForWorktree, markdownReviewNotesEnabled } =
+    useVisibleWorktreeDiffComments(file.worktreeId)
   const activeGroupId = useAppStore((s) => s.activeGroupIdByWorktree[file.worktreeId])
   const canOpenWorkspaceFileBrowserForPath = useWorkspaceFileBrowserActionPredicate(file.worktreeId)
 
@@ -85,6 +87,7 @@ export default function CombinedDiffViewer({
   const notes = useCombinedDiffNotesActions({
     clearDiffComments,
     diffCommentsForWorktree,
+    markdownReviewNotesEnabled,
     worktreeId: file.worktreeId
   })
   const preferences = useCombinedDiffViewPreferences({
@@ -104,7 +107,9 @@ export default function CombinedDiffViewer({
     setSectionHeights,
     setSections,
     setSideBySide: preferences.setSideBySide,
-    viewStateKey
+    succession: buildCombinedDiffViewTabSuccession(file.id, viewStateScopeId),
+    viewStateKey,
+    worktreeId: file.worktreeId
   })
   const { loadSection, loadDeferredSection } = useCombinedDiffSectionLoader({
     entrySet,
@@ -158,13 +163,19 @@ export default function CombinedDiffViewer({
     sideBySide: preferences.sideBySide,
     structureRevision: sectionRowKeys.structureRevision,
     totalSize: virtualizer.getTotalSize(),
-    viewStateKey,
+    memoryLeaseRef: restore.memoryLeaseRef,
     virtualizer
   })
 
   const toggleSection = useCallback(
     (index: number) => {
-      const shouldLoadAfterExpand = registry.sectionsRef.current[index]?.collapsed ?? false
+      const section = registry.sectionsRef.current[index]
+      const shouldLoadAfterExpand = section?.collapsed ?? false
+      const anchor = restore.scrollAnchorRef.current
+      if (section && !section.collapsed && anchor?.key === section.key) {
+        // The offset points into the body being removed; restore would land on later sections.
+        anchor.offset = 0
+      }
       setSections((prev) =>
         prev.map((s, i) => (i === index ? { ...s, collapsed: !s.collapsed } : s))
       )
@@ -172,7 +183,7 @@ export default function CombinedDiffViewer({
         registry.loadSchedulerRef.current.request(index)
       }
     },
-    [registry.loadSchedulerRef, registry.sectionsRef]
+    [registry.loadSchedulerRef, registry.sectionsRef, restore.scrollAnchorRef]
   )
 
   const treeNavigation = useCombinedDiffTreeNavigation({
@@ -243,6 +254,7 @@ export default function CombinedDiffViewer({
     entryCount: entrySet.entries.length,
     entrySignature: entrySet.entrySignature,
     loadedIndicesRef: registry.loadedIndicesRef,
+    memoryLeaseRef: restore.memoryLeaseRef,
     scrollContainerRef,
     sectionHeights,
     sections,
@@ -254,6 +266,7 @@ export default function CombinedDiffViewer({
     entrySignature: entrySet.entrySignature,
     hasDirectScrollInput,
     latestDomScrollAnchorRef: restore.latestDomScrollAnchorRef,
+    memoryLeaseRef: restore.memoryLeaseRef,
     programmaticScrollMarks,
     scrollAnchorRef: restore.scrollAnchorRef,
     scrollContainerRef,

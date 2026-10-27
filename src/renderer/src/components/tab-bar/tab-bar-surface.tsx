@@ -10,9 +10,10 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { QuickLaunchAgentMenuItems } from './QuickLaunchButton'
+import { ProjectedAgentMenuItems } from './QuickLaunchButton'
 import TabBarCreateEntry from './TabBarCreateEntry'
 import { TabStripScrollIndicator } from './TabStripScrollIndicator'
+import { TabStripTooltipProvider } from './TabStripTooltipProvider'
 import { getTabStripScrollMaskClassName } from './tab-strip-scroll-metrics'
 import type { useTabStripOverflowNavigation } from './tab-strip-overflow-navigation'
 import type { useTabStripDragScrollHandlers } from './tab-strip-drag-scroll'
@@ -20,10 +21,10 @@ import type { TabBarProps } from './tab-bar-props'
 import type { TabBarRuntimeModel } from './use-tab-bar-runtime-model'
 import type { TabBarCreateMenuController } from './use-tab-bar-create-menu-controller'
 import type { TabBarItemProjection } from './use-tab-bar-item-projection'
-import type { TabBarItem } from './tab-bar-item-model'
+import type { TabBarItemActions } from './use-tab-bar-item-actions'
 import { renderTabBarItems } from './tab-bar-item-surface'
 import { WorkspaceNotesTab } from './WorkspaceNotesTab'
-import { renderTabBarStaticCreateMenu } from './tab-bar-static-create-menu'
+import { TabBarStaticCreateMenu } from './tab-bar-static-create-menu'
 import type { VSCodeTabCreateGate } from './vscode-tab-create-gate'
 import type { DataStudioTabCreateGate } from './data-studio-tab-create-gate'
 import ClientHostedBrowserTabRows from './ClientHostedBrowserTabRows'
@@ -42,7 +43,8 @@ export function renderTabBarSurface({
   tabStripNavigation,
   tabStripDragScroll,
   activeClientHostedBrowserRowId,
-  togglePinned
+  itemActions,
+  surfaceRef
 }: {
   props: TabBarProps
   runtime: TabBarRuntimeModel
@@ -54,7 +56,8 @@ export function renderTabBarSurface({
   tabStripNavigation: ReturnType<typeof useTabStripOverflowNavigation>
   tabStripDragScroll: ReturnType<typeof useTabStripDragScrollHandlers>
   activeClientHostedBrowserRowId: string | null
-  togglePinned: (item: TabBarItem) => void
+  itemActions: TabBarItemActions
+  surfaceRef: (node: HTMLDivElement | null) => void
 }): React.JSX.Element {
   const {
     worktreeId,
@@ -73,7 +76,6 @@ export function renderTabBarSurface({
     showMobileEmulatorIntroCallout,
     windowsTerminalCapabilities,
     defaultWindowsPowerShellImplementation,
-    agentLaunchOptions,
     newTerminalShortcut,
     newPopupTerminalShortcut,
     newBrowserShortcut,
@@ -82,6 +84,9 @@ export function renderTabBarSurface({
     openMarkdownShortcut
   } = runtime
   const {
+    agentMenu,
+    agentLaunchOptions,
+    launchAgentRow,
     newTabMenuOpen,
     setNewTabMenuOpen,
     setCreateMenuQuery,
@@ -90,64 +95,39 @@ export function renderTabBarSurface({
     handleSelectCreateMenuOption,
     launchAgentFromNewTabEntry,
     runPendingNewTabMenuFocusAfterClose,
-    clearPendingNewTabMenuFocusOnUnmount,
     queueNewActiveTerminalFocusAfterNewTabMenuClose,
-    queueTerminalTabFocusAfterNewTabMenuClose,
     queueFocusAfterNewTabMenuClose,
     showStaticCreateMenuItems
   } = createMenu
   const { orderedItems, sortableIds, dropIndicatorByVisibleId } = itemProjection
   const clientHostedBrowserRows = props.clientHostedBrowserRows ?? EMPTY_CLIENT_HOSTED_ROWS
-  const { tabStripRef, tabStripOverflowState, scrollTabStrip } = tabStripNavigation
+  const {
+    tabStripRef,
+    tabStripOverflowState,
+    activeTabDockSide,
+    scrollTabStrip,
+    subscribeToStripResize
+  } = tabStripNavigation
   const includeTopTabBorder = tabStripChrome !== 'floating-panel'
   const renderedItems = renderTabBarItems({
     items: orderedItems,
     props,
     runtime,
+    actions: itemActions,
     dropIndicatorByVisibleId,
     includeTopTabBorder,
-    activeClientHostedBrowserRowId,
-    togglePinned
-  })
-  const standardCreateMenuItems = renderTabBarStaticCreateMenu({
-    props,
-    terminalOnly,
-    hasNewVSCode: vscodeCreateGate.hasNewVSCode,
-    vscodeRemoteDisabled: vscodeCreateGate.vscodeRemoteDisabled,
-    hasNewDataStudio: dataStudioCreateGate.hasNewDataStudio,
-    dataStudioRemoteDisabled: dataStudioCreateGate.dataStudioRemoteDisabled,
-    hasNewScratchFile,
-    mobileEmulatorEnabled,
-    managedBrowserCreationEnabled,
-    mobileEmulatorCreationEnabled,
-    workspaceHasSimulatorTab,
-    showMobileEmulatorIntroCallout,
-    windowsShellEntries,
-    defaultWindowsPowerShellImplementation,
-    pwshAvailable: windowsTerminalCapabilities.pwshAvailable,
-    newTerminalShortcut,
-    newPopupTerminalShortcut,
-    newBrowserShortcut,
-    newSimulatorShortcut,
-    newFileShortcut,
-    openMarkdownShortcut,
-    queueNewActiveTerminalFocusAfterNewTabMenuClose
+    activeClientHostedBrowserRowId
   })
 
   return (
-    <div
-      ref={clearPendingNewTabMenuFocusOnUnmount}
-      className="flex items-stretch h-full overflow-hidden flex-1 min-w-0"
-      // Why: preload routes native OS drops by this marker — only the tab strip opens files in the editor, not terminal panes.
-      data-native-file-drop-target="editor"
-    >
+    <div ref={surfaceRef} className="flex items-stretch h-full overflow-hidden flex-1 min-w-0">
       {tabStripOverflowState.hasOverflow ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon-xs"
-              className="mx-0.5 my-auto h-6 w-5 text-muted-foreground hover:bg-accent/50 hover:text-foreground disabled:opacity-35"
+              className="mx-0.5 my-auto h-6 w-5 @max-[260px]/tab-strip:hidden"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               aria-label={translate(
                 'auto.components.tab.bar.TabBar.7a9b4af2af',
@@ -169,7 +149,7 @@ export function renderTabBarSurface({
           </TooltipContent>
         </Tooltip>
       ) : null}
-      {/* Why: no strategy stops dnd-kit animating siblings, so tabs stay anchored during drag; only the insertion bar moves. */}
+      {/* Keep drag siblings anchored; only the insertion bar moves. */}
       <SortableContext items={sortableIds}>
         {/* Why: no-drag lets tab interactions work inside the titlebar's drag region (outer container stays window-draggable). */}
         <div
@@ -178,37 +158,41 @@ export function renderTabBarSurface({
         >
           <div
             ref={tabStripRef}
+            data-active-tab-docked={activeTabDockSide ?? undefined}
             // Why: only `border-r` here — a strip-level `border-l` would render a heavier L-corner than the first tab's own `border-l`.
             className={[
               'terminal-tab-strip flex h-full min-w-0 max-w-full flex-1 items-stretch overflow-x-auto overflow-y-hidden border-r border-border/70',
-              getTabStripScrollMaskClassName(tabStripOverflowState)
+              getTabStripScrollMaskClassName(tabStripOverflowState, activeTabDockSide)
             ]
               .filter(Boolean)
               .join(' ')}
           >
-            {/* Fixed leading chip: not sortable, never closable (floating workspace notes). */}
-            {props.workspaceNotesTab ? (
-              <WorkspaceNotesTab
-                tabId={props.workspaceNotesTab.tabId}
-                isActive={props.workspaceNotesTab.isActive}
-                onActivate={props.workspaceNotesTab.onActivate}
-                includeTopTabBorder={includeTopTabBorder}
-              />
-            ) : null}
-            {renderedItems}
-            {clientHostedBrowserRows.length > 0 ? (
-              <ClientHostedBrowserTabRows
-                rows={clientHostedBrowserRows}
-                worktreeId={worktreeId}
-                groupId={resolvedGroupId}
-                groupActiveTabId={props.groupActiveTabId ?? null}
-                includeTopTabBorder={includeTopTabBorder}
-              />
-            ) : null}
+            <TabStripTooltipProvider>
+              {/* Fixed leading chip: not sortable, never closable (floating workspace notes). */}
+              {props.workspaceNotesTab ? (
+                <WorkspaceNotesTab
+                  tabId={props.workspaceNotesTab.tabId}
+                  isActive={props.workspaceNotesTab.isActive}
+                  onActivate={props.workspaceNotesTab.onActivate}
+                  includeTopTabBorder={includeTopTabBorder}
+                />
+              ) : null}
+              {renderedItems}
+              {clientHostedBrowserRows.length > 0 ? (
+                <ClientHostedBrowserTabRows
+                  rows={clientHostedBrowserRows}
+                  worktreeId={worktreeId}
+                  groupId={resolvedGroupId}
+                  groupActiveTabId={props.groupActiveTabId ?? null}
+                  includeTopTabBorder={includeTopTabBorder}
+                />
+              ) : null}
+            </TabStripTooltipProvider>
           </div>
           <TabStripScrollIndicator
-            metrics={tabStripOverflowState}
+            hasOverflow={tabStripOverflowState.hasOverflow}
             scrollContainerRef={tabStripRef}
+            subscribeToStripResize={subscribeToStripResize}
             disabled={tabStripDragScroll.isTabDragActive}
           />
         </div>
@@ -219,7 +203,7 @@ export function renderTabBarSurface({
             <Button
               variant="ghost"
               size="icon-xs"
-              className="mx-0.5 my-auto h-6 w-5 text-muted-foreground hover:bg-accent/50 hover:text-foreground disabled:opacity-35"
+              className="mx-0.5 my-auto h-6 w-5 @max-[260px]/tab-strip:hidden"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               aria-label={translate(
                 'auto.components.tab.bar.TabBar.232e075b07',
@@ -250,7 +234,6 @@ export function renderTabBarSurface({
             className="ml-2 my-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             title={translate('auto.components.tab.bar.TabBar.b1a132357f', 'New tab')}
-            // Why: aria-label matches the tooltip so E2E can locate the "+" via getByRole('button', { name: 'New tab' }).
             aria-label={translate('auto.components.tab.bar.TabBar.b1a132357f', 'New tab')}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -274,7 +257,7 @@ export function renderTabBarSurface({
                 menuOpen={newTabMenuOpen}
                 menuOptions={createMenuOptions}
                 agentOptions={agentLaunchOptions}
-                onLaunchAgent={launchAgentFromNewTabEntry}
+                onLaunchAgentOption={launchAgentFromNewTabEntry}
                 onOpenDefaultTerminal={() => {
                   queueNewActiveTerminalFocusAfterNewTabMenuClose()
                   onNewTerminalTab()
@@ -288,15 +271,38 @@ export function renderTabBarSurface({
               {showStaticCreateMenuItems ? <DropdownMenuSeparator /> : null}
             </>
           ) : null}
-          {showStaticCreateMenuItems ? standardCreateMenuItems : null}
+          {showStaticCreateMenuItems ? (
+            <TabBarStaticCreateMenu
+              props={props}
+              terminalOnly={terminalOnly}
+              hasNewVSCode={vscodeCreateGate.hasNewVSCode}
+              vscodeRemoteDisabled={vscodeCreateGate.vscodeRemoteDisabled}
+              hasNewDataStudio={dataStudioCreateGate.hasNewDataStudio}
+              dataStudioRemoteDisabled={dataStudioCreateGate.dataStudioRemoteDisabled}
+              hasNewScratchFile={hasNewScratchFile}
+              mobileEmulatorEnabled={mobileEmulatorEnabled}
+              managedBrowserCreationEnabled={managedBrowserCreationEnabled}
+              mobileEmulatorCreationEnabled={mobileEmulatorCreationEnabled}
+              workspaceHasSimulatorTab={workspaceHasSimulatorTab}
+              showMobileEmulatorIntroCallout={showMobileEmulatorIntroCallout}
+              windowsShellEntries={windowsShellEntries}
+              defaultWindowsPowerShellImplementation={defaultWindowsPowerShellImplementation}
+              pwshAvailable={windowsTerminalCapabilities.pwshAvailable}
+              newTerminalShortcut={newTerminalShortcut}
+              newPopupTerminalShortcut={newPopupTerminalShortcut}
+              newBrowserShortcut={newBrowserShortcut}
+              newSimulatorShortcut={newSimulatorShortcut}
+              newFileShortcut={newFileShortcut}
+              openMarkdownShortcut={openMarkdownShortcut}
+              queueNewActiveTerminalFocusAfterNewTabMenuClose={
+                queueNewActiveTerminalFocusAfterNewTabMenuClose
+              }
+            />
+          ) : null}
           {showStaticCreateMenuItems && showAgentLaunchItems ? (
             <>
               <DropdownMenuSeparator />
-              <QuickLaunchAgentMenuItems
-                worktreeId={worktreeId}
-                groupId={resolvedGroupId}
-                onFocusTerminal={queueTerminalTabFocusAfterNewTabMenuClose}
-              />
+              <ProjectedAgentMenuItems model={agentMenu} runLaunch={launchAgentRow} />
             </>
           ) : null}
         </DropdownMenuContent>

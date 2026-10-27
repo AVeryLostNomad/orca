@@ -1,4 +1,4 @@
-import { getRepoExecutionHostId, normalizeExecutionHostId } from './execution-host'
+import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from './execution-host'
 import type { FolderWorkspace } from './folder-workspace-types'
 import type { ProjectGroup } from './project-group-types'
 import {
@@ -71,11 +71,13 @@ export function projectGroupToFolderWorkspace(args: {
   if (!folderPath) {
     return null
   }
+  const groupHostId = getProjectGroupExecutionHostId(args.group)
   return {
     id: projectGroupWorkspaceFolderId(args.group.id),
     projectGroupId: args.group.id,
     name: 'Group Wide',
-    executionHostId: normalizeExecutionHostId(args.group.executionHostId) ?? null,
+    // Canonical owner so host-stamped and connectionId-only group copies derive the same record.
+    executionHostId: groupHostId === LOCAL_EXECUTION_HOST_ID ? null : groupHostId,
     folderPath,
     connectionId: args.group.connectionId ?? null,
     linkedTask: null,

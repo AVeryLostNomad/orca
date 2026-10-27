@@ -1,5 +1,6 @@
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import type { EditorSlice } from '../types/editor-slice'
+import { ownsGlobalSelection } from '../../../global-selection-owner'
 
 export function createOpenFileState(
   set: EditorSet,
@@ -21,15 +22,13 @@ export function createOpenFileState(
     activeTabTypeByWorktree: {},
     activeTabType: 'terminal',
     recentlyClosedEditorTabsByWorktree: {},
-    setActiveTabType: (type, targetWorktreeId) =>
-      set((s) => {
-        const worktreeId = targetWorktreeId ?? s.activeWorktreeId
-        return {
-          ...(worktreeId === s.activeWorktreeId ? { activeTabType: type } : {}),
-          activeTabTypeByWorktree: worktreeId
-            ? { ...s.activeTabTypeByWorktree, [worktreeId]: type }
-            : s.activeTabTypeByWorktree
-        }
-      })
+    // Require explicit worktree so background/floating actions cannot retype main-window selection.
+    setActiveTabType: (type, worktreeId) =>
+      set((s) => ({
+        ...(ownsGlobalSelection(s, worktreeId) ? { activeTabType: type } : {}),
+        activeTabTypeByWorktree: worktreeId
+          ? { ...s.activeTabTypeByWorktree, [worktreeId]: type }
+          : s.activeTabTypeByWorktree
+      }))
   }
 }

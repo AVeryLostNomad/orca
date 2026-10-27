@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorkingDocument } from '@/store/slices/editor/working-document'
 
 const writeRuntimeFile = vi.hoisted(() => vi.fn())
-vi.mock('@/runtime/runtime-file-client', () => ({ writeRuntimeFile }))
+vi.mock('@/runtime/runtime-file-mutation-client', () => ({ writeRuntimeFile }))
 vi.mock('@/lib/editor-file-operation-owner', () => ({
   getEditorFileOperationContext: () => ({
+    target: { kind: 'local' },
     settings: null,
     worktreeId: 'wt-1',
     worktreePath: '/repo',
@@ -27,6 +28,7 @@ function makeDocument(): WorkingDocument {
     },
     content: 'first',
     revision: 1,
+    lastKnownDiskSignature: 'loaded',
     isDirty: true,
     loadState: 'ready',
     writable: true,
@@ -42,8 +44,8 @@ describe('editor document save queue', () => {
     vi.stubGlobal('window', new EventTarget())
     writeRuntimeFile.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          releaseWrite = resolve
+        new Promise<{ ok: true }>((resolve) => {
+          releaseWrite = () => resolve({ ok: true })
         })
     )
     const document = makeDocument()

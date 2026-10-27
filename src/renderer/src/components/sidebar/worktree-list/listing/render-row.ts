@@ -1,11 +1,16 @@
-import type { Row } from '../grouping/row-types'
+import type { HostSectionRow } from '../../../../../../shared/sidebar-list/host-section-rows'
 
-type WorktreeItemRow = Extract<Row, { type: 'item' }>
-export type RenderRow = Row | { type: 'lineage-group'; key: string; rows: WorktreeItemRow[] }
+type WorktreeItemRow = Extract<HostSectionRow, { type: 'item' }>
+export type RenderRow =
+  | HostSectionRow
+  | { type: 'lineage-group'; key: string; rows: WorktreeItemRow[] }
 
 export function getRenderRowKey(row: RenderRow): string {
+  if (row.type === 'host-header') {
+    return `host:${row.hostId}`
+  }
   if (row.type === 'header') {
-    return `hdr:${row.key}`
+    return row.hostId ? `hdr:${row.hostId}:${row.key}` : `hdr:${row.key}`
   }
   if (row.type === 'lineage-group') {
     return `lineage-group:${row.key}`
@@ -20,7 +25,7 @@ export function getRenderRowKey(row: RenderRow): string {
     return `pending:${row.creationId}`
   }
   if (row.type === 'folder-workspace') {
-    return `folder-workspace:${row.folderWorkspace.id}`
+    return row.key
   }
   return `wt:${row.rowKey}`
 }

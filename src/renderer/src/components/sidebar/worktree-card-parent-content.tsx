@@ -1,6 +1,7 @@
 import React from 'react'
 
 import { cn } from '@/lib/utils'
+import { getWorkspaceAttachments } from '../../../../shared/workspace-attachments'
 import { WorktreeCardHeader } from './worktree-card-header'
 import { WorktreeCardMetaRow } from './worktree-card-meta-row'
 import { WorktreeCardDetailsHover } from './WorktreeCardMeta'
@@ -8,6 +9,7 @@ import { WorktreeCardPortsDetails } from './WorktreeCardPorts'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import { WorktreeCardSecondaryRows } from './worktree-card-secondary-rows'
 import { WorktreeCardStatusSlot } from './WorktreeCardStatusSlot'
+import { useWslHostOffForRepo } from './use-wsl-host-off-review'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
 export function WorktreeCardParentContent({
@@ -19,18 +21,21 @@ export function WorktreeCardParentContent({
 }): React.JSX.Element {
   const {
     worktree,
+    repo,
     affiliateListMode,
+    workspaceRecordMutable,
     newCardStyle,
-    lineageChildren,
     showStatus,
     unreadTooltip,
     stopQuickActionPointerPropagation,
     handleToggleUnreadQuick,
     statusLaneReview,
+    reviewChecks,
     branchIdentityDisplay,
     showInlineAgentList,
     titleRenaming,
     isDeleting,
+    referenceDetails,
     hoverIssue,
     hoverLinearIssue,
     hoverJiraIssue,
@@ -42,6 +47,7 @@ export function WorktreeCardParentContent({
     detailsHoverControl,
     handleRenameTitle,
     handleEditIssue,
+    handleManageLinks,
     handleEditComment,
     handleOpenGitHubIssueInOrca,
     handleOpenIssueInBrowser,
@@ -63,6 +69,7 @@ export function WorktreeCardParentContent({
     hoverBranchName,
     hoverWorkspaceTitle
   } = presentation
+  const reviewStale = useWslHostOffForRepo(repo)
 
   const identityContent = (
     <div
@@ -73,10 +80,15 @@ export function WorktreeCardParentContent({
       {presentation.hasMetaRow && <WorktreeCardMetaRow card={card} presentation={presentation} />}
     </div>
   )
+  // Derived (group-wide) workspaces have no record to edit.
+  const canEditWorkspaceRecord = workspaceRecordMutable && !affiliateListMode
   // Why: status glyphs and agent rows own their tooltips; only identity content should open the larger details card.
   const identityContentWithHover =
     hasHoverDetails && !titleRenaming ? (
       <WorktreeCardDetailsHover
+        workspace={worktree}
+        referenceDetails={referenceDetails}
+        onManageLinks={canEditWorkspaceRecord ? handleManageLinks : undefined}
         issue={hoverIssue}
         linearIssue={hoverLinearIssue}
         jiraIssue={hoverJiraIssue}
@@ -86,15 +98,15 @@ export function WorktreeCardParentContent({
         cliProvenance={metaCliProvenance}
         branchName={hoverBranchName}
         workspaceTitle={hoverWorkspaceTitle}
-        workspaceTitleRenameDisabled={isDeleting || affiliateListMode}
+        workspaceTitleRenameDisabled={isDeleting || !canEditWorkspaceRecord}
         detailsAfter={
           workspacePorts.length > 0 ? <WorktreeCardPortsDetails ports={workspacePorts} /> : null
         }
         openDelay={100}
         hoverControl={detailsHoverControl}
-        onRenameWorkspaceTitle={affiliateListMode ? undefined : handleRenameTitle}
-        onEditIssue={affiliateListMode ? undefined : handleEditIssue}
-        onEditComment={affiliateListMode ? undefined : handleEditComment}
+        onRenameWorkspaceTitle={canEditWorkspaceRecord ? handleRenameTitle : undefined}
+        onEditIssue={canEditWorkspaceRecord ? handleEditIssue : undefined}
+        onEditComment={canEditWorkspaceRecord ? handleEditComment : undefined}
         onOpenGitHubIssueInOrca={
           hoverIssue && 'url' in hoverIssue && hoverIssue.url
             ? handleOpenGitHubIssueInOrca
@@ -104,13 +116,17 @@ export function WorktreeCardParentContent({
           hoverIssue && 'url' in hoverIssue && hoverIssue.url ? handleOpenIssueInBrowser : undefined
         }
         onOpenLinearIssueInOrca={linearIssue?.url ? handleOpenLinearIssueInOrca : undefined}
-        onOpenReviewInOrca={
-          hoverReview?.url && hoverReview.provider === 'github' ? handleOpenReviewInOrca : undefined
-        }
+        onOpenReviewInOrca={repo ? handleOpenReviewInOrca : undefined}
         onOpenReviewInBrowser={hoverReview?.url ? handleOpenReviewInBrowser : undefined}
-        onOpenAutomation={affiliateListMode ? undefined : handleOpenAutomation}
-        onOpenAutomationRun={affiliateListMode ? undefined : handleOpenAutomationRun}
-        onUnlinkReview={!affiliateListMode && canUnlinkReview ? handleUnlinkReview : undefined}
+        onOpenAutomation={canEditWorkspaceRecord ? handleOpenAutomation : undefined}
+        onOpenAutomationRun={canEditWorkspaceRecord ? handleOpenAutomationRun : undefined}
+        onUnlinkReview={
+          canEditWorkspaceRecord &&
+          (canUnlinkReview ||
+            getWorkspaceAttachments(worktree).some((item) => item.type !== 'issue'))
+            ? handleUnlinkReview
+            : undefined
+        }
       >
         {identityContent}
       </WorktreeCardDetailsHover>
@@ -147,18 +163,19 @@ export function WorktreeCardParentContent({
             onPointerDown={stopQuickActionPointerPropagation}
             onToggleUnread={handleToggleUnreadQuick}
             prDisplay={statusLaneReview}
+            reviewChecks={reviewChecks.total > 0 ? reviewChecks : undefined}
             newCardStyle={newCardStyle}
             hasBranchIdentity={Boolean(branchIdentityDisplay)}
+            reviewStale={reviewStale}
           />
         </div>
       ) : null}
 
-      {/* Content area */}
       <div
         className={cn(
           'flex min-w-0 flex-1 flex-col gap-1.5',
           // Why: inline agent rows intentionally outdent into the card gutter; inner elements handle truncation.
-          showInlineAgentList || (!newCardStyle && lineageChildren)
+          showInlineAgentList || getWorkspaceAttachments(worktree).length > 1
             ? 'overflow-visible'
             : 'overflow-hidden'
         )}

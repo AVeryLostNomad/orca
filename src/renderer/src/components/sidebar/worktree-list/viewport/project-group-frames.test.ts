@@ -9,7 +9,7 @@ function header(key: string, depth: number, color?: string): RenderRow {
     key,
     label: key,
     count: 1,
-    tone: '',
+    icon: { kind: 'project' },
     projectGroupDepth: depth,
     ...(color ? { projectGroup: { id: key, name: key, tabOrder: 0, color } } : {})
   } as RenderRow

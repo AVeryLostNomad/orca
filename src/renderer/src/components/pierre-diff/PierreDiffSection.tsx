@@ -331,7 +331,11 @@ export function PierreDiffSection({
         ) : comparisonError ? (
           <EditorFileLoadErrorView message={comparisonError} onRetry={retryComparison} />
         ) : !fileDiff ? (
-          <div className="flex h-10 items-center gap-2 bg-muted/10 px-3 text-[11px] text-muted-foreground">
+          // Marks a loaded section awaiting its comparison; virtualizers must not size the row from it.
+          <div
+            data-pierre-diff-pending=""
+            className="flex h-10 items-center gap-2 bg-muted/10 px-3 text-[11px] text-muted-foreground"
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
             <span>
               {translate(

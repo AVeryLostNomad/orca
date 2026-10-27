@@ -3,6 +3,8 @@ import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
 import { getRecentSelfWrite } from './editor-self-write-registry'
 import {
   getEditorExternalFileChangeGeneration,
+  getExternalChangeExecutionHostId,
+  getWorkingDocumentsForExternalFileChange,
   type EditorPathMutationTarget
 } from './editor-autosave'
 import { loadWorkingDocument } from './working-document-loader'
@@ -18,15 +20,11 @@ function matchingDocumentIds(
   state: AppState,
   target: EditorPathMutationTarget
 ): WorkingDocumentId[] {
-  const runtimeEnvironmentId = target.runtimeEnvironmentId?.trim() || null
-  return Object.values(state.workingDocuments)
-    .filter(
-      (document) =>
-        document.target.worktreeId === target.worktreeId &&
-        document.target.relativePath === target.relativePath &&
-        document.target.owner.runtimeEnvironmentId === runtimeEnvironmentId
-    )
-    .map((document) => document.id)
+  return getWorkingDocumentsForExternalFileChange(
+    state.workingDocuments,
+    target,
+    getExternalChangeExecutionHostId(state, target.worktreeId)
+  ).map((document) => document.id)
 }
 
 export function createEditorExternalChangeDocumentReset({

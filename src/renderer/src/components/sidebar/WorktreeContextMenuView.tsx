@@ -1,14 +1,10 @@
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger
+  DropdownMenuSubTrigger
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -26,44 +22,34 @@ import {
   FolderPlus,
   FolderTree
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { WorktreeOpenInSubMenu } from './WorktreeOpenInMenu'
+import { WorktreeRowOpenInSubMenu } from './WorktreeRowOpenInSubMenu'
 import { WorktreeDeveloperMenu } from './WorktreeDeveloperMenu'
 import { WorkspaceSleepMenuItems } from './WorkspaceSleepMenuItems'
-import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
 import { translate } from '@/i18n/i18n'
 import { useOptionalShortcutLabel } from '@/hooks/useShortcutLabel'
 import type { WorktreeContextMenuModel } from './use-worktree-context-menu-model'
 import { WorktreeStatusMenuItems } from './WorktreeStatusMenuItems'
-import { WorktreeContextMenuOverlays } from './WorktreeContextMenuOverlays'
+import { WorktreeContextMenuFrame } from './WorktreeContextMenuFrame'
 import {
-  CLOSE_ALL_CONTEXT_MENUS_EVENT,
-  WORKTREE_CONTEXT_MENU_SCOPE_ATTR,
   getWorktreeParentPickerLabel,
   isWorktreeParentPickerDisabled,
-  shouldIgnoreNestedWorktreeContextMenuScope,
-  shouldRevealWorktreeDeveloperMenu,
-  shouldUseNativeContextMenu
+  shouldRevealWorktreeDeveloperMenu
 } from './worktree-context-menu-policy'
 
 export default function WorktreeContextMenuView({ model }: { model: WorktreeContextMenuModel }) {
   const {
     batchDeleteWorktrees,
-    children,
-    contentClassName,
     contextDeletePending,
-    contextMenuOpenedAtRef,
     contextWorkspaceStatus,
     deleteLabel,
     deletingContext,
     deletingSubtree,
     developerMenuRevealed,
     eligibleParentCount,
-    effectiveSelectedWorktrees,
     folderWorkspaceId,
     handleAssignWorkspaceStatus,
-    handleCloseAutoFocus,
     handleCloseTerminals,
+    handleCopyName,
     handleCopyPath,
     handleCreateGroupFromRepo,
     handleDelete,
@@ -81,81 +67,22 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
     isDeleting,
     isMultiContext,
     lineageDescendantCount,
-    menuOpen,
-    menuPoint,
-    onContextMenuSelect,
     projectGroups,
     removesProject,
     repo,
-    scopeRef,
-    setContextWorktrees,
-    setDeveloperMenuRevealed,
-    setMenuOpenState,
-    setMenuPoint,
     sleepLabel,
     sleepableWorktrees,
     subtreeSleepableWorktrees,
-    suppressOpeningPointerEvent,
     validParentWorktreeId,
     worktree,
     workspaceStatuses
   } = model
   const deleteShortcut = useOptionalShortcutLabel('workspace.delete')
   return (
-    <div
-      ref={scopeRef}
-      className="relative"
-      {...{ [WORKTREE_CONTEXT_MENU_SCOPE_ATTR]: 'worktree' }}
-      onContextMenuCapture={(event) => {
-        if (!isEventTargetInsideCurrentTarget(event.currentTarget, event.target)) {
-          return
-        }
-        if (shouldUseNativeContextMenu(event.target)) {
-          return
-        }
-        if (shouldIgnoreNestedWorktreeContextMenuScope(event.currentTarget, event.target)) {
-          return
-        }
-        event.preventDefault()
-        contextMenuOpenedAtRef.current = Date.now()
-        window.dispatchEvent(new Event(CLOSE_ALL_CONTEXT_MENUS_EVENT))
-        setDeveloperMenuRevealed(event.altKey)
-        setContextWorktrees(onContextMenuSelect?.(event) ?? effectiveSelectedWorktrees)
-        const bounds = event.currentTarget.getBoundingClientRect()
-        setMenuPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top })
-        setMenuOpenState(true)
-      }}
-      onClickCapture={(event) => {
-        suppressOpeningPointerEvent(event)
-      }}
-    >
-      {children}
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpenState} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-hidden
-            tabIndex={-1}
-            className="pointer-events-none absolute size-px opacity-0"
-            style={{ left: menuPoint.x, top: menuPoint.y }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className={cn(lineageDescendantCount > 0 ? 'w-60' : 'w-52', contentClassName)}
-          sideOffset={0}
-          align="start"
-          onPointerUpCapture={suppressOpeningPointerEvent}
-          onPointerDownCapture={(event) => {
-            if (event.button === 0) {
-              contextMenuOpenedAtRef.current = null
-            }
-          }}
-          onMouseUpCapture={suppressOpeningPointerEvent}
-          onClickCapture={suppressOpeningPointerEvent}
-          onCloseAutoFocus={handleCloseAutoFocus}
-        >
-          <DropdownMenuLabel className="px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            {translate('auto.components.sidebar.WorktreeContextMenu.workspaceSection', 'Workspace')}
-          </DropdownMenuLabel>
+    <WorktreeContextMenuFrame
+      model={model}
+      items={
+        <>
           {!isMultiContext && (
             <DropdownMenuItem onSelect={handleRename} disabled={isDeleting}>
               <Pencil className="size-3.5" />
@@ -172,14 +99,21 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
           <DropdownMenuSeparator />
           {!isMultiContext && (
             <>
-              <WorktreeOpenInSubMenu
-                worktreePath={worktree.path}
+              <WorktreeRowOpenInSubMenu
+                worktree={worktree}
                 connectionId={repo?.connectionId ?? null}
                 disabled={isDeleting}
               />
               <DropdownMenuItem onSelect={handleCopyPath} disabled={isDeleting}>
                 <Copy className="size-3.5" />
                 {translate('auto.components.sidebar.WorktreeContextMenu.3350101edb', 'Copy Path')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleCopyName} disabled={isDeleting}>
+                <Copy className="size-3.5" />
+                {translate(
+                  'auto.components.sidebar.WorktreeContextMenu.copyWorktreeName',
+                  'Copy Worktree Name'
+                )}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={handleTogglePin} disabled={isDeleting}>
@@ -305,9 +239,7 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
             onSleep={handleCloseTerminals}
             onSleepSubtree={handleSleepSubtree}
           />
-          {/* Why: primary checkout rows can't be git-worktree-removed, so keep a
-             disabled Delete Worktree for parity with non-primary cards and pair
-             it with the enabled Remove Project action below. */}
+          {/* Git cannot remove primary checkouts; keep disabled Delete beside the enabled Remove Project action. */}
           {!isMultiContext && removesProject ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -329,10 +261,7 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
               </TooltipContent>
             </Tooltip>
           ) : null}
-          {/* Why: primary checkout rows remove the project from Orca instead of
-             invoking git worktree deletion. Radix forwards unknown props to the
-             DOM element, so `title` works directly without a wrapper span —
-             this preserves Radix's flat roving-tabindex keyboard navigation. */}
+          {/* Use Radix’s direct title prop for project-removal copy; wrapper elements break flat roving-keyboard navigation. */}
           <DropdownMenuItem
             variant="destructive"
             onSelect={handleDelete}
@@ -383,9 +312,8 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
               <DropdownMenuShortcut>{deleteShortcut}</DropdownMenuShortcut>
             ) : null}
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <WorktreeContextMenuOverlays model={model} />
-    </div>
+        </>
+      }
+    />
   )
 }

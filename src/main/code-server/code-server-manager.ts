@@ -1,4 +1,5 @@
-import { spawnProcess, type ChildProcessHandle } from '../../shared/child-process/run-process'
+import { spawnProcess } from '@orca/process-host'
+import type { ChildProcessHandle } from '@orca/process-host/process-spec'
 import { net } from 'electron'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import type { CodeServerStatus, CodeServerStatusEvent } from '../../shared/code-server-types'

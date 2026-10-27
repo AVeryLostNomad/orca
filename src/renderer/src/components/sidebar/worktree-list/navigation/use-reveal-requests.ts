@@ -10,41 +10,58 @@ import {
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
-import { composeWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
-import type { WorktreeGroupBy } from '../grouping/row-types'
+import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
+import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
+import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 import { getKnownSidebarWorktreeById } from './folder-reveal'
 import { getSidebarRevealTargetHostIds } from '../../sidebar-reveal-host'
 
-// Turns a "show me the current workspace" request into whatever the sidebar must change
-// first — grouping mode, active filters — before the viewport can scroll to it.
+function workspacePassesFilters(
+  worktree: Worktree,
+  worktrees: readonly Worktree[],
+  folderWorkspaces: readonly FolderWorkspace[]
+): boolean {
+  const identity = getWorktreeHostIdentity(worktree)
+  return (
+    worktrees.some((candidate) => getWorktreeHostIdentity(candidate) === identity) ||
+    folderWorkspaces.some((workspace) => folderWorkspaceKey(workspace.id) === worktree.id)
+  )
+}
+
+// Adjust grouping and filters before scheduling the requested workspace’s viewport reveal.
 export function useSidebarRevealRequests(args: {
   groupBy: WorktreeGroupBy
   renderedSidebarRowKeys: ReadonlySet<string>
-  renderedWorktreeIdentities: readonly string[]
+  visibleWorktrees: readonly Worktree[]
+  visibleFolderWorkspaces: readonly FolderWorkspace[]
   currentSidebarWorktreeId: string | null
   currentSidebarExecutionHostId: ExecutionHostId | null
   worktreeMap: Map<string, Worktree>
   worktrees: readonly Worktree[]
   folderWorkspaces: readonly FolderWorkspace[]
   hasFilters: boolean
-  clearFilters: () => void
+  revealWorkspaceFilters: (worktree: Worktree) => void
   /** The host page rendering this list; reveals for other hosts switch pages instead of clearing filters. */
   hostPageId?: ExecutionHostId
+  /** The row pipeline's host for rows that record none. */
+  defaultHostId: ExecutionHostId
   consumesReveals?: boolean
   listensForCurrentWorkspaceReveal?: boolean
 }): void {
   const {
     groupBy,
     renderedSidebarRowKeys,
-    renderedWorktreeIdentities,
+    visibleWorktrees,
+    visibleFolderWorkspaces,
     currentSidebarWorktreeId,
     currentSidebarExecutionHostId,
     worktreeMap,
     worktrees,
     folderWorkspaces,
     hasFilters,
-    clearFilters,
+    revealWorkspaceFilters,
     hostPageId,
+    defaultHostId,
     consumesReveals = true,
     listensForCurrentWorkspaceReveal = true
   } = args
@@ -73,16 +90,29 @@ export function useSidebarRevealRequests(args: {
       return
     }
     if (!renderedSidebarRowKeys.has(rowKey) && hasFilters) {
-      clearFilters()
+      const target = getKnownSidebarWorktreeById(
+        rowKey,
+        worktreeMap,
+        folderWorkspaces,
+        worktrees,
+        currentSidebarExecutionHostId
+      )
+      if (target) {
+        revealWorkspaceFilters(target)
+      }
     }
   }, [
-    clearFilters,
     consumesReveals,
     groupBy,
     hasFilters,
+    currentSidebarExecutionHostId,
+    folderWorkspaces,
     pendingRevealSidebarRow,
     renderedSidebarRowKeys,
-    setGroupBy
+    setGroupBy,
+    worktreeMap,
+    worktrees,
+    revealWorkspaceFilters
   ])
 
   const handleRevealCurrentWorkspaceRequest = useCallback(
@@ -115,23 +145,28 @@ export function useSidebarRevealRequests(args: {
       if (!activeWorktree || activeWorktree.isArchived) {
         return
       }
-      const currentIdentity = composeWorktreeHostIdentity(
-        currentSidebarExecutionHostId ?? undefined,
-        currentSidebarWorktreeId
-      )
       const targetHostIds = hostPageId
-        ? getSidebarRevealTargetHostIds(useAppStore.getState(), {
-            worktreeId: currentSidebarWorktreeId,
-            behavior: 'smooth',
-            ...(currentSidebarExecutionHostId
-              ? { executionHostId: currentSidebarExecutionHostId }
-              : {})
-          })
+        ? getSidebarRevealTargetHostIds(
+            useAppStore.getState(),
+            {
+              worktreeId: currentSidebarWorktreeId,
+              behavior: 'smooth',
+              ...(currentSidebarExecutionHostId
+                ? { executionHostId: currentSidebarExecutionHostId }
+                : {})
+            },
+            defaultHostId
+          )
         : []
       // Why: a workspace on another host lives on another page — the reveal slides there, no filter involved.
       const onOtherHostPage =
         targetHostIds.length > 0 && !targetHostIds.some((hostId) => hostId === hostPageId)
-      if (!onOtherHostPage && hasFilters && !renderedWorktreeIdentities.includes(currentIdentity)) {
+      // Collapsed groups hide rows without excluding their workspaces from the filter results.
+      if (
+        !onOtherHostPage &&
+        hasFilters &&
+        !workspacePassesFilters(activeWorktree, visibleWorktrees, visibleFolderWorkspaces)
+      ) {
         if (confirmationPending.current) {
           return
         }
@@ -145,9 +180,9 @@ export function useSidebarRevealRequests(args: {
             title: translate('sidebar.revealFiltered.title', 'Reveal hidden workspace?'),
             description: translate(
               'sidebar.revealFiltered.description',
-              'The active workspace is hidden in the sidebar. Revealing it will clear your sidebar filters.'
+              'The active workspace is hidden in the sidebar. Revealing it will adjust only the filters hiding it.'
             ),
-            confirmLabel: translate('sidebar.revealFiltered.confirm', 'Clear filters and reveal'),
+            confirmLabel: translate('sidebar.revealFiltered.confirm', 'Adjust filters and reveal'),
             cancelLabel: translate('sidebar.revealFiltered.cancel', 'Keep filters')
           })
         } finally {
@@ -162,8 +197,15 @@ export function useSidebarRevealRequests(args: {
         ) {
           return
         }
-        if (latest.hasFilters && !latest.renderedWorktreeIdentities.includes(currentIdentity)) {
-          latest.clearFilters()
+        if (
+          latest.hasFilters &&
+          !workspacePassesFilters(
+            activeWorktree,
+            latest.visibleWorktrees,
+            latest.visibleFolderWorkspaces
+          )
+        ) {
+          revealWorkspaceFilters(activeWorktree)
         }
       }
       revealWorktreeInSidebar(currentSidebarWorktreeId, {
@@ -175,16 +217,19 @@ export function useSidebarRevealRequests(args: {
     },
     [
       confirm,
+      defaultHostId,
       hasFilters,
       hostPageId,
       currentSidebarWorktreeId,
       currentSidebarExecutionHostId,
       folderWorkspaces,
       revealSidebarRow,
-      renderedWorktreeIdentities,
+      visibleWorktrees,
+      visibleFolderWorkspaces,
       revealWorktreeInSidebar,
       worktreeMap,
-      worktrees
+      worktrees,
+      revealWorkspaceFilters
     ]
   )
 

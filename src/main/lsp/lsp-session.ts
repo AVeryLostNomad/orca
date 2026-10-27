@@ -1,4 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawnProcess } from '@orca/process-host'
+import type { ChildProcessHandle } from '@orca/process-host/process-spec'
 import { URI } from 'vscode-uri'
 import {
   CancellationTokenSource,
@@ -36,7 +37,7 @@ function toLspResponseError(error: unknown): LspResponseError {
 export class LspSession {
   readonly serverId: LspServerId
   serverCapabilities: unknown = null
-  private child: ChildProcess | null = null
+  private child: ChildProcessHandle | null = null
   private connection: MessageConnection | null = null
   private disposed = false
   private readonly pendingCancellations = new Map<string, CancellationTokenSource>()
@@ -54,11 +55,12 @@ export class LspSession {
 
   async start(): Promise<void> {
     const { spawnSpec, entry, rootPath } = this.args
-    const child = spawn(spawnSpec.command, spawnSpec.args, {
+    const child = spawnProcess({
+      program: spawnSpec.command,
+      args: spawnSpec.args,
       env: spawnSpec.env,
       cwd: rootPath,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
+      stdio: ['pipe', 'pipe', 'pipe']
     })
     this.child = child
     child.stderr?.on('data', () => {

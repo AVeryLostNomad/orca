@@ -11,6 +11,9 @@ import {
 } from '@/lib/editor-file-operation-owner'
 import { quiesceDocumentSave } from './editor-autosave'
 import type { RestoredEditorOwnerResult } from '@/store/slices/editor'
+import { contentRekeyOutcome } from '@/runtime/layout-owner-content-rekeys'
+import { afterPendingEntityTabs } from '@/runtime/layout-owner-pending-tabs'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
 
 export type RestoredEditorOwnerMigrationResult = RestoredEditorOwnerResult
 function getDocumentForTab(
@@ -32,7 +35,7 @@ export async function migrateRestoredEditorFileOwner(
   const initialRoute = source
     ? findWorkspaceFileRoute(state, route.executionHostId, source.filePath)
     : null
-  if (!source || !sourceDocument || !routesMatch(initialRoute, route)) {
+  if (!source || !routesMatch(initialRoute, route)) {
     return { ok: false, reason: 'stale' }
   }
   let targetOperationProvenance: EditorFileOperationProvenance
@@ -46,18 +49,24 @@ export async function migrateRestoredEditorFileOwner(
   } catch {
     return { ok: false, reason: 'owner-changed' }
   }
-  if (sourceDocument.pendingOwnerMigration) {
+  // Why optional: a restored tab re-owns before its first load retains a document; nothing to save then.
+  if (sourceDocument?.pendingOwnerMigration) {
     return { ok: false, reason: 'stale' }
   }
-  state.setWorkingDocumentExternalState(sourceDocument.id, { pendingOwnerMigration: true })
-
-  try {
-    await quiesceDocumentSave(sourceDocument.id)
-  } catch (error) {
-    useAppStore
-      .getState()
-      .setWorkingDocumentExternalState(sourceDocument.id, { pendingOwnerMigration: undefined })
-    throw error
+  if (sourceDocument) {
+    state.setWorkingDocumentExternalState(sourceDocument.id, { pendingOwnerMigration: true })
+    try {
+      await quiesceDocumentSave(sourceDocument.id)
+    } catch (error) {
+      useAppStore
+        .getState()
+        .setWorkingDocumentExternalState(sourceDocument.id, { pendingOwnerMigration: undefined })
+      throw error
+    }
+  }
+  // Wait for pending opens so main rekeys every tab instead of leaving undrawn tabs on the old ID.
+  if (ORCA_LAYOUT_OWNER_IS_MAIN) {
+    await pendingTabsOfFileAnswered(source.worktreeId, fileId)
   }
   const currentState = useAppStore.getState()
   const currentSource = currentState.openFiles.find((file) => file.id === fileId)
@@ -74,12 +83,14 @@ export async function migrateRestoredEditorFileOwner(
       throw new Error('stale route')
     }
   } catch {
-    currentState.setWorkingDocumentExternalState(sourceDocument.id, {
-      pendingOwnerMigration: undefined
-    })
+    if (sourceDocument) {
+      currentState.setWorkingDocumentExternalState(sourceDocument.id, {
+        pendingOwnerMigration: undefined
+      })
+    }
     return { ok: false, reason: 'owner-changed' }
   }
-  return currentState.reparentRestoredEditorFileOwner({
+  const result = currentState.reparentRestoredEditorFileOwner({
     fileId,
     targetWorktreeId: route.worktreeId,
     targetRelativePath: route.relativePath,
@@ -87,6 +98,28 @@ export async function migrateRestoredEditorFileOwner(
     targetRuntimeEnvironmentId: runtimeEnvironmentId,
     targetOperationProvenance
   })
+  // A successful main-owned move must arrive in its frame before callers use the rekeyed file.
+  if (ORCA_LAYOUT_OWNER_IS_MAIN && result.ok && !(await contentRekeyOutcome([result.fileId]))) {
+    return { ok: false, reason: 'owner-changed' }
+  }
+  return result
+}
+
+/** Resolves once main answered every open or close in flight for the file's tabs and its previews'. */
+function pendingTabsOfFileAnswered(worktreeId: string, fileId: string): Promise<void> {
+  const entityIds = [
+    fileId,
+    ...useAppStore
+      .getState()
+      .openFiles.filter((file) => file.markdownPreviewSourceFileId === fileId)
+      .map((file) => file.id)
+  ]
+  return Promise.all(
+    entityIds.map(
+      (entityId) =>
+        new Promise<void>((resolve) => afterPendingEntityTabs(worktreeId, entityId, resolve))
+    )
+  ).then(() => {})
 }
 
 function routesMatch(

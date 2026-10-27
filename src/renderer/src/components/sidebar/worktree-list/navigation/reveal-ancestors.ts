@@ -1,6 +1,5 @@
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
-import type { Worktree } from '../../../../../../shared/worktree/types'
 import {
   getRepoExecutionHostId,
   type ExecutionHostId
@@ -9,16 +8,14 @@ import {
   getProjectGroupExecutionHostId,
   getProjectGroupHostIdentity
 } from '../../../../../../shared/project-groups'
-import { PINNED_GROUP_KEY, getProjectGroupHeaderKey } from '../grouping/group-keys'
-import type { ProjectGroupingModel } from '../grouping/project-grouping'
+import { getProjectGroupHeaderKey } from '../../../../../../shared/sidebar-list/group-keys'
+import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
 
 function getProjectIdFromHeaderRowKey(rowKey: string): string | null {
   if (!rowKey.startsWith('project:')) {
     return null
   }
-  const withoutPrefix = rowKey.slice('project:'.length)
-  const setupSeparator = withoutPrefix.indexOf('::setup:')
-  return setupSeparator === -1 ? withoutPrefix : withoutPrefix.slice(0, setupSeparator)
+  return rowKey.slice('project:'.length)
 }
 
 function getRepoIdsFromHeaderRowKey(
@@ -28,11 +25,6 @@ function getRepoIdsFromHeaderRowKey(
 ): string[] {
   if (rowKey.startsWith('repo:')) {
     return [rowKey.slice('repo:'.length)]
-  }
-  const setupMarker = '::setup:'
-  const setupIndex = rowKey.indexOf(setupMarker)
-  if (rowKey.startsWith('project:') && setupIndex !== -1) {
-    return [rowKey.slice(setupIndex + setupMarker.length)]
   }
   const projectId = getProjectIdFromHeaderRowKey(rowKey)
   if (!projectId) {
@@ -121,24 +113,4 @@ export function getSidebarRowRevealAncestorKeys(args: {
     }
   }
   return [...keys]
-}
-
-export function getPinnedWorktreeRevealCollapsedGroupKeys({
-  worktree,
-  collapsedGroups,
-  inPinnedSection = worktree.isPinned
-}: {
-  worktree: Worktree
-  collapsedGroups: ReadonlySet<string>
-  inPinnedSection?: boolean
-}): string[] {
-  if (!inPinnedSection) {
-    return []
-  }
-  const keys: string[] = []
-  // Why: the reveal effect already opens this host; re-returning it would toggle it back closed.
-  if (collapsedGroups.has(PINNED_GROUP_KEY)) {
-    keys.push(PINNED_GROUP_KEY)
-  }
-  return keys
 }

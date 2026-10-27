@@ -1,11 +1,14 @@
-import { PINNED_GROUP_KEY, getWorktreeLineageGroupKey } from '../grouping/group-keys'
-import type { Row } from '../grouping/row-types'
+import {
+  PINNED_GROUP_KEY,
+  getWorktreeLineageGroupKey
+} from '../../../../../../shared/sidebar-list/group-keys'
+import type { HostSectionRow } from '../../../../../../shared/sidebar-list/host-section-rows'
 import type { RenderRow } from './render-row'
 
-export type WorktreeItemRow = Extract<Row, { type: 'item' }>
-export type FolderWorkspaceItemRow = Extract<Row, { type: 'folder-workspace' }>
+export type WorktreeItemRow = Extract<HostSectionRow, { type: 'item' }>
+export type FolderWorkspaceItemRow = Extract<HostSectionRow, { type: 'folder-workspace' }>
 
-export function isWorktreeItemRow(row: Row): row is WorktreeItemRow {
+export function isWorktreeItemRow(row: HostSectionRow): row is WorktreeItemRow {
   return row.type === 'item'
 }
 
@@ -14,7 +17,7 @@ export function isPinnedWorktreeRow(row: WorktreeItemRow): boolean {
 }
 
 // Collapse a parent and its visible lineage descendants into one virtual row so the card renders them inline.
-export function buildRenderableRows(rows: Row[]): RenderRow[] {
+export function buildRenderableRows(rows: HostSectionRow[]): RenderRow[] {
   const renderRows: RenderRow[] = []
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index]

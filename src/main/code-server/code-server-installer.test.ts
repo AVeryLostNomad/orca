@@ -20,7 +20,7 @@ const {
   runProcessMock: vi.fn(() => Promise.resolve({ code: 0, stdout: '', stderr: '' }))
 }))
 
-vi.mock('../../shared/child-process/run-process', () => ({
+vi.mock('@orca/process-host', () => ({
   spawnProcess: spawnMock,
   runProcess: runProcessMock
 }))

@@ -1,4 +1,5 @@
-import { createRuntimePath, runtimePathExists } from '../runtime/runtime-file-client'
+import { runtimePathExists } from '../runtime/runtime-file-metadata-client'
+import { createRuntimePath } from '../runtime/runtime-file-mutation-client'
 import { joinPath } from './path'
 
 export type ScratchFileInfo = {
@@ -41,8 +42,9 @@ export async function createScratchFile(worktreeId: string): Promise<ScratchFile
   if (!scratchDirectory) {
     return null
   }
+  // Scratch files always live in the local app-owned directory.
   const context = {
-    settings: { activeRuntimeEnvironmentId: null },
+    target: { kind: 'local' } as const,
     worktreeId,
     worktreePath: scratchDirectory
   }

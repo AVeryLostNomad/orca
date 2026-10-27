@@ -2,7 +2,7 @@ import { FILE_OPEN_BACKGROUND_RUNTIME_CAPABILITY } from '../../../shared/protoco
 import { isSafeWorktreeRelativePath } from '../../../shared/worktree-relative-path-safety'
 import type { OpenFile } from '@/store/slices/editor'
 import type { AppState } from '@/store/types'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import { recordWebSessionCloseIntent } from './web-session-close-intent'
 
@@ -37,7 +37,7 @@ function runtimeEditorPublishEnvironment(state: AppState, file: OpenFile): strin
   if (file.mode !== 'edit' && !isPublishableDiff) {
     return null
   }
-  const environmentId = getRuntimeEnvironmentIdForWorktree(state, file.worktreeId)
+  const environmentId = runtimeEnvironmentIdOrLocalUnlessTwin(state, file.worktreeId)
   return environmentId && file.runtimeEnvironmentId === environmentId ? environmentId : null
 }
 
@@ -46,7 +46,8 @@ function canPublishRuntimeEditorTab(state: AppState, file: OpenFile): string | n
   if (!environmentId) {
     return null
   }
-  const capabilities = state.runtimeStatusByEnvironmentId.get(environmentId)?.status?.capabilities
+  // Partial stores (tests, the space window) may not carry runtime statuses.
+  const capabilities = state.runtimeStatusByEnvironmentId?.get(environmentId)?.status?.capabilities
   return capabilities?.includes(FILE_OPEN_BACKGROUND_RUNTIME_CAPABILITY) ? environmentId : null
 }
 
@@ -119,7 +120,7 @@ export function adoptPublishedRuntimeEditorTab(
     return false
   }
   recordWebSessionCloseIntent({ environmentId }, file.worktreeId, hostTabId, Date.now())
-  void import('./web-runtime-session').then(({ closeWebRuntimeSessionTab }) =>
+  void import('./web-runtime-session-tab-lifecycle').then(({ closeWebRuntimeSessionTab }) =>
     closeWebRuntimeSessionTab({
       worktreeId: file.worktreeId,
       tabId: hostTabId,

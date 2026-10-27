@@ -6,7 +6,8 @@ import {
 } from './editor-autosave'
 
 type UseEditorCmdSaveRequestParams = {
-  activeTabId: string | null
+  /** The tab whose Cmd+S requests this panel answers. */
+  ownerTabId: string | null
   activeDocumentId: WorkingDocumentId | null
   enabled: boolean
   isUntitled: boolean
@@ -14,7 +15,7 @@ type UseEditorCmdSaveRequestParams = {
 }
 
 export function useEditorCmdSaveRequest({
-  activeTabId,
+  ownerTabId,
   activeDocumentId,
   enabled,
   isUntitled,
@@ -25,7 +26,7 @@ export function useEditorCmdSaveRequest({
       return
     }
     const handler = (event: Event): void => {
-      if ((event as CustomEvent<EditorRequestCmdSaveDetail>).detail?.tabId !== activeTabId) {
+      if ((event as CustomEvent<EditorRequestCmdSaveDetail>).detail?.tabId !== ownerTabId) {
         return
       }
       if (activeDocumentId || isUntitled) {
@@ -34,5 +35,5 @@ export function useEditorCmdSaveRequest({
     }
     window.addEventListener(ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT, handler)
     return () => window.removeEventListener(ORCA_EDITOR_REQUEST_CMD_SAVE_EVENT, handler)
-  }, [activeDocumentId, activeTabId, enabled, handleSave, isUntitled])
+  }, [activeDocumentId, ownerTabId, enabled, handleSave, isUntitled])
 }

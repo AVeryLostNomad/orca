@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs'
-import { basename, dirname } from 'node:path'
+import { dirname } from 'node:path'
 import { test, expect } from './helpers/orca-app'
 import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
-import { fileExplorerRowByName } from './helpers/file-explorer'
 import { execInTerminal, waitForActivePanePtyId, waitForTerminalOutput } from './helpers/terminal'
 import { projectGroupWorkspaceKey } from '../../src/shared/project-group-workspace'
 
@@ -38,7 +37,9 @@ test('merge smoke: notes persist through floating workspace close and reopen', a
   await expect(panel).toBeHidden()
   await toggle.click()
   await expect(editor).toContainText(marker)
-  await orcaPage.screenshot({ path: testInfo.outputPath('workspace-notes.png') })
+  await orcaPage.screenshot({
+    path: testInfo.outputPath('workspace-notes.png')
+  })
 })
 
 test('merge smoke: colored FontAwesome group selects its group-wide workspace', async ({
@@ -51,11 +52,11 @@ test('merge smoke: colored FontAwesome group selects its group-wide workspace', 
     const state = window.__store!.getState()
     state.setSidebarOpen(true)
     state.setGroupBy('repo')
-    const group = await state.createProjectGroup('Merge verification group')
+    const group = await state.createProjectGroup('Merge verification group', 'local')
     if (!group) {
       throw new Error('Group creation failed')
     }
-    await state.moveProjectToGroup(state.repos[0]!.id, group.id)
+    await state.moveProjectToGroup(state.repos[0]!, group.id)
     return group.id
   })
   const header = orcaPage.locator(`[data-project-group-header-id="${groupId}"]`)
@@ -94,7 +95,9 @@ test('merge smoke: colored FontAwesome group selects its group-wide workspace', 
   const stickyBounds = await stickyFrame.boundingBox()
   expect(stickyBounds!.x).toBe(frameBounds!.x)
   expect(stickyBounds!.width).toBe(frameBounds!.width)
-  await orcaPage.screenshot({ path: testInfo.outputPath('group-outline-top.png') })
+  await orcaPage.screenshot({
+    path: testInfo.outputPath('group-outline-top.png')
+  })
   const sidebar = orcaPage.locator('[data-worktree-sidebar]')
   await sidebar.evaluate((element) => {
     element.style.height = '120px'
@@ -105,7 +108,9 @@ test('merge smoke: colored FontAwesome group selects its group-wide workspace', 
   await expect
     .poll(async () => (await stickyFrame.boundingBox())!.y)
     .toBeGreaterThanOrEqual((await sidebar.boundingBox())!.y)
-  await orcaPage.screenshot({ path: testInfo.outputPath('group-outline-scrolled.png') })
+  await orcaPage.screenshot({
+    path: testInfo.outputPath('group-outline-scrolled.png')
+  })
   await sidebar.evaluate((element) => {
     element.style.removeProperty('height')
     element.scrollTop = 0
@@ -122,9 +127,20 @@ test('merge smoke: colored FontAwesome group selects its group-wide workspace', 
   await expect
     .poll(() => orcaPage.evaluate(() => window.__store!.getState().activeWorktreeId))
     .toBe(groupWorkspaceKey)
-  await expect(fileExplorerRowByName(orcaPage, basename(testRepoPath))).toBeVisible()
+  // The fixture repo lives directly in the OS temp dir, so the group root is that whole dir; its
+  // capped file listing need not include the repo, so assert the workspace root itself.
+  await expect
+    .poll(() =>
+      orcaPage.evaluate(
+        (id) => window.__store!.getState().getKnownWorktreeById(id)?.path,
+        groupWorkspaceKey
+      )
+    )
+    .toBe(dirname(testRepoPath))
   const ptyId = await waitForActivePanePtyId(orcaPage)
   await execInTerminal(orcaPage, ptyId, 'node -p "process.cwd()"')
   await waitForTerminalOutput(orcaPage, dirname(testRepoPath))
-  await orcaPage.screenshot({ path: testInfo.outputPath('group-workspace.png') })
+  await orcaPage.screenshot({
+    path: testInfo.outputPath('group-workspace.png')
+  })
 })

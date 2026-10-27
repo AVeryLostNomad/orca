@@ -1,6 +1,6 @@
 import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { spawnProcess } from '../../shared/child-process/run-process'
+import { spawnProcess } from '@orca/process-host'
 import { net } from 'electron'
 import { getAdsServerRoot, resolveAdsServerEntry } from './ads-server'
 

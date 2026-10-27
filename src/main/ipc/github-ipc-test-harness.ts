@@ -41,6 +41,8 @@ export type GitHubIpcHarness = {
   store: {
     getRepos: () => FixtureRepo[]
     getProjects: () => FixtureProject[]
+    // Read by the fork's GitHub account-pin inheritance at registration.
+    getProjectGroups: () => []
     getSettings: () => { localWindowsRuntimeDefault: { kind: string } }
   }
   stats: { hasCountedPR: () => boolean; record: () => void }
@@ -68,6 +70,7 @@ export function createGitHubIpcHarness(mocks: GitHubIpcMocks): GitHubIpcHarness 
     store: {
       getRepos: () => harness.repos,
       getProjects: () => harness.projects,
+      getProjectGroups: () => [],
       getSettings: () => ({ localWindowsRuntimeDefault: { kind: 'windows-host' } })
     },
     stats: {
@@ -86,10 +89,7 @@ export function createGitHubIpcHarness(mocks: GitHubIpcMocks): GitHubIpcHarness 
         delete handlers[key]
       }
 
-      // Reset fixture repos to the default single-repo fixture each test, so
-      // individual tests can mutate the list without leaking preferences across
-      // tests (e.g. a preference-threading test could otherwise shadow the
-      // default-undefined assertions in sibling tests).
+      // Reset repo preferences between tests so one routing fixture cannot shadow another.
       harness.repos = defaultRepos()
       harness.projects = []
 

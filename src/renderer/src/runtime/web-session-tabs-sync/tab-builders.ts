@@ -9,8 +9,12 @@ import type { OpenFile } from '../../store/slices/editor'
 import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
 import type { ReadyEditorSurface, MirroredEditorTab } from './state'
 import type { WebSessionExistingTabIndex } from '../web-session-existing-tab-index'
-import { isReadyEditorTab, localEditorFileId, editorSourceFileId } from './terminal-surfaces'
-import { buildDiffEditorFileId } from '../../store/slices/editor/file-ids/editor-file-ids'
+import { isReadyEditorTab } from './terminal-surfaces'
+import { createMirroredEditorFileResolver } from './mirrored-editor-file-identity'
+import {
+  buildDiffEditorFileId,
+  buildOwnedEditorFileId
+} from '../../store/slices/editor/file-ids/editor-file-ids'
 
 export function buildTerminalUnifiedTab(
   tab: TerminalTab,
@@ -57,8 +61,12 @@ export function buildBrowserUnifiedTab(
     label: tab.title,
     customLabel: null,
     color: hostTab.color !== undefined ? hostTab.color : (existingUnifiedTab?.color ?? null),
-    sortOrder: tab.createdAt,
+    // Why: adoption must not reset the staged row's placement or manufacture/drop a focus visit.
+    sortOrder: existingUnifiedTab?.sortOrder ?? tab.createdAt,
     createdAt: tab.createdAt,
+    ...(existingUnifiedTab?.lastFocusedAt !== undefined
+      ? { lastFocusedAt: existingUnifiedTab.lastFocusedAt }
+      : {}),
     isPreview: false,
     isPinned:
       hostTab.isPinned !== undefined
@@ -96,48 +104,162 @@ export function buildEditorUnifiedTab(
   }
 }
 
+function mirroredDiffSource(tab: ReadyEditorSurface): 'staged' | 'unstaged' | undefined {
+  return tab.type === 'file' && tab.mode === 'diff' ? tab.diffSource : undefined
+}
+
+// Host diff tabs mirror as diff files keyed by source; the edit-file resolver would merge them.
+function resolveMirroredDiffFile(
+  tab: ReadyEditorSurface,
+  diffSource: 'staged' | 'unstaged',
+  openFiles: readonly OpenFile[],
+  worktreeId: string,
+  environmentId: string
+): {
+  fileId: string
+  existingFile: OpenFile | undefined
+  sourceFileId: string | undefined
+  preservesOwner: false
+} {
+  const existingFile = openFiles.find(
+    (candidate) =>
+      candidate.worktreeId === worktreeId &&
+      candidate.runtimeEnvironmentId === environmentId &&
+      candidate.filePath === tab.filePath &&
+      candidate.mode === 'diff' &&
+      candidate.diffSource === diffSource
+  )
+  return {
+    fileId:
+      existingFile?.id ??
+      buildDiffEditorFileId(worktreeId, diffSource, tab.relativePath, environmentId),
+    existingFile,
+    sourceFileId: undefined,
+    preservesOwner: false
+  }
+}
+
+// Older peers can echo one file under IDs minted by several environments.
+function mintedEnvironmentSegment(tab: ReadyEditorSurface, worktreeId: string): string | null {
+  if (
+    tab.type !== 'markdown' ||
+    typeof tab.sourceFileId !== 'string' ||
+    !tab.sourceFileId ||
+    tab.sourceFileId === tab.sourceFilePath
+  ) {
+    return null
+  }
+  if (tab.id === tab.filePath) {
+    return ''
+  }
+  const prefix = `editor:${encodeURIComponent(worktreeId)}:`
+  const suffix = `:${encodeURIComponent(tab.filePath)}`
+  if (
+    !tab.id.startsWith(prefix) ||
+    !tab.id.endsWith(suffix) ||
+    tab.id.length <= prefix.length + suffix.length
+  ) {
+    return null
+  }
+  const segment = tab.id.slice(prefix.length, tab.id.length - suffix.length)
+  let runtimeKey: string
+  try {
+    runtimeKey = decodeURIComponent(segment)
+  } catch {
+    return null
+  }
+  return buildOwnedEditorFileId(tab.filePath, worktreeId, runtimeKey) === tab.id ? segment : null
+}
+
+function dedupeReadyEditorTabsBySource(
+  tabs: readonly ReadyEditorSurface[],
+  worktreeId: string,
+  preferredHostTabId: string | null
+): ReadyEditorSurface[] {
+  const bucketOf = (tab: ReadyEditorSurface): string =>
+    JSON.stringify([
+      worktreeId,
+      tab.type === 'markdown' ? tab.mode : 'edit',
+      tab.filePath,
+      tab.type === 'markdown' ? tab.sourceFileId : null
+    ])
+  const rank = (tab: ReadyEditorSurface): number =>
+    tab.id === preferredHostTabId ? 2 : tab.isActive ? 1 : 0
+  const winnerByBucket = new Map<string, { segment: string; rank: number }>()
+  for (const tab of tabs) {
+    const segment = mintedEnvironmentSegment(tab, worktreeId)
+    if (segment === null) {
+      continue
+    }
+    const bucket = bucketOf(tab)
+    const current = winnerByBucket.get(bucket)
+    const tabRank = rank(tab)
+    if (!current || tabRank > current.rank) {
+      winnerByBucket.set(bucket, { segment, rank: tabRank })
+    }
+  }
+  return tabs.filter((tab) => {
+    const segment = mintedEnvironmentSegment(tab, worktreeId)
+    return segment === null || segment === winnerByBucket.get(bucketOf(tab))?.segment
+  })
+}
+
 export function buildMirroredEditorTabs(
   snapshot: RuntimeMobileSessionTabsResult,
   environmentId: string,
-  worktreeOpenFiles: readonly OpenFile[],
+  openFiles: readonly OpenFile[],
   existingTabIndex: WebSessionExistingTabIndex,
   hostGroupIdByTabId: ReadonlyMap<string, string>,
   fallbackGroupId: string,
   sortOffset: number,
-  now: number
+  now: number,
+  hasLocalDraft: (fileId: string) => boolean,
+  preferredHostTabId: string | null = null
 ): MirroredEditorTab[] {
-  return snapshot.tabs.filter(isReadyEditorTab).map((tab, index) => {
-    const diffSource = tab.type === 'file' && tab.mode === 'diff' ? tab.diffSource : undefined
-    const mode = diffSource ? ('diff' as const) : tab.type === 'markdown' ? tab.mode : 'edit'
-    const fallbackFileId = diffSource
-      ? buildDiffEditorFileId(snapshot.worktree, diffSource, tab.relativePath, environmentId)
-      : localEditorFileId(tab)
-    const existingFile = worktreeOpenFiles.find(
-      (candidate) =>
-        candidate.runtimeEnvironmentId === environmentId &&
-        candidate.filePath === tab.filePath &&
-        candidate.mode === mode &&
-        (!diffSource || candidate.diffSource === diffSource)
-    )
-    const fileId = existingFile?.id ?? fallbackFileId
-    const existingUnifiedTab = existingTabIndex.getEditorUnifiedTab(fileId, tab.id)
-    const sourceFileId = editorSourceFileId(tab)
-    const groupId = hostGroupIdByTabId.get(tab.id) ?? fallbackGroupId
-    const file: OpenFile = {
-      ...existingFile,
-      id: fileId,
-      filePath: tab.filePath,
-      relativePath: tab.relativePath,
-      worktreeId: snapshot.worktree,
-      language: tab.language,
-      isDirty: existingFile?.isDirty || tab.isDirty,
-      runtimeEnvironmentId: environmentId,
-      mode,
-      ...(diffSource ? { diffSource } : {}),
-      markdownPreviewSourceFileId: sourceFileId,
-      // Why: marks this tab host-owned so a later snapshot that omits it can cull it; locally opened tabs lack this flag and survive.
-      mirroredFromRuntimeSession: true
+  const readyTabs = snapshot.tabs.filter(isReadyEditorTab)
+  if (readyTabs.length === 0) {
+    return []
+  }
+  const resolveFile = createMirroredEditorFileResolver(openFiles, snapshot.worktree, environmentId)
+  // New split tabs share the retained file even when the host lists them before its original tab.
+  for (const tab of readyTabs) {
+    if (!mirroredDiffSource(tab)) {
+      resolveFile(tab, existingTabIndex.getEditorUnifiedTabByHostId(tab.id))
     }
+  }
+  const distinctTabs = dedupeReadyEditorTabsBySource(
+    readyTabs,
+    snapshot.worktree,
+    preferredHostTabId
+  )
+  return distinctTabs.map((tab, index) => {
+    const diffSource = mirroredDiffSource(tab)
+    const identity = diffSource
+      ? resolveMirroredDiffFile(tab, diffSource, openFiles, snapshot.worktree, environmentId)
+      : resolveFile(tab, existingTabIndex.getEditorUnifiedTabByHostId(tab.id))
+    const { fileId, existingFile, sourceFileId } = identity
+    const existingUnifiedTab = existingTabIndex.getEditorUnifiedTab(fileId, tab.id)
+    const groupId = hostGroupIdByTabId.get(tab.id) ?? fallbackGroupId
+    // Drafts prove client dirty ownership: host clean echoes must not bypass close prompts (#21392). Without a draft, dirty came from host and follows host saves.
+    const keepsClientDirty = existingFile?.isDirty === true && hasLocalDraft(fileId)
+    const file: OpenFile =
+      identity.preservesOwner && existingFile
+        ? existingFile
+        : {
+            ...existingFile,
+            id: fileId,
+            filePath: tab.filePath,
+            relativePath: tab.relativePath,
+            worktreeId: snapshot.worktree,
+            language: tab.language,
+            isDirty: tab.isDirty || keepsClientDirty,
+            runtimeEnvironmentId: environmentId,
+            mode: diffSource ? 'diff' : tab.type === 'markdown' ? tab.mode : 'edit',
+            ...(diffSource ? { diffSource } : {}),
+            markdownPreviewSourceFileId: sourceFileId,
+            // Why: marks this tab host-owned so a later snapshot that omits it can cull it; locally opened tabs lack this flag and survive.
+            mirroredFromRuntimeSession: true
+          }
     return {
       file,
       hostTabId: tab.id,

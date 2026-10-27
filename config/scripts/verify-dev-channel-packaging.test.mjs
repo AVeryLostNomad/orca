@@ -41,7 +41,7 @@ describe('electron-builder dev-channel identity', () => {
     expect(config.win.verifyUpdateCodeSignature).toBe(false)
     expect(config.publish.owner).toBe('AVeryLostNomad')
     expect(config.publish.repo).toBe('orca')
-    expect(config.publish.releaseType).toBe('release')
+    expect(config.publish.releaseType).toBe('draft')
   })
 
   // The whole point of the change: an unsigned build that advertised a

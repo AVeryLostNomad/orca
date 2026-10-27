@@ -7,13 +7,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { translate } from '@/i18n/i18n'
 import { detectLanguage } from '@/lib/language-detect'
 import { getConnectionId } from '@/lib/connection-context'
-import { isPathInsideWorktree, toWorktreeRelativePath } from '@/lib/terminal-links'
+import { isPathInsideWorktree, toWorktreeRelativePath } from '../../../../shared/terminal-links'
 import { captureWorktreeSshMutationExpectation } from '@/lib/ssh-mutation-expectation'
 import { getEditorFileDropOperationContext } from '@/lib/external-file-open'
-import {
-  importExternalPathsToRuntime,
-  type RuntimeFileOperationArgs
-} from '@/runtime/runtime-file-client'
+import { importExternalPathsToRuntime } from '@/runtime/runtime-file-import-client'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
 
 /**
  * Copies a file that lives outside the workspace root (OS "open with", drops)

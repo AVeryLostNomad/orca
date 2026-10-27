@@ -3,14 +3,19 @@ import { TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { getConnectionIdForFile } from '@/lib/connection-context'
-import { readRuntimeFileContent } from '@/runtime/runtime-file-client'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
+import { readRuntimeFileContent } from '@/runtime/runtime-file-read-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { useAppStore } from '@/store'
 import type { WorkingDocument } from '@/store/slices/editor/working-document'
 import { translate } from '@/i18n/i18n'
 import { ExternalFileChangeCompareDialog } from './ExternalFileChangeCompareDialog'
 import { getDiskBaselineSignature } from './diff-content-signature'
 import { trackExternalChangeConflictAction } from './editor-external-change-telemetry'
+import { attemptEditorDocumentSave } from './editor-file-save-attempt'
+import {
+  isDocumentBaselineRestampSuperseded,
+  trackDocumentBaselineRestamp
+} from './editor-save-queue'
 
 const RELOAD_UNDO_TOAST_DURATION_MS = 8_000
 
@@ -20,10 +25,7 @@ export async function reloadWorkingDocumentContentFromDisk(
   const expectedRevision = document.revision
   const { target } = document
   const result = await readRuntimeFileContent({
-    settings: settingsForRuntimeOwner(
-      useAppStore.getState().settings,
-      target.owner.runtimeEnvironmentId
-    ),
+    target: runtimeTargetForOwnerEnvironment(target.owner.runtimeEnvironmentId),
     filePath: target.filePath,
     relativePath: target.relativePath,
     worktreeId: target.worktreeId,
@@ -77,27 +79,40 @@ export function keepWorkingDocumentEditsOverExternalChange(document: WorkingDocu
   const state = useAppStore.getState()
   state.setWorkingDocumentExternalState(document.id, { externalMutation: undefined })
   const { target } = document
-  void readRuntimeFileContent({
-    settings: settingsForRuntimeOwner(state.settings, target.owner.runtimeEnvironmentId),
+  // Advance the baseline so dismissal survives restart; saves wait for this read (a failed read
+  // safely leaves the banner eligible to return).
+  const restamp = readRuntimeFileContent({
+    target: runtimeTargetForOwnerEnvironment(target.owner.runtimeEnvironmentId),
     filePath: target.filePath,
     relativePath: target.relativePath,
     worktreeId: target.worktreeId,
     connectionId: getConnectionIdForFile(target.worktreeId, target.filePath) ?? undefined,
     expectedExternalSshTargetId: target.externalSshTargetId
+  }).then((result) => {
+    if (result.isBinary) {
+      return
+    }
+    const current = useAppStore.getState().workingDocuments[document.id]
+    // Only stamp while the dismissal stands; a newer conflict or a later write owns the baseline.
+    if (
+      !current ||
+      current.externalMutation === 'changed' ||
+      isDocumentBaselineRestampSuperseded(document.id)
+    ) {
+      return
+    }
+    useAppStore
+      .getState()
+      .setWorkingDocumentDiskBaseline(document.id, getDiskBaselineSignature(result.content))
   })
-    .then((result) => {
-      if (result.isBinary) {
-        return
-      }
-      const current = useAppStore.getState().workingDocuments[document.id]
-      if (!current || current.externalMutation === 'changed') {
-        return
-      }
-      useAppStore
-        .getState()
-        .setWorkingDocumentDiskBaseline(document.id, getDiskBaselineSignature(result.content))
-    })
-    .catch(() => undefined)
+  trackDocumentBaselineRestamp(document.id, restamp)
+}
+
+/** The banner's Overwrite: the one explicit consent to replace the newer disk content. */
+export function overwriteDiskWithWorkingDocument(document: WorkingDocument): Promise<boolean> {
+  return useAppStore.getState().workingDocuments[document.id]?.isDirty
+    ? attemptEditorDocumentSave({ documentId: document.id, overwrite: true })
+    : Promise.resolve(false)
 }
 
 export function ExternalFileChangeBanner({
@@ -132,7 +147,7 @@ export function ExternalFileChangeBanner({
           <span className="min-w-0 font-medium text-foreground">
             {translate(
               'auto.components.editor.ExternalFileChangeBanner.7c41e90d12',
-              'This file changed on disk while you have unsaved edits. Saving will overwrite the newer disk content.'
+              'This file changed on disk while you have unsaved edits. Overwrite replaces the newer disk content.'
             )}
           </span>
         </div>
@@ -154,7 +169,27 @@ export function ExternalFileChangeBanner({
               'Reload from Disk'
             )}
           </Button>
-          <Button type="button" size="xs" variant="ghost" onClick={handleKeepEdits}>
+          {/* Only unsaved edits can overwrite newer disk content. */}
+          {document.isDirty && (
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={() => void overwriteDiskWithWorkingDocument(document)}
+            >
+              {translate('auto.components.editor.ExternalFileChangeBanner.overwrite', 'Overwrite')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={handleKeepEdits}
+            title={translate(
+              'auto.components.editor.ExternalFileChangeBanner.keepHint',
+              'Keeps your version. Your next save replaces the version on disk.'
+            )}
+          >
             {translate(
               'auto.components.editor.ExternalFileChangeBanner.a95d02c644',
               'Keep My Edits'

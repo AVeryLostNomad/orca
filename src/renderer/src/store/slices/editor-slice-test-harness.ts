@@ -4,12 +4,21 @@ import { createEditorSlice } from './editor'
 import { createTabsSlice } from './tabs'
 import type { AppState } from '../types'
 
+/** The tab-bar maps switch-on editor paths read; a store without the tabs slice needs them too. */
+export function emptyTabLayoutState(): Pick<
+  AppState,
+  'unifiedTabsByWorktree' | 'groupsByWorktree' | 'layoutByWorktree'
+> {
+  return { unifiedTabsByWorktree: {}, groupsByWorktree: {}, layoutByWorktree: {} }
+}
+
 export function createEditorStore(): StoreApi<AppState> {
   // Only the editor slice + activeWorktreeId are needed for these tests.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any, typescript/consistent-type-assertions -- SAFETY: a partial store; tests read only the slices it builds.
   return createStore<any>()((...args: any[]) => ({
     activeWorktreeId: 'wt-1',
     tabsByWorktree: {},
+    ...emptyTabLayoutState(),
     browserTabsByWorktree: {},
     activeBrowserTabId: null,
     activeBrowserTabIdByWorktree: {},
@@ -33,6 +42,9 @@ export function createEditorTabsStore(): StoreApi<AppState> {
     activeTabId: null,
     activeTabIdByWorktree: {},
     tabBarOrderByWorktree: {},
+    // Tab reconciliation also counts embedded VS Code and database tabs.
+    codeServerTabsByWorktree: {},
+    dataStudioTabsByWorktree: {},
     setTabBarOrder: (worktreeId: string, order: string[]) =>
       args[0]((state: AppState) => ({
         tabBarOrderByWorktree: { ...state.tabBarOrderByWorktree, [worktreeId]: order }

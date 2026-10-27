@@ -1,5 +1,5 @@
 import type { AppState } from '../../types'
-import type { EditorSlice } from './types/editor-slice'
+import type { OpenFile } from './types/open-file'
 import type {
   WorkingDocument,
   WorkingDocumentExternalStatePatch,
@@ -112,12 +112,10 @@ export function getEditorClosePlan(
   return { tabIds: [...closingTabs], dirtyDocumentIds }
 }
 
-export function projectDirtyBadges(
-  state: Pick<
-    AppState,
-    'openFiles' | 'workingDocumentIdsByTab' | 'workingDocuments' | 'unifiedTabsByWorktree'
-  >
-): EditorSlice['openFiles'] {
+/** Per-file dirty/preview badges from working documents; map `openFiles` through it (content only). */
+export function dirtyBadgeProjection(
+  state: Pick<AppState, 'workingDocumentIdsByTab' | 'workingDocuments' | 'unifiedTabsByWorktree'>
+): (file: OpenFile) => OpenFile {
   const dirtyByTab = new Map<string, boolean>()
   for (const [tabId, ids] of Object.entries(state.workingDocumentIdsByTab)) {
     dirtyByTab.set(
@@ -125,7 +123,7 @@ export function projectDirtyBadges(
       ids.some((id) => state.workingDocuments[id]?.isDirty === true)
     )
   }
-  return state.openFiles.map((file) => {
+  return (file) => {
     const dirty =
       dirtyByTab.get(file.id) ??
       Object.values(state.unifiedTabsByWorktree ?? {}).some((tabs) =>
@@ -135,28 +133,5 @@ export function projectDirtyBadges(
     return file.isDirty === dirty && file.isPreview === isPreview
       ? file
       : { ...file, isDirty: dirty, isPreview }
-  })
-}
-
-export function promoteDirtyDocumentPreviewTabs(
-  state: Pick<AppState, 'workingDocumentIdsByTab' | 'unifiedTabsByWorktree'>,
-  documentId: WorkingDocumentId
-): AppState['unifiedTabsByWorktree'] {
-  let unifiedTabsByWorktree: AppState['unifiedTabsByWorktree'] | undefined
-  for (const [worktreeId, tabs] of Object.entries(state.unifiedTabsByWorktree ?? {})) {
-    if (
-      !tabs.some(
-        (tab) => tab.isPreview && state.workingDocumentIdsByTab[tab.id]?.includes(documentId)
-      )
-    ) {
-      continue
-    }
-    unifiedTabsByWorktree ??= { ...state.unifiedTabsByWorktree }
-    unifiedTabsByWorktree[worktreeId] = tabs.map((tab) =>
-      tab.isPreview && state.workingDocumentIdsByTab[tab.id]?.includes(documentId)
-        ? { ...tab, isPreview: false }
-        : tab
-    )
   }
-  return unifiedTabsByWorktree ?? state.unifiedTabsByWorktree
 }

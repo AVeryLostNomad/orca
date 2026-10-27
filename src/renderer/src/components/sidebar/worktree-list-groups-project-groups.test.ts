@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildRows } from './worktree-list/grouping/build-rows'
+import {
+  buildRows,
+  buildRowsWithGroupWide
+} from './worktree-list/grouping/build-rows.test-fixture'
 import { repo, worktree, repoMap } from './worktree-list-groups-test-fixtures'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -61,7 +64,7 @@ describe('project groups', () => {
     }
     const groupedRepo: Repo = { ...repo, projectGroupId: group.id }
 
-    const rows = buildRows(
+    const rows = buildRowsWithGroupWide(
       'repo',
       [],
       new Map([[groupedRepo.id, groupedRepo]]),
@@ -134,8 +137,7 @@ describe('project groups', () => {
   })
 
   it('keeps sleep-filtered Project Group members as empty project headers', () => {
-    // Why: #8865 — Hide sleeping removes workspace cards; membership placeholders
-    // must still project the grouped project header so the group count stays honest.
+    // Hide sleeping removes cards, but placeholders must retain project headers and accurate group counts.
     const group: ProjectGroup = {
       id: 'group-1',
       name: 'Platform',
@@ -167,7 +169,7 @@ describe('project groups', () => {
       path: '/tmp/awake'
     }
 
-    const rows = buildRows(
+    const rows = buildRowsWithGroupWide(
       'repo',
       [awakeWorktree],
       new Map([

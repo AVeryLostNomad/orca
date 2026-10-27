@@ -57,27 +57,21 @@ describe('git remote operations', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'review/pr-1738\n', stderr: '' }
       }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1738.remote')) {
-        return { stdout: 'pr-prateek-orca\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1738.pushRemote')) {
-        return { stdout: 'pr-prateek-orca\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1738.merge')) {
-        return { stdout: 'refs/heads/prateek/fix-sidebar-agents-toggle\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1738.base')) {
-        throw new Error('missing branch base')
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout:
+            'branch.review/pr-1738.remote\npr-prateek-orca\0' +
+            'branch.review/pr-1738.pushremote\npr-prateek-orca\0' +
+            'branch.review/pr-1738.merge\nrefs/heads/prateek/fix-sidebar-agents-toggle\0',
+          stderr: ''
+        }
       }
       return { stdout: '', stderr: '' }
     })
 
     await gitPush('/repo', false)
 
-    expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
-      ['config', '--get', 'branch.review/pr-1738.remote'],
-      { cwd: '/repo' }
-    )
+    expect(gitExecFileAsyncMock).toHaveBeenCalledWith(['config', '--list', '-z'], { cwd: '/repo' })
     expect(gitExecFileAsyncMock).toHaveBeenLastCalledWith(
       ['push', '--set-upstream', 'pr-prateek-orca', 'HEAD:prateek/fix-sidebar-agents-toggle'],
       { cwd: '/repo' }
@@ -89,20 +83,15 @@ describe('git remote operations', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'feature/fix\n', stderr: '' }
       }
-      if (args[0] === 'config' && args.includes('branch.feature/fix.remote')) {
-        return { stdout: 'origin\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.feature/fix.pushRemote')) {
-        throw new Error('missing pushRemote')
-      }
-      if (args[0] === 'config' && args.includes('remote.pushDefault')) {
-        return { stdout: 'fork\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.feature/fix.merge')) {
-        return { stdout: 'refs/heads/main\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.feature/fix.base')) {
-        return { stdout: 'refs/remotes/origin/main\n', stderr: '' }
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout:
+            'branch.feature/fix.remote\norigin\0' +
+            'branch.feature/fix.merge\nrefs/heads/main\0' +
+            'branch.feature/fix.base\nrefs/remotes/origin/main\0' +
+            'remote.pushdefault\nfork\0',
+          stderr: ''
+        }
       }
       return { stdout: '', stderr: '' }
     })
@@ -124,17 +113,15 @@ describe('git remote operations', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'review/pr-1\n', stderr: '' }
       }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1.remote')) {
-        return { stdout: 'fork\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1.pushRemote')) {
-        return { stdout: 'fork\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1.merge')) {
-        return { stdout: 'refs/heads/main\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.review/pr-1.base')) {
-        return { stdout: 'refs/remotes/origin/main\n', stderr: '' }
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout:
+            'branch.review/pr-1.remote\nfork\0' +
+            'branch.review/pr-1.pushremote\nfork\0' +
+            'branch.review/pr-1.merge\nrefs/heads/main\0' +
+            'branch.review/pr-1.base\nrefs/remotes/origin/main\0',
+          stderr: ''
+        }
       }
       return { stdout: '', stderr: '' }
     })
@@ -152,17 +139,14 @@ describe('git remote operations', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'imp/chinese-translation\n', stderr: '' }
       }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.pushRemote')) {
-        return { stdout: 'https://github.com/pynickle/orca.git\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('remote.pushDefault')) {
-        throw new Error('missing pushDefault')
-      }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.remote')) {
-        return { stdout: 'https://github.com/pynickle/orca.git\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.merge')) {
-        return { stdout: 'refs/heads/imp/chinese-translation\n', stderr: '' }
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout:
+            'branch.imp/chinese-translation.remote\nhttps://github.com/pynickle/orca.git\0' +
+            'branch.imp/chinese-translation.pushremote\nhttps://github.com/pynickle/orca.git\0' +
+            'branch.imp/chinese-translation.merge\nrefs/heads/imp/chinese-translation\0',
+          stderr: ''
+        }
       }
       if (args[0] === 'remote' && args[1] === 'get-url') {
         return { stdout: 'https://github.com/stablyai/orca.git\n', stderr: '' }
@@ -191,17 +175,13 @@ describe('git remote operations', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'imp/chinese-translation\n', stderr: '' }
       }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.pushRemote')) {
-        throw new Error('missing pushRemote')
-      }
-      if (args[0] === 'config' && args.includes('remote.pushDefault')) {
-        throw new Error('missing pushDefault')
-      }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.remote')) {
-        return { stdout: 'https://github.com/pynickle/orca.git\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.merge')) {
-        return { stdout: 'refs/heads/imp/chinese-translation\n', stderr: '' }
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout:
+            'branch.imp/chinese-translation.remote\nhttps://github.com/pynickle/orca.git\0' +
+            'branch.imp/chinese-translation.merge\nrefs/heads/imp/chinese-translation\0',
+          stderr: ''
+        }
       }
       if (args[0] === 'remote' && args[1] === 'get-url' && args[2] === 'origin') {
         return { stdout: 'https://github.com/stablyai/orca.git\n', stderr: '' }
@@ -234,8 +214,6 @@ describe('git remote operations', () => {
     )
   })
 
-  // Regression: normalizing a URL-valued push remote used to run `git remote` and then a
-  // serial `git remote get-url` per remote -- 59 subprocesses on a 58-remote repo.
   it('normalizes a URL-valued push remote from one remote table read at 58 remotes', async () => {
     const remotes = [
       { name: 'origin', url: 'https://github.com/stablyai/orca.git' },
@@ -249,14 +227,13 @@ describe('git remote operations', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'imp/chinese-translation\n', stderr: '' }
       }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.remote')) {
-        return { stdout: 'https://github.com/pynickle/orca.git\n', stderr: '' }
-      }
-      if (args[0] === 'config' && args.includes('branch.imp/chinese-translation.merge')) {
-        return { stdout: 'refs/heads/imp/chinese-translation\n', stderr: '' }
-      }
-      if (args[0] === 'config') {
-        throw new Error(`config key is not set: ${args.join(' ')}`)
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout:
+            'branch.imp/chinese-translation.remote\nhttps://github.com/pynickle/orca.git\0' +
+            'branch.imp/chinese-translation.merge\nrefs/heads/imp/chinese-translation\0',
+          stderr: ''
+        }
       }
       if (args[0] === 'remote' && args[1] === '-v') {
         return {
@@ -301,7 +278,13 @@ describe('git remote operations', () => {
   })
 
   it('passes --force-with-lease when requested', async () => {
-    mockGitResponses('feature\n', 'origin\n', 'refs/heads/feature\n', '')
+    gitExecFileAsyncMock
+      .mockResolvedValueOnce({ stdout: 'feature\n', stderr: '' })
+      .mockResolvedValueOnce({
+        stdout: 'branch.feature.remote\norigin\0branch.feature.merge\nrefs/heads/feature\0',
+        stderr: ''
+      })
+      .mockResolvedValueOnce({ stdout: '', stderr: '' })
 
     await gitPush('/repo', false, undefined, { forceWithLease: true })
 
@@ -472,7 +455,6 @@ describe('git remote operations', () => {
     )
 
     await expect(gitFastForward('/repo')).rejects.toThrow('Not possible to fast-forward')
-    // No fallback attempt: only the three probe/pull calls ran.
     expect(gitExecFileAsyncMock.mock.calls).toHaveLength(3)
   })
 
@@ -485,7 +467,6 @@ describe('git remote operations', () => {
 
     await gitPull('/repo', { remoteName: 'fork', branchName: 'feature/fix' })
 
-    // The merge flag is spliced ahead of the positional remote/branch args.
     expect(gitExecFileAsyncMock.mock.calls).toEqual([
       [['check-ref-format', '--branch', 'feature/fix'], { cwd: '/repo' }],
       [['pull', 'fork', 'feature/fix'], { cwd: '/repo' }],
@@ -512,7 +493,6 @@ describe('git remote operations', () => {
     )
 
     await expect(gitPull('/repo')).rejects.toThrow()
-    // At-most-once retry: probe+pull, then probe+fallback-pull — no further attempts.
     expect(gitExecFileAsyncMock.mock.calls).toHaveLength(6)
   })
 

@@ -11,9 +11,10 @@ import type {
   BrowserPagesProjectionCacheEntry,
   BrowserWorkspacesProjectionCacheEntry,
   OpenFilesProjectionCacheEntry,
-  WorkingDocumentsProjectionCacheEntry,
-  WorkingDocumentVersionCacheEntry
+  WorkingDocumentsProjectionCacheEntry
 } from './types'
+
+export { getWorkingDocumentVersionByFileId } from './working-document-versions'
 
 export function getBrowserTabsByWorktree(state: AppState): AppState['browserTabsByWorktree'] {
   // Some callers/tests build partial pre-browser states; treat missing slices as empty.
@@ -109,6 +110,7 @@ export function buildRuntimeMobileOpenFilesProjection(openFiles: AppState['openF
               mode: file.mode,
               diffSource: file.diffSource,
               isDirty: file.isDirty,
+              mirroredFromRuntimeSession: file.mirroredFromRuntimeSession,
               isUntitled: file.isUntitled,
               deleteUntouchedOnClose: file.deleteUntouchedOnClose,
               markdownPreviewSourceFileId: file.markdownPreviewSourceFileId
@@ -144,6 +146,8 @@ function buildBrowserWorkspacesProjection(
             projection: JSON.stringify(
               workspaces.map((workspace) => ({
                 id: workspace.id,
+                sessionProfileId: workspace.sessionProfileId,
+                sessionPartition: workspace.sessionPartition,
                 activePageId: workspace.activePageId,
                 title: workspace.title,
                 url: workspace.url,
@@ -187,6 +191,7 @@ function buildBrowserPagesProjection(
             projection: JSON.stringify(
               pages.map((page) => ({
                 id: page.id,
+                browserRuntimeEnvironmentId: page.browserRuntimeEnvironmentId,
                 title: page.title,
                 url: page.url,
                 loading: page.loading,
@@ -260,54 +265,6 @@ export function buildRuntimeMobileWorkingDocumentsProjection(
     projection
   }
   return projection
-}
-
-/** Projects canonical document revisions onto the existing tab-oriented mobile contract. */
-export function getWorkingDocumentVersionByFileId(state: AppState): ReadonlyMap<string, string> {
-  const cached = graphState.cachedWorkingDocumentVersions
-  if (
-    cached?.documentsSource === state.workingDocuments &&
-    cached.membershipsSource === state.workingDocumentIdsByTab &&
-    cached.openFilesSource === state.openFiles &&
-    cached.unifiedTabsSource === state.unifiedTabsByWorktree
-  ) {
-    return cached.versions
-  }
-
-  const entries = new Map<string, WorkingDocumentVersionCacheEntry>()
-  const versions = new Map<string, string>()
-  for (const file of state.openFiles) {
-    const tabIds = [
-      file.id,
-      ...Object.values(state.unifiedTabsByWorktree ?? {})
-        .flat()
-        .filter((tab) => tab.entityId === file.id)
-        .map((tab) => tab.id)
-    ]
-    const documentId = tabIds
-      .flatMap((tabId) => state.workingDocumentIdsByTab[tabId] ?? [])
-      .find((id) => state.workingDocuments[id] !== undefined)
-    const document = documentId ? state.workingDocuments[documentId] : undefined
-    if (!document) {
-      continue
-    }
-    const cachedEntry = cached?.entries.get(document.id)
-    const entry =
-      cachedEntry?.document === document
-        ? cachedEntry
-        : { document, version: `${document.revision}:${stableHashString(document.content ?? '')}` }
-    entries.set(document.id, entry)
-    versions.set(file.id, entry.version)
-  }
-  graphState.cachedWorkingDocumentVersions = {
-    documentsSource: state.workingDocuments,
-    membershipsSource: state.workingDocumentIdsByTab,
-    openFilesSource: state.openFiles,
-    unifiedTabsSource: state.unifiedTabsByWorktree,
-    entries,
-    versions
-  }
-  return versions
 }
 
 export function resetRuntimeMobileSyncProjectionCachesForTests(): void {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { isTuiAgent } from '../../../shared/tui-agent-config'
 import { TaskSourceContextSchema } from '../../../shared/task-source-context-schema'
 import { WorkspaceLinkedItemSchema } from '../../../shared/workspace-linked-item-schema'
+import { WorkspaceAttachmentsSchema } from '../../../shared/workspace-attachment-schema'
 import { isWorkspaceLinkedItemSourceContextMatch } from '../../../shared/workspace-linked-item-source-context'
 import { DiffCommentSchema } from '../../../shared/diff-comment-schema'
 import { normalizeExecutionHostId } from '../../../shared/execution-host'
@@ -54,12 +55,6 @@ export const ProjectGroupSelectorArgs = z.object({
   groupId: z.string().min(1)
 })
 
-export const ProjectGroupMoveProjectArgs = z.object({
-  projectId: z.string().min(1),
-  groupId: z.string().nullable(),
-  order: z.number().finite().optional()
-})
-
 export const ProjectHostSetupExistingFolderIpcArgs = z.object({
   projectId: z.string().min(1),
   projectProviderIdentity: z
@@ -90,19 +85,29 @@ export const ProjectUpdateIpcArgs = z.object({
   })
 })
 
+const IpcExecutionHostId = z
+  .string()
+  .min(1)
+  .transform((value, ctx) => {
+    const hostId = normalizeExecutionHostId(value)
+    if (!hostId) {
+      ctx.addIssue({ code: 'custom', message: 'Invalid host ID' })
+      return z.NEVER
+    }
+    return hostId
+  })
+
+// Omitted host retains legacy behavior: move the first matching project ID.
+export const ProjectGroupMoveProjectArgs = z.object({
+  projectId: z.string().min(1),
+  groupId: z.string().nullable(),
+  order: z.number().finite().optional(),
+  hostId: IpcExecutionHostId.optional()
+})
+
 export const ProjectHostSetupCreateIpcArgs = z.object({
   projectId: z.string().min(1),
-  hostId: z
-    .string()
-    .min(1)
-    .transform((value, ctx) => {
-      const hostId = normalizeExecutionHostId(value)
-      if (!hostId) {
-        ctx.addIssue({ code: 'custom', message: 'Invalid host ID' })
-        return z.NEVER
-      }
-      return hostId
-    }),
+  hostId: IpcExecutionHostId,
   setupId: z.string().min(1).optional(),
   path: z.string().optional(),
   kind: z.enum(['git', 'folder']).optional(),
@@ -115,6 +120,7 @@ export const ProjectHostSetupCreateIpcArgs = z.object({
 
 export const ProjectHostSetupUpdateIpcArgs = z.object({
   setupId: z.string().min(1),
+  hostId: IpcExecutionHostId.optional(),
   updates: z.object({
     displayName: z.string().optional(),
     path: z.string().optional(),
@@ -129,7 +135,8 @@ export const ProjectHostSetupUpdateIpcArgs = z.object({
 })
 
 export const ProjectHostSetupDeleteIpcArgs = z.object({
-  setupId: z.string().min(1)
+  setupId: z.string().min(1),
+  hostId: IpcExecutionHostId.optional()
 })
 
 const FolderWorkspaceLinkedTaskArgs = WorkspaceLinkedItemSchema.nullable()
@@ -160,6 +167,8 @@ export const FolderWorkspaceCreateArgs = z
     folderPath: z.string().nullable().optional(),
     connectionId: z.string().nullable().optional(),
     linkedTask: FolderWorkspaceLinkedTaskArgs.optional(),
+    linkedItems: WorkspaceAttachmentsSchema.optional(),
+
     linkedTaskSourceContext: TaskSourceContextSchema.nullable().optional(),
     createdWithAgent: z.string().refine(isTuiAgent).optional(),
     pendingFirstAgentMessageRename: z.boolean().optional()
@@ -173,6 +182,9 @@ export const FolderWorkspaceUpdateArgs = z.object({
       name: z.string().optional(),
       folderPath: z.string().optional(),
       linkedTask: FolderWorkspaceLinkedTaskArgs.optional(),
+      linkedItems: WorkspaceAttachmentsSchema.optional(),
+      linkedItemsBase: WorkspaceAttachmentsSchema.optional(),
+      linkedItemsSelectionChanged: z.boolean().optional(),
       linkedTaskSourceContext: TaskSourceContextSchema.nullable().optional(),
       comment: z.string().optional(),
       isArchived: z.boolean().optional(),

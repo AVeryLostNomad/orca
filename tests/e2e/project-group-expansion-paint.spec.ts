@@ -21,11 +21,11 @@ test('group name and icon remain painted during expansion', async ({ orcaPage },
     const state = window.__store!.getState()
     state.setSidebarOpen(true)
     state.setGroupBy('repo')
-    const group = await state.createProjectGroup('Expansion paint')
+    const group = await state.createProjectGroup('Expansion paint', 'local')
     if (!group) {
       throw new Error('Group creation failed')
     }
-    await state.moveProjectToGroup(state.repos[0]!.id, group.id)
+    await state.moveProjectToGroup(state.repos[0]!, group.id)
     await state.updateProjectGroup(group.id, {
       color: '#ef4444',
       icon: { type: 'fontawesome', name: 'rocket', style: 'solid' }

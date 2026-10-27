@@ -1,8 +1,12 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/store'
-import { getSettingsFocusedExecutionHostId } from '../../../../shared/execution-host'
+import {
+  getSettingsFocusedExecutionHostId,
+  type ExecutionHostId
+} from '../../../../shared/execution-host'
 import { EMPTY_PROJECT_GROUPS } from './worktree-list/viewport/viewport-props'
-import { getVisibleSidebarHostIdSet } from './worktree-list/listing/host-filtering'
+import { getVisibleSidebarHostIdSet } from '../../../../shared/sidebar-list/host-filtering'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import { useSidebarHostScopeOptions } from './use-sidebar-host-scope-options'
 import {
   buildSidebarHostPages,
@@ -14,13 +18,15 @@ import {
 export function useSidebarHostPages(): {
   pages: SidebarHostPage[]
   activePage: SidebarHostPage
+  /** The row pipeline's host for rows that record none; pages attribute rows the same way. */
+  defaultHostId: ExecutionHostId
 } {
   const { hostOptions } = useSidebarHostScopeOptions()
   const workspaceHostOrder = useAppStore((s) => s.workspaceHostOrder)
   const repos = useAppStore((s) => s.repos)
   const projectGroups = useAppStore((s) => s.projectGroups ?? EMPTY_PROJECT_GROUPS)
-  const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
-  const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
+  const folderWorkspaces = useAppStore((s) => selectFolderWorkspaces(s))
+  const worktreesByRepo = useAppStore((s) => selectWorktreesByRepo(s))
   const defaultHostId = useAppStore((s) => getSettingsFocusedExecutionHostId(s.settings))
   const visibleWorkspaceHostIds = useAppStore((s) => s.visibleWorkspaceHostIds)
   const workspaceHostScope = useAppStore((s) => s.workspaceHostScope)
@@ -58,5 +64,5 @@ export function useSidebarHostPages(): {
     () => resolveActiveSidebarHostPage(pages, requestedHostId),
     [pages, requestedHostId]
   )
-  return { pages, activePage }
+  return { pages, activePage, defaultHostId }
 }

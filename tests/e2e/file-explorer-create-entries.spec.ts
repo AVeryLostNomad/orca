@@ -28,18 +28,20 @@ test('creates a file and a folder through the background menu inline rename', as
 
   try {
     await expect(fileExplorerRow(orcaPage, 'README.md')).toBeVisible({ timeout: 10_000 })
-    // Why: the terminal steals focus while the session finishes booting, which
-    // dismisses non-modal menus; let the app settle first.
-    await orcaPage.waitForTimeout(3_000)
 
-    const pane = orcaPage.locator('[data-native-file-drop-target="file-explorer"]')
+    const pane = orcaPage.locator('[data-file-explorer-drop-dir]')
     const box = await pane.boundingBox()
     if (!box) {
       throw new Error('explorer pane not visible')
     }
-    await pane.click({ button: 'right', position: { x: box.width / 2, y: box.height - 12 } })
-
-    await orcaPage.getByRole('menuitem', { name: 'New File' }).click()
+    // Why: the terminal steals focus while the session finishes booting, which dismisses
+    // non-modal menus; reopen until the item click lands.
+    const chooseBackgroundMenuItem = (name: string) =>
+      expect(async () => {
+        await pane.click({ button: 'right', position: { x: box.width / 2, y: box.height - 12 } })
+        await orcaPage.getByRole('menuitem', { name }).click({ timeout: 2_000 })
+      }).toPass({ timeout: 15_000 })
+    await chooseBackgroundMenuItem('New File')
 
     const renameInput = orcaPage.locator('file-tree-container input[data-item-rename-input]')
     await expect(renameInput).toBeVisible({ timeout: 5_000 })
@@ -53,8 +55,7 @@ test('creates a file and a folder through the background menu inline rename', as
     const folderName = 'created-folder'
     const folderPath = path.join(worktreePath, folderName)
     rmSync(folderPath, { recursive: true, force: true })
-    await pane.click({ button: 'right', position: { x: box.width / 2, y: box.height - 12 } })
-    await orcaPage.getByRole('menuitem', { name: 'New Folder' }).click()
+    await chooseBackgroundMenuItem('New Folder')
     const folderInput = orcaPage.locator('file-tree-container input[data-item-rename-input]')
     await expect(folderInput).toBeVisible({ timeout: 5_000 })
     await folderInput.fill(folderName)

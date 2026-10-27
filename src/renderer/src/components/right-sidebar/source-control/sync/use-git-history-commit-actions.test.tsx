@@ -36,7 +36,7 @@ it('opens the renamed current path without a cached historical comparison', asyn
     useGitHistoryCommitActions({
       activeWorktreeId: worktreeId,
       worktreePath: '/repo',
-      activeRepoSettings: null,
+      activeRepoTarget: { kind: 'local' },
       resolveSplitTargetGroupId: () => undefined
     })
   )

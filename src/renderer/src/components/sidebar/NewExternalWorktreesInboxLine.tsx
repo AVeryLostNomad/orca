@@ -88,7 +88,7 @@ export default function NewExternalWorktreesInboxLine({
             aria-hidden="true"
             className={cn(
               'size-3 shrink-0',
-              // Why: the suppress control takes over this slot on hover.
+              // Suppress replaces this indicator on hover.
               onSuppress &&
                 'can-hover:group-hover:opacity-0 can-hover:group-focus-within:opacity-0 [@media(hover:none)]:opacity-0'
             )}

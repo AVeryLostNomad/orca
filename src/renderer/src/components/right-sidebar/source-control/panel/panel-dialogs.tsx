@@ -1,4 +1,4 @@
-import { readSourceControlLaunchRecipeAgentId } from '@/lib/source-control-launch-agent-selection'
+import { readSourceControlLaunchRecipeAgentId } from '../../../../../../shared/source-control-launch-agent-selection'
 import { SourceControlMoveChangesDialog } from '../commit/move-changes-dialog'
 import { SourceControlStashEntryDialog } from '../commit/stash-entry-dialog'
 import { SourceControlStashPushDialog } from '../commit/stash-push-dialog'
@@ -48,8 +48,10 @@ export function SourceControlPanelDialogs({
     pickerBaseRef,
     pullRequestGenerationDialogOpen,
     refreshBranchCompare,
+    resolveConflictsEditor,
     resolveConflictsComposerOpen,
     resolveConflictsPrompt,
+    resolveConflictsRecoveryContext,
     resolvedPendingDiffCommentsClear,
     saveLaunchActionDefault,
     setBaseRefDialogOpen,
@@ -125,7 +127,9 @@ export function SourceControlPanelDialogs({
           window.setTimeout(() => void refreshBranchCompare(), 0)
         }}
         sourceControlAiActionsVisible={sourceControlAiActionsVisible}
+        resolveConflictsEditor={resolveConflictsEditor}
         resolveConflictsComposerOpen={resolveConflictsComposerOpen}
+        recoveryContext={resolveConflictsRecoveryContext}
         onResolveConflictsComposerOpenChange={setResolveConflictsComposerOpen}
         resolveConflictsPrompt={resolveConflictsPrompt}
         worktreeId={activeWorktreeId}
@@ -155,9 +159,7 @@ export function SourceControlPanelDialogs({
         }}
         onSaveCommitMessageDefaults={handleSaveCommitMessageGenerationDefaults}
         onGeneratePullRequestFields={(params) => {
-          void handleGeneratePullRequestFields({
-            sourceControlAiResolvedParams: params
-          })
+          void handleGeneratePullRequestFields({ sourceControlAiResolvedParams: params })
         }}
         onSavePullRequestDefaults={handleSavePullRequestGenerationDefaults}
       />

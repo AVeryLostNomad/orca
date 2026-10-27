@@ -11,7 +11,7 @@ import { getRenderRowKey } from '../listing/render-row'
 import type { RenderRow } from '../listing/render-row'
 
 function groupRow(key: string): RenderRow {
-  return { type: 'header', key, label: key, count: 1, tone: 'text-foreground' }
+  return { type: 'header', key, label: key, count: 1, icon: { kind: 'project' } }
 }
 
 function itemStub(id: string): RenderRow {

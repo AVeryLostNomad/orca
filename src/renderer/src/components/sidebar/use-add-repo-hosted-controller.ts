@@ -1,18 +1,16 @@
-import { useCallback, useMemo } from 'react'
+import type { CompleteGitRepoAdd } from './use-complete-git-repo-add'
+import { useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { markOnboardingProjectAdded } from '@/lib/onboarding-project-checklist'
 
-/** Contract a host surface (e.g. the workspace composer modal) passes to
- *  AddRepoDialog to nest it as a layered dialog instead of the store modal. */
+/** Nest Add Project in a host surface rather than replacing the store modal. */
 export type AddRepoDialogHostedController = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Called after a Git project is added; the host selects the new project
-   *  instead of running the default-checkout navigation handoff. */
+  /** Select the added Git project instead of navigating to its default checkout. */
   onProjectAdded: (repoId: string) => void | Promise<void>
-  /** Radix close-autofocus hook for the nested dialog. Lets the host redirect
-   *  focus (e.g. to the composer's name field) instead of Radix restoring it
-   *  to the already-unmounted combobox row that opened the dialog. */
+  onProjectGroupImported?: (groupId: string) => boolean | Promise<boolean>
+  /** Let the host redirect focus because the opening combobox row may already be unmounted. */
   onCloseAutoFocus?: (event: Event) => void
 }
 
@@ -21,30 +19,33 @@ export function useAddRepoHostedController(hosted: AddRepoDialogHostedController
   /** Close both dialog layers before activating a workspace or opening a
    *  navigation modal. Hosted mode must not obscure the destination. */
   closeForNavigationHandoff: () => void
-  finishProjectAdd: ((repoId: string) => Promise<void>) | undefined
-  handleOpenSshSettings: () => void
+  finishProjectAdd: CompleteGitRepoAdd | undefined
 } {
   const storeCloseModal = useAppStore((s) => s.closeModal)
-  const openSettingsPage = useAppStore((s) => s.openSettingsPage)
-  const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
   const hostedOnOpenChange = hosted?.onOpenChange
   const hostedOnProjectAdded = hosted?.onProjectAdded
-  // Why: hosted mode (nested inside the workspace composer) must close only
-  // this dialog, never the composer modal that lives in the activeModal slot.
+  const hostedOnProjectGroupImported = hosted?.onProjectGroupImported
+  // Closing nested Add Project must leave its parent composer modal open.
   const closeModal = useMemo(
     () => (hostedOnOpenChange ? () => hostedOnOpenChange(false) : storeCloseModal),
     [hostedOnOpenChange, storeCloseModal]
   )
-  const finishProjectAdd = useMemo(
+  const finishProjectAdd = useMemo<CompleteGitRepoAdd | undefined>(
     () =>
       hostedOnOpenChange && hostedOnProjectAdded
-        ? async (repoId: string): Promise<void> => {
+        ? async (repoId, _source, _executionHostId, outcome): Promise<void> => {
             await markOnboardingProjectAdded('addedRepo')
             hostedOnOpenChange(false)
+            if (
+              outcome?.importedProjectGroupId &&
+              (await hostedOnProjectGroupImported?.(outcome.importedProjectGroupId))
+            ) {
+              return
+            }
             await hostedOnProjectAdded(repoId)
           }
         : undefined,
-    [hostedOnOpenChange, hostedOnProjectAdded]
+    [hostedOnOpenChange, hostedOnProjectAdded, hostedOnProjectGroupImported]
   )
   const closeForNavigationHandoff = useMemo(
     () =>
@@ -56,15 +57,5 @@ export function useAddRepoHostedController(hosted: AddRepoDialogHostedController
         : storeCloseModal,
     [hostedOnOpenChange, storeCloseModal]
   )
-  const handleOpenSshSettings = useCallback((): void => {
-    closeModal()
-    // Why: Settings is a full page; in hosted mode the composer modal in the
-    // activeModal slot would otherwise stay open on top of it.
-    if (hostedOnOpenChange) {
-      storeCloseModal()
-    }
-    openSettingsTarget({ pane: 'ssh', repoId: null, sectionId: 'ssh' })
-    openSettingsPage()
-  }, [closeModal, hostedOnOpenChange, openSettingsPage, openSettingsTarget, storeCloseModal])
-  return { closeModal, closeForNavigationHandoff, finishProjectAdd, handleOpenSshSettings }
+  return { closeModal, closeForNavigationHandoff, finishProjectAdd }
 }

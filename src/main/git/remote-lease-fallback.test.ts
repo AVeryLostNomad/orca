@@ -28,6 +28,12 @@ describe('gitPush deleted-remote-branch lease fallback', () => {
       if (args[0] === 'symbolic-ref') {
         return { stdout: 'feature\n', stderr: '' }
       }
+      if (args[0] === 'config' && args[1] === '--list') {
+        return {
+          stdout: 'branch.feature.remote\norigin\0' + 'branch.feature.merge\nrefs/heads/feature\0',
+          stderr: ''
+        }
+      }
       if (args[0] === 'config' && args.includes('branch.feature.remote')) {
         return { stdout: 'origin\n', stderr: '' }
       }

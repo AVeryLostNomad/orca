@@ -1,4 +1,3 @@
-// Step for AddRepoDialog (orca#763), split out so create-project state stays scoped.
 import React, { useMemo, useState } from 'react'
 import { ChevronDown, GitBranch, Loader2 } from 'lucide-react'
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -25,8 +24,6 @@ import {
 import type { GhAuthAccount } from '../../../../shared/github/auth-types'
 import { formatGithubAccountRef } from '../../../../shared/github/github-account-ref'
 
-// ── UI helpers ───────────────────────────────────────────────────────
-
 const CREATE_PROJECT_NAME_PLACEHOLDER = 'project-name'
 
 type CreateStepProps = {
@@ -43,7 +40,8 @@ type CreateStepProps = {
   parentDefaultPending?: boolean
   manualParentEntry?: boolean
   runtimeEnvironmentId?: string | null
-  sshTargetId?: string | null
+  /** No host resolved yet (its server is still coming up): never create on this computer. */
+  submitDisabled?: boolean
   onNameChange: (value: string) => void
   onParentChange: (value: string) => void
   onPickParent: () => void
@@ -65,7 +63,7 @@ export function CreateStep({
   parentDefaultPending = false,
   manualParentEntry = false,
   runtimeEnvironmentId,
-  sshTargetId,
+  submitDisabled = false,
   onNameChange,
   onParentChange,
   onPickParent,
@@ -73,12 +71,10 @@ export function CreateStep({
   onCreate
 }: CreateStepProps): React.JSX.Element {
   const [browsingParent, setBrowsingParent] = useState(false)
-  // Why: SSH hosts need a typed remote path; hiding that field behind the
-  // collapsed defaults makes the create flow look impossible.
+  // Remote hosts need typed paths; expose Location so creation does not appear blocked.
   const [advancedOpen, setAdvancedOpen] = useState(manualParentEntry)
 
-  // Why: SSH hosts report "unknown"; only a confirmed Git miss should block
-  // Git-only creation.
+  // Unknown probe results must not block creation; require a confirmed Git miss.
   const canSubmit =
     createName.trim().length > 0 &&
     createParent.trim().length > 0 &&
@@ -87,7 +83,8 @@ export function CreateStep({
     !parentDefaultPending &&
     !githubAccountsLoading &&
     (githubAccounts.length <= 1 || Boolean(githubAccountRef)) &&
-    !isCreating
+    !isCreating &&
+    !submitDisabled
   const missingLocationLabel = translate(
     'auto.components.sidebar.AddRepoCreateStep.3a13f6e88b',
     'location not selected'
@@ -96,7 +93,7 @@ export function CreateStep({
     'auto.components.sidebar.AddRepoCreateStep.6ed14c0281',
     'host folder not selected'
   )
-  const isRemoteHost = Boolean(runtimeEnvironmentId || sshTargetId)
+  const isRemoteHost = Boolean(runtimeEnvironmentId)
 
   const summaryParent = useMemo(
     () =>
@@ -130,11 +127,10 @@ export function CreateStep({
   const showRuntimeMissingParent =
     runtimeEnvironmentId && !createParent.trim() && runtimeParentStatus !== 'checking'
 
-  if (browsingParent && (runtimeEnvironmentId || sshTargetId)) {
+  if (browsingParent && runtimeEnvironmentId) {
     return (
       <CreateProjectParentBrowser
         runtimeEnvironmentId={runtimeEnvironmentId}
-        sshTargetId={sshTargetId}
         createParent={createParent}
         onParentChange={onParentChange}
         onClose={() => setBrowsingParent(false)}
@@ -159,12 +155,8 @@ export function CreateStep({
         </DialogDescription>
       </DialogHeader>
 
-      {/* Why: DialogContent is a CSS grid; grid items default to min-width:auto
-        (= content size), so a long path inside the Location row would blow out
-        the dialog width even with flex + truncate on the row itself. min-w-0
-        here caps the grid track at the dialog's max-width. */}
+      {/* Grid children default to min-width:auto; min-w-0 prevents long paths widening the dialog despite row truncation. */}
       <div className="space-y-3.5 pt-1 min-w-0">
-        {/* Name. Monospaced because it ends up as a directory name. */}
         <div className="space-y-1">
           <label
             htmlFor="create-project-name"
@@ -307,7 +299,6 @@ export function CreateStep({
                 isCreating={isCreating}
                 manualParentEntry={manualParentEntry}
                 runtimeEnvironmentId={runtimeEnvironmentId}
-                sshTargetId={sshTargetId}
                 onParentChange={onParentChange}
                 onPickParent={onPickParent}
                 onBrowseServer={() => setBrowsingParent(true)}

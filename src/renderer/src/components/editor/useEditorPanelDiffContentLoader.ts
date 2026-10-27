@@ -1,14 +1,14 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import type { OpenFile } from '@/store/slices/editor'
 import { getConnectionIdForFile, isWorktreeConnectionResolved } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import {
   getRuntimeGitBranchDiff,
   getRuntimeGitCommitDiff,
-  getRuntimeGitDiff,
-  getRuntimeGitScope
-} from '@/runtime/runtime-git-client'
+  getRuntimeGitDiff
+} from '@/runtime/runtime-git-diff-client'
+import { getRuntimeGitScope } from '@/runtime/runtime-git-client-context'
 import {
   WORKTREE_OWNER_NOT_READY_ERROR,
   type DiffContent,
@@ -86,16 +86,19 @@ export function useEditorPanelDiffContentLoader({
             : null
         const commitCompare = file.commitCompare?.commitOid ? file.commitCompare : null
         const connectionId = getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined
-        const activeSettings = useAppStore.getState().settings
-        const fileSettings = settingsForRuntimeOwner(activeSettings, file.runtimeEnvironmentId)
+        const fileTarget = requireRuntimeTargetForFileOwner(
+          useAppStore.getState(),
+          file.worktreeId,
+          file.runtimeEnvironmentId
+        )
         if (
           connectionId === undefined &&
-          !fileSettings?.activeRuntimeEnvironmentId?.trim() &&
+          fileTarget.kind === 'local' &&
           !isWorktreeConnectionResolved(file.worktreeId)
         ) {
           throw new Error(WORKTREE_OWNER_NOT_READY_ERROR)
         }
-        const gitScope = getRuntimeGitScope(fileSettings, connectionId)
+        const gitScope = getRuntimeGitScope(fileTarget, connectionId)
         const effectiveDiffSource: typeof file.diffSource =
           file.mode === 'edit' ? 'unstaged' : file.diffSource
         const compareAgainstHead = file.mode === 'edit'
@@ -110,18 +113,17 @@ export function useEditorPanelDiffContentLoader({
           (options.externalEventGeneration === undefined ||
             registeredRead?.externalEventGeneration !== options.externalEventGeneration)
         ) {
-          // Why: forced diff reloads must not attach to a read started before
-          // the external change landed.
+          // Forced reloads must bypass deduped reads that predate external changes.
           inFlightDiffReads.delete(key)
         }
         let pending = inFlightDiffReads.get(key)
         if (!pending) {
-          const promise = (
+          const promise: Promise<DiffContent> =
             effectiveDiffSource === 'commit'
               ? commitCompare
                 ? getRuntimeGitCommitDiff(
                     {
-                      settings: fileSettings,
+                      target: fileTarget,
                       worktreeId: file.worktreeId,
                       worktreePath,
                       connectionId
@@ -137,7 +139,7 @@ export function useEditorPanelDiffContentLoader({
               : effectiveDiffSource === 'branch' && branchCompare
                 ? getRuntimeGitBranchDiff(
                     {
-                      settings: fileSettings,
+                      target: fileTarget,
                       worktreeId: file.worktreeId,
                       worktreePath,
                       connectionId
@@ -155,7 +157,7 @@ export function useEditorPanelDiffContentLoader({
                   )
                 : getRuntimeGitDiff(
                     {
-                      settings: fileSettings,
+                      target: fileTarget,
                       worktreeId: file.worktreeId,
                       worktreePath,
                       connectionId
@@ -166,7 +168,6 @@ export function useEditorPanelDiffContentLoader({
                       compareAgainstHead
                     }
                   )
-          ) as Promise<DiffContent>
           pending = { externalEventGeneration: options?.externalEventGeneration, promise }
           inFlightDiffReads.set(key, pending)
           const clearRegisteredRead = (): void => {

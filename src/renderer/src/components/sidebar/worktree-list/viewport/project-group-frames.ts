@@ -2,7 +2,7 @@ import type { VirtualItem } from '@tanstack/react-virtual'
 import type { RenderRow } from '../listing/render-row'
 import { getProjectGroupHeaderPaddingLeft } from '../rows/indentation'
 
-type ProjectGroupFrame = {
+export type ProjectGroupFrame = {
   key: string
   color: string
   left: number

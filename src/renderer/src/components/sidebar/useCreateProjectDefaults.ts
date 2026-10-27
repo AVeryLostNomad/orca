@@ -1,6 +1,4 @@
-// Default-driven create-project state for AddRepoDialog: resolves the default
-// parent (local/runtime host home) and probes Git
-// availability, guarding against stale async results when the target changes.
+// Resolve parent and Git defaults on the chosen host while rejecting stale async results.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { browseRuntimeServerDirectory } from '@/runtime/runtime-server-directory-browser'
 import { useCreateProjectGitAvailability } from './useCreateProjectGitAvailability'
@@ -30,13 +28,11 @@ type CreateParentProvenance = {
 export function useCreateProjectDefaults({
   step,
   activeRuntimeEnvironmentId,
-  sshTargetId,
   createParent,
   setCreateParent
 }: {
   step: AddRepoDialogStep
   activeRuntimeEnvironmentId: string | null | undefined
-  sshTargetId?: string | null | undefined
   createParent: string
   setCreateParent: (value: string) => void
 }): {
@@ -50,8 +46,7 @@ export function useCreateProjectDefaults({
   const [createDefaultParent, setCreateDefaultParent] = useState('')
   const { createGitAvailability, resetCreateGitAvailability } = useCreateProjectGitAvailability({
     step,
-    activeRuntimeEnvironmentId,
-    sshTargetId
+    activeRuntimeEnvironmentId
   })
   const [createRuntimeParentStatus, setCreateRuntimeParentStatus] =
     useState<CreateRuntimeParentStatus>('idle')
@@ -61,10 +56,8 @@ export function useCreateProjectDefaults({
   const createParentTouchedRef = useRef(false)
   const createParentDefaultGenRef = useRef(0)
   const activeCreateParentRuntimeEnvironmentId = activeRuntimeEnvironmentId?.trim() || null
-  const activeCreateParentSshTargetId = sshTargetId?.trim() || null
   const activeCreateParentTargetKey = getCreateProjectParentTargetKey({
-    runtimeEnvironmentId: activeCreateParentRuntimeEnvironmentId,
-    sshTargetId: activeCreateParentSshTargetId
+    runtimeEnvironmentId: activeCreateParentRuntimeEnvironmentId
   })
 
   const canReplaceCreateParentDefault = useCallback((parent: string): boolean => {
@@ -75,6 +68,7 @@ export function useCreateProjectDefaults({
     return !trimmedParent || autoFilledCreateParentRef.current?.parent === trimmedParent
   }, [])
 
+  // Prefer the last parent the user created a project in on this host.
   const applyRememberedCreateParent = useCallback(
     (targetKey: string, currentParent: string): boolean => {
       const rememberedParent = readLastCreateProjectParent(targetKey)
@@ -134,7 +128,7 @@ export function useCreateProjectDefaults({
     if (step !== 'create') {
       return
     }
-    if (activeCreateParentRuntimeEnvironmentId || activeCreateParentSshTargetId) {
+    if (activeCreateParentRuntimeEnvironmentId) {
       return
     }
     if (applyRememberedCreateParent(activeCreateParentTargetKey, createParent)) {
@@ -184,9 +178,8 @@ export function useCreateProjectDefaults({
     activeRuntimeEnvironmentId,
     activeCreateParentRuntimeEnvironmentId,
     activeCreateParentTargetKey,
-    activeCreateParentSshTargetId,
-    canReplaceCreateParentDefault,
     applyRememberedCreateParent,
+    canReplaceCreateParentDefault,
     createParent,
     setCreateParent,
     step
@@ -197,7 +190,7 @@ export function useCreateProjectDefaults({
       return
     }
     const runtimeEnvironmentId = activeCreateParentRuntimeEnvironmentId
-    if (!runtimeEnvironmentId || activeCreateParentSshTargetId) {
+    if (!runtimeEnvironmentId) {
       setCreateRuntimeParentStatus('idle')
       return
     }
@@ -243,8 +236,14 @@ export function useCreateProjectDefaults({
         }
         const parent = getDefaultCreateProjectParent(result.resolvedPath)
         createStepAutoFilledRef.current = true
-        autoFilledCreateParentRef.current = { parent, targetKey: `runtime:${runtimeEnvironmentId}` }
-        createParentProvenanceRef.current = { parent, targetKey: `runtime:${runtimeEnvironmentId}` }
+        autoFilledCreateParentRef.current = {
+          parent,
+          targetKey: `runtime:${runtimeEnvironmentId}`
+        }
+        createParentProvenanceRef.current = {
+          parent,
+          targetKey: `runtime:${runtimeEnvironmentId}`
+        }
         setCreateDefaultParent(parent)
         setCreateParent(parent)
         setCreateRuntimeParentStatus('idle')
@@ -258,33 +257,6 @@ export function useCreateProjectDefaults({
   }, [
     activeRuntimeEnvironmentId,
     activeCreateParentRuntimeEnvironmentId,
-    activeCreateParentTargetKey,
-    applyRememberedCreateParent,
-    activeCreateParentSshTargetId,
-    canReplaceCreateParentDefault,
-    createParent,
-    setCreateParent,
-    step
-  ])
-
-  useEffect(() => {
-    if (step !== 'create' || !activeCreateParentSshTargetId) {
-      return
-    }
-    if (applyRememberedCreateParent(activeCreateParentTargetKey, createParent)) {
-      return
-    }
-    if (
-      canReplaceCreateParentDefault(createParent) &&
-      createParent.trim() &&
-      autoFilledCreateParentRef.current?.targetKey !== activeCreateParentTargetKey &&
-      autoFilledCreateParentRef.current?.parent === createParent.trim()
-    ) {
-      createParentDefaultGenRef.current++
-      setCreateParent('')
-    }
-  }, [
-    activeCreateParentSshTargetId,
     activeCreateParentTargetKey,
     applyRememberedCreateParent,
     canReplaceCreateParentDefault,

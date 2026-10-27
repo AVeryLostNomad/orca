@@ -1,5 +1,6 @@
 import type { AppState } from '@/store/types'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
+import { selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import { getRelativePathInsideRoot } from '@/lib/path'
 import type { OpenFile } from '@/store/slices/editor'
 
@@ -23,7 +24,11 @@ export function getEditorGitBaselineScope(
   if (!canUseChangesModeForFile(file) || file.liveTail || file.readOnly) {
     return null
   }
-  const worktree = findWorktreeById(state.worktreesByRepo, file.worktreeId)
+  const worktreesByRepo = selectWorktreesByRepo(state)
+  if (!worktreesByRepo) {
+    return null
+  }
+  const worktree = findWorktreeById(worktreesByRepo, file.worktreeId)
   if (!worktree) {
     return null
   }

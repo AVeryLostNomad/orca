@@ -4,7 +4,7 @@ const { activateStructuredAgentSessionTabMock } = vi.hoisted(() => ({
   activateStructuredAgentSessionTabMock: vi.fn(() => true)
 }))
 
-vi.mock('@/lib/structured-agent-session-tab-activation', () => ({
+vi.mock('@/lib/agent-session/structured-agent-session-tab-activation', () => ({
   activateStructuredAgentSessionTab: activateStructuredAgentSessionTabMock
 }))
 

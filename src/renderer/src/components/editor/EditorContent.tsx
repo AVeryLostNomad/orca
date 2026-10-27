@@ -8,13 +8,18 @@ import { EditorConflictReviewSurface } from './EditorConflictReviewSurface'
 import { EditorDiffFileSurface } from './EditorDiffFileSurface'
 import { EditorEditFileSurface } from './EditorEditFileSurface'
 import { EditorFileLoadErrorView } from './EditorFileLoadErrorView'
+import { MarkdownPreviewSizeGate } from './MarkdownPreviewSizeGate'
 import type { DiffContent, FileContent } from './editor-panel-content-types'
+import { buildPdfScalePreferenceKey } from './pdf-scale-preference-storage'
 import { translate } from '@/i18n/i18n'
 import { useEditorConflictNavigation } from './useEditorConflictNavigation'
 import { useMarkdownDocuments } from './useMarkdownDocuments'
 import type { MarkdownRenderState } from './markdown-render-mode'
 import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+
+// Retry is a user act: it may start a stopped WSL distro.
+const USER_RETRY = { wakeWslDistro: true }
 
 const noopCloseMarkdownTableOfContents = (): void => {}
 
@@ -89,7 +94,7 @@ export function EditorContent({
   handleContentChangeForFile: (file: OpenFile, content: string) => void
   handleSave: () => Promise<boolean>
   handleSaveForDocument: (documentId: WorkingDocumentId | null) => Promise<boolean>
-  reloadContent: (file: OpenFile) => void
+  reloadContent: (file: OpenFile, options?: { wakeWslDistro?: boolean }) => void
 }): React.JSX.Element {
   const workingDocument = useAppStore((state) => getWorkingDocumentForFile(state, activeFile.id))
   const editorViewStateKey =
@@ -107,6 +112,8 @@ export function EditorContent({
     viewStateScopeId === activeFile.id
       ? `${activeFile.filePath}:pdf`
       : `${activeFile.filePath}::${viewStateScopeId}:pdf`
+  // Scope durable PDF zoom by owner: identical paths can belong to different worktrees or remote hosts.
+  const pdfPreferenceKey = buildPdfScalePreferenceKey(activeFile)
   const monacoLanguage = resolvedLanguage === 'notebook' ? 'json' : resolvedLanguage
   const reloadOpenCheckRunDetailsTab = useAppStore((state) => state.reloadOpenCheckRunDetailsTab)
   const markdownDocuments = useMarkdownDocuments(activeFile, isMarkdown, mdViewMode, handleSave)
@@ -135,6 +142,10 @@ export function EditorContent({
     const details = checkRunDetails.details
     return (
       <CheckRunDetailsPanel
+        key={JSON.stringify([activeFile.id, viewStateScopeId, checkRunDetails.contextKey])}
+        tabId={activeFile.id}
+        viewStateScopeId={viewStateScopeId}
+        contextKey={checkRunDetails.contextKey}
         check={checkRunDetails.check}
         details={details}
         loading={checkRunDetails.loading}
@@ -173,6 +184,7 @@ export function EditorContent({
         file={activeFile}
         viewStateKey={diffViewStateKey}
         tabId={viewStateScopeId}
+        viewStateScopeId={viewStateScopeId}
       />
     )
   }
@@ -190,7 +202,8 @@ export function EditorContent({
       return (
         <EditorFileLoadErrorView
           message={fileContent.loadError}
-          onRetry={() => reloadContent(activeFile)}
+          code={fileContent.loadErrorCode}
+          onRetry={() => reloadContent(activeFile, USER_RETRY)}
         />
       )
     }
@@ -205,22 +218,25 @@ export function EditorContent({
       )
     }
     const previewSourceFileId = activeFile.markdownPreviewSourceFileId ?? activeFile.filePath
+    const previewContent = editBuffers[previewSourceFileId] ?? fileContent.content
     return (
       <div className="min-h-0 flex-1">
-        <MarkdownPreview
-          key={viewStateScopeId}
-          content={editBuffers[previewSourceFileId] ?? fileContent.content}
-          filePath={activeFile.filePath}
-          sourceFileId={previewSourceFileId}
-          sourceWorktreeId={activeFile.worktreeId}
-          sourceRuntimeEnvironmentId={activeFile.runtimeEnvironmentId}
-          scrollCacheKey={markdownPreviewViewStateKey}
-          initialAnchor={activeFile.markdownPreviewAnchor ?? null}
-          showTableOfContents={showMarkdownTableOfContents}
-          onCloseTableOfContents={onCloseMarkdownTableOfContents}
-          markdownAnnotationsEnabled={markdownAnnotationsEnabled}
-          {...markdownDocuments.previewProps}
-        />
+        <MarkdownPreviewSizeGate content={previewContent}>
+          <MarkdownPreview
+            key={`${viewStateScopeId}:${markdownPreviewViewStateKey}`}
+            content={previewContent}
+            filePath={activeFile.filePath}
+            sourceFileId={previewSourceFileId}
+            sourceWorktreeId={activeFile.worktreeId}
+            sourceRuntimeEnvironmentId={activeFile.runtimeEnvironmentId}
+            scrollCacheKey={markdownPreviewViewStateKey}
+            initialAnchor={activeFile.markdownPreviewAnchor ?? null}
+            showTableOfContents={showMarkdownTableOfContents}
+            onCloseTableOfContents={onCloseMarkdownTableOfContents}
+            markdownAnnotationsEnabled={markdownAnnotationsEnabled}
+            {...markdownDocuments.previewProps}
+          />
+        </MarkdownPreviewSizeGate>
       </div>
     )
   }
@@ -244,6 +260,7 @@ export function EditorContent({
         editorViewStateKey={editorViewStateKey}
         diffViewStateKey={diffViewStateKey}
         pdfViewStateKey={pdfViewStateKey}
+        pdfPreferenceKey={pdfPreferenceKey}
         fileContent={fileContents[activeFile.id]}
         diffContent={diffContent}
         editBuffer={editBuffers[activeFile.id]}

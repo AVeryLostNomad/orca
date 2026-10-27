@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import type { Automation } from '../../../../shared/automations-types'
 import {
-  getAutomationListTarget,
   listAutomationsForTarget,
   runAutomationNowForTarget
 } from '@/components/automations/automation-host-client'
@@ -22,8 +21,8 @@ export function useCommandBarAutomations(visible: boolean): Automation[] {
     let cancelled = false
     void (async () => {
       try {
-        const target = getAutomationListTarget(useAppStore.getState().settings)
-        const listed = await listAutomationsForTarget(target)
+        // Why local: matches the Automations page, which lists the desktop's own arm until navigation names a host.
+        const listed = await listAutomationsForTarget({ kind: 'local' })
         if (!cancelled) {
           setAutomations(listed)
         }

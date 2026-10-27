@@ -24,7 +24,7 @@ import {
   seedLiveDiffGutterFixtures,
   seedLiveDiffWhitespaceFixtures
 } from './helpers/editor-live-diff-fixtures'
-import { runProcess } from '../../src/shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import { exerciseLiveDiffLsp, seedLiveDiffLspFixtures } from './helpers/editor-live-diff-lsp'
 import {
   exerciseLiveDiffNavigation,
@@ -171,6 +171,7 @@ test('@golden compares meaningful whitespace after an ordinary editor initialize
   testRepoPath,
   registerPostElectronShutdownCleanup
 }, testInfo) => {
+  // Builds a golden worktree and initializes Monaco plus a Pierre comparison in one journey.
   test.setTimeout(150_000)
   forwardRendererConsole(orcaPage, testInfo)
   const comparisonErrors: string[] = []
@@ -257,12 +258,12 @@ test('@golden compares meaningful whitespace after an ordinary editor initialize
         .toBe(sample.modified)
 
       if (sample.name === 'code-indent.ts') {
-        await orcaPage.getByRole('button', { name: 'More actions', exact: true }).click()
+        await orcaPage.getByRole('button', { name: 'File actions', exact: true }).click()
         await orcaPage
           .getByRole('menuitemcheckbox', { name: 'Show Whitespace', exact: true })
           .click()
         await expect(changes.first()).toBeVisible({ timeout: 15_000 })
-        await orcaPage.getByRole('button', { name: 'More actions', exact: true }).click()
+        await orcaPage.getByRole('button', { name: 'File actions', exact: true }).click()
         await orcaPage
           .getByRole('menuitemcheckbox', { name: 'Show Whitespace', exact: true })
           .click()
@@ -363,6 +364,7 @@ test('@golden renders live ordinary-editor Git gutters through edits, emptying, 
   testRepoPath,
   registerPostElectronShutdownCleanup
 }, testInfo) => {
+  // Walks the gutter through edits, emptying, undo and both themes, each waiting on a debounced Git refresh.
   test.setTimeout(120_000)
   const pageErrors: string[] = []
   orcaPage.on('pageerror', (error) => pageErrors.push(error.message))
@@ -446,6 +448,7 @@ test('@golden renders live ordinary-editor Git gutters through edits, emptying, 
   await expect
     .poll(() => readWorkingDocumentContent(orcaPage, absoluteFilePath))
     .toContain('export const typing = 1')
+  // ast-grep-ignore: test-no-real-time-wait -- the rAF probe must span the gutter refresh debounce to catch a flicker.
   await orcaPage.waitForTimeout(400)
   const frameSamples = await orcaPage.evaluate(() => {
     const probe = (window as unknown as { __gutterProbe: { samples: number[]; stop: boolean } })
@@ -505,6 +508,7 @@ test('@golden refreshes a dirty ordinary-editor gutter when HEAD changes without
   testRepoPath,
   registerPostElectronShutdownCleanup
 }) => {
+  // Waits for a debounced gutter refresh on both a dirty edit and a HEAD move.
   test.setTimeout(120_000)
   const pageErrors: string[] = []
   orcaPage.on('pageerror', (error) => pageErrors.push(error.message))
@@ -604,15 +608,14 @@ test('@golden does not show all-green Git gutters for a real plain-folder editor
   await orcaPage.evaluate(
     async ({ filePath, folderPath }) => {
       const state = window.__store!.getState()
-      const group = await state.createProjectGroup(`Plain folder gutter ${Date.now()}`)
+      const group = await state.createProjectGroup(`Plain folder gutter ${Date.now()}`, 'local')
       if (!group) {
         throw new Error('Could not create plain-folder project group')
       }
-      const workspace = await state.createFolderWorkspace({
-        projectGroupId: group.id,
-        name: 'Plain folder gutter',
-        folderPath
-      })
+      const workspace = await state.createFolderWorkspace(
+        { projectGroupId: group.id, name: 'Plain folder gutter', folderPath },
+        { runtimeEnvironmentId: null }
+      )
       if (!workspace) {
         throw new Error('Could not create plain-folder workspace')
       }
@@ -651,6 +654,7 @@ test('@golden routes current working files across review gestures and history', 
   testRepoPath,
   registerPostElectronShutdownCleanup
 }) => {
+  // Drives several review gestures, each reopening editors and waiting for Git status.
   test.setTimeout(150_000)
   const fixture = createGoldenWorktree(testRepoPath, 'live-diff-navigation')
   registerPostElectronShutdownCleanup(async () => cleanupGoldenWorktree(testRepoPath, fixture))
@@ -665,6 +669,7 @@ test('@golden retains canonical edits and undo through combined viewport evictio
   testRepoPath,
   registerPostElectronShutdownCleanup
 }) => {
+  // Evicts, restores and closes combined-diff viewports while checking edits and undo survive.
   test.setTimeout(150_000)
   const fixture = createGoldenWorktree(testRepoPath, 'live-diff-lifetime')
   registerPostElectronShutdownCleanup(async () => cleanupGoldenWorktree(testRepoPath, fixture))
@@ -679,6 +684,7 @@ test('@golden provides TypeScript language-server actions in ordinary and both P
   testRepoPath,
   registerPostElectronShutdownCleanup
 }, testInfo) => {
+  // Cold-starts the TypeScript language server for the ordinary editor and both Pierre diff views.
   test.setTimeout(240_000)
   forwardRendererConsole(orcaPage, testInfo)
   const fixture = createGoldenWorktree(testRepoPath, 'live-diff-lsp')

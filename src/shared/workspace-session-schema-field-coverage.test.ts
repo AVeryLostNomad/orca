@@ -12,19 +12,20 @@ const MINIMAL_SESSION = {
 
 describe('workspaceSessionStateSchema field coverage', () => {
   it('round-trips the closed-tab tombstone map through parseWorkspaceSession', () => {
-    // The regression this file exists for. Recorded on close, written to disk, stripped on the next
-    // launch — so a close the transport never delivered resurrected after a quit-and-relaunch,
-    // which is precisely the reported shape ("every day I open orca and it opens more tabs").
+    // A persisted close must survive relaunch or disconnected tabs reappear despite every single-process test passing.
     const parsed = parseWorkspaceSession({
       ...MINIMAL_SESSION,
       closedTerminalTabTombstonesByTabId: {
-        'tab-1': { closedAt: 1_700_000_000_000, worktreeId: 'repo:wt-1', ackRevision: 4 }
+        'tab-1': { closedAt: 1_700_000_000_000, worktreeId: 'repo:wt-1', reason: 'cleanup' },
+        // An older build's acknowledgement stamp is dropped; the record itself survives.
+        'tab-2': { closedAt: 1_700_000_000_000, worktreeId: 'repo:wt-1', ackRevision: 4 }
       }
     })
 
     expect(parsed.ok).toBe(true)
     expect(parsed.ok && parsed.value.closedTerminalTabTombstonesByTabId).toEqual({
-      'tab-1': { closedAt: 1_700_000_000_000, worktreeId: 'repo:wt-1', ackRevision: 4 }
+      'tab-1': { closedAt: 1_700_000_000_000, worktreeId: 'repo:wt-1', reason: 'cleanup' },
+      'tab-2': { closedAt: 1_700_000_000_000, worktreeId: 'repo:wt-1' }
     })
   })
 

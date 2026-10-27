@@ -2,7 +2,15 @@ import { useEffect, useRef } from 'react'
 import type { FsChangedPayload } from '../../../../shared/filesystem-entry-types'
 import { normalizeRuntimePathForComparison } from '../../../../shared/cross-platform-path'
 import { useAppStore } from '@/store'
-import { subscribeRuntimeFileChanges } from '@/runtime/runtime-file-client'
+import {
+  isWorktreeCatchUpPayload,
+  ORCA_WORKTREE_FILE_CHANGE_EVENT
+} from '@/hooks/worktree-file-change-event'
+import {
+  selectDetectedWorktreesByRepo,
+  selectFolderWorkspaces,
+  selectWorktreesByRepo
+} from '@/store/workspace-record-selectors'
 import {
   getFileExplorerOperationOwnerFromState,
   type FileExplorerOwnerState
@@ -15,11 +23,15 @@ import {
 
 const WATCH_FLUSH_RETRY_MS = 200
 
-type FileTreeWatchOwnerState = Pick<
-  FileExplorerOwnerState,
-  'settings' | 'repos' | 'worktreesByRepo'
-> &
-  Partial<Omit<FileExplorerOwnerState, 'settings' | 'repos' | 'worktreesByRepo'>>
+type FileTreeWatchRequiredField =
+  | 'settings'
+  | 'repos'
+  | 'worktreesByRepo'
+  | 'detectedWorktreesByRepo'
+  | 'folderWorkspaces'
+
+type FileTreeWatchOwnerState = Pick<FileExplorerOwnerState, FileTreeWatchRequiredField> &
+  Partial<Omit<FileExplorerOwnerState, FileTreeWatchRequiredField>>
 
 export function getFileTreeWatchRuntimeEnvironmentId(
   state: FileTreeWatchOwnerState,
@@ -27,11 +39,13 @@ export function getFileTreeWatchRuntimeEnvironmentId(
   expectedOwner?: FileExplorerOperationOwner
 ): string | null | undefined {
   const ownerState: FileExplorerOwnerState = {
+    activeWorktreeId: state.activeWorktreeId,
+    activeWorkspaceExecutionHostId: state.activeWorkspaceExecutionHostId,
     settings: state.settings,
     repos: state.repos,
-    worktreesByRepo: state.worktreesByRepo,
-    detectedWorktreesByRepo: state.detectedWorktreesByRepo ?? {},
-    folderWorkspaces: state.folderWorkspaces ?? [],
+    worktreesByRepo: selectWorktreesByRepo(state),
+    detectedWorktreesByRepo: selectDetectedWorktreesByRepo(state) ?? {},
+    folderWorkspaces: selectFolderWorkspaces(state) ?? [],
     projectGroups: state.projectGroups ?? [],
     restoredRuntimeHostIdByWorkspaceSessionKey:
       state.restoredRuntimeHostIdByWorkspaceSessionKey ?? {}
@@ -159,46 +173,35 @@ export function useFileTreeWatch({
       process(payload)
     }
 
+    const handleRuntimeChange = (
+      event: WindowEventMap[typeof ORCA_WORKTREE_FILE_CHANGE_EVENT]
+    ): void => {
+      if (event.detail.runtimeEnvironmentId === activeRuntimeEnvironmentId) {
+        handleFsChanged(event.detail.payload)
+      }
+    }
+    // IPC trees also need the synthesized catch-up after watch reacquisition.
+    const handleCatchUp = (event: WindowEventMap[typeof ORCA_WORKTREE_FILE_CHANGE_EVENT]): void => {
+      if (
+        event.detail.runtimeEnvironmentId === null &&
+        isWorktreeCatchUpPayload(event.detail.payload)
+      ) {
+        handleFsChanged(event.detail.payload)
+      }
+    }
     let unsubscribeListener: (() => void) | null = null
     if (activeRuntimeEnvironmentId?.trim()) {
-      // Why: remote runtime watch events don't enter the local Electron
-      // fs:changed bus, so subscribe directly.
-      void subscribeRuntimeFileChanges(
-        {
-          settings: { activeRuntimeEnvironmentId },
-          worktreeId: activeWorktreeId,
-          worktreePath,
-          connectionId: undefined
-        },
-        handleFsChanged,
-        (err) => {
-          console.warn('[filesystem-watch] failed to subscribe to runtime file changes', {
-            worktreeId: activeWorktreeId,
-            worktreePath,
-            error: err.message
-          })
-        }
-      )
-        .then((unsubscribe) => {
-          if (disposed) {
-            unsubscribe()
-            return
-          }
-          unsubscribeListener = unsubscribe
-        })
-        .catch((err) => {
-          console.warn('[filesystem-watch] failed to subscribe to runtime file changes', {
-            worktreeId: activeWorktreeId,
-            worktreePath,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        })
+      // Why: the app watcher owns recovery; a separate stream would strand this consumer after reconnect.
+      window.addEventListener(ORCA_WORKTREE_FILE_CHANGE_EVENT, handleRuntimeChange)
     } else {
       unsubscribeListener = window.api.fs.onFsChanged(handleFsChanged)
+      window.addEventListener(ORCA_WORKTREE_FILE_CHANGE_EVENT, handleCatchUp)
     }
 
     return () => {
       disposed = true
+      window.removeEventListener(ORCA_WORKTREE_FILE_CHANGE_EVENT, handleRuntimeChange)
+      window.removeEventListener(ORCA_WORKTREE_FILE_CHANGE_EVENT, handleCatchUp)
       unsubscribeListener?.()
       if (flushTimer !== null) {
         clearTimeout(flushTimer)

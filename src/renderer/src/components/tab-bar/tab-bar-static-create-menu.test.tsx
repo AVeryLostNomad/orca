@@ -1,7 +1,7 @@
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TabBarProps } from './tab-bar-props'
-import { renderTabBarStaticCreateMenu } from './tab-bar-static-create-menu'
+import { TabBarStaticCreateMenu } from './tab-bar-static-create-menu'
 
 function baseProps(onNewPopupTerminal?: () => void): TabBarProps {
   return {
@@ -29,7 +29,7 @@ type MenuItemProps = {
 }
 
 function menuItems(props: TabBarProps): React.ReactElement<MenuItemProps>[] {
-  const menu = renderTabBarStaticCreateMenu({
+  const menu = TabBarStaticCreateMenu({
     props,
     terminalOnly: false,
     mobileEmulatorEnabled: false,

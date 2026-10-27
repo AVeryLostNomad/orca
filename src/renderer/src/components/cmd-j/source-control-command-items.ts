@@ -9,7 +9,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
-import type { DropdownActionKind } from '@/components/right-sidebar/source-control-dropdown-item-types'
+import type { DropdownActionKind } from '../../../../shared/source-control-dropdown-item-types'
 import { translate } from '@/i18n/i18n'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
 import type { CmdJQuickAction } from './quick-actions'

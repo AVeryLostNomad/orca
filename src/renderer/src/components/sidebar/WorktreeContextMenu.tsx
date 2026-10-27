@@ -1,5 +1,6 @@
 import React from 'react'
 import WorktreeContextMenuView from './WorktreeContextMenuView'
+import { ReadOnlyWorkspaceContextMenuView } from './ReadOnlyWorkspaceContextMenuView'
 import {
   useWorktreeContextMenuModel,
   type WorktreeContextMenuProps
@@ -8,20 +9,16 @@ import {
 const WorktreeContextMenu = React.memo(function WorktreeContextMenu(
   props: WorktreeContextMenuProps
 ) {
-  if (props.workspaceRecordMutable === false) {
-    return <>{props.children}</>
-  }
-  return <MutableWorktreeContextMenu {...props} />
-})
-
-function MutableWorktreeContextMenu(props: WorktreeContextMenuProps): React.JSX.Element {
   const model = useWorktreeContextMenuModel(props)
-  return <WorktreeContextMenuView model={model} />
-}
+  return props.workspaceRecordMutable === false ? (
+    <ReadOnlyWorkspaceContextMenuView model={model} />
+  ) : (
+    <WorktreeContextMenuView model={model} />
+  )
+})
 
 export default WorktreeContextMenu
 export {
-  CLOSE_ALL_CONTEXT_MENUS_EVENT,
   WORKTREE_CONTEXT_MENU_SCOPE_ATTR,
   WORKTREE_NATIVE_CONTEXT_MENU_ATTR,
   getWorktreeParentPickerAnchor,

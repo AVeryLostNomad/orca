@@ -4,6 +4,7 @@ export function buildFileMenu(args: {
   isMac: boolean
   onOpenFilePicker: () => void
   settingsItem: Electron.MenuItemConstructorOptions
+  quitItems: Electron.MenuItemConstructorOptions[]
 }): Electron.MenuItemConstructorOptions {
   const openFileItem: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.openFile', 'Open File...'),
@@ -29,7 +30,7 @@ export function buildFileMenu(args: {
       { type: 'separator' },
       args.settingsItem,
       { type: 'separator' },
-      { role: 'quit', label: translateMain('menu.exit', 'Exit') }
+      ...args.quitItems
     ]
   }
 }

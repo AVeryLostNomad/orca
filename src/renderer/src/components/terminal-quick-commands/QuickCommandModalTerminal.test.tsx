@@ -1,12 +1,10 @@
 // @vitest-environment happy-dom
 
 import '@testing-library/jest-dom/vitest'
-import { useImperativeHandle, type Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 type MockPaneProps = {
-  ref?: Ref<unknown>
   onPtyExit?: (ptyId: string, exitCode?: number) => void
   onProcessFailed?: (exitCode: number) => void
 }
@@ -59,13 +57,12 @@ vi.mock('@/store', () => ({
 vi.mock('@/components/terminal/pty-running-work-probe', () => ({
   probePtyRunningWork: mocks.probePtyRunningWork
 }))
+vi.mock('@/components/terminal-pane/terminal-pane-active-input-state', () => ({
+  readTerminalPaneActiveInputState: () => mocks.inputState
+}))
 vi.mock('@/components/terminal-pane/TerminalPane', () => ({
   default: function MockTerminalPane(props: MockPaneProps) {
     mocks.paneProps = props
-    useImperativeHandle(props.ref, () => ({
-      closeActivePane: () => {},
-      getActivePaneInputState: () => mocks.inputState
-    }))
     return <div className="xterm" data-testid="terminal-pane" tabIndex={0} />
   }
 }))
@@ -133,7 +130,7 @@ describe('QuickCommandModalTerminal', () => {
     pressEscapeInTerminal()
 
     await waitFor(() => expect(mocks.state.closeQuickCommandModal).toHaveBeenCalledOnce())
-    expect(mocks.probePtyRunningWork).toHaveBeenCalledWith(null, ['pty-1'], expect.any(Object))
+    expect(mocks.probePtyRunningWork).toHaveBeenCalledWith(['pty-1'], expect.any(Object))
   })
 
   it.each(['live', 'unverifiable'])('keeps Escape for a %s foreground program', async (verdict) => {

@@ -13,6 +13,9 @@ import type { FileContent } from './editor-panel-content-types'
 import { translate } from '@/i18n/i18n'
 import type { EditorConflictNavigation } from './useEditorConflictNavigation'
 
+// Retry is a user act: it may start a stopped WSL distro.
+const USER_RETRY = { wakeWslDistro: true }
+
 export function EditorConflictReviewSurface({
   activeFile,
   viewStateScopeId,
@@ -36,7 +39,7 @@ export function EditorConflictReviewSurface({
   getConflictNavigation: (file: OpenFile, content: string) => EditorConflictNavigation | undefined
   handleContentChangeForFile: (file: OpenFile, content: string) => void
   handleSaveForDocument: (documentId: WorkingDocumentId) => Promise<boolean>
-  reloadContent: (file: OpenFile) => void
+  reloadContent: (file: OpenFile, options?: { wakeWslDistro?: boolean }) => void
 }): React.JSX.Element {
   const openConflictReviewFile = useAppStore((s) => s.openConflictReviewFile)
   const openConflictReview = useAppStore((s) => s.openConflictReview)
@@ -138,7 +141,8 @@ export function EditorConflictReviewSurface({
         <div className={className}>
           <EditorFileLoadErrorView
             message={fileContent.loadError}
-            onRetry={() => reloadContent(contentFile)}
+            code={fileContent.loadErrorCode}
+            onRetry={() => reloadContent(contentFile, USER_RETRY)}
           />
         </div>
       )
@@ -171,6 +175,11 @@ export function EditorConflictReviewSurface({
     const monacoLanguage = selectedLanguage === 'notebook' ? 'json' : selectedLanguage
     const selectedViewStateKey = `${contentFile.filePath}::${viewStateScopeId}:${viewStateKeySuffix}`
     const selectedContent = documentContentByTab[contentFile.id] ?? fileContent.content
+    // Read-only overviews must not consume reveals intended for the selected tab.
+    const reveal =
+      !readOnly && matchesPendingEditorReveal(pendingEditorReveal, contentFile)
+        ? pendingEditorReveal
+        : null
 
     return (
       <div className={className}>
@@ -207,22 +216,11 @@ export function EditorConflictReviewSurface({
             markdownAnnotationsEnabled={false}
             conflictDecorationsEnabled={contentFile.conflict?.conflictStatus === 'unresolved'}
             readOnly={readOnly}
+            passiveMirror={readOnly}
             autoHeight={autoHeight}
-            revealLine={
-              matchesPendingEditorReveal(pendingEditorReveal, contentFile)
-                ? pendingEditorReveal.line
-                : undefined
-            }
-            revealColumn={
-              matchesPendingEditorReveal(pendingEditorReveal, contentFile)
-                ? pendingEditorReveal.column
-                : undefined
-            }
-            revealMatchLength={
-              matchesPendingEditorReveal(pendingEditorReveal, contentFile)
-                ? pendingEditorReveal.matchLength
-                : undefined
-            }
+            revealLine={reveal?.line}
+            revealColumn={reveal?.column}
+            revealMatchLength={reveal?.matchLength}
           />
         </div>
       </div>

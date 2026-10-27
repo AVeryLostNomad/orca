@@ -4,6 +4,7 @@ import {
   PROJECT_HEADER_DRAG_THRESHOLD_PX,
   type ProjectHeaderDragSession
 } from './project-header-drag-contract'
+import { hasPointerBeenReleased } from './header-drag-pointer-release'
 
 type ProjectHeaderDrop = { dropIndex: number; dropIndicatorY: number }
 
@@ -47,6 +48,10 @@ export function useProjectHeaderDragEffects({
       if (!session || event.pointerId !== session.pointerId) {
         return
       }
+      if (hasPointerBeenReleased(event)) {
+        endDrag(false)
+        return
+      }
       session.latestPointerY = event.clientY
       session.latestPointerX = event.clientX
       if (!session.promoted) {
@@ -71,7 +76,7 @@ export function useProjectHeaderDragEffects({
       refreshHeaderRects()
       const targetProjectGroupId = getProjectGroupDropTarget(event.clientX, event.clientY)
       applyDrop(
-        session.repoId,
+        session.repo.id,
         targetProjectGroupId ? null : computeDrop(event.clientY),
         targetProjectGroupId
       )

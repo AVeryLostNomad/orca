@@ -11,9 +11,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getPathMock, authorizeExternalPathMock } = vi.hoisted(() => ({
+const { getPathMock, registerAppOwnedAllowedRootMock } = vi.hoisted(() => ({
   getPathMock: vi.fn(),
-  authorizeExternalPathMock: vi.fn()
+  registerAppOwnedAllowedRootMock: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -21,8 +21,8 @@ vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() }
 }))
 
-vi.mock('./ipc/filesystem-auth', () => ({
-  authorizeExternalPath: authorizeExternalPathMock
+vi.mock('./ipc/filesystem/filesystem-allowed-roots', () => ({
+  registerAppOwnedAllowedRoot: registerAppOwnedAllowedRootMock
 }))
 
 import { ensureWorkspaceNotesFile } from './ipc/workspace-notes'
@@ -40,7 +40,7 @@ describe('workspace notes storage', () => {
   beforeEach(() => {
     userDataDir = mkdtempSync(join(tmpdir(), 'orca-workspace-notes-'))
     getPathMock.mockReturnValue(userDataDir)
-    authorizeExternalPathMock.mockClear()
+    registerAppOwnedAllowedRootMock.mockClear()
   })
 
   afterEach(async () => {
@@ -58,7 +58,7 @@ describe('workspace notes storage', () => {
     const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf-8'))
     expect(meta.worktreeId).toBe('repo-1::/tmp/wt-a')
     expect(typeof meta.createdAt).toBe('string')
-    expect(authorizeExternalPathMock).toHaveBeenCalledWith(getWorkspaceNotesRoot())
+    expect(registerAppOwnedAllowedRootMock).toHaveBeenCalledWith(getWorkspaceNotesRoot())
   })
 
   it('never overwrites existing notes content on re-ensure', async () => {

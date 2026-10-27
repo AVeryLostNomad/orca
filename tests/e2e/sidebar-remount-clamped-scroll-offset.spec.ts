@@ -6,21 +6,38 @@ import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 test('sidebar pins the first header after remounting onto a shorter list', async ({ orcaPage }) => {
   await waitForSessionReady(orcaPage)
   await waitForActiveWorktree(orcaPage)
-  const groupIds = await orcaPage.evaluate(async () => {
+  const sidebar = orcaPage.locator('[data-worktree-sidebar]')
+  const scrollRange = (): Promise<number> =>
+    sidebar.evaluate((el) => el.scrollHeight - el.clientHeight)
+  await orcaPage.evaluate(() => {
     const state = window.__store!.getState()
     state.setSidebarOpen(true)
     state.setGroupBy('repo')
-    const ids: string[] = []
-    for (let i = 0; i < 30; i++) {
-      const group = await window.__store!.getState().createProjectGroup(`Group ${i}`)
-      ids.push(group!.id)
-    }
-    return ids
   })
-  const sidebar = orcaPage.locator('[data-worktree-sidebar]')
-  await expect
-    .poll(() => sidebar.evaluate((el) => el.scrollHeight - el.clientHeight))
-    .toBeGreaterThan(300)
+  // The window fills the display's work area, so add groups until the list overflows by > 300px.
+  const groupIds: string[] = []
+  while (groupIds.length < 150) {
+    const batch = await orcaPage.evaluate(async (start) => {
+      const ids: string[] = []
+      for (let i = start; i < start + 30; i++) {
+        const group = await window.__store!.getState().createProjectGroup(`Group ${i}`, 'local')
+        ids.push(group!.id)
+      }
+      return ids
+    }, groupIds.length)
+    groupIds.push(...batch)
+    const overflowed = await expect
+      .poll(scrollRange, { timeout: 3_000 })
+      .toBeGreaterThan(300)
+      .then(
+        () => true,
+        () => false
+      )
+    if (overflowed) {
+      break
+    }
+  }
+  await expect.poll(scrollRange).toBeGreaterThan(300)
   await sidebar.evaluate((el) => {
     el.scrollTop = 300
   })

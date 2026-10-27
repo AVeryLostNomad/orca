@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import { monaco } from '@/lib/monaco-setup'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import { acquireLspSession, type LspSessionLease } from './lsp-client'
 import { ensureLspDocumentBinding } from './lsp-document-binding'
@@ -21,12 +22,12 @@ function resolveLocalWorkspaceRoot(worktreeId: string): string | null {
   const state = useAppStore.getState()
   const scope = parseWorkspaceKey(worktreeId)
   if (scope?.type === 'folder') {
-    const workspace = state.folderWorkspaces.find(
+    const workspace = selectFolderWorkspaces(state).find(
       (candidate) => candidate.id === scope.folderWorkspaceId
     )
     return workspace && !workspace.connectionId ? workspace.folderPath : null
   }
-  return findWorktreeById(state.worktreesByRepo, worktreeId)?.path ?? null
+  return findWorktreeById(selectWorktreesByRepo(state), worktreeId)?.path ?? null
 }
 
 export type EditorLspStatus =

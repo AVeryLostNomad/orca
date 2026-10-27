@@ -11,19 +11,13 @@ import { useWorktreeJumpPaletteListEntries } from './use-worktree-jump-palette-l
 import { useWorktreeJumpPaletteSelectionLifecycle } from './use-worktree-jump-palette-selection-lifecycle'
 import { useWorktreeJumpPaletteSelectionActions } from './use-worktree-jump-palette-selection-actions'
 import { useWorktreeJumpPaletteCreateAction } from './use-worktree-jump-palette-create-action'
+import { useWorktreeJumpPaletteTaskSearch } from './use-worktree-jump-palette-task-search'
 import { useWorktreeJumpPaletteTaskUrl } from './use-worktree-jump-palette-task-url'
 import { useWorkspaceEmojiShortcodeInput } from '@/components/workspace-emoji/useWorkspaceEmojiShortcodeInput'
 import { usePaletteSearchEvaluationContext } from '@/hooks/use-palette-search-evaluation-context'
 import type { WorktreePaletteRequestGuard } from '@/lib/worktree-palette-create-action'
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
-import { useCommandBarFiles } from '@/components/cmd-j/use-command-bar-files'
-import { launchQuickAi, shouldShowQuickAiRow } from '@/components/cmd-j/quick-ai'
-import { parseCommandBarMode } from '@/components/cmd-j/command-bar-mode'
-import { detectLanguage } from '@/lib/language-detect'
-import { joinPath } from '@/lib/path'
-import { translate } from '@/i18n/i18n'
-import type { FilePaletteItem } from './worktree-jump-palette-model'
+import { type KeyboardEvent, useCallback, useMemo } from 'react'
+import { useWorktreeJumpPaletteFileMode } from './use-worktree-jump-palette-file-mode'
 
 export function useWorktreeJumpPaletteController({
   visible,
@@ -36,15 +30,11 @@ export function useWorktreeJumpPaletteController({
 }) {
   const storeState = useWorktreeJumpPaletteStoreState({ visible, lingering })
   const localState = useWorktreeJumpPaletteLocalState({ createLookupGuard, visible })
-  const [fileModeCleared, setFileModeCleared] = useState(false)
-  useEffect(() => {
-    setFileModeCleared(false)
-  }, [storeState.modalData])
   const paletteEvaluationSnapshot = useMemo(
     () => ({
       query: localState.paletteSearchQuery,
       agentStatus: storeState.agentStatusByPaneKey,
-      worktrees: storeState.allWorktrees,
+      worktrees: storeState.workspaces,
       browserPages: storeState.browserPagesByWorkspace,
       browserWorkspaces: storeState.browserTabsByWorktree,
       openFiles: storeState.openFiles,
@@ -56,7 +46,7 @@ export function useWorktreeJumpPaletteController({
     [
       localState.paletteSearchQuery,
       storeState.agentStatusByPaneKey,
-      storeState.allWorktrees,
+      storeState.workspaces,
       storeState.browserPagesByWorkspace,
       storeState.browserTabsByWorktree,
       storeState.openFiles,
@@ -75,6 +65,7 @@ export function useWorktreeJumpPaletteController({
     createLookupGuard
   })
   const filter = useWorktreeJumpPaletteFilter({ ...storeState, ...localState })
+  const taskSearch = useWorktreeJumpPaletteTaskSearch({ ...storeState, ...localState, ...filter })
   const worktrees = useWorktreeJumpPaletteWorktrees({
     ...storeState,
     ...localState,
@@ -108,55 +99,25 @@ export function useWorktreeJumpPaletteController({
     ...openTabs,
     ...projectTargets
   })
-  const paletteMode = fileModeCleared ? 'all' : parseCommandBarMode(storeState.modalData)
-  const {
-    items: fileMatches,
-    loading: filesLoading,
-    loadError: filesLoadError
-  } = useCommandBarFiles({
-    enabled: visible && storeState.activeWorktreeId !== null,
-    worktreeId: storeState.activeWorktreeId,
-    query: localState.deferredQuery,
-    limit: paletteMode === 'files' ? 50 : 6
-  })
-  const fileItems = useMemo<FilePaletteItem[]>(
-    () =>
-      storeState.activeWorktreeId !== null && (paletteMode === 'files' || worktrees.hasQuery)
-        ? fileMatches.map((match) => ({ id: `file:${match.path}`, type: 'file', path: match.path }))
-        : [],
-    [fileMatches, paletteMode, storeState.activeWorktreeId, worktrees.hasQuery]
-  )
-  const showQuickAi = useMemo(
-    () =>
-      shouldShowQuickAiRow({
-        query: localState.deferredQuery,
-        matchCounts:
-          paletteMode === 'files'
-            ? { worktrees: 0, openTabs: 0, middle: 0, projectTargets: 0, files: fileItems.length }
-            : {
-                worktrees: openTabs.worktreeItems.length,
-                openTabs: openTabs.openTabItems.length,
-                middle: quickActions.middleItems.length,
-                projectTargets: projectTargets.projectTargetItems.length,
-                files: fileItems.length
-              },
-        hasUrlIntent: localState.taskSourceUrl !== null,
-        eligible: storeState.activeWorktreeId !== null && !worktrees.isLoading
-      }),
-    [
-      fileItems.length,
-      localState.deferredQuery,
-      openTabs.openTabItems.length,
-      paletteMode,
-      projectTargets.projectTargetItems.length,
-      quickActions.middleItems.length,
-      storeState.activeWorktreeId,
-      localState.taskSourceUrl,
-      worktrees.isLoading,
-      openTabs.worktreeItems.length
-    ]
-  )
-  const filePalette = { fileItems, filesLoading, filesLoadError, paletteMode, showQuickAi }
+  const { filePalette, clearFileMode, handleSelectFile, handleQuickAi } =
+    useWorktreeJumpPaletteFileMode({
+      visible,
+      modalData: storeState.modalData,
+      workspaces: storeState.workspaces,
+      activeWorktreeId: storeState.activeWorktreeId,
+      closeModal: storeState.closeModal,
+      query: localState.query,
+      deferredQuery: localState.deferredQuery,
+      hasUrlIntent: localState.taskSourceUrl !== null,
+      hasQuery: worktrees.hasQuery,
+      isLoading: worktrees.isLoading,
+      otherMatchCounts: {
+        worktrees: openTabs.worktreeItems.length,
+        openTabs: openTabs.openTabItems.length,
+        middle: quickActions.middleItems.length,
+        projectTargets: projectTargets.projectTargetItems.length
+      }
+    })
   const sections = useWorktreeJumpPaletteSections({
     ...localState,
     ...filter,
@@ -172,6 +133,7 @@ export function useWorktreeJumpPaletteController({
     ...worktrees,
     ...openTabs,
     ...sections,
+    ...taskSearch,
     ...taskUrl,
     ...filePalette
   })
@@ -187,12 +149,14 @@ export function useWorktreeJumpPaletteController({
     ...sections,
     ...listEntries,
     ...filePalette,
+    ...taskSearch,
     ...taskUrl
   })
   const selectionActions = useWorktreeJumpPaletteSelectionActions({
     ...storeState,
     ...localState,
     ...quickActions,
+    ...taskSearch,
     ...selectionLifecycle
   })
   const emojiInput = useWorkspaceEmojiShortcodeInput({
@@ -203,11 +167,15 @@ export function useWorktreeJumpPaletteController({
   const handlePaletteInputKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
       emojiInput.handleKeyDown(event)
-      if (paletteMode === 'files' && event.key === 'Backspace' && localState.query.length === 0) {
-        setFileModeCleared(true)
+      if (
+        filePalette.paletteMode === 'files' &&
+        event.key === 'Backspace' &&
+        localState.query.length === 0
+      ) {
+        clearFileMode()
       }
     },
-    [emojiInput, localState.query.length, paletteMode]
+    [clearFileMode, emojiInput, filePalette.paletteMode, localState.query.length]
   )
   const createAction = useWorktreeJumpPaletteCreateAction({
     ...storeState,
@@ -220,48 +188,12 @@ export function useWorktreeJumpPaletteController({
     ...selectionActions,
     ...taskUrl
   })
-  const handleSelectFile = useCallback(
-    (relativePath: string) => {
-      const worktree = storeState.allWorktrees.find(
-        (entry) => entry.id === storeState.activeWorktreeId
-      )
-      if (!worktree || !storeState.activeWorktreeId) {
-        return
-      }
-      storeState.closeModal()
-      storeState.openFile({
-        filePath: joinPath(worktree.path, relativePath),
-        relativePath,
-        worktreeId: storeState.activeWorktreeId,
-        language: detectLanguage(relativePath),
-        mode: 'edit'
-      })
-    },
-    [storeState]
-  )
-  const handleQuickAi = useCallback(() => {
-    const result = launchQuickAi({ query: localState.query })
-    if (result.launched) {
-      storeState.closeModal()
-      return
-    }
-    toast.error(
-      result.reason === 'no-agent-available'
-        ? translate(
-            'auto.components.WorktreeJumpPalette.quickAiNoAgent',
-            'No AI agent is available to ask.'
-          )
-        : translate(
-            'auto.components.WorktreeJumpPalette.quickAiNoWorkspace',
-            'Open a workspace first to ask an agent.'
-          )
-    )
-  }, [localState.query, storeState])
 
   return {
     ...storeState,
     ...localState,
     ...taskUrl,
+    ...taskSearch,
     ...filter,
     ...worktrees,
     ...openTabs,

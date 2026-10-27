@@ -45,12 +45,14 @@ type UseFileTreeNativeImportResult = {
   isNativeDragOver: boolean
   handleNativeDragOver: (event: React.DragEvent<HTMLDivElement>) => void
   handleNativeDragLeave: (event: React.DragEvent<HTMLDivElement>) => void
+  /** Ref for the tree wrapper: owns OS file drops onto it. */
+  fileDropOwnerRef: (root: HTMLElement | null) => void
 }
 
 /**
  * External OS file drops onto the tree: resolves the hovered directory into
- * the wrapper's `data-native-file-drop-dir` (the preload reads it at drop
- * time), auto-expands hovered folders, and runs the import pipeline.
+ * the wrapper's drop-dir attribute (read by the drop owner at drop time),
+ * auto-expands hovered folders, and runs the import pipeline.
  */
 export function useFileTreeNativeImport({
   model,
@@ -121,9 +123,9 @@ export function useFileTreeNativeImport({
     [clearNativeDragState]
   )
 
-  useFileExplorerImport({
+  const fileDropOwnerRef = useFileExplorerImport({
     worktreePath,
-    activeWorktreeId,
+    worktreeId: activeWorktreeId,
     refreshDir: useCallback(async () => refreshFileList(), [refreshFileList]),
     clearNativeDragState,
     setSelectedPath: useCallback(
@@ -140,5 +142,11 @@ export function useFileTreeNativeImport({
   const nativeDropDir =
     worktreePath && nativeDropRelativeDir ? joinPath(worktreePath, nativeDropRelativeDir) : null
 
-  return { nativeDropDir, isNativeDragOver, handleNativeDragOver, handleNativeDragLeave }
+  return {
+    nativeDropDir,
+    isNativeDragOver,
+    handleNativeDragOver,
+    handleNativeDragLeave,
+    fileDropOwnerRef
+  }
 }

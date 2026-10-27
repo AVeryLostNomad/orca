@@ -4,15 +4,14 @@ import { getConnectionId } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
 import { canShowWorkspaceFileBrowserAction, openFilePreviewToSide } from '@/lib/file-preview'
 import { useEditorPanelCopyPathToast } from './useEditorPanelCopyPathToast'
-import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
+import { getRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import { exportActiveMarkdownToPdf } from './export-active-markdown'
 import type { EditorToggleValue } from './EditorViewToggle'
 import { EditorPanelShell } from './EditorPanelShell'
 import { DiffNavigationProvider } from './diff-navigation-context'
+import { EditorCommandOwnerContext } from './editor-command-owner-context'
 import { canUseChangesModeForFile } from './editor-panel-file-mode'
 import { getEditorPanelRenderModel } from './editor-panel-render-model'
-import { useClosedEditorTabCleanup } from './useClosedEditorTabCleanup'
 import { useEditorCmdSaveRequest } from './useEditorCmdSaveRequest'
 import { useEditorPanelContentState } from './useEditorPanelContentState'
 import { useMarkdownPreviewShortcut } from './useMarkdownPreviewShortcut'
@@ -26,11 +25,13 @@ import {
 } from './editor-panel-git-entry-selector'
 import { createEditorPanelDocumentSelector } from './editor-panel-document-selector'
 import {
-  createCurrentMarkdownArtifactRequest,
-  createMarkdownArtifactRequest
-} from './markdown-artifact-upload'
+  createCurrentEditorArtifactRequest,
+  createEditorArtifactRequest,
+  editorArtifactContentType
+} from './editor-artifact-upload'
 import { useEditorPanelSave } from './useEditorPanelSave'
 import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
+import { isMarkdownReviewNotesEnabled } from '@/lib/markdown-review-notes-setting'
 
 function EditorPanelInner({
   activeFileId: activeFileIdProp,
@@ -60,8 +61,7 @@ function EditorPanelInner({
     activeFile ? (getWorkingDocumentForFile(state, activeFile.id)?.id ?? null) : null
   )
   const pendingEditorReveal = useAppStore((s) => s.pendingEditorReveal)
-  // Why: background Git refreshes for other worktrees must not wake every
-  // mounted Monaco/rich editor pane.
+  // Git refreshes for other worktrees must not wake every mounted editor pane.
   const gitStatusEntries = useAppStore((s) =>
     selectEditorPanelGitStatusEntries(s, activeWorktreeId)
   )
@@ -89,6 +89,7 @@ function EditorPanelInner({
   const documentContentByTab = useAppStore(documentSelector)
   const settings = useAppStore((s) => s.settings)
   const updateSettings = useAppStore((s) => s.updateSettings)
+  const markdownReviewNotesEnabled = isMarkdownReviewNotesEnabled(settings)
   const panelRef = useRef<HTMLDivElement>(null)
   const { copiedPathToast, registerPanelNode, handleCopyPath } =
     useEditorPanelCopyPathToast(activeFile)
@@ -134,8 +135,17 @@ function EditorPanelInner({
     closeRenameDialog,
     handleRenameConfirm
   } = useUntitledFileRename({ openFiles, clearUntitled })
+  // Unresolved owners must not fall back to this machine’s folder picker.
+  const renameDialogFileOffClient = useAppStore(
+    (s) =>
+      !!renameDialogFile &&
+      getRuntimeTargetForFileOwner(
+        s,
+        renameDialogFile.worktreeId,
+        renameDialogFile.runtimeEnvironmentId
+      )?.kind !== 'local'
+  )
 
-  useClosedEditorTabCleanup(openFiles)
   useScratchLanguageAutodetect(activeFile)
   useMarkdownPreviewShortcut({ activeFile, panelRef, openMarkdownPreview })
 
@@ -161,7 +171,7 @@ function EditorPanelInner({
     requestRenameForFile
   })
   useEditorCmdSaveRequest({
-    activeTabId: activeViewStateId ?? null,
+    ownerTabId: activeViewStateId ?? null,
     activeDocumentId,
     isUntitled: activeFile?.isUntitled === true,
     handleSave,
@@ -256,129 +266,125 @@ function EditorPanelInner({
       { sourceFileId: activeFile.id }
     )
   }
-  const handleOpenContainingFolder = (): void => {
-    // Why: virtual editor tabs use synthetic ids instead of on-disk paths.
-    if (activeFile.mode === 'check-details') {
-      return
-    }
-    if (
-      isLocalPathOpenBlocked(settingsForRuntimeOwner(settings, activeFile.runtimeEnvironmentId), {
-        connectionId: getConnectionId(activeFile.worktreeId)
-      })
-    ) {
-      showLocalPathOpenBlockedToast()
-      return
-    }
-    window.api.shell.openPath(activeFile.filePath)
-  }
   const disableRenameBrowse = Boolean(
-    settingsForRuntimeOwner(
-      settings,
-      renameDialogFile?.runtimeEnvironmentId
-    )?.activeRuntimeEnvironmentId?.trim() ||
+    renameDialogFileOffClient ||
     (renameDialogFile ? getConnectionId(renameDialogFile.worktreeId) : null)
   )
   const markdownDocumentStateFileId =
     activeFile.mode === 'markdown-preview'
       ? (activeFile.markdownPreviewSourceFileId ?? activeFile.filePath)
       : activeFile.id
-  let activeMarkdownContent: string | null = null
+  let activeDocumentContent: string | null = null
   if (activeFile.mode === 'markdown-preview') {
-    activeMarkdownContent =
+    activeDocumentContent =
       documentContentByTab[markdownDocumentStateFileId] ??
       fileContents[activeFile.id]?.content ??
       null
   } else if (activeFile.mode === 'edit') {
-    activeMarkdownContent =
+    activeDocumentContent =
       documentContentByTab[activeFile.id] ?? fileContents[activeFile.id]?.content ?? null
   }
   const canShowMarkdownFrontmatterToggle = Boolean(
     model.isMarkdown &&
     (activeFile.mode === 'markdown-preview' || model.mdViewMode !== 'source') &&
-    activeMarkdownContent &&
-    extractFrontMatter(activeMarkdownContent)
+    activeDocumentContent &&
+    extractFrontMatter(activeDocumentContent)
   )
-  // Why: front-matter shows by default; the map only carries per-file hide overrides.
+  // The map stores only per-file hide overrides; frontmatter is visible by default.
   const isMarkdownFrontmatterVisible =
     markdownFrontmatterVisible[markdownDocumentStateFileId] ?? true
   const isMarkdownTableOfContentsVisible =
     markdownTableOfContentsVisible[markdownDocumentStateFileId] ?? false
-  const createActiveMarkdownArtifactRequest = () =>
-    Promise.resolve(
-      activeDocumentId
-        ? createCurrentMarkdownArtifactRequest(
-            activeFile,
-            activeDocumentId,
-            activeMarkdownContent ?? ''
+  const artifactContentType = editorArtifactContentType(activeFile.filePath, model.isMarkdown)
+  const createActiveArtifactRequest =
+    activeDocumentContent === null || artifactContentType === null
+      ? undefined
+      : () => {
+          // Previews share their source tab's working document.
+          const documentId =
+            getWorkingDocumentForFile(useAppStore.getState(), markdownDocumentStateFileId)?.id ??
+            activeDocumentId
+          return Promise.resolve(
+            documentId
+              ? createCurrentEditorArtifactRequest(
+                  activeFile,
+                  documentId,
+                  activeDocumentContent ?? '',
+                  artifactContentType
+                )
+              : createEditorArtifactRequest(
+                  activeFile,
+                  activeDocumentContent ?? '',
+                  artifactContentType
+                )
           )
-        : createMarkdownArtifactRequest(activeFile, activeMarkdownContent ?? '')
-    )
+        }
 
   return (
-    // Why: each split pane needs an isolated bridge between its diff editor and header controls.
-    <DiffNavigationProvider>
-      <EditorPanelShell
-        panelRef={setPanelRef}
-        activeFile={activeFile}
-        activeViewStateId={activeViewStateId}
-        model={model}
-        copiedPathVisible={copiedPathToast?.fileId === activeFile.id}
-        showMarkdownTableOfContents={isMarkdownTableOfContentsVisible}
-        canShowMarkdownFrontmatterToggle={canShowMarkdownFrontmatterToggle}
-        markdownFrontmatterVisible={isMarkdownFrontmatterVisible}
-        sideBySide={sideBySide}
-        openFiles={openFiles}
-        fileContents={fileContents}
-        diffContents={diffContents}
-        documentContentByTab={documentContentByTab}
-        pendingEditorReveal={pendingEditorReveal}
-        renameDialogFile={renameDialogFile}
-        renameError={renameError}
-        disableRenameBrowse={disableRenameBrowse}
-        onCopyPath={() => void handleCopyPath()}
-        onCopyDiffModifiedContents={
-          activeDiffContent?.kind === 'text' ? handleCopyDiffModifiedContents : undefined
-        }
-        onOpenDiffTargetFile={handleOpenDiffTargetFile}
-        onOpenPreviewToSide={handleOpenPreviewToSide}
-        onOpenMarkdownPreview={handleOpenMarkdownPreview}
-        onOpenContainingFolder={handleOpenContainingFolder}
-        onToggleSideBySide={() => {
-          // Why: the toggle is a durable preference — persist it so new tabs and
-          // future app launches keep the chosen layout. The settings sync above
-          // (prevDiffView) folds it back into local state.
-          void updateSettings({ diffDefaultView: sideBySide ? 'inline' : 'side-by-side' })
-          setSideBySide((prev) => !prev)
-        }}
-        onEditorToggleChange={handleEditorToggleChange}
-        onToggleMarkdownTableOfContents={() =>
-          setMarkdownTableOfContentsVisible(
-            markdownDocumentStateFileId,
-            !isMarkdownTableOfContentsVisible
-          )
-        }
-        onToggleMarkdownFrontmatter={() =>
-          setMarkdownFrontmatterVisible(markdownDocumentStateFileId, !isMarkdownFrontmatterVisible)
-        }
-        onExportMarkdownToPdf={() =>
-          void exportActiveMarkdownToPdf({ fileId: activeFile.id, root: panelRef.current })
-        }
-        createMarkdownArtifactRequest={
-          activeMarkdownContent === null ? undefined : createActiveMarkdownArtifactRequest
-        }
-        onContentChange={handleContentChange}
-        onContentChangeForFile={handleContentChangeForFile}
-        onSave={handleSave}
-        onSaveForDocument={handleSaveForDocument}
-        onReloadContent={reloadContent}
-        onCloseMarkdownTableOfContents={() =>
-          setMarkdownTableOfContentsVisible(markdownDocumentStateFileId, false)
-        }
-        onCloseRenameDialog={closeRenameDialog}
-        onRenameConfirm={handleRenameConfirm}
-        markdownAnnotationsEnabled={markdownAnnotationsEnabled}
-      />
-    </DiffNavigationProvider>
+    <EditorCommandOwnerContext value={isCmdSaveOwner}>
+      {/* Split panes need independent bridges between diff editors and header controls. */}
+      <DiffNavigationProvider>
+        <EditorPanelShell
+          panelRef={setPanelRef}
+          activeFile={activeFile}
+          activeViewStateId={activeViewStateId}
+          model={model}
+          copiedPathVisible={copiedPathToast?.fileId === activeFile.id}
+          showMarkdownTableOfContents={isMarkdownTableOfContentsVisible}
+          canShowMarkdownFrontmatterToggle={canShowMarkdownFrontmatterToggle}
+          markdownFrontmatterVisible={isMarkdownFrontmatterVisible}
+          sideBySide={sideBySide}
+          openFiles={openFiles}
+          fileContents={fileContents}
+          diffContents={diffContents}
+          documentContentByTab={documentContentByTab}
+          pendingEditorReveal={pendingEditorReveal}
+          renameDialogFile={renameDialogFile}
+          renameError={renameError}
+          disableRenameBrowse={disableRenameBrowse}
+          onCopyPath={() => void handleCopyPath()}
+          onCopyDiffModifiedContents={
+            activeDiffContent?.kind === 'text' ? handleCopyDiffModifiedContents : undefined
+          }
+          onOpenDiffTargetFile={handleOpenDiffTargetFile}
+          onOpenPreviewToSide={handleOpenPreviewToSide}
+          onOpenMarkdownPreview={handleOpenMarkdownPreview}
+          onToggleSideBySide={() => {
+            // Persist as a durable preference; the prevDiffView sync folds it back into local state.
+            void updateSettings({ diffDefaultView: sideBySide ? 'inline' : 'side-by-side' })
+            setSideBySide((prev) => !prev)
+          }}
+          onEditorToggleChange={handleEditorToggleChange}
+          onToggleMarkdownTableOfContents={() =>
+            setMarkdownTableOfContentsVisible(
+              markdownDocumentStateFileId,
+              !isMarkdownTableOfContentsVisible
+            )
+          }
+          onToggleMarkdownFrontmatter={() =>
+            setMarkdownFrontmatterVisible(
+              markdownDocumentStateFileId,
+              !isMarkdownFrontmatterVisible
+            )
+          }
+          onExportMarkdownToPdf={() =>
+            void exportActiveMarkdownToPdf({ fileId: activeFile.id, root: panelRef.current })
+          }
+          createArtifactRequest={createActiveArtifactRequest}
+          onContentChange={handleContentChange}
+          onContentChangeForFile={handleContentChangeForFile}
+          onSave={handleSave}
+          onSaveForDocument={handleSaveForDocument}
+          onReloadContent={reloadContent}
+          onCloseMarkdownTableOfContents={() =>
+            setMarkdownTableOfContentsVisible(markdownDocumentStateFileId, false)
+          }
+          onCloseRenameDialog={closeRenameDialog}
+          onRenameConfirm={handleRenameConfirm}
+          markdownAnnotationsEnabled={markdownAnnotationsEnabled && markdownReviewNotesEnabled}
+        />
+      </DiffNavigationProvider>
+    </EditorCommandOwnerContext>
   )
 }
 

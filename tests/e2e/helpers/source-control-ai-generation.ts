@@ -42,18 +42,15 @@ export async function openChecks(page: Page, worktreeId: string): Promise<void> 
       { timeout: 5_000 }
     )
     .toBe(true)
-  // Why: the activity-bar label carries an optional shortcut and a failure suffix ("Checks — Error"),
-  // so an exact 'Checks' name silently stops matching once the active branch has failing checks.
+  // Allow shortcut and failure suffixes in the Checks label.
   const checksButton = page.getByRole('button', { name: /^Checks(\s|$)/ })
   await expect
     .poll(
       async () => {
         if ((await page.evaluate(() => window.__store?.getState().rightSidebarTab)) !== 'checks') {
-          // Why: the label flips as the checks status arrives; bound the click so the poll retries
-          // instead of hanging on a locator that stopped matching mid-action.
+          // Bound the click so polling retries if a status update changes its label mid-action.
           await checksButton.click({ timeout: 2_000 }).catch(() => undefined)
         }
-        await page.waitForTimeout(250)
         return page.evaluate(() => window.__store?.getState().rightSidebarTab)
       },
       { timeout: 10_000 }
@@ -117,7 +114,7 @@ export async function seedCreatePrComposer(page: Page): Promise<{
       // broadcast into the store.
       prRefreshStates: {},
       enqueueGitHubPRRefresh: () => undefined,
-      reportVisibleGitHubPRRefreshCandidates: () => undefined,
+      reportVisibleGitHubPRRefreshCandidates: () => Promise.resolve(),
       applyGitHubPRRefreshEvent: () => undefined,
       repos: current.repos.map((candidate) =>
         candidate.id === repo.id ? { ...candidate, worktreeBaseRef: primaryBranch } : candidate
@@ -140,7 +137,10 @@ export async function seedCreatePrComposer(page: Page): Promise<{
         args.branch === branch ? eligibility : { ...eligibility, canCreate: false },
       fetchHostedReviewForBranch: async () => null,
       fetchPRForBranch: async () => null,
-      fetchUpstreamStatus: async () => undefined,
+      // Ignore provider work queued before this generation-only fixture was installed.
+      getEffectiveGitHubPRRefreshState: () => undefined,
+      fetchUpstreamStatus: async (worktreeId) =>
+        store.getState().remoteStatusesByWorktree[worktreeId] ?? null,
       setUpstreamStatus: () => undefined
     }))
 
@@ -228,8 +228,8 @@ export async function seedCommitMessageComposer(page: Page): Promise<{
           status: 'ready' as const
         }
       },
-      gitBranchCompareEntriesByWorktree: {
-        ...current.gitBranchCompareEntriesByWorktree,
+      gitBranchChangesByWorktree: {
+        ...current.gitBranchChangesByWorktree,
         [primaryWorktree.id]: []
       }
     }))
@@ -296,8 +296,8 @@ export async function seedCleanBranchEmptyState(
           status: 'ready' as const
         }
       },
-      gitBranchCompareEntriesByWorktree: {
-        ...current.gitBranchCompareEntriesByWorktree,
+      gitBranchChangesByWorktree: {
+        ...current.gitBranchChangesByWorktree,
         [primaryWorktree.id]: []
       }
     }))

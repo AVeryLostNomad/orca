@@ -3,6 +3,7 @@ import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import {
   getEditorExternalFileChangeGeneration,
+  getExternalChangeExecutionHostId,
   getWorkingDocumentsForExternalFileChange,
   ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT,
   ORCA_EDITOR_DOCUMENT_SAVED_EVENT,
@@ -13,12 +14,13 @@ import type { DiffContent, FileContent } from './editor-panel-content-types'
 import { isReloadableSingleFileDiffTab } from './editor-panel-diff-reload'
 import { getEditorGitBaselineScope } from './editor-panel-file-mode'
 import { getWorkingDocumentForFile } from '@renderer/store/slices/editor/working-document-state'
-
 type EditorViewModeByFile = ReturnType<typeof useAppStore.getState>['editorViewMode']
 
 export type EditorPanelContentLoadOptions = {
   force?: boolean
   externalEventGeneration?: number
+  /** The active tab's load or its Retry: a user act that may start a stopped WSL distro. */
+  wakeWslDistro?: boolean
 }
 
 type UseEditorPanelExternalContentEventsParams = {
@@ -62,9 +64,11 @@ export function useEditorPanelExternalContentEvents({
       const invalidatedFileIds: string[] = []
       const state = useAppStore.getState()
       const documentIds = new Set(
-        getWorkingDocumentsForExternalFileChange(state.workingDocuments, detail).map(
-          (document) => document.id
-        )
+        getWorkingDocumentsForExternalFileChange(
+          state.workingDocuments,
+          detail,
+          getExternalChangeExecutionHostId(state, detail.worktreeId)
+        ).map((document) => document.id)
       )
       const files = openFilesRef.current.filter((file) => {
         const document = getWorkingDocumentForFile(state, file.id)

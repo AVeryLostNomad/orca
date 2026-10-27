@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Store } from '../persistence'
 import type { Repo } from '../../shared/repo-types'
+import { getRepoRoutingConnectionId } from '../../shared/execution-host'
 import {
   isPathInsideOrEqual,
   normalizeRuntimePathForComparison
@@ -32,14 +33,20 @@ export function isRegisteredRepoPath(store: Store, path: string): boolean {
   const key = normalizeRuntimePathForComparison(path)
   return store
     .getRepos()
-    .some((repo) => !repo.connectionId && normalizeRuntimePathForComparison(repo.path) === key)
+    .some(
+      (repo) =>
+        !getRepoRoutingConnectionId(repo) && normalizeRuntimePathForComparison(repo.path) === key
+    )
 }
 
 export function findLocalPrototypeRepo(store: Store, repoId: string): Repo | null {
   return (
     store
       .getRepos()
-      .find((repo) => repo.id === repoId && repo.isPrototype === true && !repo.connectionId) ?? null
+      .find(
+        (repo) =>
+          repo.id === repoId && repo.isPrototype === true && !getRepoRoutingConnectionId(repo)
+      ) ?? null
   )
 }
 

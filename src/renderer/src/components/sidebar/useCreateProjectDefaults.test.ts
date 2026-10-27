@@ -45,9 +45,7 @@ vi.mock('@/runtime/runtime-server-directory-browser', () => ({
   browseRuntimeServerDirectory: mocks.browseRuntimeServerDirectory
 }))
 
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  callRuntimeRpc: mocks.callRuntimeRpc
-}))
+vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc: mocks.callRuntimeRpc }))
 
 import { rememberCreateProjectParent } from './create-project-defaults'
 import { useCreateProjectDefaults } from './useCreateProjectDefaults'
@@ -124,17 +122,6 @@ describe('useCreateProjectDefaults', () => {
     expect(mocks.getDefaultCreateProjectParent).not.toHaveBeenCalled()
   })
 
-  it('auto-fills the local home default regardless of workspace directory settings', async () => {
-    mocks.isGitAvailable.mockResolvedValue(true)
-
-    const { setCreateParent } = useHarness()
-    await flushAsync()
-
-    expect(mocks.getDefaultCreateProjectParent).toHaveBeenCalled()
-    expect(setCreateParent).toHaveBeenCalledWith('/Users/alice/orca/projects')
-    expect(mocks.stateValues[DEFAULT_PARENT_STATE]).toBe('/Users/alice/orca/projects')
-  })
-
   it('keeps the local default marker after the auto-filled parent rerenders the hook', async () => {
     mocks.isGitAvailable.mockResolvedValue(true)
 
@@ -183,7 +170,6 @@ describe('useCreateProjectDefaults', () => {
     expect(setCreateParent).toHaveBeenCalledWith('/home/alice/orca/projects')
     expect(mocks.stateValues[DEFAULT_PARENT_STATE]).toBe('/home/alice/orca/projects')
     expect(mocks.stateValues[RUNTIME_PARENT_STATUS_STATE]).toBe('idle')
-    // Why: runtime Git availability must be probed on the host, not the client.
     expect(mocks.callRuntimeRpc).toHaveBeenCalledWith(
       { kind: 'environment', environmentId: 'env-1' },
       'repo.gitAvailable',
@@ -271,30 +257,6 @@ describe('useCreateProjectDefaults', () => {
 
     expect(mocks.stateValues[RUNTIME_PARENT_STATUS_STATE]).toBe('failed')
     expect(setCreateParent).not.toHaveBeenCalled()
-  })
-
-  it('does not use client defaults or Git probing for SSH targets', async () => {
-    mocks.isGitAvailable.mockResolvedValue(true)
-
-    const { setCreateParent } = useHarness({ sshTargetId: 'ssh-1' })
-    await flushAsync()
-
-    expect(setCreateParent).not.toHaveBeenCalled()
-    expect(mocks.getDefaultCreateProjectParent).not.toHaveBeenCalled()
-    expect(mocks.isGitAvailable).not.toHaveBeenCalled()
-    expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
-    expect(mocks.stateValues[GIT_AVAILABILITY_STATE]).toBe('unknown')
-  })
-
-  it('restores the last successful parent for an SSH target', async () => {
-    rememberCreateProjectParent('ssh:ssh-1', '/srv/code')
-
-    const { setCreateParent } = useHarness({ sshTargetId: 'ssh-1' })
-    await flushAsync()
-
-    expect(setCreateParent).toHaveBeenCalledWith('/srv/code')
-    expect(mocks.getDefaultCreateProjectParent).not.toHaveBeenCalled()
-    expect(mocks.browseRuntimeServerDirectory).not.toHaveBeenCalled()
   })
 
   it('does nothing outside the create step', async () => {

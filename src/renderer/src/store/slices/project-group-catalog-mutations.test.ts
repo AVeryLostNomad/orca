@@ -75,8 +75,8 @@ describe('project group catalog mutation ordering', () => {
     projectGroupsList.mockResolvedValue([created])
     const store = createTestStore()
 
-    const pendingCreate = store.getState().createProjectGroup(created.name)
-    await store.getState().fetchProjectGroups()
+    const pendingCreate = store.getState().createProjectGroup(created.name, 'local')
+    await store.getState().fetchProjectGroups({ runtimeEnvironmentId: null })
     create.resolve(created)
     await pendingCreate
 
@@ -91,8 +91,8 @@ describe('project group catalog mutation ordering', () => {
     projectGroupsList.mockReturnValue(refresh.promise)
     const store = createTestStore()
 
-    const pendingCreate = store.getState().createProjectGroup(created.name)
-    const pendingRefresh = store.getState().fetchProjectGroups()
+    const pendingCreate = store.getState().createProjectGroup(created.name, 'local')
+    const pendingRefresh = store.getState().fetchProjectGroups({ runtimeEnvironmentId: null })
     create.resolve(created)
     await pendingCreate
     refresh.resolve([])
@@ -111,7 +111,7 @@ describe('project group catalog mutation ordering', () => {
     store.setState({ projectGroups: [group] })
 
     const pendingDelete = store.getState().deleteProjectGroup(group.id, { hostId: 'local' })
-    const pendingRefresh = store.getState().fetchProjectGroups()
+    const pendingRefresh = store.getState().fetchProjectGroups({ runtimeEnvironmentId: null })
     deleted.resolve(true)
     await pendingDelete
     refresh.resolve([group])
@@ -130,7 +130,7 @@ describe('project group catalog mutation ordering', () => {
     store.setState({ projectGroups: [group] })
 
     const pendingUpdate = store.getState().updateProjectGroup(group.id, { name: 'Updated' })
-    const pendingRefresh = store.getState().fetchProjectGroups()
+    const pendingRefresh = store.getState().fetchProjectGroups({ runtimeEnvironmentId: null })
     update.resolve(makeGroup({ name: 'Updated', updatedAt: 2 }))
     await pendingUpdate
     refresh.resolve([group])
@@ -148,7 +148,7 @@ describe('project group catalog mutation ordering', () => {
     store.setState({ projectGroups: [group] })
 
     const pendingUpdate = store.getState().updateProjectGroup(group.id, { name: 'Mutation' })
-    await store.getState().fetchProjectGroups()
+    await store.getState().fetchProjectGroups({ runtimeEnvironmentId: null })
     update.resolve(makeGroup({ name: 'Mutation', updatedAt: 2 }))
     await pendingUpdate
 

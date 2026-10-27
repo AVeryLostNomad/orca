@@ -1,8 +1,3 @@
-/**
- * E2E tests for the Set Title overlay strip staying attached to its pane across
- * activation, file drops, moves, and drags.
- */
-
 import type { Page } from '@stablyai/playwright-test'
 import { test, expect } from './helpers/orca-app'
 import {
@@ -11,8 +6,7 @@ import {
   readTerminalPaneDomLeafOrder,
   splitActiveTerminalPane,
   waitForPaneIdentitySnapshot,
-  waitForPaneCount,
-  getTerminalContent
+  waitForPaneCount
 } from './helpers/terminal'
 import { setPaneTitleFromTerminalMenu } from './helpers/terminal-pane-title-actions'
 import { registerTerminalPaneMountReadiness } from './helpers/terminal-pane-mount-readiness'
@@ -52,13 +46,14 @@ async function expectPaneTitleAttachedToLeaf(
     .toBe(true)
 }
 
-// Why: keep the suite serial so the headful pane tests never ask Playwright to
-// open multiple visible Electron windows at once.
+// Serialize headful scenarios; visible-window runs require an isolated display.
 test.describe.configure({ mode: 'serial' })
 test.describe('Terminal Panes', () => {
   registerTerminalPaneMountReadiness()
 
-  test('Set Title strip activates its pane and accepts file-path drops', async ({ orcaPage }) => {
+  test('Set Title strip accepts file-path drops without changing the active pane', async ({
+    orcaPage
+  }) => {
     const title = `Drop target title ${Date.now()}`
     const droppedPath = `/tmp/title-drop-${Date.now()}.txt`
 
@@ -88,12 +83,21 @@ test.describe('Terminal Panes', () => {
       .toBe(otherPane.leafId)
 
     const titleBar = orcaPage.locator('.pane-title-bar', { hasText: title }).first()
-    await expect(titleBar).toHaveAttribute('data-native-file-drop-target', 'terminal')
+    await expect(titleBar).toHaveAttribute('data-os-file-drop-owner', '')
     await expect(titleBar).toHaveAttribute('data-terminal-tab-id', splitSnapshot.tabId)
 
     await titleBar.evaluate((element, path) => {
       const dataTransfer = new DataTransfer()
       dataTransfer.setData('text/x-orca-file-path', path)
+      // Internal drops are refused without the source owner an Explorer drag records.
+      dataTransfer.setData(
+        'application/x-orca-workspace-file-source',
+        JSON.stringify({
+          executionHostId: 'local',
+          workspaceId: window.__store?.getState().activeWorktreeId,
+          version: 1
+        })
+      )
       element.dispatchEvent(
         new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer })
       )
@@ -103,23 +107,33 @@ test.describe('Terminal Panes', () => {
     }, droppedPath)
 
     await expect
-      .poll(async () => (await readPaneIdentitySnapshot(orcaPage))?.activeLeafId ?? null, {
-        timeout: 5_000,
-        message: 'Title-strip drop did not activate the titled pane'
-      })
-      .toBe(titledLeafId)
-    await expect
       .poll(
-        async () =>
-          // The echoed path can hard-wrap at the narrow split pane's right
-          // edge, splitting it across serialized lines; join before matching.
-          (await getTerminalContent(orcaPage)).replace(/\r?\n/g, '').includes(droppedPath),
-        {
-          timeout: 5_000,
-          message: 'Title-strip drop did not paste into the titled pane terminal'
-        }
+        () =>
+          orcaPage.evaluate(
+            ({ tabId, targetLeafId, otherLeafId, droppedPath }) => {
+              const manager = window.__paneManagers?.get(tabId)
+              const panes = manager?.getPanes() ?? []
+              // The echoed path can hard-wrap in the narrow split pane; join lines before matching.
+              const content = (leafId: string) =>
+                (
+                  panes.find((pane) => pane.leafId === leafId)?.serializeAddon?.serialize() ?? ''
+                ).replace(/\r?\n/g, '')
+              return {
+                activeLeafId: manager?.getActivePane()?.leafId ?? null,
+                targetHasPath: content(targetLeafId).includes(droppedPath),
+                otherHasPath: content(otherLeafId).includes(droppedPath)
+              }
+            },
+            {
+              tabId: splitSnapshot.tabId,
+              targetLeafId: titledLeafId,
+              otherLeafId: otherPane.leafId,
+              droppedPath
+            }
+          ),
+        { timeout: 5_000, message: 'Title-strip drop changed selection or missed its target' }
       )
-      .toBe(true)
+      .toEqual({ activeLeafId: otherPane.leafId, targetHasPath: true, otherHasPath: false })
   })
 
   test('Set Title overlay follows its pane after same-count pane move', async ({ orcaPage }) => {
@@ -175,7 +189,7 @@ test.describe('Terminal Panes', () => {
           (element) => element.textContent?.includes(title)
         )
         const titleDragHandle =
-          titleBar.querySelector<HTMLElement>('.pane-title-drag-handle') ?? null
+          titleBar?.querySelector<HTMLElement>('.pane-title-drag-handle') ?? null
         const pane = document.querySelector<HTMLElement>(`.pane[data-leaf-id="${titledLeafId}"]`)
         if (!titleBar || !pane || !titleDragHandle) {
           return null

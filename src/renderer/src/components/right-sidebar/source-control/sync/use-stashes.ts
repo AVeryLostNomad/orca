@@ -2,12 +2,15 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { notifyEditorExternalFileChange } from '@/components/editor/editor-autosave'
 import { getConnectionId } from '@/lib/connection-context'
-import { pushRuntimeGitStash, type RuntimeGitContext } from '@/runtime/runtime-git-client'
+import type { RuntimeClientTarget } from '../../../../../../shared/runtime-client-target'
+import { pushRuntimeGitStash } from '@/runtime/runtime-git-stash-client'
 import { translate } from '@/i18n/i18n'
-import { useAppStore } from '@/store'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
 import type { GitStashPushScope } from '../../../../../../shared/git-stash'
-import type { SourceControlEntryGroups, SourceControlSectionArea } from '../listing/section-order'
+import type {
+  SourceControlEntryGroups,
+  SourceControlSectionArea
+} from '../../../../../../shared/source-control-section-order'
 import { describeStashError, suggestStashName } from './stash-naming'
 import { useSourceControlStashEntryActions } from './use-stash-entry-actions'
 import { useSourceControlStashList, type SourceControlStashGitContext } from './use-stash-list'
@@ -25,7 +28,7 @@ export type StashPushSubmission = { message: string; scope: 'area' | 'all' }
 
 /** Owns the stash list for the active worktree plus the push/apply/drop flows and their dialogs. */
 export function useSourceControlStashes({
-  activeRepoSettings,
+  activeRepoTarget,
   activeWorktreeId,
   worktreePath,
   branchName,
@@ -39,7 +42,7 @@ export function useSourceControlStashes({
   refreshActiveGitStatusAfterMutation,
   worktreeMap
 }: {
-  activeRepoSettings: RuntimeGitContext['settings']
+  activeRepoTarget: RuntimeClientTarget | null
   activeWorktreeId: string | null
   worktreePath: string | null
   branchName: string
@@ -62,21 +65,22 @@ export function useSourceControlStashes({
   }
 
   const canStash = !isFolder && Boolean(worktreePath) && Boolean(activeWorktreeId)
-  // Why: the reads are routed by owner host, so track it as a stable string — a new settings object alone must not refetch.
-  const ownerHostKey = activeRepoSettings?.activeRuntimeEnvironmentId?.trim() ?? ''
+  // Why: the reads are routed by owner host, so track it as a stable string — a new target object alone must not refetch.
+  const ownerHostKey =
+    activeRepoTarget?.kind === 'environment' ? activeRepoTarget.environmentId : ''
 
   const gitContext = useCallback<SourceControlStashGitContext>(() => {
-    if (!activeWorktreeId || !worktreePath) {
+    if (!activeWorktreeId || !worktreePath || !activeRepoTarget) {
       return null
     }
     return {
       // Why: route stash operations by the repo OWNER host, not the focused runtime.
-      settings: activeRepoSettings,
+      target: activeRepoTarget,
       worktreeId: activeWorktreeId,
       worktreePath,
       connectionId: getConnectionId(activeWorktreeId) ?? undefined
     }
-  }, [activeRepoSettings, activeWorktreeId, worktreePath])
+  }, [activeRepoTarget, activeWorktreeId, worktreePath])
 
   const list = useSourceControlStashList({
     gitContext,
@@ -100,7 +104,10 @@ export function useSourceControlStashes({
       if (!canStash || isExecutingBulk) {
         return
       }
-      const areaPaths = grouped[area].map((entry) => entry.path)
+      // The "Changes" section also lists untracked files, so its stash covers them too.
+      const areaEntries =
+        area === 'unstaged' ? [...grouped.unstaged, ...grouped.untracked] : grouped[area]
+      const areaPaths = areaEntries.map((entry) => entry.path)
       if (areaPaths.length === 0) {
         return
       }
@@ -125,7 +132,7 @@ export function useSourceControlStashes({
       setIsExecutingBulk(true)
       try {
         const runtimeEnvironmentId =
-          useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() || null
+          context.target.kind === 'environment' ? context.target.environmentId : null
         const result = await pushRuntimeGitStash(context, {
           message,
           scope,

@@ -111,14 +111,14 @@ function installNoRcShell(): string {
 
 const noRcShell = installNoRcShell()
 
+// Why declared apart: overrides must repeat the base fixture's `auto`, which Playwright's override type omits.
+const PRIVATE_REPO_FIXTURE_OPTIONS = { scope: 'worker' as const, auto: true }
+
 const test = base.extend({
-  launchEnv: [
-    {
-      PATH: `${fakeCliDir}${path.delimiter}${process.env.PATH ?? ''}`,
-      ...(process.platform === 'win32' ? {} : { SHELL: noRcShell })
-    },
-    { option: true }
-  ],
+  launchEnv: {
+    PATH: `${fakeCliDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    ...(process.platform === 'win32' ? {} : { SHELL: noRcShell })
+  },
   // Why: this suite rewires origin to a nonexistent https remote, which makes
   // concurrently running specs' git remote operations hang (e.g. PR generation
   // never invokes its generator). A private repo keeps the rewire invisible to
@@ -126,7 +126,7 @@ const test = base.extend({
   testRepoPath: [
     // oxlint-disable-next-line no-empty-pattern -- Playwright fixture callbacks require object destructuring here.
     async ({}, provideFixture) => providePrivateSeededTestRepo(provideFixture),
-    { scope: 'worker' }
+    PRIVATE_REPO_FIXTURE_OPTIONS
   ]
 })
 
@@ -146,19 +146,25 @@ function configureGitHubRemote(repoPath: string): void {
   })
 }
 
-// Why: the remote must exist before Electron launches. `repos.add` probes the
-// remote once, and a settled "no remote" both makes the repo ineligible for the
-// tasks page (disabling "New GitHub issue") and suppresses re-probes for five
-// minutes — so adding origin inside the test body can never recover.
+// Add origin before repos.add caches no-remote for five minutes, which would disable GitHub issue creation.
 test.beforeAll(({ testRepoPath }) => {
   configureGitHubRemote(testRepoPath)
 })
 
 test('starting a just-created GitHub issue launches Claude with its URL prefilled', async ({
-  orcaPage
+  orcaPage,
+  electronApp
 }) => {
   await waitForSessionReady(orcaPage)
   await waitForActiveWorktree(orcaPage)
+  // Why: the gh preflight merges the login-shell PATH ahead of launchEnv, so the fake gh can lose to a real one.
+  await electronApp.evaluate(
+    ({ ipcMain }, created) => {
+      ipcMain.removeHandler('gh:createIssue')
+      ipcMain.handle('gh:createIssue', () => ({ ok: true, ...created }))
+    },
+    { number: ISSUE_NUMBER, url: ISSUE_URL }
+  )
 
   await orcaPage.evaluate(async () => {
     const store = window.__store
@@ -200,8 +206,7 @@ test('starting a just-created GitHub issue launches Claude with its URL prefille
 
   await orcaPage.getByRole('button', { name: 'Start workspace from issue' }).click()
 
-  // Why: starting a GitHub issue now routes through the quick-create composer,
-  // which carries the linked issue URL into the agent launch command on submit.
+  // Issue start opens the quick-create composer, which must carry its URL into the submitted agent command.
   const composer = orcaPage.getByRole('dialog', { name: /Create (workspace|worktree)/i })
   await expect(composer).toBeVisible({ timeout: 15_000 })
   const createWorkspaceButton = composer.getByRole('button', {

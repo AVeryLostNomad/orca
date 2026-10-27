@@ -10,6 +10,7 @@ import {
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '../../runtime/runtime-rpc-client'
+import { resetRuntimeCatalogListingForTests } from './runtime-status-hydration'
 import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
 import type { WorkingDocumentTarget } from './editor/working-document'
 import { getWorkingDocumentForFile } from './editor/working-document-state'
@@ -70,6 +71,7 @@ function retainDirtyDocument(
 beforeEach(() => {
   delete (globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__
   clearRuntimeCompatibilityCacheForTests()
+  resetRuntimeCatalogListingForTests()
   vi.clearAllMocks()
   runtimeEnvironmentGetStatus.mockResolvedValue({
     id: 'status-rpc-1',
@@ -367,9 +369,9 @@ describe('createSettingsSlice runtime switching', () => {
       editorCursorLine: { '/env-1/repo/stale.md': 4 },
       showDotfilesByWorktree: { 'repo-env-1::/env-1/repo': false },
       gitIgnoredPathsByWorktree: { 'repo-env-1::/env-1/repo': ['dist/'] },
-      prCache: { '/env-1/repo::main': { data: null, fetchedAt: Date.now() } },
-      linearIssueCache: { 'LIN-1': { data: { id: 'LIN-1' } as never, fetchedAt: Date.now() } },
-      jiraIssueCache: { 'JIRA-1': { data: { key: 'JIRA-1' } as never, fetchedAt: Date.now() } }
+      prCache: { '/env-1/repo::main': { data: null, fetchedAt: 1 } },
+      linearIssueCache: { 'LIN-1': { data: { id: 'LIN-1' } as never, fetchedAt: 1 } },
+      jiraIssueCache: { 'JIRA-1': { data: { key: 'JIRA-1' } as never, fetchedAt: 1 } }
     })
     retainDirtyDocument(store, '/env-1/repo/a.md', '/env-1/repo/a.md', 'repo-env-1::/env-1/repo')
 

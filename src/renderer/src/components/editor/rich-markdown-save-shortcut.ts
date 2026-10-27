@@ -14,9 +14,10 @@ export function handleRichMarkdownSaveShortcut(
     return false
   }
   event.preventDefault()
-  // Why: flush pending debounced serialization so the save captures the very
-  // latest editor content, not a stale snapshot.
-  ctx.flushPendingSerialization()
+  // Why: the flush captures the latest content; a stale rejection must not overwrite newer text.
+  if (ctx.flushPendingSerialization()) {
+    return true
+  }
   ctx.onSaveRef.current(ctx.lastCommittedMarkdownRef.current)
   return true
 }

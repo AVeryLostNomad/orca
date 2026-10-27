@@ -53,7 +53,8 @@ describe('review working-file navigation', () => {
     expect(await openReviewWorkingFile(target)).toBe(fileId)
     const opened = useAppStore.getState()
     expect(opened.activeFileId).toBe(fileId)
-    expect(opened.editorViewMode[fileId]).toBe('edit')
+    // Edit is the default view mode, stored as no entry.
+    expect(opened.editorViewMode[fileId]).toBeUndefined()
     expect(opened.openFiles.find((file) => file.id === fileId)).toMatchObject({
       mode: 'edit',
       isDirty: true

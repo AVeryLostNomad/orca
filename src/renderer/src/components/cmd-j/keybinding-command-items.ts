@@ -7,6 +7,7 @@ import { translate } from '@/i18n/i18n'
 import type { CmdJQuickAction } from './quick-actions'
 import { getWorkspaceScopedActionAvailability } from './quick-action-context'
 import { getAliasItemSpecs } from './keybinding-command-alias-specs'
+import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 
 /** Palette items bridged to renderer command handlers plus direct launchers. */
 export function buildKeybindingCommandItems(): CmdJQuickAction[] {
@@ -61,6 +62,7 @@ export function buildKeybindingCommandItems(): CmdJQuickAction[] {
         return { status: 'unavailable', reason: 'no-active-workspace' }
       }
       launchAgentInNewTab({
+        requestId: newAgentLaunchRequestId(),
         agent,
         worktreeId: ctx.activeWorktreeId,
         groupId: ctx.activeGroupId ?? undefined,

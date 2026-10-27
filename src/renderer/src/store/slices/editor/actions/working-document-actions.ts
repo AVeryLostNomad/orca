@@ -1,15 +1,18 @@
-import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
+import { getDiskBaselineSignature } from '../../../../../../shared/disk-baseline-signature'
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import {
   getWorkingDocumentId,
   type WorkingDocument,
   type WorkingDocumentId
 } from '../working-document'
+import { dirtyBadgeProjection, type WorkingDocumentState } from '../working-document-state'
 import {
-  projectDirtyBadges,
-  promoteDirtyDocumentPreviewTabs,
-  type WorkingDocumentState
-} from '../working-document-state'
+  dirtyDocumentPreviewTabsOwnedByMain,
+  promoteDirtyDocumentPreviewTabs
+} from '../working-document-preview-promotion'
+import type { Tab } from '../../../../../../shared/tab-types'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../../../shared/layout-owner-switch'
+import { promotePreviewTabsThroughLayoutOwner } from '../../tabs/preview-tab-promotion'
 
 function removeWorkingDocumentIfUnretained(
   documents: Record<WorkingDocumentId, WorkingDocument>,
@@ -23,7 +26,7 @@ function removeWorkingDocumentIfUnretained(
   return remaining
 }
 
-export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): WorkingDocumentState {
+export function createWorkingDocumentState(set: EditorSet, get: EditorGet): WorkingDocumentState {
   return {
     workingDocuments: {},
     workingDocumentIdsByTab: {},
@@ -72,11 +75,9 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
         return {
           workingDocuments,
           workingDocumentIdsByTab,
-          openFiles: projectDirtyBadges({
-            ...state,
-            workingDocuments,
-            workingDocumentIdsByTab
-          })
+          openFiles: state.openFiles.map(
+            dirtyBadgeProjection({ ...state, workingDocuments, workingDocumentIdsByTab })
+          )
         }
       })
       return id
@@ -143,7 +144,7 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
         }
         return {
           workingDocuments,
-          openFiles: projectDirtyBadges({ ...state, workingDocuments })
+          openFiles: state.openFiles.map(dirtyBadgeProjection({ ...state, workingDocuments }))
         }
       }),
     setWorkingDocumentDiskBaseline: (id, diskSignature) =>
@@ -164,7 +165,8 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
           }
         }
       }),
-    setWorkingDocumentContent: (id, content) =>
+    setWorkingDocumentContent: (id, content) => {
+      let promoted: Tab[] = []
       set((state) => {
         const document = state.workingDocuments[id]
         if (
@@ -187,12 +189,20 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
             isDirty
           }
         }
+        if (ORCA_LAYOUT_OWNER_IS_MAIN && isDirty) {
+          promoted = dirtyDocumentPreviewTabsOwnedByMain(state, id)
+        }
         return {
           workingDocuments,
-          openFiles: projectDirtyBadges({ ...state, workingDocuments }),
+          openFiles: state.openFiles.map(dirtyBadgeProjection({ ...state, workingDocuments })),
           ...(isDirty ? { unifiedTabsByWorktree: promoteDirtyDocumentPreviewTabs(state, id) } : {})
         }
-      }),
+      })
+      // Switch point: main makes the edited preview tabs permanent.
+      if (promoted.length > 0) {
+        promotePreviewTabsThroughLayoutOwner(get(), set, promoted)
+      }
+    },
     commitWorkingDocumentSave: (id, savedContent, savedSignature) =>
       set((state) => {
         const document = state.workingDocuments[id]
@@ -211,7 +221,7 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
         const workingDocuments = { ...state.workingDocuments, [id]: next }
         return {
           workingDocuments,
-          openFiles: projectDirtyBadges({ ...state, workingDocuments })
+          openFiles: state.openFiles.map(dirtyBadgeProjection({ ...state, workingDocuments }))
         }
       }),
     setWorkingDocumentExternalState: (id, patch) =>
@@ -249,7 +259,9 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
         return {
           workingDocuments,
           workingDocumentIdsByTab,
-          openFiles: projectDirtyBadges({ ...state, workingDocuments, workingDocumentIdsByTab })
+          openFiles: state.openFiles.map(
+            dirtyBadgeProjection({ ...state, workingDocuments, workingDocumentIdsByTab })
+          )
         }
       }),
     discardWorkingDocument: (id) =>
@@ -269,7 +281,9 @@ export function createWorkingDocumentState(set: EditorSet, _get: EditorGet): Wor
         )
         return {
           workingDocuments: pruned,
-          openFiles: projectDirtyBadges({ ...state, workingDocuments: pruned })
+          openFiles: state.openFiles.map(
+            dirtyBadgeProjection({ ...state, workingDocuments: pruned })
+          )
         }
       })
   }

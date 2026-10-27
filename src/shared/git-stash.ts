@@ -244,9 +244,18 @@ export async function pushGitStash(
         break
       case 'unstaged':
         // Why: --keep-index leaves the staged section intact so stashing "Changes"
-        // never empties "Staged Changes" for files present in both areas.
+        // never empties "Staged Changes" for files present in both areas; "Changes"
+        // also lists untracked files, so include them.
         await exec(
-          ['stash', 'push', '--keep-index', ...messageArgs, '--', ...literalPathspecs(paths)],
+          [
+            'stash',
+            'push',
+            '--keep-index',
+            '--include-untracked',
+            ...messageArgs,
+            '--',
+            ...literalPathspecs(paths)
+          ],
           cwd
         )
         break

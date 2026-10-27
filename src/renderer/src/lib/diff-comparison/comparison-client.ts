@@ -1,8 +1,7 @@
 import ComparisonWorker from './comparison-worker?worker'
-import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
+import { getComparisonRequestKey, inputsMatch } from './comparison-request-identity'
 import {
   COMPARISON_BUDGET_MS,
-  COMPARISON_POLICY_VERSION,
   LIVE_COMPARISON_DEBOUNCE_MS,
   type ComparisonFailure,
   type ComparisonInput,
@@ -10,6 +9,8 @@ import {
   type ComparisonResponse,
   type ComparisonResult
 } from './comparison-types'
+
+export { getComparisonRequestKey } from './comparison-request-identity'
 
 const MAX_CACHE_ENTRIES = 100
 const MAX_PENDING_REQUESTS = 64
@@ -53,57 +54,6 @@ const pendingByKey = new Map<string, PendingRequest>()
 const cache = new Map<string, CachedResult>()
 const failures = new Map<string, string>()
 const failureListeners = new Set<(key: string, error: string | null) => void>()
-
-function sourceIdentity(input: ComparisonInput): readonly unknown[] {
-  if (input.output !== 'pierre') {
-    return []
-  }
-  return [
-    input.oldFile?.name ?? null,
-    input.oldFile?.lang ?? null,
-    input.newFile?.name ?? null,
-    input.newFile?.lang ?? null
-  ]
-}
-
-// Compact keys never decide equality: cache hits and pending joins compare the raw inputs.
-export function getComparisonRequestKey(input: ComparisonInput): string {
-  return JSON.stringify([
-    COMPARISON_POLICY_VERSION,
-    input.output,
-    getDiskBaselineSignature(input.originalContent),
-    getDiskBaselineSignature(input.modifiedContent),
-    input.language,
-    input.showWhitespace,
-    input.originalVersion,
-    input.modifiedVersion,
-    input.originalIdentity ?? null,
-    input.modifiedIdentity ?? null,
-    sourceIdentity(input)
-  ])
-}
-
-function inputsMatch(a: ComparisonInput, b: ComparisonInput): boolean {
-  return (
-    a.output === b.output &&
-    a.originalContent === b.originalContent &&
-    a.modifiedContent === b.modifiedContent &&
-    a.language === b.language &&
-    a.showWhitespace === b.showWhitespace &&
-    a.originalVersion === b.originalVersion &&
-    a.modifiedVersion === b.modifiedVersion &&
-    a.originalIdentity === b.originalIdentity &&
-    a.modifiedIdentity === b.modifiedIdentity &&
-    (a.output !== 'pierre' ||
-      (b.output === 'pierre' &&
-        a.oldFile?.name === b.oldFile?.name &&
-        a.oldFile?.contents === b.oldFile?.contents &&
-        a.oldFile?.lang === b.oldFile?.lang &&
-        a.newFile?.name === b.newFile?.name &&
-        a.newFile?.contents === b.newFile?.contents &&
-        a.newFile?.lang === b.newFile?.lang))
-  )
-}
 
 function notifyFailure(key: string, error: string | null): void {
   const previousError = failures.get(key) ?? null

@@ -86,9 +86,17 @@ export function buildEditorSessionData(
       continue
     }
     const document = documentForEditFile(file, persistence)
-    const persistedFile = document
-      ? persistedFileFromDocument(document)
-      : persistedFileFromOpenFile(file)
+    const persistedFile: PersistedOpenFile = {
+      ...(document
+        ? {
+            ...persistedFileFromDocument(document),
+            // One document can back tabs in several workspaces; each tab restores in its own.
+            worktreeId: file.worktreeId,
+            relativePath: file.relativePath
+          }
+        : persistedFileFromOpenFile(file)),
+      ...(file.mirroredFromRuntimeSession === true ? { mirroredFromRuntimeSession: true } : {})
+    }
     const worktreeFiles =
       byWorktree[persistedFile.worktreeId] ?? (byWorktree[persistedFile.worktreeId] = [])
     worktreeFiles.push(persistedFile)

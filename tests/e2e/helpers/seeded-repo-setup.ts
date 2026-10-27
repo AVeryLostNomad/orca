@@ -22,11 +22,12 @@ export async function addSeededRepoAndWaitForRenderer(
           if (!store) {
             return false
           }
-          await store.getState().fetchRepos()
+          await store.getState().fetchRepos({ runtimeEnvironmentId: null, throwOnError: true })
           const repo = store.getState().repos.find((candidate) => candidate.id === repoId)
           if (!repo) {
             return false
           }
+          // Show the fixture's external Git worktrees, which newly added repos hide by default.
           await store.getState().updateRepo(repo.id, { externalWorktreeVisibility: 'show' })
           return true
         }, seededRepoId),

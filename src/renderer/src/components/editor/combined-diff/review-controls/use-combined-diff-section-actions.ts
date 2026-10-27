@@ -100,8 +100,7 @@ export function useCombinedDiffSectionActions({
     ]
   )
 
-  // Why: match single-file HTML diffs — preview the on-disk working tree file
-  // beside the combined view when the section is still present on disk.
+  // Match single-file HTML diffs by previewing the on-disk working file beside this combined view.
   const openSectionPreview = useCallback(
     (section: DiffSection) => {
       if (
@@ -116,8 +115,7 @@ export function useCombinedDiffSectionActions({
       ) {
         return
       }
-      // Why: use this combined-diff tab's group, not worktree activeGroupId —
-      // in a multi-pane layout the active group may be a different split.
+      // Use this tab’s split group; the workspace active group may belong to another pane.
       const state = useAppStore.getState()
       const sourceGroupId =
         (state.unifiedTabsByWorktree[file.worktreeId] ?? []).find(

@@ -3,6 +3,8 @@ import type { EditorSlice } from '../types/editor-slice'
 import type { RestoredEditorOwnerResult } from '../types/restored-editor-owner'
 import { buildRestoredEditorOwnerTransition } from './restored-editor-owner-transition'
 import { getWorkingDocumentId, getWorkingDocumentTarget } from '../working-document'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../../../shared/layout-owner-switch'
+import { reparentRestoredEditorThroughLayoutOwner } from '../tabs/restored-editor-move-through-layout-owner'
 
 export function createRestoredEditorOwner(
   set: EditorSet,
@@ -42,13 +44,29 @@ export function createRestoredEditorOwner(
         get().activeWorktreeId === initialSource.worktreeId &&
         get().activeFileId === initialSource.id
       )
-      if (activatesTargetWorkspace) {
-        get().setActiveWorktree(args.targetWorktreeId, args.targetExecutionHostId, {
-          stateTransition: projectReparent
-        })
-      } else {
-        set((state) => projectReparent(state).patch)
+      const moveHere = (): void => {
+        if (activatesTargetWorkspace) {
+          get().setActiveWorktree(args.targetWorktreeId, args.targetExecutionHostId, {
+            stateTransition: projectReparent
+          })
+        } else {
+          set((state) => projectReparent(state).patch)
+        }
       }
+      // Switch point: main moves the tabs and its frame rekeys the content.
+      const sent = ORCA_LAYOUT_OWNER_IS_MAIN
+        ? reparentRestoredEditorThroughLayoutOwner(
+            set,
+            get,
+            args,
+            activatesTargetWorkspace,
+            moveHere
+          )
+        : null
+      if (sent) {
+        return sent
+      }
+      moveHere()
       return result
     }
   }

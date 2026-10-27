@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, XIcon } from 'lucide-react'
-import TerminalPane, { type TerminalPaneHandle } from '@/components/terminal-pane/TerminalPane'
+import TerminalPane from '@/components/terminal-pane/TerminalPane'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useAppStore } from '@/store'
@@ -67,7 +67,6 @@ function QuickCommandModalTerminalContent({
   const setTabCustomTitle = useAppStore((s) => s.setTabCustomTitle)
   const queueTabStartupCommand = useAppStore((s) => s.queueTabStartupCommand)
   const [tabId, setTabId] = useState<string | null>(null)
-  const paneRef = useRef<TerminalPaneHandle>(null)
   const [exitCode, setExitCode] = useState<number | null>(null)
   // Why: some exit paths keep the pane mounted without calling back, but every
   // proven exit drops the tab's PTY binding.
@@ -118,7 +117,7 @@ function QuickCommandModalTerminalContent({
           return
         }
         e.preventDefault()
-        closeIfEscapeUnconsumed(paneRef.current, requestId, onClose)
+        closeIfEscapeUnconsumed(tabId, requestId, onClose)
       }}
       // Why: the terminal takes focus once the PTY paints; Radix's default
       // focus target would tug it away first.
@@ -145,7 +144,6 @@ function QuickCommandModalTerminalContent({
       <div className="relative min-h-0 flex-1 bg-background">
         {tabId ? (
           <TerminalPane
-            ref={paneRef}
             tabId={tabId}
             worktreeId={modalWorktreeId}
             cwd={cwd ?? undefined}

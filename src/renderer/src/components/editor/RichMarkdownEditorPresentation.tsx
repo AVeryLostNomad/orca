@@ -62,6 +62,7 @@ type RichMarkdownEditorPresentationProps = {
   editorFontZoomLevel: number
   rootElement: HTMLDivElement | null
   rootRef: ComponentProps<typeof RichMarkdownEditorSurface>['rootRef']
+  onFocusLeave: SurfaceProps['onFocusLeave']
   scrollContainerRef: ComponentProps<typeof RichMarkdownEditorSurface>['scrollContainerRef']
   headerSlot: RichMarkdownEditorProps['headerSlot']
   review: RichMarkdownReviewPresentation
@@ -97,6 +98,7 @@ export function RichMarkdownEditorPresentation({
   editorFontZoomLevel,
   rootElement,
   rootRef,
+  onFocusLeave,
   scrollContainerRef,
   headerSlot,
   review,
@@ -129,6 +131,7 @@ export function RichMarkdownEditorPresentation({
       editorFontZoomLevel={editorFontZoomLevel}
       rootElement={rootElement}
       rootRef={rootRef}
+      onFocusLeave={onFocusLeave}
       scrollContainerRef={scrollContainerRef}
       headerSlot={headerSlot}
       reviewRailExpanded={review.reviewRailExpanded}

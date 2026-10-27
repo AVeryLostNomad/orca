@@ -1,32 +1,37 @@
 import type { StoreApi } from 'zustand'
 import type { AppState } from '@/store'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
-import { findWorktreeById } from '@/store/slices/worktree-helpers'
-import { writeRuntimeFile } from '@/runtime/runtime-file-client'
-import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner'
+import { isWorkingDocumentLargePasteInFlight } from './editor-large-paste-in-flight'
+import { editorDiscardEpoch } from './editor-discard-epoch'
 import {
   canAutoSaveWorkingDocument,
   isAutosaveSuspendedForWorkingDocument,
-  normalizeAutoSaveDelayMs,
-  ORCA_EDITOR_DOCUMENT_SAVED_EVENT,
-  type EditorDocumentSavedDetail
+  normalizeAutoSaveDelayMs
 } from './editor-autosave'
-import { flushPendingEditorChange } from './editor-pending-flush'
+import { flushPendingEditorChangeAt } from './editor-pending-flush-registry'
+import { releaseNonUtf8PausesWithoutDirtyTab } from './editor-non-utf8-autosave-pause'
 import {
-  clearSelfWrite,
-  recordSelfWrite,
-  SELF_WRITE_REMOTE_TTL_MS
-} from './editor-self-write-registry'
-import { getDiskBaselineSignature } from './diff-content-signature'
+  type DocumentSaveTrigger,
+  waitForDocumentBaselineRestamp,
+  writeWorkingDocument
+} from './editor-document-write'
 
 export type AppStoreApi = Pick<StoreApi<AppState>, 'getState' | 'subscribe'>
 
+export type { DocumentSaveTrigger } from './editor-document-write'
+export {
+  isDocumentBaselineRestampSuperseded,
+  trackDocumentBaselineRestamp
+} from './editor-document-write'
+
 export type EditorSaveQueue = {
-  queueSave: (documentId: WorkingDocumentId, trigger?: 'autosave' | 'user') => Promise<void>
+  queueSave: (documentId: WorkingDocumentId, trigger?: DocumentSaveTrigger) => Promise<void>
   quiesceDocumentSave: (documentId: WorkingDocumentId) => Promise<void>
   clearAutoSaveTimer: (documentId: WorkingDocumentId) => void
   bumpSaveGeneration: (documentId: WorkingDocumentId) => void
   syncAutoSave: () => void
+  /** Blocks autosave of the document until the returned release runs; holds nest. */
+  holdAutoSave: (documentId: WorkingDocumentId) => () => void
   dispose: () => void
 }
 
@@ -58,6 +63,15 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
   const autoSaveScheduledRevisions = new Map<WorkingDocumentId, number>()
   const saveQueue = new Map<WorkingDocumentId, Promise<void>>()
   const saveGeneration = new Map<WorkingDocumentId, number>()
+  const autoSaveHolds = new Map<WorkingDocumentId, number>()
+  // Why the queue's own store: producers flush only against the revision this queue saves.
+  const flushStoreDocument = (documentId: WorkingDocumentId, autosave = false): void =>
+    flushPendingEditorChangeAt(
+      documentId,
+      () => store.getState().workingDocuments[documentId]?.revision,
+      undefined,
+      autosave
+    )
 
   const clearAutoSaveTimer = (documentId: WorkingDocumentId): void => {
     const timerId = autoSaveTimers.get(documentId)
@@ -74,11 +88,29 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
 
   const queueSave = (
     documentId: WorkingDocumentId,
-    trigger: 'autosave' | 'user' = 'user'
+    trigger: DocumentSaveTrigger = 'user'
   ): Promise<void> => {
-    flushPendingEditorChange(documentId)
+    if (trigger === 'autosave') {
+      const document = store.getState().workingDocuments[documentId]
+      // A suspended or held autosave must not commit pending producer input either.
+      if (
+        !document ||
+        isAutosaveSuspendedForWorkingDocument(document) ||
+        autoSaveHolds.has(documentId)
+      ) {
+        clearAutoSaveTimer(documentId)
+        return Promise.resolve()
+      }
+    }
+    try {
+      flushStoreDocument(documentId, trigger === 'autosave')
+    } catch (error) {
+      // A rejected pending edit (e.g. an invalid CSV cell) blocks this save but keeps the document.
+      return Promise.reject(error)
+    }
     clearAutoSaveTimer(documentId)
     const queuedGeneration = saveGeneration.get(documentId) ?? 0
+    const queuedDiscardEpoch = editorDiscardEpoch(documentId)
     const previousSave = saveQueue.get(documentId) ?? Promise.resolve()
 
     const queuedSave = previousSave
@@ -87,6 +119,8 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
         if ((saveGeneration.get(documentId) ?? 0) !== queuedGeneration) {
           return
         }
+        // Why: a Keep My Edits disk read in flight is about to move the baseline this save guards on.
+        await waitForDocumentBaselineRestamp(documentId)
 
         const state = store.getState()
         const document = state.workingDocuments[documentId]
@@ -104,53 +138,27 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
           }
           throw new Error('This file is still restoring its workspace owner. Try saving again.')
         }
-        if (trigger === 'autosave' && isAutosaveSuspendedForWorkingDocument(document)) {
+        if (
+          trigger === 'autosave' &&
+          (isAutosaveSuspendedForWorkingDocument(document) ||
+            autoSaveHolds.has(documentId) ||
+            // Why: mid-paste text is partial; the completed paste schedules its own save.
+            isWorkingDocumentLargePasteInFlight(documentId))
+        ) {
           return
         }
 
-        const contentToSave = document.content
-        const worktree = findWorktreeById(state.worktreesByRepo ?? {}, document.target.worktreeId)
-        const fileContext = getEditorFileOperationContext(
-          state,
-          {
-            worktreeId: document.target.worktreeId,
-            runtimeEnvironmentId: document.target.owner.runtimeEnvironmentId,
-            externalSshTargetId: document.target.externalSshTargetId,
-            operationProvenance: document.target.operationProvenance
-          },
-          worktree?.path ?? null
-        )
-        const remoteWrite = Boolean(
-          fileContext.connectionId || document.target.owner.runtimeEnvironmentId
-        )
-        recordSelfWrite(
-          documentId,
-          contentToSave,
-          remoteWrite ? SELF_WRITE_REMOTE_TTL_MS : undefined
-        )
-        try {
-          await writeRuntimeFile(fileContext, document.target.filePath, contentToSave)
-        } catch (error) {
-          clearSelfWrite(documentId)
-          throw error
-        }
-
-        const savedSignature = getDiskBaselineSignature(contentToSave)
-        const nextState = store.getState()
-        nextState.commitWorkingDocumentSave(documentId, contentToSave, savedSignature)
-        const savedDocument = nextState.workingDocuments[documentId]
-        if (!savedDocument) {
+        // A clean document has nothing to write; only an explicit Overwrite or Convert forces one.
+        if (!document.isDirty && trigger !== 'overwrite' && trigger !== 'convert') {
           return
         }
-        window.dispatchEvent(
-          new CustomEvent<EditorDocumentSavedDetail>(ORCA_EDITOR_DOCUMENT_SAVED_EVENT, {
-            detail: {
-              documentId,
-              owner: savedDocument.target.owner,
-              filePath: savedDocument.target.filePath,
-              content: contentToSave
-            }
-          })
+        await writeWorkingDocument(
+          store,
+          document,
+          trigger,
+          () =>
+            (saveGeneration.get(documentId) ?? 0) === queuedGeneration &&
+            editorDiscardEpoch(documentId) === queuedDiscardEpoch
         )
       })
 
@@ -168,7 +176,7 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
   }
 
   const quiesceDocumentSave = async (documentId: WorkingDocumentId): Promise<void> => {
-    flushPendingEditorChange(documentId)
+    flushStoreDocument(documentId)
     const pendingSave = saveQueue.get(documentId)
     clearAutoSaveTimer(documentId)
     bumpSaveGeneration(documentId)
@@ -177,6 +185,14 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
 
   const syncAutoSave = (): void => {
     const state = store.getState()
+    // Close, reload or discard ends paused non-UTF-8 edits; later edits must ask the host again.
+    releaseNonUtf8PausesWithoutDirtyTab(
+      Object.values(state.workingDocuments).map((document) => ({
+        filePath: document.target.filePath,
+        runtimeEnvironmentId: document.target.owner.runtimeEnvironmentId,
+        isDirty: document.isDirty
+      }))
+    )
     const autoSaveEnabled = state.settings?.editorAutoSave === true
     for (const documentId of Array.from(autoSaveTimers.keys())) {
       const document = state.workingDocuments[documentId]
@@ -186,6 +202,7 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
         document.isDirty &&
         canAutoSaveWorkingDocument(document) &&
         !isAutosaveSuspendedForWorkingDocument(document) &&
+        !autoSaveHolds.has(documentId) &&
         autoSaveScheduledRevisions.get(documentId) === document.revision
       if (!shouldKeepTimer) {
         clearAutoSaveTimer(documentId)
@@ -198,7 +215,8 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
         !(autoSaveEnabled || document.alwaysAutoSave) ||
         !document.isDirty ||
         !canAutoSaveWorkingDocument(document) ||
-        isAutosaveSuspendedForWorkingDocument(document)
+        isAutosaveSuspendedForWorkingDocument(document) ||
+        autoSaveHolds.has(document.id)
       ) {
         clearAutoSaveTimer(document.id)
         continue
@@ -220,6 +238,25 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
     }
   }
 
+  const holdAutoSave = (documentId: WorkingDocumentId): (() => void) => {
+    autoSaveHolds.set(documentId, (autoSaveHolds.get(documentId) ?? 0) + 1)
+    clearAutoSaveTimer(documentId)
+    let released = false
+    return () => {
+      if (released) {
+        return
+      }
+      released = true
+      const remaining = (autoSaveHolds.get(documentId) ?? 1) - 1
+      if (remaining > 0) {
+        autoSaveHolds.set(documentId, remaining)
+      } else {
+        autoSaveHolds.delete(documentId)
+      }
+      syncAutoSave()
+    }
+  }
+
   const dispose = (): void => {
     for (const timerId of autoSaveTimers.values()) {
       window.clearTimeout(timerId)
@@ -228,6 +265,7 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
     autoSaveScheduledRevisions.clear()
     saveQueue.clear()
     saveGeneration.clear()
+    autoSaveHolds.clear()
     pendingDocumentSaves.clear()
   }
 
@@ -237,6 +275,7 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
     clearAutoSaveTimer,
     bumpSaveGeneration,
     syncAutoSave,
+    holdAutoSave,
     dispose
   }
 }

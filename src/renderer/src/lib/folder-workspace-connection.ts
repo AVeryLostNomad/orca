@@ -23,6 +23,7 @@ import {
   resolveFolderWorkspaceHost,
   type FolderWorkspaceHostState
 } from '../../../shared/folder-workspace-execution-host'
+import { selectFolderWorkspaces } from '@/store/workspace-record-selectors'
 
 export type FolderWorkspaceConnectionState = FolderWorkspaceHostState
 
@@ -44,7 +45,7 @@ export function resolveFolderWorkspaceForState(
   folderWorkspaceId: string,
   executionHostId?: ExecutionHostId
 ): FolderWorkspace | null {
-  const persisted = state.folderWorkspaces.find(
+  const persisted = selectFolderWorkspaces(state).find(
     (entry) => entry.id === folderWorkspaceId && belongsToExecutionHost(entry, executionHostId)
   )
   if (persisted) {
@@ -141,12 +142,22 @@ export function getFolderWorkspaceConnectionId(
   folderWorkspaceId: string
 ): string | null | undefined {
   const host = resolveFolderWorkspaceHost(state, folderWorkspaceId)
-  if (host.kind === 'ssh') {
-    return host.targetId
+  switch (host.kind) {
+    case 'ssh':
+      return host.targetId
+    // Use the owning server’s SSH target so its status resolves there rather than reading as local.
+    case 'runtime':
+      return host.sshTargetId
+    case 'local':
+      return null
+    case 'missing': {
+      // Group-wide workspaces are synthesized from project groups, not persisted folder rows.
+      const workspace = getProjectGroupIdFromWorkspaceFolderId(folderWorkspaceId)
+        ? resolveFolderWorkspaceForState(state, folderWorkspaceId)
+        : null
+      return workspace ? (workspace.connectionId ?? null) : undefined
+    }
+    case 'ambiguous':
+      return undefined
   }
-  if (host.kind === 'local') {
-    return null
-  }
-  const workspace = resolveFolderWorkspaceForState(state, folderWorkspaceId)
-  return workspace ? (workspace.connectionId ?? null) : undefined
 }

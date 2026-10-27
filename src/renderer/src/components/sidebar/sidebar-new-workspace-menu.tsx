@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useOptionalShortcutLabel } from '@/hooks/useShortcutLabel'
 import { translate } from '@/i18n/i18n'
 import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
-import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { defaultCreationHost } from '@/lib/default-creation-host'
 import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import { createPrototypeAndOpen } from './prototype-actions'
 
@@ -25,12 +25,16 @@ function isWorkspaceCreationTourHandoffPending(): boolean {
   )
 }
 
-export function SidebarNewWorkspaceMenu(): React.JSX.Element {
+export function SidebarNewWorkspaceMenu({
+  preserveWorkspaceBoardOpen = false
+}: {
+  preserveWorkspaceBoardOpen?: boolean
+}): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const newWorktreeShortcutLabel = useOptionalShortcutLabel('workspace.create')
-  // Why: prototypes are provisioned on this machine's disk, so hide them when a remote runtime owns projects.
+  // Why: prototypes are provisioned on this machine's disk, so hide them when new projects default to a remote runtime.
   const canCreatePrototype = useAppStore(
-    (s) => !isPairedWebClientWindow() && getActiveRuntimeTarget(s.settings).kind === 'local'
+    (s) => !isPairedWebClientWindow() && defaultCreationHost(s.settings).kind === 'local'
   )
 
   const handleOpenChange = useCallback((next: boolean) => {
@@ -55,6 +59,7 @@ export function SidebarNewWorkspaceMenu(): React.JSX.Element {
               type="button"
               className="text-muted-foreground"
               aria-label={label}
+              data-workspace-board-preserve-open={preserveWorkspaceBoardOpen ? '' : undefined}
               data-contextual-tour-target="workspace-create-control"
             >
               <Plus className="size-3.5" strokeWidth={2.25} />

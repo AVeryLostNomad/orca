@@ -29,7 +29,7 @@ export function useWorktreeJumpPaletteProjectTargets({
   settingsSections,
   pluginCommands,
   commandBarAutomations,
-  allWorktrees,
+  workspaces,
   repos,
   worktreesByRepo,
   activeWorktreeId,
@@ -51,8 +51,8 @@ export function useWorktreeJumpPaletteProjectTargets({
     [settingsSections]
   )
   const activeWorktreeRepoId = useMemo(
-    () => allWorktrees.find((worktree) => worktree.id === activeWorktreeId)?.repoId ?? null,
-    [activeWorktreeId, allWorktrees]
+    () => workspaces.find((worktree) => worktree.id === activeWorktreeId)?.repoId ?? null,
+    [activeWorktreeId, workspaces]
   )
   const actionResults = useMemo(
     () =>
@@ -71,7 +71,7 @@ export function useWorktreeJumpPaletteProjectTargets({
   )
   const renderableProjectRepoIds = useMemo(() => {
     const ids = new Set<string>()
-    for (const worktree of allWorktrees) {
+    for (const worktree of workspaces) {
       if (!worktree.isArchived) {
         ids.add(worktree.repoId)
       }
@@ -93,7 +93,7 @@ export function useWorktreeJumpPaletteProjectTargets({
     }
     return ids
   }, [
-    allWorktrees,
+    workspaces,
     detectedWorktreesByRepo,
     pendingWorktreeCreations,
     repos,

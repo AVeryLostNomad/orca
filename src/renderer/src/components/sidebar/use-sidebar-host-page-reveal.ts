@@ -10,7 +10,8 @@ import { getSidebarRevealTargetHostIds, resolveSidebarRevealPageId } from './sid
  */
 export function useSidebarHostPageReveal(
   pages: readonly SidebarHostPage[],
-  activePageId: ExecutionHostId
+  activePageId: ExecutionHostId,
+  defaultHostId: ExecutionHostId
 ): ExecutionHostId {
   const pendingRevealWorktree = useAppStore((s) => s.pendingRevealWorktree)
   const pendingRevealSidebarRow = useAppStore((s) => s.pendingRevealSidebarRow)
@@ -23,9 +24,9 @@ export function useSidebarHostPageReveal(
     return resolveSidebarRevealPageId(
       pages,
       activePageId,
-      getSidebarRevealTargetHostIds(useAppStore.getState(), reveal)
+      getSidebarRevealTargetHostIds(useAppStore.getState(), reveal, defaultHostId)
     )
-  }, [activePageId, pages, pendingRevealSidebarRow, pendingRevealWorktree])
+  }, [activePageId, defaultHostId, pages, pendingRevealSidebarRow, pendingRevealWorktree])
   useEffect(() => {
     if (revealPageId !== activePageId) {
       setSidebarHostPageId(revealPageId)

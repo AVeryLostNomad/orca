@@ -1,50 +1,43 @@
 [
   {
-    "filePath": "src/renderer/src/components/automations/automations-page-fixtures.ts",
-    "kind": "object-property:title",
-    "text": "Nightly #1",
+    "filePath": "src/renderer/src/component-fixtures/component-fixture-explorer.tsx",
+    "kind": "jsx-text",
+    "text": "Component fixtures",
     "dynamic": false,
     "count": 1
   },
   {
-    "filePath": "src/renderer/src/components/automations/automations-page-fixtures.ts",
+    "filePath": "src/renderer/src/component-fixtures/component-fixture-explorer.tsx",
+    "kind": "jsx-text",
+    "text": "fixtures · files named *.fixture.tsx under src/renderer/src",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/onboarding/OnboardingLanguageSwitcher.tsx",
+    "kind": "jsx-text",
+    "text": "Switch language",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/ChatFontFamilySetting.tsx",
+    "kind": "jsx-text",
+    "text": "fontFamily",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/RepositoryAgentAccountsSection.tsx",
     "kind": "object-property:label",
-    "text": "Hermes",
+    "text": "Claude",
     "dynamic": false,
     "count": 1
   },
   {
-    "filePath": "src/renderer/src/components/sidebar/worktree-card-meta-row.tsx",
-    "kind": "jsx-attribute:label",
-    "text": "sidebar",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "\u8bed\u8a00",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "\u8a9e\u8a00",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "\uc5b8\uc5b4",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "\u8a00\u8a9e",
+    "filePath": "src/renderer/src/components/settings/RepositoryAgentAccountsSection.tsx",
+    "kind": "object-property:label",
+    "text": "Codex",
     "dynamic": false,
     "count": 1
   },
@@ -63,6 +56,97 @@
     "count": 1
   },
   {
+    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "言語",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "語言",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "语言",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "언어",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
+    "kind": "object-property:label",
+    "text": "Markdown",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
+    "kind": "object-property:label",
+    "text": "Python",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
+    "kind": "object-property:label",
+    "text": "TypeScript",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/repository/repository-search.ts",
+    "kind": "object-property:keywords",
+    "text": "account",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/repository/repository-search.ts",
+    "kind": "object-property:keywords",
+    "text": "agent",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/repository/repository-search.ts",
+    "kind": "object-property:keywords",
+    "text": "claude",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/repository/repository-search.ts",
+    "kind": "object-property:keywords",
+    "text": "codex",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/repository/repository-search.ts",
+    "kind": "object-property:keywords",
+    "text": "personal",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/repository/repository-search.ts",
+    "kind": "object-property:keywords",
+    "text": "work",
+    "dynamic": false,
+    "count": 1
+  },
+  {
     "filePath": "src/renderer/src/components/settings/terminal-advanced-platform-search.ts",
     "kind": "object-property:keywords",
     "text": "Ghostty",
@@ -87,6 +171,34 @@
     "filePath": "src/renderer/src/components/settings/terminal-pane-appearance-search.ts",
     "kind": "object-property:keywords",
     "text": "ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/ProjectGroupAccountsDialog.tsx",
+    "kind": "object-property:label",
+    "text": "Claude",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/ProjectGroupAccountsDialog.tsx",
+    "kind": "object-property:label",
+    "text": "Codex",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/ProjectGroupAccountsDialog.tsx",
+    "kind": "object-property:label",
+    "text": "GitHub",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/worktree-card-meta-row.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "sidebar",
     "dynamic": false,
     "count": 1
   },
@@ -107,7 +219,14 @@
   {
     "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
     "kind": "object-property:label",
-    "text": "Light+ (VS Code Default)",
+    "text": "Catppuccin Latte",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Catppuccin Mocha",
     "dynamic": false,
     "count": 1
   },
@@ -115,13 +234,6 @@
     "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
     "kind": "object-property:label",
     "text": "Dark+ (VS Code Default)",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "One Dark Pro",
     "dynamic": false,
     "count": 1
   },
@@ -149,7 +261,98 @@
   {
     "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
     "kind": "object-property:label",
+    "text": "Light+ (VS Code Default)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
     "text": "Monokai",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Nord",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "One Dark Pro",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark (Protanopia/Deuteranopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark (Tritanopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark Soft",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Dark Vibrant",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light (Protanopia/Deuteranopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light (Tritanopia)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light Soft",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
+    "kind": "object-property:label",
+    "text": "Pierre Light Vibrant",
     "dynamic": false,
     "count": 1
   },
@@ -164,118 +367,6 @@
     "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
     "kind": "object-property:label",
     "text": "Solarized Light",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Nord",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Catppuccin Mocha",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Catppuccin Latte",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Dark",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Light",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Dark Soft",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Light Soft",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Dark Vibrant",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Light Vibrant",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Dark (Protanopia/Deuteranopia)",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Light (Protanopia/Deuteranopia)",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Dark (Tritanopia)",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/monaco-highlighting/editor-theme-catalog.ts",
-    "kind": "object-property:label",
-    "text": "Pierre Light (Tritanopia)",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
-    "kind": "object-property:label",
-    "text": "TypeScript",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
-    "kind": "object-property:label",
-    "text": "Python",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/editor-preview-sample.ts",
-    "kind": "object-property:label",
-    "text": "Markdown",
     "dynamic": false,
     "count": 1
   }

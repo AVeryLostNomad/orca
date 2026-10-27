@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store'
 import { probePtyRunningWork } from '@/components/terminal/pty-running-work-probe'
-import type { TerminalPaneHandle } from '@/components/terminal-pane/TerminalPane'
+import { readTerminalPaneActiveInputState } from '@/components/terminal-pane/terminal-pane-active-input-state'
 
 const ESCAPE_PROBE_TIMEOUT_MS = 1_500
 
@@ -11,16 +11,15 @@ const ESCAPE_PROBE_TIMEOUT_MS = 1_500
  * program over the shell. An unanswered probe keeps the popup open.
  */
 export function closeIfEscapeUnconsumed(
-  pane: TerminalPaneHandle | null,
+  tabId: string | null,
   requestId: string,
   onClose: () => void
 ): void {
-  const input = pane?.getActivePaneInputState()
+  const input = tabId ? readTerminalPaneActiveInputState(tabId) : null
   if (!input?.ptyId || input.isAlternateScreen) {
     return
   }
-  const settings = useAppStore.getState().settings
-  void probePtyRunningWork(settings, [input.ptyId], { timeoutMs: ESCAPE_PROBE_TIMEOUT_MS }).then(
+  void probePtyRunningWork([input.ptyId], { timeoutMs: ESCAPE_PROBE_TIMEOUT_MS }).then(
     ([probe]) => {
       // Why: the async probe must not close a different popup opened meanwhile.
       if (

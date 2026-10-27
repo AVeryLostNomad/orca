@@ -4,12 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useAppStore } from '@/store'
-import { buildEditorSessionData } from '@/lib/workspace-session-editor'
+import { buildEditorSessionData } from '@/lib/workspace-session'
+import { useEditorExternalWatch } from '@/hooks/useEditorExternalWatch'
 import {
-  createExternalWatchEventHandler,
-  getEditorExternalWatchTargets,
-  useEditorExternalWatch
-} from '@/hooks/useEditorExternalWatch'
+  buildEditorExternalWatchEventHandler as createExternalWatchEventHandler,
+  EXTERNAL_MUTATION_DEBOUNCE_MS
+} from '@/hooks/editor-external-watch-event-reconciliation'
+import { selectEditorExternalWatchTargets as getEditorExternalWatchTargets } from '@/hooks/editor-external-watch-targets'
 import {
   captureEditorFileOperationProvenance,
   getEditorFileOperationContext
@@ -17,6 +18,20 @@ import {
 import type { AppState } from '@/store/types'
 import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
 import { buildWorkingDocumentTarget, type WorkingDocumentId } from './editor/working-document'
+import { getWorkingDocumentForFile } from './editor/working-document-state'
+import { drawTabsFromMain, type TabsDrawnFromMain } from './tabs-drawn-from-main.test-fixture'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+
+vi.mock('@/runtime/runtime-rpc-client', async (importOriginal) =>
+  (
+    await import('@/runtime/layout-apply-test-transport.test-fixture')
+  ).runtimeRpcClientWithLayoutApply(await importOriginal())
+)
+vi.mock('@/runtime/runtime-layout-client', async (importOriginal) =>
+  (
+    await import('@/runtime/layout-apply-test-transport.test-fixture')
+  ).runtimeLayoutClientWithTestFrames(await importOriginal())
+)
 
 const SOURCE = 'repo-a::/repo-a'
 const TARGET = 'repo-b::/repo-b'
@@ -56,9 +71,8 @@ function installWorkspaceState(): void {
 }
 
 function documentForFile(fileId: string) {
-  const state = useAppStore.getState()
-  const documentId = state.workingDocumentIdsByTab[fileId]?.[0]
-  return documentId ? state.workingDocuments[documentId] : undefined
+  // The file's own membership, or its tab's once a restore moved the document onto a real tab.
+  return getWorkingDocumentForFile(useAppStore.getState(), fileId)
 }
 
 function documentIdForFile(fileId: string): WorkingDocumentId {
@@ -89,6 +103,16 @@ function openRestoredSource(): string {
   return fileId
 }
 
+let main: TabsDrawnFromMain = { settle: async () => {}, close: () => {} }
+
+/** The restored tab, drawn: a layout-owner build draws it from main's frame. */
+async function openDrawnRestoredSource(): Promise<string> {
+  main = await drawTabsFromMain(useAppStore)
+  const fileId = openRestoredSource()
+  await main.settle()
+  return fileId
+}
+
 function reparent(fileId: string) {
   const state = useAppStore.getState()
   state.setRestoredEditorOwnerMigrationPending(fileId, true)
@@ -108,10 +132,14 @@ describe('restored editor owner reparent', () => {
     installWorkspaceState()
   })
 
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    main.close()
+    main = { settle: async () => {}, close: () => {} }
+  })
 
-  it('atomically migrates ownership, ids, placement, views, previews, and provenance', () => {
-    const oldId = openRestoredSource()
+  it('atomically migrates ownership, ids, placement, views, previews, and provenance', async () => {
+    const oldId = await openDrawnRestoredSource()
     const state = useAppStore.getState()
     state.setWorkingDocumentContent(documentIdForFile(oldId), 'edited draft')
     state.setEditorCursorLine(oldId, 37)
@@ -148,6 +176,7 @@ describe('restored editor owner reparent', () => {
     }))
 
     const result = reparent(oldId)
+    await main.settle()
 
     expect(result.ok).toBe(true)
     if (!result.ok) {
@@ -214,9 +243,10 @@ describe('restored editor owner reparent', () => {
     expect(useAppStore.getState().pendingExplorerReveal?.worktreeId).toBe('other-workspace')
   })
 
-  it('commits active reparenting through the complete workspace activation projection', () => {
-    const oldId = openRestoredSource()
+  it('commits active reparenting through the complete workspace activation projection', async () => {
+    const oldId = await openDrawnRestoredSource()
     const refreshGitHubForWorktreeIfStale = vi.fn()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial terminal, browser and catalog records with only the fields activation and frames read.
     useAppStore.setState({
       activeTabId: 'source-terminal',
       activeBrowserTabId: 'source-browser',
@@ -292,8 +322,8 @@ describe('restored editor owner reparent', () => {
         [TARGET]: 'target-group'
       },
       browserTabsByWorktree: {
-        [SOURCE]: [{ id: 'source-browser' }],
-        [TARGET]: [{ id: 'target-browser' }]
+        [SOURCE]: [{ id: 'source-browser', url: 'about:blank' }],
+        [TARGET]: [{ id: 'target-browser', url: 'about:blank' }]
       },
       activeBrowserTabIdByWorktree: {
         [SOURCE]: 'source-browser',
@@ -302,6 +332,9 @@ describe('restored editor owner reparent', () => {
       everActivatedWorktreeIds: new Set([SOURCE]),
       refreshGitHubForWorktreeIfStale
     } as unknown as Partial<AppState>)
+    // Reload main with the target tabs a real window would already have drawn.
+    main.close()
+    main = await drawTabsFromMain(useAppStore)
     const targetSnapshots: AppState[] = []
     const unsubscribe = useAppStore.subscribe((state) => {
       if (state.activeWorktreeId === TARGET) {
@@ -310,6 +343,7 @@ describe('restored editor owner reparent', () => {
     })
 
     const result = reparent(oldId)
+    await main.settle()
     unsubscribe()
 
     expect(result.ok).toBe(true)
@@ -335,8 +369,8 @@ describe('restored editor owner reparent', () => {
     expect(refreshGitHubForWorktreeIfStale).toHaveBeenCalledWith(TARGET)
   })
 
-  it('repairs a duplicate migrated tab id held by a non-selected destination group', () => {
-    const oldId = openRestoredSource()
+  it('repairs a duplicate migrated tab id held by a non-selected destination group', async () => {
+    const oldId = await openDrawnRestoredSource()
     const movedTabId = useAppStore.getState().unifiedTabsByWorktree[SOURCE]![0]!.id
     const keptFileId = useAppStore.getState().openFile(
       {
@@ -349,6 +383,7 @@ describe('restored editor owner reparent', () => {
       },
       { suppressActiveRuntimeFallback: true }
     )
+    await main.settle()
     const keptTab = useAppStore
       .getState()
       .unifiedTabsByWorktree[TARGET]!.find((tab) => tab.entityId === keptFileId)!
@@ -392,9 +427,21 @@ describe('restored editor owner reparent', () => {
       activeGroupIdByWorktree: { ...state.activeGroupIdByWorktree, [TARGET]: 'target-group' }
     }))
 
+    const before = useAppStore.getState()
     expect(reparent(oldId).ok).toBe(true)
+    await main.settle()
 
     const next = useAppStore.getState()
+    if (ORCA_LAYOUT_OWNER_IS_MAIN) {
+      // Main holds no such group, so it refuses the move and the window changes nothing.
+      expect(next.openFiles.find((file) => file.id === oldId)).toMatchObject({
+        worktreeId: SOURCE,
+        pendingOwnerMigration: undefined
+      })
+      expect(next.groupsByWorktree[TARGET]).toEqual(before.groupsByWorktree[TARGET])
+      expect(next.unifiedTabsByWorktree).toEqual(before.unifiedTabsByWorktree)
+      return
+    }
     const groups = next.groupsByWorktree[TARGET]!
     const otherGroup = groups.find((group) => group.id === 'other-group')!
     expect(otherGroup).toMatchObject({
@@ -403,7 +450,6 @@ describe('restored editor owner reparent', () => {
       recentTabIds: [keptTab.id]
     })
     expect(groups.find((group) => group.id === 'target-group')?.tabOrder).toContain(movedTabId)
-    // The migrated id survives exactly once, in the group that now owns the tab.
     expect(next.unifiedTabsByWorktree[TARGET]!.filter((tab) => tab.id === movedTabId)).toHaveLength(
       1
     )
@@ -474,8 +520,8 @@ describe('restored editor owner reparent', () => {
     )
   })
 
-  it('leaves destination tabs and groups byte-identical when activation hits a collision', () => {
-    const sourceId = openRestoredSource()
+  it('leaves destination tabs and groups byte-identical when activation hits a collision', async () => {
+    const sourceId = await openDrawnRestoredSource()
     const destinationId = useAppStore.getState().openFile(
       {
         filePath: FILE_PATH,
@@ -487,6 +533,7 @@ describe('restored editor owner reparent', () => {
       },
       { suppressActiveRuntimeFallback: true }
     )
+    await main.settle()
     const destinationTab = useAppStore
       .getState()
       .unifiedTabsByWorktree[TARGET]?.find((tab) => tab.entityId === destinationId)
@@ -758,7 +805,7 @@ describe('restored editor owner reparent', () => {
       worktreePath: '/repo-b',
       events: [{ kind: 'delete', absolutePath: FILE_PATH }]
     })
-    vi.advanceTimersByTime(100)
+    vi.advanceTimersByTime(EXTERNAL_MUTATION_DEBOUNCE_MS)
     const documentId = documentIdForFile(result.fileId)
     expect(useAppStore.getState().workingDocuments[documentId]?.externalMutation).toBe('deleted')
     useAppStore

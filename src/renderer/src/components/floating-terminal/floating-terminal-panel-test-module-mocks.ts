@@ -12,6 +12,8 @@ import { storeBox, type FloatingPanelStoreState } from './floating-terminal-pane
 export function createReactHookOverrides() {
   return {
     useCallback: <T>(callback: T) => callback,
+    // Why: subscription hooks in the shared model read module stores; the probe only needs the snapshot.
+    useSyncExternalStore: <T>(_subscribe: unknown, getSnapshot: () => T) => getSnapshot(),
     useEffect: (effect: EffectCallback) => {
       hookRuntime.effects.push(effect)
     },
@@ -80,8 +82,7 @@ export function createImeInputContextRefreshModule(): Pick<
   }
 }
 
-// closeFloatingItemConfirmed routes terminals through closeTerminalTab (own pin guard + F9
-// force-reenter) and non-terminals through guardPinnedTabClose; mock both to assert routing.
+// Mock each close authority to verify terminal routing and non-terminal pin guards.
 export function createTerminalTabActionsModule(): Pick<
   FloatingTerminalPanelMocks,
   'closeTerminalTab'
@@ -110,21 +111,35 @@ export function createContextualTourModule(): Pick<
   }
 }
 
-export function createWebRuntimeSessionModule(): Pick<
+export function createWebRuntimeTabLifecycleModule(): Pick<
   FloatingTerminalPanelMocks,
-  | 'activateWebRuntimeSessionTab'
-  | 'closeWebRuntimeSessionTab'
-  | 'createWebRuntimeSessionBrowserTab'
-  | 'createWebRuntimeSessionTerminal'
-  | 'isWebRuntimeSessionActive'
+  'activateWebRuntimeSessionTab' | 'closeWebRuntimeSessionTab'
 > {
   return {
     activateWebRuntimeSessionTab: mocks.activateWebRuntimeSessionTab,
-    closeWebRuntimeSessionTab: mocks.closeWebRuntimeSessionTab,
-    createWebRuntimeSessionBrowserTab: mocks.createWebRuntimeSessionBrowserTab,
-    createWebRuntimeSessionTerminal: mocks.createWebRuntimeSessionTerminal,
-    isWebRuntimeSessionActive: mocks.isWebRuntimeSessionActive
+    closeWebRuntimeSessionTab: mocks.closeWebRuntimeSessionTab
   }
+}
+
+export function createWebRuntimeBrowserCreationModule(): Pick<
+  FloatingTerminalPanelMocks,
+  'createWebRuntimeSessionBrowserTab'
+> {
+  return { createWebRuntimeSessionBrowserTab: mocks.createWebRuntimeSessionBrowserTab }
+}
+
+export function createWebRuntimeTerminalCreationModule(): Pick<
+  FloatingTerminalPanelMocks,
+  'createWebRuntimeSessionTerminal'
+> {
+  return { createWebRuntimeSessionTerminal: mocks.createWebRuntimeSessionTerminal }
+}
+
+export function createWebRuntimeSessionEnvironmentModule(): Pick<
+  FloatingTerminalPanelMocks,
+  'isWebRuntimeSessionActive'
+> {
+  return { isWebRuntimeSessionActive: mocks.isWebRuntimeSessionActive }
 }
 
 export function createConnectionContextModule() {

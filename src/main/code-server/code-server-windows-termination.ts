@@ -1,7 +1,7 @@
 import {
-  queryWindowsProcessRowsFresh,
+  readWindowsProcessTableFresh,
   type WindowsProcessRow
-} from '../providers/windows-foreground-process-rows'
+} from '../windows/windows-process-table'
 import { terminateWindowsProcessTree, type WindowsTreeKiller } from '../windows-process-tree-kill'
 
 export type WindowsCodeServerTerminationDeps = {
@@ -18,8 +18,10 @@ export function killWindowsCodeServerTree(
   pid: number,
   deps: WindowsCodeServerTerminationDeps = {}
 ): Promise<void> {
-  const killTree = deps.killWindowsTree ?? terminateWindowsProcessTree
-  return killTree(pid)
+  if (deps.killWindowsTree) {
+    return deps.killWindowsTree(pid)
+  }
+  return terminateWindowsProcessTree(pid).then(() => undefined)
 }
 
 // Reap a prior run's orphan recorded in the pidfile. Unlike the live-child
@@ -35,7 +37,7 @@ export async function reapWindowsCodeServerOrphan(
   cacheRoot: string,
   deps: WindowsCodeServerTerminationDeps = {}
 ): Promise<void> {
-  const readRows = deps.readProcessRows ?? queryWindowsProcessRowsFresh
+  const readRows = deps.readProcessRows ?? readWindowsProcessTableFresh
   let rows: readonly WindowsProcessRow[]
   try {
     rows = await readRows()
@@ -46,8 +48,7 @@ export async function reapWindowsCodeServerOrphan(
   if (!row || !isCodeServerProcessRow(row, cacheRoot)) {
     return
   }
-  const killTree = deps.killWindowsTree ?? terminateWindowsProcessTree
-  await killTree(pid)
+  await (deps.killWindowsTree ?? terminateWindowsProcessTree)(pid)
 }
 
 // Windows paths are case-insensitive; process command lines may quote or

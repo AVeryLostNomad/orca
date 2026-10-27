@@ -13,6 +13,7 @@ import {
   subscribeWorkingDocumentSaveSettled
 } from './editor-save-queue'
 import { getMonacoModelSnapshot } from '@/lib/monaco-model-snapshot'
+import { setWorkingDocumentModelUri } from './editor-large-paste-in-flight'
 
 type RetainedModel = {
   model: editor.ITextModel
@@ -46,6 +47,7 @@ function collectModel(id: WorkingDocumentId, entry: RetainedModel): void {
   entry.subscription.dispose()
   entry.model.dispose()
   models.delete(id)
+  setWorkingDocumentModelUri(id, null)
   if (!models.size) {
     unsubscribeStore?.()
     unsubscribeStore = undefined
@@ -110,6 +112,7 @@ export function acquireWorkingDocumentModel(id: WorkingDocumentId): editor.IText
     })
   }
   models.set(id, entry)
+  setWorkingDocumentModelUri(id, model.uri.toString())
   if (!unsubscribeStore) {
     unsubscribeStore = useAppStore.subscribe(synchronizeModels)
   }

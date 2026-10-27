@@ -1,63 +1,13 @@
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import type { EditorSlice } from '../types/editor-slice'
-import { detectLanguage } from '@/lib/language-detect'
 import { addAdditionalValidWorkspaceKeys } from '@/lib/workspace-session-hydration-keys'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../../../shared/constants'
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
-import type { WorkspaceVisibleTabType } from '../../../../../../shared/tab-types'
-import type { OpenFile } from '../types/open-file'
-import type { EditorFileOperationProvenance } from '@/lib/editor-file-operation-owner'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
-import { buildValidWorktreeIdsForSessionHydration } from '../../degraded-repo-worktree-validity'
-import { buildOwnedEditorFileId, isSameEditorOwner } from '../file-ids/editor-file-ids'
-import {
-  buildWorkingDocumentTarget,
-  getWorkingDocumentId,
-  type WorkingDocument,
-  type WorkingDocumentId,
-  type WorkingDocumentTarget
-} from '../working-document'
-import {
-  addEditorFileIdMigration,
-  migrateEditorFileId,
-  migrateHydratedEditorTabsAndGroups,
-  resolveLegacyHydratedEditorFileId,
-  shouldHydrateWithOwnedEditorFileId,
-  type LegacyHydratedEditorFile
-} from '../file-ids/hydrated-editor-file-ids'
-
-function unresolvedHydratedDocumentTarget(
-  file: OpenFile,
-  persisted: { executionHostId?: ExecutionHostId; runtimeEnvironmentId?: string | null }
-): WorkingDocumentTarget {
-  const persistedRuntimeEnvironmentId = persisted.runtimeEnvironmentId?.trim() || null
-  const runtimeEnvironmentId =
-    persistedRuntimeEnvironmentId ??
-    (persisted.executionHostId === undefined ? 'unresolved-editor-session-owner' : null)
-  const executionHostId =
-    persisted.executionHostId ??
-    (`runtime:${encodeURIComponent(runtimeEnvironmentId!)}` as ExecutionHostId)
-  const operationProvenance: EditorFileOperationProvenance = {
-    generation: {
-      route: { executionHostId, runtimeEnvironmentId },
-      runtimeConnectionGeneration: null,
-      runtimePairingRevision: undefined,
-      runtimeSshGeneration: null,
-      nestedSshGeneration: null,
-      directSshGeneration: null
-    },
-    ownershipProjection: 'legacy'
-  }
-  return {
-    owner: { executionHostId, runtimeEnvironmentId },
-    filePath: file.filePath,
-    relativePath: file.relativePath,
-    worktreeId: file.worktreeId,
-    language: file.language,
-    ...(file.externalSshTargetId ? { externalSshTargetId: file.externalSshTargetId } : {}),
-    operationProvenance
-  }
-}
+import { buildValidWorktreeIdsForSessionHydration } from '../../../../../../shared/worktree/degraded-repo-worktree-validity'
+import { migrateHydratedEditorTabsAndGroups } from '../file-ids/hydrated-editor-file-ids'
+import { buildHydratedEditorSessionState } from './hydrated-editor-session-state'
+import { buildHydratedWorkingDocument } from './hydrated-working-document'
+import { selectFolderWorkspaces } from '../../../workspace-record-selectors'
 
 export function createHydrateEditorSession(
   set: EditorSet,
@@ -66,230 +16,29 @@ export function createHydrateEditorSession(
   return {
     hydrateEditorSession: (session, options) => {
       set((s) => {
-        const openFilesByWorktree = session.openFilesByWorktree ?? {}
-        const persistedActiveFileIdByWorktree = session.activeFileIdByWorktree ?? {}
-        const persistedActiveTabTypeByWorktree = session.activeTabTypeByWorktree ?? {}
-        const persistedMarkdownFrontmatterVisible = session.markdownFrontmatterVisible ?? {}
-
         const validWorktreeIds = buildValidWorktreeIdsForSessionHydration(
           s,
-          Object.keys(openFilesByWorktree)
+          Object.keys(session.openFilesByWorktree ?? {})
         )
         validWorktreeIds.add(FLOATING_TERMINAL_WORKTREE_ID)
-        for (const workspace of s.folderWorkspaces) {
+        for (const workspace of selectFolderWorkspaces(s)) {
           validWorktreeIds.add(folderWorkspaceKey(workspace.id))
         }
         addAdditionalValidWorkspaceKeys(validWorktreeIds, options)
 
-        const openFiles: OpenFile[] = []
-        const workingDocuments: Record<WorkingDocumentId, WorkingDocument> = {}
-        const workingDocumentIdsByTab: Record<string, readonly WorkingDocumentId[]> = {}
-        const usedOpenFileIds = new Set<string>()
-        const legacyHydratedOpenFiles: LegacyHydratedEditorFile[] = []
-        const editorFileIdMigrationsByWorktree: Record<string, Map<string, string>> = {}
-        for (const [worktreeId, files] of Object.entries(openFilesByWorktree)) {
-          if (!validWorktreeIds.has(worktreeId)) {
-            continue
-          }
-          for (const pf of files) {
-            // Split tabs share one OpenFile; repeated records for the same owner are corruption.
-            if (
-              legacyHydratedOpenFiles.some(
-                (file) =>
-                  file.filePath === pf.filePath &&
-                  isSameEditorOwner(file, worktreeId, pf.runtimeEnvironmentId)
-              )
-            ) {
-              continue
-            }
-            const legacyId = resolveLegacyHydratedEditorFileId(
-              legacyHydratedOpenFiles,
-              pf,
-              worktreeId
-            )
-            // Why: floating/runtime-owned files need IDs that survive peers disappearing between restarts; collision-based IDs drift when the path is no longer open elsewhere.
-            const ownedId = buildOwnedEditorFileId(pf.filePath, worktreeId, pf.runtimeEnvironmentId)
-            const id =
-              shouldHydrateWithOwnedEditorFileId(worktreeId, pf.runtimeEnvironmentId) ||
-              usedOpenFileIds.has(pf.filePath)
-                ? ownedId
-                : pf.filePath
-            // Why: the persisted schema allows repeated (path, worktree, runtime) tuples, and an owned id repeats verbatim — restoring both would put two files under one id.
-            if (usedOpenFileIds.has(id)) {
-              continue
-            }
-            usedOpenFileIds.add(id)
-            // Why: map from the collision-derived legacy id; keying by filePath would collapse same-path local/runtime tabs onto the last owner to hydrate.
-            addEditorFileIdMigration(editorFileIdMigrationsByWorktree, worktreeId, legacyId, id)
-            legacyHydratedOpenFiles.push({
-              id: legacyId,
-              filePath: pf.filePath,
-              worktreeId,
-              runtimeEnvironmentId: pf.runtimeEnvironmentId
-            })
-            // Why: read-only tabs (AI Vault View Log) must restore clean — ignore any persisted dirty draft/baseline so they can't come back writable.
-            const isReadOnly = pf.readOnly === true
-            const isDirty = !isReadOnly && pf.dirtyDraftContent !== undefined
-            const openFile: OpenFile = {
-              id,
-              filePath: pf.filePath,
-              relativePath: pf.relativePath,
-              worktreeId,
-              // Why: re-detect language on hydrate — older sessions stored ids from before extensions like .ipynb were supported.
-              language: detectLanguage(pf.relativePath || pf.filePath),
-              isDirty: false,
-              isPreview: pf.isPreview,
-              runtimeEnvironmentId: pf.runtimeEnvironmentId,
-              externalSshTargetId: pf.externalSshTargetId,
-              ...(isReadOnly ? { readOnly: true } : {}),
-              ...(isReadOnly && pf.liveTail === true ? { liveTail: true } : {}),
-              ...(!isReadOnly && pf.alwaysAutoSave === true ? { alwaysAutoSave: true } : {}),
-              ...(pf.workspaceNotesOwnerId
-                ? { workspaceNotesOwnerId: pf.workspaceNotesOwnerId }
-                : {}),
-              ...(pf.isScratch === true ? { isScratch: true } : {}),
-              mode: 'edit'
-            }
-            if (isDirty) {
-              let target: WorkingDocumentTarget
-              let ownerNeedsResolution = false
-              try {
-                target = buildWorkingDocumentTarget(s, openFile)
-                if (
-                  pf.executionHostId !== undefined &&
-                  target.owner.executionHostId !== pf.executionHostId
-                ) {
-                  target = unresolvedHydratedDocumentTarget(openFile, pf)
-                  ownerNeedsResolution = true
-                }
-              } catch {
-                // Retain the recovery text under its persisted owner identity, but block every
-                // operation until a current route can validate that identity.
-                target = unresolvedHydratedDocumentTarget(openFile, pf)
-                ownerNeedsResolution = true
-              }
-              const documentId = getWorkingDocumentId(target.owner, target.filePath)
-              if (!workingDocuments[documentId]) {
-                workingDocuments[documentId] = {
-                  id: documentId,
-                  target,
-                  content: pf.dirtyDraftContent!,
-                  revision: 1,
-                  ...(pf.lastKnownDiskSignature === undefined
-                    ? {}
-                    : { lastKnownDiskSignature: pf.lastKnownDiskSignature }),
-                  isDirty: true,
-                  loadState: 'ready',
-                  writable: true,
-                  // A restored dirty document never autosaves before disk review; a missing
-                  // signature is itself a review condition, not permission to overwrite.
-                  pendingDiskBaselineVerification: true,
-                  ...(ownerNeedsResolution ? { pendingOwnerMigration: true } : {}),
-                  alwaysAutoSave: pf.alwaysAutoSave === true
-                }
-              }
-              workingDocumentIdsByTab[id] = [documentId]
-              openFile.isDirty = true
-              if (!ownerNeedsResolution) {
-                openFile.operationProvenance = target.operationProvenance
-              }
-            }
-            openFiles.push(openFile)
-          }
-        }
-
-        // Why: use the store's activeWorktreeId — hydrateWorkspaceSession may have nulled an invalid ID, and we must respect that.
-        const activeWorktreeId = s.activeWorktreeId
-        const fallbackActiveFileId = activeWorktreeId
-          ? (openFiles.find((f) => f.worktreeId === activeWorktreeId)?.id ?? null)
-          : null
-        const persistedActiveFileId = activeWorktreeId
-          ? migrateEditorFileId(
-              editorFileIdMigrationsByWorktree,
-              activeWorktreeId,
-              persistedActiveFileIdByWorktree[activeWorktreeId]
-            )
-          : null
-        // Why: the persisted active file may be gone (worktree validation or stale path), so verify it exists in the restored set.
-        const activeFileExists = persistedActiveFileId
-          ? openFiles.some(
-              (f) => f.id === persistedActiveFileId && f.worktreeId === activeWorktreeId
-            )
-          : false
-        // Why: the previous active surface may have been a transient diff/conflict tab (not restored), so promote the first restored edit file.
-        const nextActiveFileId = activeFileExists ? persistedActiveFileId : fallbackActiveFileId
-        const activeTabType: WorkspaceVisibleTabType =
-          activeWorktreeId && persistedActiveTabTypeByWorktree[activeWorktreeId]
-            ? persistedActiveTabTypeByWorktree[activeWorktreeId]
-            : 'terminal'
-
-        // Filter per-worktree maps to only valid worktrees with valid file references
-        const filteredActiveFileIdByWorktree = Object.fromEntries(
-          [...validWorktreeIds].flatMap((wId) => {
-            const persistedFileId = migrateEditorFileId(
-              editorFileIdMigrationsByWorktree,
-              wId,
-              persistedActiveFileIdByWorktree[wId]
-            )
-            if (
-              persistedFileId &&
-              openFiles.some((f) => f.id === persistedFileId && f.worktreeId === wId)
-            ) {
-              return [[wId, persistedFileId]]
-            }
-            const fallbackFileId = openFiles.find((f) => f.worktreeId === wId)?.id
-            return fallbackFileId ? [[wId, fallbackFileId]] : []
-          })
+        const { state, editorFileIdMigrationsByWorktree } = buildHydratedEditorSessionState(
+          session,
+          validWorktreeIds,
+          // Why: use the store's activeWorktreeId — hydrateWorkspaceSession may have nulled an invalid ID, and we must respect that.
+          s.activeWorktreeId,
+          (file, persisted) => buildHydratedWorkingDocument(s, file, persisted)
         )
-        const filteredActiveTabTypeByWorktree = Object.fromEntries(
-          Object.entries(persistedActiveTabTypeByWorktree).filter(([wId, tabType]) => {
-            if (!validWorktreeIds.has(wId)) {
-              return false
-            }
-            if (tabType !== 'editor') {
-              return true
-            }
-            // Why: an "editor" marker is valid only if the worktree restored a concrete active file; otherwise it's a stale marker.
-            return Boolean(filteredActiveFileIdByWorktree[wId])
-          })
-        )
-
-        // Why: transient diff/conflict surfaces aren't restored, so clear a stale "editor" marker and fall back to terminal.
-        const nextActiveTabType =
-          nextActiveFileId || activeTabType !== 'editor' ? activeTabType : 'terminal'
-        const openFileIds = new Set(openFiles.map((file) => file.id))
-        // Why: visible is the default, so restore only per-file hide overrides (`false`); legacy `true` entries collapse to the default.
-        const hiddenFrontmatterEntries = new Map<string, boolean>()
-        for (const [persistedFileId, visible] of Object.entries(
-          persistedMarkdownFrontmatterVisible
-        )) {
-          if (visible) {
-            continue
-          }
-          if (openFileIds.has(persistedFileId)) {
-            hiddenFrontmatterEntries.set(persistedFileId, false)
-          }
-          for (const migrations of Object.values(editorFileIdMigrationsByWorktree)) {
-            const migratedFileId = migrations.get(persistedFileId)
-            if (migratedFileId && openFileIds.has(migratedFileId)) {
-              hiddenFrontmatterEntries.set(migratedFileId, false)
-            }
-          }
-        }
-        const markdownFrontmatterVisible = Object.fromEntries(hiddenFrontmatterEntries)
-
         return {
-          openFiles,
-          workingDocuments,
-          workingDocumentIdsByTab,
-          markdownFrontmatterVisible,
-          activeFileId: nextActiveFileId,
-          activeFileIdByWorktree: filteredActiveFileIdByWorktree,
-          activeTabType: nextActiveTabType,
-          activeTabTypeByWorktree: filteredActiveTabTypeByWorktree,
+          ...state,
           ...migrateHydratedEditorTabsAndGroups(s, editorFileIdMigrationsByWorktree)
         }
       })
+      // A restored dirty document must stay reachable from a visible tab, or its recovery text is unclosable.
       const memberships = { ...get().workingDocumentIdsByTab }
       let recoveredMemberships = false
       for (const file of get().openFiles) {

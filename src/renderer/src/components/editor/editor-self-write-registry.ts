@@ -1,4 +1,5 @@
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
+import { MAX_TIMER_DELAY_MS } from '../../../../shared/timer-delay'
 
 // A completed editor write echoes through the owner watcher. The document id
 // already includes owner and canonical path, so it cannot suppress an equal
@@ -16,6 +17,42 @@ type SelfWriteStamp = RecentSelfWrite & {
 }
 
 const stamps = new Map<WorkingDocumentId, SelfWriteStamp>()
+let expiryTimer: ReturnType<typeof setTimeout> | null = null
+let scheduledExpiryAt = Infinity
+
+function clearExpiryTimer(): void {
+  if (expiryTimer !== null) {
+    clearTimeout(expiryTimer)
+    expiryTimer = null
+  }
+  scheduledExpiryAt = Infinity
+}
+
+// Why: expire saved-content snapshots even while the editor is idle and no echo arrives.
+function scheduleExpiredSelfWriteCleanup(): void {
+  let nextExpiryAt = Infinity
+  for (const stamp of stamps.values()) {
+    nextExpiryAt = Math.min(nextExpiryAt, stamp.expiresAt + 1)
+  }
+  if (nextExpiryAt === Infinity) {
+    clearExpiryTimer()
+    return
+  }
+  if (expiryTimer !== null && scheduledExpiryAt <= nextExpiryAt) {
+    return
+  }
+  clearExpiryTimer()
+  scheduledExpiryAt = nextExpiryAt
+  expiryTimer = setTimeout(
+    () => {
+      expiryTimer = null
+      scheduledExpiryAt = Infinity
+      pruneExpiredSelfWrites()
+      scheduleExpiredSelfWriteCleanup()
+    },
+    Math.min(MAX_TIMER_DELAY_MS, Math.max(0, nextExpiryAt - Date.now()))
+  )
+}
 
 function pruneExpiredSelfWrites(now = Date.now()): void {
   for (const [documentId, stamp] of stamps) {
@@ -45,10 +82,14 @@ export function recordSelfWrite(
   stamps.delete(documentId)
   stamps.set(documentId, { content, expiresAt: now + ttlMs })
   enforceSelfWriteStampLimit()
+  scheduleExpiredSelfWriteCleanup()
 }
 
 export function clearSelfWrite(documentId: WorkingDocumentId): void {
   stamps.delete(documentId)
+  if (stamps.size === 0) {
+    clearExpiryTimer()
+  }
 }
 
 export function getRecentSelfWrite(documentId: WorkingDocumentId): RecentSelfWrite | null {
@@ -58,6 +99,9 @@ export function getRecentSelfWrite(documentId: WorkingDocumentId): RecentSelfWri
   }
   if (stamp.expiresAt <= Date.now()) {
     stamps.delete(documentId)
+    if (stamps.size === 0) {
+      clearExpiryTimer()
+    }
     return null
   }
   return { content: stamp.content }
@@ -68,6 +112,7 @@ export function hasRecentSelfWrite(documentId: WorkingDocumentId): boolean {
 }
 
 export function __clearSelfWriteRegistryForTests(): void {
+  clearExpiryTimer()
   stamps.clear()
 }
 

@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import {
-  listRuntimeGitStashFiles,
-  listRuntimeGitStashes,
-  type RuntimeGitContext
-} from '@/runtime/runtime-git-client'
+import type { RuntimeGitContext } from '@/runtime/runtime-git-client-context'
+import { listRuntimeGitStashFiles, listRuntimeGitStashes } from '@/runtime/runtime-git-stash-client'
 import type { GitBranchChangeEntry } from '../../../../../../shared/git-diff-compare-types'
 import type { GitStatusEntry } from '../../../../../../shared/git-status-types'
 import type { GitStashEntry } from '../../../../../../shared/git-stash'

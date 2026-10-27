@@ -47,6 +47,7 @@ function createSnapshot(
     tabsByWorktree: {},
     ptyIdsByTabId: {},
     terminalLayoutsByTabId: {},
+    localOnlyScrollbackByTabId: {},
     activeTabIdByWorktree: {},
     openFiles: [],
     workingDocuments: {},
@@ -74,7 +75,6 @@ function createSnapshot(
     lastKnownRelayPtyIdByTabId: {},
     lastVisitedAtByWorktreeId: {},
     defaultTerminalTabsAppliedByWorktreeId: {},
-    closedTerminalTabTombstonesByTabId: {},
     ...overrides
   } as unknown as WorkspaceSessionSnapshot
 }
@@ -200,7 +200,10 @@ describe('workspace session editor drafts', () => {
         dirtyDraftContent: 'unsaved edits',
         lastKnownDiskSignature: 'abc123'
       }),
-      expect.not.objectContaining({ lastKnownDiskSignature: expect.any(String) })
+      // Clean tabs need no restore-conflict signature; persisting it bloats every write.
+      expect.not.objectContaining({
+        lastKnownDiskSignature: expect.any(String)
+      })
     ])
   })
 

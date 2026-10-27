@@ -121,7 +121,9 @@ export async function promotePrototypeToProject(args: {
 }): Promise<{ error: string } | { ok: true }> {
   const prototype = findLocalPrototype(args.repoId)
   if (!prototype) {
-    return { error: 'Prototype not found' }
+    return {
+      error: translate('auto.components.sidebar.prototypes.notFound', 'Prototype not found')
+    }
   }
   const target = { parentPath: args.parentPath.trim(), name: args.name.trim() }
   const preflight = await window.api.prototypes.preflightPromote({
@@ -134,7 +136,12 @@ export async function promotePrototypeToProject(args: {
   // Why: the move needs the prototype's terminals gone (Windows can't rename a dir a shell sits in).
   await useAppStore.getState().removeProject(prototype.id, { hostId: LOCAL_EXECUTION_HOST_ID })
   if (isLocalRepoRegistered(prototype.id)) {
-    return { error: 'Could not close the prototype before moving it' }
+    return {
+      error: translate(
+        'auto.components.sidebar.prototypes.closeBeforeMoveFailed',
+        'Could not close the prototype before moving it'
+      )
+    }
   }
   const result = await window.api.prototypes.promote({
     ...target,

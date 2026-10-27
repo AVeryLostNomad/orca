@@ -1,5 +1,4 @@
-// Ordered slices of one registry: `definitions.ts` concatenates core-1..4 in order and that order
-// is the palette order, so the boundaries follow line count, not theme — do not regroup thematically.
+// definitions.ts concatenates core-1..4 in palette order; slices follow line limits, so thematic regrouping would reorder commands.
 import type { KeybindingDefinition } from './types'
 import { platformBindings } from './definitions-support'
 
@@ -22,7 +21,8 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     title: 'Open Settings',
     ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'settings', 'preferences'],
-    defaultBindings: platformBindings(['Mod+Comma']),
+    // Leave Cmd/Ctrl+, to terminal apps such as Codex unless the user opts in.
+    defaultBindings: platformBindings([]),
     conflictGroup: 'menu'
   },
   {
@@ -49,10 +49,11 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
       'command palette',
       'actions'
     ],
+    // Off macOS, Ctrl+Shift+A is the terminal's select-all, so the extra chord is mac-only.
     defaultBindings: {
       darwin: ['Mod+J', 'Mod+Shift+A'],
-      linux: ['Mod+Shift+J', 'Mod+Shift+A'],
-      win32: ['Mod+Shift+J', 'Mod+Shift+A']
+      linux: ['Mod+Shift+J'],
+      win32: ['Mod+Shift+J']
     }
   },
   {
@@ -60,14 +61,18 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     title: 'Previous worktree',
     ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'global', 'worktree', 'previous', 'up'],
-    defaultBindings: platformBindings(['Mod+Shift+ArrowUp'])
+    defaultBindings: platformBindings(['Mod+Shift+ArrowUp']),
+    // Why: default Mod+Shift+Up is the field's select-to-start.
+    allowInTextField: 'non-default-chords'
   },
   {
     id: 'worktree.navigateDown',
     title: 'Next worktree',
     ...GLOBAL_KEYBINDING,
     searchKeywords: ['shortcut', 'global', 'worktree', 'next', 'down'],
-    defaultBindings: platformBindings(['Mod+Shift+ArrowDown'])
+    defaultBindings: platformBindings(['Mod+Shift+ArrowDown']),
+    // Why: default Mod+Shift+Down is the field's select-to-end.
+    allowInTextField: 'non-default-chords'
   },
   {
     id: 'workspace.create',
@@ -144,8 +149,7 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
       'open',
       'close'
     ],
-    // Why: configurable but unbound by default, matching workspace.openBoard — an
-    // experimental surface must not claim a global chord from terminal users.
+    // Experimental surfaces stay unbound rather than claim terminal users’ global chords, matching workspace.openBoard.
     defaultBindings: platformBindings([]),
     allowInTerminal: true
   },
@@ -285,29 +289,6 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     scope: 'global',
     searchKeywords: ['shortcut', 'floating terminal', 'terminal'],
     defaultBindings: platformBindings(['Mod+Alt+A']),
-    allowInTerminal: true
-  },
-  {
-    id: 'floatingWorkspace.maximize',
-    title: 'Maximize Floating Workspace Panel',
-    group: 'Global',
-    scope: 'global',
-    searchKeywords: [
-      'shortcut',
-      'floating',
-      'workspace',
-      'panel',
-      'floating workspace',
-      'workspace panel',
-      'maximize',
-      'expand'
-    ],
-    // Why: pairs with floatingTerminal.toggle (Cmd+Opt+A) so maximize stays one-handed; macOS-only, Linux/Windows unbound.
-    defaultBindings: {
-      darwin: ['Mod+Alt+Shift+A'],
-      linux: [],
-      win32: []
-    },
     allowInTerminal: true
   }
 ]

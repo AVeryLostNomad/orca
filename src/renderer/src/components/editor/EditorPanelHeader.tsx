@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { ArrowDown, ArrowUp, Columns2, Eye, FileText, ListTree, Rows2 } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { selectWorktreeDiffCommentsOrEmpty } from '@/store/worktree-diff-comments-selector'
+import { useVisibleWorktreeDiffComments } from '../diff-comments/use-visible-worktree-diff-comments'
 import type { OpenFile } from '@/store/slices/editor'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import EditorViewToggle, {
@@ -11,7 +11,8 @@ import EditorViewToggle, {
 import type { EditorToggleValue } from './EditorViewToggle'
 import type { EditorHeaderOpenFileState } from './editor-header'
 import { DiffNotesSendMenu } from './DiffNotesSendMenu'
-import { EditorPanelMarkdownActionsMenu } from './EditorPanelMarkdownActionsMenu'
+import { EditorPanelActionsMenu } from './EditorPanelActionsMenu'
+import { EditorFileLocationMenuItems } from './EditorFileLocationMenuItems'
 import { translate } from '@/i18n/i18n'
 import { EditorPanelHeaderPath } from './EditorPanelHeaderPath'
 import { EditorPanelCopyIntoWorkspaceButton } from './EditorPanelCopyIntoWorkspaceButton'
@@ -21,7 +22,7 @@ import { useShortcutKeyDetails } from '@/hooks/useShortcutLabel'
 import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import type { ArtifactWriteRequest } from '../../../../shared/artifacts'
 import { ArtifactPublishButton } from '@/components/artifacts/ArtifactPublishButton'
-import { markdownArtifactSourceKey } from './markdown-artifact-upload'
+import { editorArtifactSourceKey } from './editor-artifact-upload'
 
 type EditorPanelHeaderProps = {
   activeFile: OpenFile
@@ -51,13 +52,12 @@ type EditorPanelHeaderProps = {
   onOpenDiffTargetFile: (preferredMarkdownViewMode?: 'rich') => void
   onOpenPreviewToSide: () => void
   onOpenMarkdownPreview: () => void
-  onOpenContainingFolder: () => void
   onToggleSideBySide: () => void
   onEditorToggleChange: (next: EditorToggleValue) => void
   onToggleMarkdownTableOfContents: () => void
   onToggleMarkdownFrontmatter: () => void
   onExportMarkdownToPdf: () => void
-  createMarkdownArtifactRequest?: () => Promise<ArtifactWriteRequest>
+  createArtifactRequest?: () => Promise<ArtifactWriteRequest>
 }
 
 export function EditorPanelHeader({
@@ -87,21 +87,17 @@ export function EditorPanelHeader({
   onOpenDiffTargetFile,
   onOpenPreviewToSide,
   onOpenMarkdownPreview,
-  onOpenContainingFolder,
   onToggleSideBySide,
   onEditorToggleChange,
   onToggleMarkdownTableOfContents,
   onToggleMarkdownFrontmatter,
   onExportMarkdownToPdf,
-  createMarkdownArtifactRequest
+  createArtifactRequest
 }: EditorPanelHeaderProps): React.JSX.Element {
-  const diffComments = useAppStore((s) =>
-    selectWorktreeDiffCommentsOrEmpty(s, activeFile.worktreeId)
-  )
+  const { comments: diffComments } = useVisibleWorktreeDiffComments(activeFile.worktreeId)
   const activeGroupId = useAppStore((s) => s.activeGroupIdByWorktree[activeFile.worktreeId])
   const diffWordWrap = useAppStore((s) => s.settings?.diffWordWrap === true)
   const diffShowWhitespace = useAppStore((s) => s.settings?.diffShowWhitespace === true)
-  // Why: undefined/true mean wrap on; only explicit false turns wrap off (#9974).
   const editorWordWrap = useAppStore((s) => s.settings?.editorWordWrap !== false)
   const updateSettings = useAppStore((s) => s.updateSettings)
   const fileDiffComments = useMemo(
@@ -120,7 +116,6 @@ export function EditorPanelHeader({
         canShowMarkdownPreview={canShowMarkdownPreview}
         onCopyPath={onCopyPath}
         onOpenMarkdownPreview={onOpenMarkdownPreview}
-        onOpenContainingFolder={onOpenContainingFolder}
       />
       {!isDiffSurface && <EditorPanelCopyIntoWorkspaceButton activeFile={activeFile} />}
       {canOpenPreviewToSide && (
@@ -201,8 +196,6 @@ export function EditorPanelHeader({
         />
       )}
       {isDiffSurface && (
-        // Why: the adjacent diff controls use the same tooltip timing, so they
-        // share one provider instead of creating redundant Radix contexts.
         <TooltipProvider delayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -280,7 +273,7 @@ export function EditorPanelHeader({
           </Tooltip>
         </TooltipProvider>
       )}
-      {hasEditorToggle && (
+      {hasEditorToggle && !activeFile.csvPreviewOnly && (
         <EditorViewToggle
           value={effectiveToggleValue}
           modes={availableEditorToggleModes}
@@ -326,15 +319,21 @@ export function EditorPanelHeader({
           </Tooltip>
         </TooltipProvider>
       )}
-      {isMarkdown && !isDiffSurface && createMarkdownArtifactRequest ? (
+      {!isDiffSurface && createArtifactRequest ? (
         <ArtifactPublishButton
-          sourceKey={markdownArtifactSourceKey(activeFile)}
+          sourceKey={editorArtifactSourceKey(activeFile)}
           className="size-6 [&_svg]:size-3.5!"
-          createRequest={createMarkdownArtifactRequest}
+          createRequest={createArtifactRequest}
         />
       ) : null}
-      <EditorPanelMarkdownActionsMenu
-        isMarkdown={isMarkdown}
+      <EditorPanelActionsMenu
+        fileLocationActions={
+          activeFile.mode === 'edit' ||
+          activeFile.mode === 'markdown-preview' ||
+          (isSingleDiff && openFileState.canOpen) ? (
+            <EditorFileLocationMenuItems file={activeFile} onCopyPath={onCopyPath} />
+          ) : undefined
+        }
         isDiffSurface={isDiffSurface}
         diffWordWrap={diffWordWrap}
         diffShowWhitespace={diffShowWhitespace}

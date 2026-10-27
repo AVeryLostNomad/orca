@@ -19,8 +19,14 @@ import {
 
 export function attachEditorAutosaveController(store: AppStoreApi): () => void {
   const saveQueue = createEditorSaveQueue(store)
-  const { queueSave, quiesceDocumentSave, clearAutoSaveTimer, bumpSaveGeneration, syncAutoSave } =
-    saveQueue
+  const {
+    queueSave,
+    quiesceDocumentSave,
+    clearAutoSaveTimer,
+    bumpSaveGeneration,
+    syncAutoSave,
+    holdAutoSave
+  } = saveQueue
   const { handleSaveDirtyFiles, handlePrepareHotExit } = createEditorRestartSaveHandlers({
     store,
     queueSave,
@@ -44,7 +50,10 @@ export function attachEditorAutosaveController(store: AppStoreApi): () => void {
         detail.resolve()
         return
       }
-      await queueSave(detail.documentId)
+      await queueSave(
+        detail.documentId,
+        detail.overwrite ? 'overwrite' : detail.convertToUtf8 ? 'convert' : 'user'
+      )
       detail.resolve()
     } catch (error) {
       detail.reject(String((error as Error)?.message ?? error))
@@ -57,7 +66,23 @@ export function attachEditorAutosaveController(store: AppStoreApi): () => void {
       return
     }
     detail.claim()
-    await quiesceDocumentSave(detail.documentId)
+    // Why: hold before awaiting so a timer can't start a new autosave while the quiesce drains.
+    const release = detail.onHold ? holdAutoSave(detail.documentId) : undefined
+    try {
+      await quiesceDocumentSave(detail.documentId)
+    } catch (error) {
+      // A refused pending edit fails the caller's operation, so its hold must not linger.
+      release?.()
+      if (detail.reject) {
+        detail.reject(String((error as Error)?.message ?? error))
+      } else {
+        detail.resolve()
+      }
+      return
+    }
+    if (release) {
+      detail.onHold?.(release)
+    }
     detail.resolve()
   }
 

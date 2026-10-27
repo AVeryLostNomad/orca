@@ -1,7 +1,8 @@
 import { useCallback } from 'react'
 import { useAppStore } from '../store'
+import { isEditorTabContentType } from '@/store/slices/editor/tabs/editor-tab-content-type'
 import { closeTerminalTab } from './terminal/terminal-tab-actions'
-import { isWebRuntimeSessionActive } from '@/runtime/web-runtime-session'
+import { isWebRuntimeSessionActive } from '@/runtime/web-runtime-session-environment'
 import { closeBrowserWorkspaceTabOnHosts } from '@/runtime/browser-workspace-tab-close'
 import { destroyWorkspaceWebviews } from '../store/slices/browser-webview-cleanup'
 import {
@@ -9,9 +10,16 @@ import {
   isPinnedEditorFileTab
 } from './terminal-workspace-model'
 import type { TerminalCloseController } from './use-terminal-close-actions'
+import { useBulkTabCloseConfirmation } from './use-bulk-tab-close-confirmation'
 
-export function useTerminalBulkCloseActions(controller: TerminalCloseController) {
+export function useTerminalBulkCloseActions(
+  controller: Pick<
+    TerminalCloseController,
+    'activeWorktreeId' | 'closeBrowserTab' | 'closeTab' | 'queueEditorCloseRequests'
+  >
+) {
   const { activeWorktreeId, closeBrowserTab, closeTab, queueEditorCloseRequests } = controller
+  const confirmBulkClose = useBulkTabCloseConfirmation()
   const closeTabBarTabs = useCallback(
     (tabIds: string[]) => {
       if (!activeWorktreeId) {
@@ -52,10 +60,12 @@ export function useTerminalBulkCloseActions(controller: TerminalCloseController)
           closeTerminalTab(unifiedTab.entityId, { skipRunningProcessConfirm: true })
           continue
         }
-        if (
-          unifiedTab &&
-          ['editor', 'diff', 'conflict-review', 'check-details'].includes(unifiedTab.contentType)
-        ) {
+        if (unifiedTab?.contentType === 'agent-session') {
+          state.closeUnifiedTab(unifiedTab.id)
+          continue
+        }
+        // The close queue decides per document whether a save prompt is needed.
+        if (unifiedTab && isEditorTabContentType(unifiedTab.contentType)) {
           editorTabIds.push(unifiedTab.id)
           continue
         }
@@ -83,57 +93,70 @@ export function useTerminalBulkCloseActions(controller: TerminalCloseController)
     [activeWorktreeId, closeBrowserTab, closeTab, queueEditorCloseRequests]
   )
 
+  const selectScopeTabIds = useCallback(
+    (scope: 'others' | 'right' | 'left', tabId: string): string[] => {
+      if (!activeWorktreeId) {
+        return []
+      }
+      const state = useAppStore.getState()
+      const order = state.tabBarOrderByWorktree[activeWorktreeId] ?? []
+      const index = order.indexOf(tabId)
+      if (index === -1) {
+        return []
+      }
+      let ids = order.filter((id) => id !== tabId)
+      if (scope === 'right') {
+        ids = order.slice(index + 1)
+      } else if (scope === 'left') {
+        ids = order.slice(0, index)
+      }
+      const tabs = state.unifiedTabsByWorktree[activeWorktreeId] ?? []
+      const pinnedIds = new Set(tabs.flatMap((tab) => (tab.isPinned ? [tab.id, tab.entityId] : [])))
+      return ids.filter((id) => !pinnedIds.has(id))
+    },
+    [activeWorktreeId]
+  )
   const handleCloseOthers = useCallback(
     (tabId: string) => {
-      if (!activeWorktreeId) {
-        return
-      }
-      const order = useAppStore.getState().tabBarOrderByWorktree[activeWorktreeId] ?? []
-      closeTabBarTabs(order.filter((id) => id !== tabId))
+      confirmBulkClose('others', () => selectScopeTabIds('others', tabId), closeTabBarTabs)
     },
-    [activeWorktreeId, closeTabBarTabs]
+    [closeTabBarTabs, confirmBulkClose, selectScopeTabIds]
   )
   const handleCloseTabsToRight = useCallback(
     (tabId: string) => {
-      if (!activeWorktreeId) {
-        return
-      }
-      const currentOrder = useAppStore.getState().tabBarOrderByWorktree[activeWorktreeId] ?? []
-      const index = currentOrder.indexOf(tabId)
-      if (index === -1) {
-        return
-      }
-      closeTabBarTabs(currentOrder.slice(index + 1))
+      confirmBulkClose('right', () => selectScopeTabIds('right', tabId), closeTabBarTabs)
     },
-    [activeWorktreeId, closeTabBarTabs]
+    [closeTabBarTabs, confirmBulkClose, selectScopeTabIds]
   )
   const handleCloseTabsToLeft = useCallback(
     (tabId: string) => {
-      if (!activeWorktreeId) {
-        return
-      }
-      const currentOrder = useAppStore.getState().tabBarOrderByWorktree[activeWorktreeId] ?? []
-      const index = currentOrder.indexOf(tabId)
-      if (index === -1) {
-        return
-      }
-      closeTabBarTabs(currentOrder.slice(0, index))
+      confirmBulkClose('left', () => selectScopeTabIds('left', tabId), closeTabBarTabs)
     },
-    [activeWorktreeId, closeTabBarTabs]
+    [closeTabBarTabs, confirmBulkClose, selectScopeTabIds]
   )
   const handleCloseAllFiles = useCallback(() => {
     if (!activeWorktreeId) {
       return
     }
-    const state = useAppStore.getState()
-    const filesInWorktree = state.openFiles.filter((file) => file.worktreeId === activeWorktreeId)
-    const closableFiles = filesInWorktree.filter(
-      (file) => !isPinnedEditorFileTab(state, activeWorktreeId, file.id)
+    confirmBulkClose(
+      'editors',
+      () => {
+        const state = useAppStore.getState()
+        return state.openFiles
+          .filter(
+            (file) =>
+              file.worktreeId === activeWorktreeId &&
+              !isPinnedEditorFileTab(state, activeWorktreeId, file.id)
+          )
+          .map((file) => file.id)
+      },
+      (fileIds) => {
+        if (fileIds.length > 0) {
+          queueEditorCloseRequests(fileIds)
+        }
+      }
     )
-    if (closableFiles.length > 0) {
-      queueEditorCloseRequests(closableFiles.map((file) => file.id))
-    }
-  }, [activeWorktreeId, queueEditorCloseRequests])
+  }, [activeWorktreeId, confirmBulkClose, queueEditorCloseRequests])
 
   return {
     closeTabBarTabs,

@@ -1,64 +1,60 @@
-import type { Uri } from 'monaco-editor'
+import type { editor } from 'monaco-editor'
 import type { OpenFile } from '@/store/slices/editor'
-import { editorSelectionCache, pdfViewPositionCache, scrollTopCache } from '@/lib/scroll-cache'
-import {
-  deletePaneScopedCacheEntries,
-  sweepClosedPdfViewPositions
-} from './closed-editor-tab-cache-sweep'
+import { scrollTopCache } from '@/lib/scroll-cache'
+import { toEditorModelUri } from './editor-model-uri'
 
-type EditorModelRegistry = {
-  editor: {
-    getModel: (uri: Uri) => { isAttachedToEditor: () => boolean; dispose: () => void } | null
-  }
-  Uri: { parse: (value: string) => Uri }
+export type DisposableMonacoModel = Pick<editor.ITextModel, 'dispose' | 'isAttachedToEditor'> & {
+  uri: { toString(skipEncoding?: boolean): string }
 }
 
-/** Releases cache entries owned by a batch of closed tabs. */
-export function disposeClosedEditorTabs(
-  monacoRegistry: EditorModelRegistry,
-  closedFiles: readonly OpenFile[]
-): void {
-  if (closedFiles.length === 0) {
-    return
+export type MonacoModelRegistry = {
+  Uri: {
+    parse(value: string): unknown
   }
+  editor: {
+    getModel(uri: unknown): DisposableMonacoModel | null
+    getModels(): DisposableMonacoModel[]
+  }
+}
 
-  const scrollTopOwners: string[] = []
-  const editorSelectionOwners: string[] = []
-  const closedPdfFilePaths: string[] = []
+export type ClosedEditorTab = Pick<OpenFile, 'id' | 'mode' | 'filePath'> & {
+  modelOwnerKey?: string
+}
 
+// Why: Pierre diffs own no Monaco models and working-document models collect themselves; only owner-keyed file models remain.
+export function disposeClosedEditorModels(
+  monacoRegistry: MonacoModelRegistry,
+  closedFiles: readonly ClosedEditorTab[],
+  onAttachedModel?: (model: DisposableMonacoModel, file: ClosedEditorTab) => void,
+  isStillClosed: (file: ClosedEditorTab) => boolean = () => true
+): void {
   for (const closedFile of closedFiles) {
-    switch (closedFile.mode) {
-      case 'edit': {
-        if (closedFile.readOnly) {
-          const model = monacoRegistry.editor.getModel(
-            monacoRegistry.Uri.parse(closedFile.filePath)
-          )
-          if (model && !model.isAttachedToEditor()) {
-            model.dispose()
-          }
-        }
-        scrollTopCache.delete(closedFile.filePath)
-        scrollTopCache.delete(`${closedFile.filePath}:rich`)
-        scrollTopCache.delete(`${closedFile.filePath}:preview`)
-        scrollTopCache.delete(`${closedFile.filePath}:mermaid-diagram`)
-        editorSelectionCache.delete(closedFile.filePath)
-        scrollTopOwners.push(closedFile.filePath)
-        editorSelectionOwners.push(closedFile.filePath)
-        closedPdfFilePaths.push(closedFile.filePath)
-        break
-      }
-      case 'diff':
-      case 'markdown-preview':
-        scrollTopCache.delete(`${closedFile.id}:preview`)
-        scrollTopOwners.push(closedFile.id)
-        break
-      case 'conflict-review':
-      case 'check-details':
-        break
+    if (closedFile.mode !== 'edit' || !isStillClosed(closedFile)) {
+      continue
+    }
+    const model = monacoRegistry.editor.getModel(
+      monacoRegistry.Uri.parse(toEditorModelUri(closedFile.filePath, closedFile.modelOwnerKey))
+    )
+    if (model?.isAttachedToEditor()) {
+      onAttachedModel?.(model, closedFile)
+    } else {
+      model?.dispose()
     }
   }
+}
 
-  deletePaneScopedCacheEntries(scrollTopCache, scrollTopOwners)
-  deletePaneScopedCacheEntries(editorSelectionCache, editorSelectionOwners)
-  sweepClosedPdfViewPositions(pdfViewPositionCache, closedPdfFilePaths)
+export function disposeClosedCheckDetailsReadingCache(
+  closedFiles: readonly ClosedEditorTab[],
+  isStillClosed: (file: ClosedEditorTab) => boolean = () => true
+): void {
+  for (const closedFile of closedFiles) {
+    if (closedFile.mode !== 'check-details' || !isStillClosed(closedFile)) {
+      continue
+    }
+    for (const key of scrollTopCache.keys()) {
+      if (key.startsWith(`${closedFile.id}::`)) {
+        scrollTopCache.delete(key)
+      }
+    }
+  }
 }

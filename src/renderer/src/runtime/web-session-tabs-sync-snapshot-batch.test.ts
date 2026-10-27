@@ -6,12 +6,13 @@ import type { OpenFile } from '../store/slices/editor'
 import type { AppState } from '../store/types'
 import { getWorkingDocumentForFile } from '../store/slices/editor/working-document-state'
 import type { WorkingDocument, WorkingDocumentId } from '../store/slices/editor/working-document'
+import { buildOwnedEditorFileId } from '../store/slices/editor/file-ids/editor-file-ids'
 import {
   applyWebSessionTabsSnapshot,
-  applyWebSessionTabsSnapshots,
-  resetWebSessionTabsSnapshotFreshnessForTests,
-  type WebSessionTabsSyncState
-} from './web-session-tabs-sync'
+  applyWebSessionTabsSnapshots
+} from './web-session-tabs-sync/snapshot-api'
+import { resetWebSessionTabsSnapshotFreshnessForTests } from './web-session-tabs-sync/tracking-lifecycle'
+import type { WebSessionTabsSyncState } from './web-session-tabs-sync/state'
 import {
   ENV,
   HOST_SURFACE_ID,
@@ -313,8 +314,7 @@ describe('applyWebSessionTabsSnapshot', () => {
           ...mirroredFile('/repo/local-only.ts', WT),
           mirroredFromRuntimeSession: false
         } as OpenFile,
-        // Why: same (worktree, id) as a mirrored file but a different environment —
-        // the duplicate case that makes the first-wins lookup observable.
+        // Same worktree/file ID, different environment exposes first-wins duplicate lookup.
         {
           ...mirroredFile('/repo/a.ts', WT),
           runtimeEnvironmentId: 'other-env'
@@ -325,7 +325,6 @@ describe('applyWebSessionTabsSnapshot', () => {
       ]
     })
     const snapshots: RuntimeMobileSessionTabsResult[] = [
-      // Drops /repo/dropped.ts and flips a.ts dirty.
       makeSnapshot([editorSurface('host-a', '/repo/a.ts', { isDirty: true })], {
         activeTabId: 'host-a',
         activeTabType: 'file'
@@ -344,7 +343,6 @@ describe('applyWebSessionTabsSnapshot', () => {
         ],
         { snapshotVersion: 2, activeTabId: 'host-b', activeTabType: 'file' }
       ),
-      // Host drops every editor for the second worktree.
       makeSnapshot([], {
         worktree: secondWorktree,
         snapshotVersion: 2,
@@ -379,7 +377,8 @@ describe('applyWebSessionTabsSnapshot', () => {
       '/repo/a.ts',
       '/repo/bystander-2.ts',
       '/repo/a.ts',
-      '/repo/b.ts'
+      // A file the host opens now takes its owned id; a.ts keeps the id it already had.
+      buildOwnedEditorFileId('/repo/b.ts', WT, ENV)
     ])
     expect(
       batched.openFiles.find(
@@ -451,9 +450,7 @@ describe('applyWebSessionTabsSnapshot', () => {
   })
 
   it('keeps the editor pane visible when the host republishes the active editor file', () => {
-    // Why: the active file is re-mirrored, so it leaves the surviving set as a
-    // replaced id and must come back as a mirrored id — otherwise focus falls
-    // through to the terminal on every reconnect.
+    // Remirrored active files must return under mirrored IDs or reconnect falls through to terminal focus.
     const activeFile = {
       id: '/repo/focused.ts',
       filePath: '/repo/focused.ts',
@@ -515,8 +512,7 @@ describe('applyWebSessionTabsSnapshot', () => {
   })
 
   it('rebuilds an open file the batch closed and reopened, as sequential does', () => {
-    // Why: a batch whose net effect is openFileEqual to its input must still adopt the rebuilt
-    // tab. Its disk baseline is a canonical document field, so tab reconstruction must not reset it.
+    // Net equality must not discard rebuilt file identity; a reminted id starts without the old disk baseline.
     const beforeBatch = {
       id: '/repo/a.ts',
       filePath: '/repo/a.ts',
@@ -564,8 +560,9 @@ describe('applyWebSessionTabsSnapshot', () => {
     const batched = { ...state, ...applyWebSessionTabsSnapshots(state, snapshots, ENV, NOW) }
 
     expect(batched.openFiles).toEqual(sequential.openFiles)
-    expect(batched.openFiles.map((file) => file.id)).toEqual(['/repo/a.ts'])
-    expect(diskBaseline(batched, '/repo/a.ts')).toBe('stale-signature')
+    const rebuiltFileId = buildOwnedEditorFileId('/repo/a.ts', WT, ENV)
+    expect(batched.openFiles.map((file) => file.id)).toEqual([rebuiltFileId])
+    expect(diskBaseline(batched, rebuiltFileId)).toBeUndefined()
   })
 
   it('keeps the matching-environment duplicate when a batch rebuild is a no-op', () => {
@@ -652,8 +649,7 @@ describe('applyWebSessionTabsSnapshot', () => {
   })
 
   it('keeps another environment’s duplicate active when this environment culls the id', () => {
-    // Why: culling is scoped to the publishing environment. A same-id file owned by a
-    // different environment survives, so it must still count as the active editor.
+    // Culling is environment-scoped; a same-ID sibling host file must still count as active.
     const duplicate = (environmentId: string): OpenFile =>
       ({
         id: '/repo/shared.ts',
@@ -666,7 +662,6 @@ describe('applyWebSessionTabsSnapshot', () => {
         mode: 'edit',
         mirroredFromRuntimeSession: true
       }) as OpenFile
-    // Publishes a terminal and no editors, so this environment culls /repo/shared.ts.
     const snapshot = makeSnapshot([
       {
         type: 'terminal',

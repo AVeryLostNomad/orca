@@ -11,9 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
-import { readRuntimeFileContent } from '@/runtime/runtime-file-client'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import { useAppStore } from '@/store'
+import { readRuntimeFileContent } from '@/runtime/runtime-file-read-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import type { WorkingDocument } from '@/store/slices/editor/working-document'
 import { translate } from '@/i18n/i18n'
 import { PierreFileDiff } from './editor-lazy-views'
@@ -50,11 +49,9 @@ export function ExternalFileChangeCompareDialog({
     }
     let cancelled = false
     setDiskState({ kind: 'loading' })
+    // Read when opening: agents may have written again since the banner appeared.
     void readRuntimeFileContent({
-      settings: settingsForRuntimeOwner(
-        useAppStore.getState().settings,
-        target.owner.runtimeEnvironmentId
-      ),
+      target: runtimeTargetForOwnerEnvironment(target.owner.runtimeEnvironmentId),
       filePath: target.filePath,
       relativePath: target.relativePath,
       worktreeId: target.worktreeId,

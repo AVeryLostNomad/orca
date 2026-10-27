@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { detectLanguage } from '@/lib/language-detect'
 import { basename, joinPath } from '@/lib/path'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import {
   getFileExplorerOwnerUnresolvedMessage,
@@ -102,7 +103,7 @@ export function useFileTreeActivation({
       let runtimeEnvironmentId: string | null
       try {
         const route = requireMatchingFileExplorerOperationRoute(activeWorktreeId, operationOwner)
-        runtimeEnvironmentId = route.settings.activeRuntimeEnvironmentId?.trim() || null
+        runtimeEnvironmentId = runtimeTargetEnvironmentId(route.target)
       } catch {
         toast.error(getFileExplorerOwnerUnresolvedMessage())
         return

@@ -68,7 +68,6 @@ describe('NewExternalWorktreesInboxLine', () => {
 
     expect(container.textContent).toContain('24')
     expect(container.textContent).toContain('hidden worktrees')
-    // The modal owns the list; the sidebar must not enumerate paths or names.
     expect(container.querySelectorAll('li')).toHaveLength(0)
     expect(container.textContent).not.toContain('Import')
   })
@@ -108,7 +107,6 @@ describe('NewExternalWorktreesInboxLine', () => {
     expect(suppressButton).not.toBeNull()
     expect(suppressButton?.className).toContain('can-hover:group-hover:opacity-100')
     expect(container.textContent).toContain("Don't show again")
-    // Nested buttons would make the suppress click ambiguous.
     expect(getReviewButton(container)?.contains(suppressButton)).toBe(false)
 
     await act(async () => {

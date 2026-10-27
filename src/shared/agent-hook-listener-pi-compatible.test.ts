@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createHookListenerState,
+  seedLegacyAgentStatusForTests,
   type HookListenerState
 } from './agent-hook-listener/listener-state'
 import { normalizeHookPayload } from './agent-hook-listener'
@@ -166,8 +167,7 @@ describe('shared agent-hook-listener', () => {
     expect(blocked?.payload.state).toBe('blocked')
     expect(blocked?.payload.interactivePrompt).toBe(JSON.stringify(questions))
 
-    // Why: the answered question must leave the blocked/needs-attention state so
-    // the notification and attention sort clear; tool_execution_end is working.
+    // Answered questions must release attention/notification state at tool_execution_end.
     const cleared = normalizeHookPayload(
       state,
       'pi',
@@ -236,8 +236,7 @@ describe('shared agent-hook-listener', () => {
       },
       'production'
     )
-    // Why: a follow-up regular tool must not inherit the prior question's blocked
-    // state or its live interactivePrompt card.
+    // Later tools must not inherit the previous question's blocked state or card.
     const working = normalizeHookPayload(
       state,
       'pi',
@@ -356,8 +355,8 @@ describe('shared agent-hook-listener', () => {
         payload: {
           hook_event_name: 'tool_approval_requested',
           tool_name: 'bash',
-          reason: 'tools.approval.bash: prompt',
-          approval_mode: 'prompt'
+          reason: 'Critical pattern detected',
+          approval_mode: 'always-ask'
         }
       },
       'production'
@@ -367,7 +366,7 @@ describe('shared agent-hook-listener', () => {
       state: 'blocked',
       agentType: 'omp',
       toolName: 'bash',
-      toolInput: 'tools.approval.bash: prompt'
+      toolInput: 'Critical pattern detected'
     })
 
     const resolved = normalizeHookPayload(
@@ -540,48 +539,31 @@ describe('shared agent-hook-listener', () => {
       )
     }
 
+    /** Admits the row as the hook server does, so the next post sees it. */
+    function deliver(payload: Record<string, unknown>): void {
+      const event = omp(payload)
+      if (event) {
+        seedLegacyAgentStatusForTests(state, event)
+      }
+    }
+
     it('keeps a subagent finish out of the lead state and stamps it for notification', () => {
-      expect(omp({ hook_event_name: 'agent_start' })?.payload.state).toBe('working')
+      const reviewer = { id: 'sub-1', state: 'working', startedAt: 1, description: 'Reviewer' }
+      deliver({ hook_event_name: 'agent_start', subagents: [reviewer] })
 
-      const started = omp({
-        hook_event_name: 'subagent_start',
-        subagent_id: 'sub-1',
-        subagent_label: 'Reviewer'
-      })
-      expect(started?.payload).toMatchObject({ state: 'working', agentType: 'omp' })
-      expect(started?.payload.subagents).toEqual([
-        expect.objectContaining({ id: 'sub-1', description: 'Reviewer', state: 'working' })
-      ])
-      expect(started?.payload.subagentCompletedAt).toBeUndefined()
-
-      const ended = omp({
-        hook_event_name: 'subagent_end',
-        subagent_id: 'sub-1',
-        subagent_label: 'Reviewer'
-      })
+      const ended = omp({ hook_event_name: 'tool_call', tool_name: 'read' })
       expect(ended?.payload.state).toBe('working')
       expect(ended?.payload.subagents).toBeUndefined()
       expect(ended?.payload.subagentCompletedAt).toEqual(expect.any(Number))
       expect(ended?.payload.subagentCompletedLabel).toBe('Reviewer')
+    })
 
+    it('does not announce children that leave with the lead completion', () => {
+      const indexer = { id: 'sub-2', state: 'working', startedAt: 1 }
+      deliver({ hook_event_name: 'agent_start', subagents: [indexer] })
       const done = omp({ hook_event_name: 'agent_end' })
       expect(done?.payload.state).toBe('done')
       expect(done?.payload.subagentCompletedAt).toBeUndefined()
-    })
-
-    it('re-emits a finished lead unchanged when a detached subagent ends later', () => {
-      omp({ hook_event_name: 'agent_start' })
-      omp({ hook_event_name: 'subagent_start', subagent_id: 'sub-2', subagent_label: 'Indexer' })
-      expect(omp({ hook_event_name: 'agent_end' })?.payload.state).toBe('done')
-
-      const ended = omp({ hook_event_name: 'subagent_end', subagent_id: 'sub-2' })
-      expect(ended?.payload.state).toBe('done')
-      expect(ended?.payload.subagentCompletedAt).toEqual(expect.any(Number))
-      expect(ended?.payload.subagentCompletedLabel).toBeUndefined()
-    })
-
-    it('ignores subagent events without an id', () => {
-      expect(omp({ hook_event_name: 'subagent_end' })).toBeNull()
     })
   })
 })

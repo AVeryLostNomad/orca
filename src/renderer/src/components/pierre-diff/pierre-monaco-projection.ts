@@ -12,6 +12,7 @@ import type { PierreDiffAnnotationData } from './pierre-diff-comment-annotations
 import { installPierreNativeOverlay } from './pierre-monaco-projection-native'
 import { createPierreMonacoSpacerZones } from './pierre-monaco-projection-zones'
 import { installPierreMonacoHorizontalScroll } from './pierre-monaco-horizontal-scroll'
+import { installPierreMonacoClickScrollGuard } from './pierre-monaco-click-scroll-guard'
 
 type HiddenAreaEditor = editor.IStandaloneCodeEditor & {
   setHiddenAreas: (ranges: IRange[]) => void
@@ -231,6 +232,7 @@ export function installPierreMonacoProjection({
     }
   }
   root.addEventListener('scroll', requestReconcile, { capture: true, passive: true })
+  const disposeClickScrollGuard = installPierreMonacoClickScrollGuard(container, host)
 
   const keyDownSubscription = editor.onKeyDown((event) => {
     keyboardNavigation = [
@@ -288,6 +290,7 @@ export function installPierreMonacoProjection({
       parent.removeEventListener('scroll', requestReconcile)
     }
     root.removeEventListener('scroll', requestReconcile, true)
+    disposeClickScrollGuard()
     cursorSubscription.dispose()
     keyDownSubscription.dispose()
     modelSubscription.dispose()

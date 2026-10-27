@@ -1,11 +1,11 @@
-import type { ChildProcess } from 'node:child_process'
+import type { ChildProcessHandle } from '@orca/process-host/process-spec'
 import { terminateWindowsProcessTree } from '../windows-process-tree-kill'
 
 const SIGKILL_GRACE_MS = 1500
 
 /** Kill a language server and its descendants (tsserver, clangd workers…).
  *  Windows needs the tree kill — plain kill() would orphan child servers. */
-export async function killProcessTree(child: ChildProcess): Promise<void> {
+export async function killProcessTree(child: ChildProcessHandle): Promise<void> {
   const pid = child.pid
   if (!pid || child.exitCode !== null) {
     return

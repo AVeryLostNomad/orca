@@ -8,19 +8,16 @@ const RUNTIME_GIT_AVAILABILITY_TIMEOUT_MS = 3000
 
 export function useCreateProjectGitAvailability({
   step,
-  activeRuntimeEnvironmentId,
-  sshTargetId
+  activeRuntimeEnvironmentId
 }: {
   step: AddRepoDialogStep
   activeRuntimeEnvironmentId: string | null | undefined
-  sshTargetId?: string | null | undefined
 }): {
   createGitAvailability: GitAvailability
   resetCreateGitAvailability: () => void
 } {
   const [createGitAvailability, setCreateGitAvailability] = useState<GitAvailability>('unknown')
   const createGitProbeGenRef = useRef(0)
-  const activeSshTargetId = sshTargetId?.trim() || null
 
   const resetCreateGitAvailability = useCallback(() => {
     createGitProbeGenRef.current++
@@ -33,12 +30,6 @@ export function useCreateProjectGitAvailability({
     }
     const runtimeEnvironmentId = activeRuntimeEnvironmentId?.trim()
     const gen = ++createGitProbeGenRef.current
-    if (activeSshTargetId) {
-      // Why: SSH creation happens through the relay; probing client Git would
-      // make the selected host look healthier or less healthy than it is.
-      setCreateGitAvailability('unknown')
-      return
-    }
     setCreateGitAvailability('checking')
     const probe = runtimeEnvironmentId
       ? callRuntimeRpc<{ available: boolean }>(
@@ -65,7 +56,7 @@ export function useCreateProjectGitAvailability({
         }
         setCreateGitAvailability('unknown')
       })
-  }, [activeRuntimeEnvironmentId, activeSshTargetId, step])
+  }, [activeRuntimeEnvironmentId, step])
 
   return { createGitAvailability, resetCreateGitAvailability }
 }

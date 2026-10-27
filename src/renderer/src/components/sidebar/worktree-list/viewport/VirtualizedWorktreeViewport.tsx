@@ -1,9 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
+import { getProjectHeaderHostContexts } from '../rows/project-header-host-context'
 import { translate } from '@/i18n/i18n'
 import { WorktreeListScrollToTopButton } from '../../WorktreeListScrollToTopButton'
 import { renderWorktreeSidebarDropIndicators } from './drop-indicators'
 import { useWorktreeListScrollToTop } from './use-scroll-to-top'
+import { useRepoSshGateResolver } from '@/hooks/use-repo-ssh-gate-resolver'
 import { getActiveDescendantOptionId } from '../navigation/active-descendant-option'
 import { buildRenderableRows } from '../listing/renderable-rows'
 import { useFolderWorkspacePathStatusRows } from '../listing/use-folder-path-statuses'
@@ -29,6 +31,7 @@ import { useWorktreeDropCommitContext } from '../drag/use-drop-commit-context'
 import { buildWorktreeVirtualRowContext } from './virtual-row-context'
 import { renderWorktreeVirtualRow } from '../rows/virtual-row-dispatch'
 import { getVisibleProjectGroupFrames } from './project-group-frames'
+import { insetRowWithinProjectGroupFrames, ProjectGroupFrameLayer } from './ProjectGroupFrameLayer'
 
 const WORKTREE_SIDEBAR_SCROLL_STYLE: React.CSSProperties = {
   // Why: TanStack Virtual owns scroll correction; native overflow anchoring fights it and causes jumps.
@@ -59,6 +62,29 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
   const settings = useAppStore((s) => s.settings)
   const worktreeVisibilityDefaultsByHost = useAppStore((s) => s.worktreeVisibilityDefaultsByHost)
   const sshConnectionStates = useAppStore((s) => s.sshConnectionStates)
+  const getRepoSshGate = useRepoSshGateResolver()
+  const runtimeEnvironments = useAppStore((s) => s.runtimeEnvironments)
+  const projectHeaderHostContexts = useMemo(
+    () =>
+      getProjectHeaderHostContexts({
+        rows,
+        visibleProjectRepoIdsBySection: props.visibleProjectRepoIdsBySection,
+        hosts: props.hostOptions ?? [],
+        runtimeEnvironments,
+        sshConnectionStates,
+        repoMap,
+        projectGrouping: props.projectGrouping
+      }),
+    [
+      rows,
+      props.visibleProjectRepoIdsBySection,
+      props.hostOptions,
+      repoMap,
+      props.projectGrouping,
+      runtimeEnvironments,
+      sshConnectionStates
+    ]
+  )
   const newCardStyle = settings?.experimentalNewWorktreeCardStyle === true
 
   const reveal = useSidebarRevealHighlight()
@@ -137,6 +163,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
   })
 
   usePendingSidebarReveal({
+    occurrencePlan: props.occurrencePlan,
     pendingRevealWorktree: props.pendingRevealWorktree,
     pendingRevealSidebarRow: props.pendingRevealSidebarRow,
     clearPendingRevealWorktreeId: props.clearPendingRevealWorktreeId,
@@ -158,7 +185,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     prCache: props.prCache,
     workspaceStatuses,
     settings,
-    projectGroups,
+    projectGroups: props.visibleProjectGroups ?? projectGroups,
     projectGrouping: props.projectGrouping,
     flashRevealedRow: reveal.flashRevealedRow,
     markRevealScroll: scrollSuppression.markRevealScroll,
@@ -260,8 +287,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     scrollRef
   })
 
-  // Why: a callback ref that changes identity is re-invoked with null on every render, which
-  // would run the teardown below mid-drag; depend only on the stable teardown callbacks.
+  // Keep the ref callback stable so React cannot invoke null teardown mid-drag on ordinary renders.
   const { cancelPendingRevealFrames, clearRevealHighlightFrame, clearRevealHighlightTimeout } =
     reveal
   const { clearWorktreeDrag } = runtime
@@ -309,7 +335,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     measureVirtualRowElement,
     settings,
     worktreeVisibilityDefaultsByHost,
-    sshConnectionStates,
+    getRepoSshGate,
     newCardStyle,
     folderBackedProjectGroupIds,
     projectGroups,
@@ -320,6 +346,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     statusDrag,
     nativeDrag,
     headerDrag,
+    projectHeaderHostContexts,
     getCachedFolderWorkspacePathStatus,
     getLineageToggleHandler,
     toggleGroupWithScrollAnchor,
@@ -365,28 +392,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
           className="relative w-full"
           style={{ height: `${virtualization.virtualizer.getTotalSize()}px` }}
         >
-          {projectGroupFrames.map((frame) => {
-            const boundaryColor = `color-mix(in srgb, ${frame.color} 24%, var(--sidebar-border))`
-            return (
-              <div
-                key={frame.key}
-                aria-hidden="true"
-                data-project-group-frame={frame.key}
-                className="pointer-events-none absolute box-border rounded-sm"
-                style={{
-                  left: `${frame.left}px`,
-                  right: `${frame.right}px`,
-                  top: `${frame.top}px`,
-                  height: `${frame.height}px`,
-                  backgroundColor: `color-mix(in srgb, ${frame.color} 6%, var(--worktree-sidebar))`,
-                  borderLeft: `1px solid ${boundaryColor}`,
-                  borderRight: `1px solid ${boundaryColor}`,
-                  borderTop: frame.showTopBoundary ? `1px solid ${boundaryColor}` : undefined,
-                  borderBottom: frame.showBottomBoundary ? `1px solid ${boundaryColor}` : undefined
-                }}
-              />
-            )
-          })}
+          <ProjectGroupFrameLayer frames={projectGroupFrames} />
           {renderWorktreeSidebarDropIndicators({
             headerDrag,
             worktreeDragState: runtime.worktreeDragState
@@ -396,21 +402,11 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
             if (!row) {
               return null
             }
-            const element = renderWorktreeVirtualRow(rowContext, row, vItem)
-            const containingFrame = projectGroupFrames.findLast(
-              (frame) => vItem.index > frame.startIndex && vItem.index < frame.endIndex
+            return insetRowWithinProjectGroupFrames(
+              renderWorktreeVirtualRow(rowContext, row, vItem),
+              vItem.index,
+              projectGroupFrames
             )
-            return element && containingFrame
-              ? React.cloneElement(element as React.ReactElement<{ style?: React.CSSProperties }>, {
-                  style: {
-                    ...element.props.style,
-                    paddingRight: containingFrame.right + 4,
-                    paddingBottom:
-                      projectGroupFrames.filter((frame) => frame.endIndex === vItem.index + 1)
-                        .length * 4
-                  }
-                })
-              : element
           })}
         </div>
       </div>
