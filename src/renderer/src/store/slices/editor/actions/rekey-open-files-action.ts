@@ -133,9 +133,7 @@ export function rekeyOpenFilesPatch(
       ...(rekey.newMarkdownPreviewSourceFileId !== undefined
         ? { markdownPreviewSourceFileId: rekey.newMarkdownPreviewSourceFileId }
         : {}),
-      ...(rekey.consumeUntitled
-        ? { isUntitled: undefined, deleteUntouchedOnClose: undefined }
-        : {})
+      ...(rekey.consumeUntitled ? { isUntitled: undefined, deleteUntouchedOnClose: undefined } : {})
     }
   })
 

@@ -220,9 +220,7 @@ export function scheduleEditorSelfMoveEchoVerification(
             getRecentSelfWrite(documentId)?.content === result.content)
         resolveLiveMoveVerification(candidate, matchesDisk, consumeProvenance)
       })
-      .catch(() =>
-        resolveLiveMoveVerification(candidate, resync ? null : false, consumeProvenance)
-      )
+      .catch(() => resolveLiveMoveVerification(candidate, resync ? null : false, consumeProvenance))
   }
 }
 

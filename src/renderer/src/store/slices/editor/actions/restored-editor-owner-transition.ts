@@ -211,10 +211,10 @@ export function buildRestoredEditorOwnerTransition(
       source,
       new Map([...migrations, ...tabIdMigration]),
       {
-      worktreeId: targetWorktreeId,
-      relativePath: args.targetRelativePath,
-      externalSshTargetId,
-      operationProvenance
+        worktreeId: targetWorktreeId,
+        relativePath: args.targetRelativePath,
+        externalSshTargetId,
+        operationProvenance
       }
     )
     if (!documentPatch) {

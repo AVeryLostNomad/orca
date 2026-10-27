@@ -15,10 +15,7 @@ import { registerMainProcessIpcHandlers } from './startup/main-process-ipc-boots
 import { initializeMainProcessReady } from './startup/main-process-ready'
 import { installMainProcessQuitHandlers } from './startup/main-process-quit'
 import { shouldActivateDesktopForSecondInstance } from './startup/single-instance-lock'
-import {
-  documentPathsFromArguments,
-  resolveOsOpenedDocuments
-} from './startup/os-opened-documents'
+import { documentPathsFromArguments, resolveOsOpenedDocuments } from './startup/os-opened-documents'
 import {
   formatProfileStateStartupFailure,
   isDivergedProfileStateFailure,

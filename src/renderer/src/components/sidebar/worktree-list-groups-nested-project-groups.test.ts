@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildRows,
-  buildRowsWithGroupWide
-} from './worktree-list/grouping/build-rows.test-fixture'
+import { buildRows, buildRowsWithGroupWide } from './worktree-list/grouping/build-rows.test-fixture'
 import { getGroupKeysForWorktree } from '../../../../shared/sidebar-list/worktree-group-keys'
 import { repo, worktree, repoMap } from './worktree-list-groups-test-fixtures'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'

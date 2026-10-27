@@ -101,11 +101,7 @@ describe('a project group both hosts publish under one id', () => {
 
   it('keeps each copy under its own host parent and draws the populated one', () => {
     const remoteParent = group(REMOTE_HOST, { id: 'parent', name: 'Parent' })
-    const groups = [
-      group('local'),
-      remoteParent,
-      group(REMOTE_HOST, { parentGroupId: 'parent' })
-    ]
+    const groups = [group('local'), remoteParent, group(REMOTE_HOST, { parentGroupId: 'parent' })]
 
     const rows = rowsFor(groups, new Set(['project-group:parent']))
     expect(rows.filter((row) => row.type === 'header').map((row) => row.key)).toEqual([
@@ -121,8 +117,9 @@ describe('a project group both hosts publish under one id', () => {
       })
     ).toEqual([])
     expect(
-      getProjectGroupOccurrencePaths(groups).get(getRepoHostIdentityForParts('group-shared', 'local'))
-        ?.parent
+      getProjectGroupOccurrencePaths(groups).get(
+        getRepoHostIdentityForParts('group-shared', 'local')
+      )?.parent
     ).toBeUndefined()
   })
 })

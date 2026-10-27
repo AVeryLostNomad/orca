@@ -413,7 +413,9 @@ it.each([
         const state = sourceState
         const available = canNativeChatOpenOwnedBrowser(state, WORKSPACE, owner)
         expect(available).toBe(false)
-        expect(httpLinkActionDestinationsFor(URL_TO_OPEN, state.settings, owner, available)).toEqual({
+        expect(
+          httpLinkActionDestinationsFor(URL_TO_OPEN, state.settings, owner, available)
+        ).toEqual({
           primary: 'system'
         })
         expect(

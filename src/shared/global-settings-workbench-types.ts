@@ -1,4 +1,5 @@
 import type { GithubPatAccountMeta } from './github/github-account-ref'
+import type { GlobalSettingsBase } from './global-settings-base'
 
 /** App/editor theming, language servers, extra tab kinds and stored GitHub accounts. */
 export type WorkbenchSettings = {
@@ -32,3 +33,6 @@ export type WorkbenchSettings = {
   /** Metadata for Orca-stored GitHub PAT accounts; tokens live in encrypted credential files, never here. */
   githubPatAccounts?: GithubPatAccountMeta[]
 }
+
+/** Upstream's base settings plus the fork's workbench settings. */
+export type BaseAndWorkbenchSettings = GlobalSettingsBase & WorkbenchSettings

@@ -6,7 +6,12 @@ import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import type * as EditorAutosaveModule from './editor/editor-autosave'
 
 type FakeOpenFile = { id: string; worktreeId: string; isDirty: boolean; relativePath: string }
-type FakeDocument = { id: string; isDirty: boolean; revision: number; target: { relativePath: string } }
+type FakeDocument = {
+  id: string
+  isDirty: boolean
+  revision: number
+  target: { relativePath: string }
+}
 const store = vi.hoisted(
   (): {
     openFiles: FakeOpenFile[]

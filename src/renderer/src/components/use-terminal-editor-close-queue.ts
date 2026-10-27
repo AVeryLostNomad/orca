@@ -69,7 +69,9 @@ export function useTerminalEditorCloseQueue(controller: TerminalEditorCloseFound
       if (!nextDocumentId) {
         // Requests may name a file id or a tab id; collect both before the tabs disappear.
         const closedIds = new Set<string>(plan.tabIds)
-        for (const tab of Object.values(useAppStore.getState().unifiedTabsByWorktree ?? {}).flat()) {
+        for (const tab of Object.values(
+          useAppStore.getState().unifiedTabsByWorktree ?? {}
+        ).flat()) {
           if (closedIds.has(tab.id) && tab.entityId) {
             closedIds.add(tab.entityId)
           }

@@ -133,10 +133,13 @@ describe('getDiff', () => {
   it('falls back to HEAD for a proven index-path absence', async () => {
     gitExecFileAsyncBufferMock
       .mockRejectedValueOnce(
-        Object.assign(new Error("fatal: path 'src/fallback.ts' exists on disk, but not in the index"), {
-          code: 128,
-          stderr: "fatal: path 'src/fallback.ts' exists on disk, but not in the index"
-        })
+        Object.assign(
+          new Error("fatal: path 'src/fallback.ts' exists on disk, but not in the index"),
+          {
+            code: 128,
+            stderr: "fatal: path 'src/fallback.ts' exists on disk, but not in the index"
+          }
+        )
       )
       .mockResolvedValueOnce({ stdout: Buffer.from('head-content\n') })
     readFileMock.mockResolvedValue(Buffer.from('working-tree-content'))

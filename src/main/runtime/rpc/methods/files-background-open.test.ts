@@ -43,7 +43,12 @@ describe('background file open RPCs', () => {
     )
 
     expect(runtime.openMobileFile).toHaveBeenCalledWith('id:wt-1', 'docs/readme.md', 'caller')
-    expect(runtime.openMobileDiff).toHaveBeenCalledWith('id:wt-1', 'docs/readme.md', false, 'caller')
+    expect(runtime.openMobileDiff).toHaveBeenCalledWith(
+      'id:wt-1',
+      'docs/readme.md',
+      false,
+      'caller'
+    )
     // An explicit navigation wins over the legacy flag.
     expect(runtime.openMobileFile).toHaveBeenCalledWith('id:wt-1', 'docs/other.md', 'all')
   })
