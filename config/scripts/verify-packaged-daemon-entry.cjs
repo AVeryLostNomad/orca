@@ -51,6 +51,8 @@ function verifyPackagedDaemonEntryBoots(resourcesDir, options = {}) {
 }
 
 const TERMINAL_HOST_BOOT_TIMEOUT_MS = 20_000
+// Rosetta translates a freshly signed x64 Node on first launch; slower hosted runners exceed 20s.
+const TRANSLATED_TERMINAL_HOST_BOOT_TIMEOUT_MS = 120_000
 // Arithmetic so the shell echoing the typed command cannot satisfy the check.
 const TERMINAL_HOST_BOOT_COMMAND = 'echo "OK $((6*7))" && exit'
 const TERMINAL_HOST_BOOT_OUTPUT = 'OK 42'
@@ -273,7 +275,11 @@ async function verifyPackagedMacTerminalHostBoots(appPath, { arch, required }) {
     await runTerminalHostRoundTrip({
       command: [...prefix, join(clone, relative(paths.bundle, paths.executable))],
       entry: join(clone, relative(paths.bundle, paths.entry)),
-      deadline: Date.now() + TERMINAL_HOST_BOOT_TIMEOUT_MS,
+      deadline:
+        Date.now() +
+        (prefix.length > 0
+          ? TRANSLATED_TERMINAL_HOST_BOOT_TIMEOUT_MS
+          : TERMINAL_HOST_BOOT_TIMEOUT_MS),
       stderr
     })
   } catch (error) {
