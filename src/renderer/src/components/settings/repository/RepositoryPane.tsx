@@ -23,7 +23,6 @@ import { getRepositoryPaneSearchEntries } from './repository-search'
 import { RepositoryHostSetupsSection } from './execution/RepositoryHostSetupsSection'
 import { RepoSettingsDraftInput } from './RepositorySettingsDraftInput'
 import { RepositoryForkSyncSection } from './identity/RepositoryForkSyncSection'
-import { RepositoryGitHubAccountSection } from './RepositoryGitHubAccountSection'
 import { translate } from '@/i18n/i18n'
 import { RepositoryWindowsRuntimeSection } from './execution/RepositoryWindowsRuntimeSection'
 import { matchesRepositoryIdentitySearch } from './identity/repository-identity-search'
@@ -324,12 +323,6 @@ export function RepositoryPane({
             />
 
             <RepositoryForkSyncSection
-              repo={repo}
-              updateRepo={updateSelectedRepo}
-              forceVisible={forceFullPaneForRepoMatch}
-            />
-
-            <RepositoryGitHubAccountSection
               repo={repo}
               updateRepo={updateSelectedRepo}
               forceVisible={forceFullPaneForRepoMatch}

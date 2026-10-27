@@ -42,7 +42,8 @@ import {
   applyGhAccountEnv,
   ghAccountRateLimitScope,
   refreshGhAccountAfterAuthFailure,
-  resolveGhAccountForCommand
+  resolveGhAccountForCommand,
+  applyPinnedGhAccountBinding
 } from './github-account-env'
 
 // cwd is optional; wslDistro routes global calls when Windows has no host gh binary.
@@ -126,10 +127,7 @@ export async function ghExecFileWithScopeAsync(
 ): Promise<{ stdout: string; stderr: string; rateLimitScope: string }> {
   // Why: retry safety must reflect the original call even when fallbacks replace the resolved command.
   const idempotent = options.idempotent ?? argsLookIdempotent(args)
-  // Legacy bound calls may omit host; pin it before selecting token variables or qualifying argv.
-  if (options.ghAccount && !options.host?.trim() && args[0] !== 'auth') {
-    options = { ...options, host: options.ghAccount.host.trim().toLowerCase() }
-  }
+  options = applyPinnedGhAccountBinding(args, options)
   args = applyGhHostToArgs(args, options.host)
   let resolved = resolveCommand('gh', args, options.cwd, options.wslDistro)
   // Skip blocked API buckets; exempt reset probes and local token reads, and isolate host/runtime quotas.

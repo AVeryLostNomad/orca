@@ -2,6 +2,7 @@ import type { Store } from '../persistence'
 import type { StatsCollector } from '../stats/collector'
 import { ghExecFileAsync } from '../git/runner'
 import {
+  setGhAccountBindingResolver,
   setGhAccountEnvResolver,
   setGitAccountCredentialResolver,
   setGitAccountIdentityResolver
@@ -10,6 +11,7 @@ import {
   configureGithubAccountEnv,
   githubAccountCommitIdentityForCwd,
   githubAccountGitCredentialForCwd,
+  githubAccountBindingForCwd,
   githubAccountTokenForCwd,
   invalidateGithubAccountToken,
   prewarmGithubAccountTokens
@@ -32,6 +34,7 @@ export function registerGitHubHandlers(store: Store, stats: StatsCollector): voi
     getPatAccounts: () => store.getSettings().githubPatAccounts ?? []
   })
   setGhAccountEnvResolver(githubAccountTokenForCwd, invalidateGithubAccountToken)
+  setGhAccountBindingResolver(githubAccountBindingForCwd)
   setGitAccountCredentialResolver(githubAccountGitCredentialForCwd, invalidateGithubAccountToken)
   setGitAccountIdentityResolver(githubAccountCommitIdentityForCwd)
   prewarmGithubAccountTokens()

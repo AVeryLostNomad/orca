@@ -16,6 +16,7 @@ import {
   cachedGithubAccountCommitIdentityForCwd,
   cachedGithubAccountTokenForCwd,
   configureGithubAccountEnv,
+  githubAccountBindingForCwd,
   githubAccountCommitIdentityForCwd,
   githubAccountGitCredentialForCwd,
   githubAccountRefForCwd,
@@ -271,5 +272,29 @@ describe('githubAccountCommitIdentityForCwd', () => {
     })
 
     expect(await githubAccountCommitIdentityForCwd(repoPath)).toBeNull()
+  })
+})
+
+describe('githubAccountBindingForCwd', () => {
+  afterEach(() => {
+    _resetGithubAccountEnv()
+  })
+
+  it('maps only keyring pins to a gh account binding', () => {
+    configureGithubAccountEnv({
+      getRepos: () => [
+        repoWith('/keyring', 'gh:github.com:work-login'),
+        repoWith('/pat', 'pat:token-1'),
+        repoWith('/unpinned')
+      ],
+      ghExec: vi.fn()
+    })
+
+    expect(githubAccountBindingForCwd('/keyring/src')).toEqual({
+      host: 'github.com',
+      user: 'work-login'
+    })
+    expect(githubAccountBindingForCwd('/pat')).toBeNull()
+    expect(githubAccountBindingForCwd('/unpinned')).toBeNull()
   })
 })

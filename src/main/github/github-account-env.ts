@@ -1,4 +1,5 @@
 import type { Repo } from '../../shared/repo-types'
+import type { GhAccountBinding } from '../../shared/github/account-binding'
 import {
   parseGithubAccountRef,
   type GithubAccountRef,
@@ -46,6 +47,12 @@ export function githubAccountRefForCwd(cwd: string | undefined): string | null {
     Boolean(repo.githubAccountRef)
   )
   return findRepoForCwd(pinned, cwd)?.githubAccountRef ?? null
+}
+
+/** A keyring pin as upstream's gh binding, so gh calls fail closed instead of using another login. */
+export function githubAccountBindingForCwd(cwd: string | undefined): GhAccountBinding | null {
+  const ref = parseGithubAccountRef(githubAccountRefForCwd(cwd))
+  return ref?.kind === 'gh-cli' ? { host: ref.host, user: ref.user } : null
 }
 
 // ── token resolution + cache ─────────────────────────────────────────

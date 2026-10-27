@@ -1,3 +1,4 @@
+import type { GhAccountBinding } from '../../../shared/github/account-binding'
 import { addWslEnvKeys } from '../../wsl-env'
 import { appendGitConfigEnv } from './git-process-env'
 
@@ -18,6 +19,7 @@ let gitAccountCredentialResolver: GitAccountCredentialResolver | null = null
 let gitAccountTokenInvalidator: ((ref: string) => void) | null = null
 let gitAccountIdentityResolver: GitAccountIdentityResolver | null = null
 let ghAccountEnvResolver: GhAccountEnvResolver | null = null
+let ghAccountBindingResolver: ((cwd: string | undefined) => GhAccountBinding | null) | null = null
 let ghAccountTokenInvalidator: ((ref: string) => void) | null = null
 
 export function setGitAccountCredentialResolver(
@@ -30,6 +32,12 @@ export function setGitAccountCredentialResolver(
 
 export function setGitAccountIdentityResolver(resolver: GitAccountIdentityResolver | null): void {
   gitAccountIdentityResolver = resolver
+}
+
+export function setGhAccountBindingResolver(
+  resolver: ((cwd: string | undefined) => GhAccountBinding | null) | null
+): void {
+  ghAccountBindingResolver = resolver
 }
 
 export function setGhAccountEnvResolver(
@@ -231,6 +239,32 @@ export function resolveGhAccountForCommand(
     return null
   }
   return ghAccountEnvResolver(options.cwd ?? options.accountCwdHint)
+}
+
+/** A keyring pin routes gh through the bound-account path (host-pinned, fail-closed) instead of GH_TOKEN. */
+export function applyPinnedGhAccountBinding<
+  T extends GhAccountInjectionOptions & {
+    cwd?: string
+    host?: string
+    ghAccount?: GhAccountBinding
+  }
+>(
+  args: readonly string[],
+  options: T
+): T & { ghAccount?: GhAccountBinding; host?: string; skipAccountEnv?: boolean } {
+  let next: T & { ghAccount?: GhAccountBinding; host?: string; skipAccountEnv?: boolean } = options
+  const binding =
+    ghAccountBindingResolver && ghAccountInjectionAllowed(args, options)
+      ? ghAccountBindingResolver(options.cwd ?? options.accountCwdHint)
+      : null
+  if (binding) {
+    next = { ...next, ghAccount: binding, skipAccountEnv: true }
+  }
+  // Legacy bound calls may omit host; pin it before selecting token variables or qualifying argv.
+  if (next.ghAccount && !next.host?.trim() && args[0] !== 'auth') {
+    next = { ...next, host: next.ghAccount.host.trim().toLowerCase() }
+  }
+  return next
 }
 
 export function applyGhAccountEnv(
