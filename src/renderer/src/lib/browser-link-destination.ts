@@ -287,7 +287,11 @@ export function selectBrowserLinkDestination(
         : focusedGroupId && liveGroups.has(focusedGroupId)
           ? focusedGroupId
           : [...liveGroups][0]
-    if (sourceGroupId && groups.find((group) => group.id === sourceGroupId)?.activeTabId) {
+    if (
+      state.settings?.openLinksInAppBesideSource === true &&
+      sourceGroupId &&
+      groups.find((group) => group.id === sourceGroupId)?.activeTabId
+    ) {
       return {
         status: 'ready',
         split: { sourceGroupId, splitDirection: 'right', activate: false },

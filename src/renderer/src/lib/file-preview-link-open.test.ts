@@ -9,6 +9,7 @@ import {
 } from '@/store/slices/store-test-helpers'
 import {
   createBrowserLinkTestStore,
+  enableBrowserLinkSplits,
   WORKSPACE,
   type BrowserLinkTestStore
 } from './browser-link-open.test-fixture'
@@ -50,6 +51,7 @@ beforeEach(() => {
   }))
   mocks.revoke.mockReset().mockResolvedValue(undefined)
   store = createBrowserLinkTestStore()
+  enableBrowserLinkSplits(store)
   mocks.getState.mockImplementation(() => store.getState())
 })
 afterEach(() => {

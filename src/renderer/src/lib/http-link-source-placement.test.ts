@@ -14,6 +14,7 @@ import {
 import { nativeChatLinkActions } from '@/components/native-chat/native-chat-link-target-actions'
 import {
   createBrowserLinkTestStore,
+  enableBrowserLinkSplits,
   WORKSPACE,
   URL_TO_OPEN,
   type BrowserLinkTestStore
@@ -34,6 +35,7 @@ let store: BrowserLinkTestStore
 let outcomes: BrowserOpenOutcome[]
 beforeEach(() => {
   store = createBrowserLinkTestStore()
+  enableBrowserLinkSplits(store)
   outcomes = []
   mocks.getState.mockImplementation(() => store.getState())
   registerHttpLinkStoreAccessor(() => store.getState())
@@ -107,7 +109,13 @@ it('captures the link owner before an asynchronous preference decision and follo
     },
     activeGroupIdByWorktree: { [WORKSPACE]: 'a' }
   }))
-  store.setState({ settings: { ...getDefaultSettings('/home/test'), openLinksInApp: true } })
+  store.setState({
+    settings: {
+      ...getDefaultSettings('/home/test'),
+      openLinksInApp: true,
+      openLinksInAppBesideSource: true
+    }
+  })
   resolvePreference?.(true)
   await settle()
   expect(outcomes).toMatchObject([{ status: 'opened' }])

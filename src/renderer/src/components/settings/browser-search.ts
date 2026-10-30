@@ -6,7 +6,7 @@ import { getBrowserProfileScopeSearchEntry } from './browser-profile-scope-searc
 import { getBrowserSitePermissionsSearchEntry } from './browser-site-permissions-search'
 import {
   getBrowserLinkRoutingDescription,
-  getLinkRoutingBackgroundSearchEntry,
+  getLinkRoutingToggleSearchEntries,
   getLinkRoutingModifierDescription,
   getLinkRoutingModifierTitle
 } from './browser-link-routing-copy'
@@ -301,6 +301,6 @@ export function getBrowserPaneSearchEntries(
     getBrowserUserAgentSearchEntry(),
     getBrowserSitePermissionsSearchEntry(),
     getBrowserProfileScopeSearchEntry(),
-    getLinkRoutingBackgroundSearchEntry()
+    ...getLinkRoutingToggleSearchEntries()
   ]
 }

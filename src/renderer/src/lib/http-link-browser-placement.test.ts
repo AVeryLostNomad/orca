@@ -15,6 +15,7 @@ function state(overrides: {
   rightActiveTabId: string
   activeGroupId: string
   tabs?: { id: string; contentType: 'terminal' | 'browser' | 'editor' }[]
+  besideSource?: boolean
 }): Parameters<typeof resolveHttpLinkBrowserPlacement>[0] {
   return {
     layoutByWorktree: { [WT]: split },
@@ -25,7 +26,8 @@ function state(overrides: {
         { id: 'right', activeTabId: overrides.rightActiveTabId }
       ]
     },
-    unifiedTabsByWorktree: { [WT]: overrides.tabs ?? [terminal, browser] }
+    unifiedTabsByWorktree: { [WT]: overrides.tabs ?? [terminal, browser] },
+    settings: { openLinksInAppBesideSource: overrides.besideSource }
   }
 }
 
@@ -45,18 +47,15 @@ describe('resolveHttpLinkBrowserPlacement', () => {
     ).toEqual({ targetGroupId: 'right' })
   })
 
-  it('ignores a browser hidden behind another tab and splits beside the source instead', () => {
+  it('ignores a browser hidden behind another tab, opening a tab in the source unless splits are enabled', () => {
     const editor = { id: 'editor', contentType: 'editor' } as const
-    expect(
-      resolveHttpLinkBrowserPlacement(
-        state({
-          rightActiveTabId: 'editor',
-          activeGroupId: 'left',
-          tabs: [terminal, browser, editor]
-        }),
-        WT
-      )
-    ).toEqual({
+    const hidden = {
+      rightActiveTabId: 'editor',
+      activeGroupId: 'left',
+      tabs: [terminal, browser, editor]
+    }
+    expect(resolveHttpLinkBrowserPlacement(state(hidden), WT)).toEqual({ targetGroupId: 'left' })
+    expect(resolveHttpLinkBrowserPlacement(state({ ...hidden, besideSource: true }), WT)).toEqual({
       split: { sourceGroupId: 'left', splitDirection: 'right', activate: false }
     })
   })

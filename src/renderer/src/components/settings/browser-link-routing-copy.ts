@@ -95,3 +95,37 @@ export function getLinkRoutingBackgroundSearchEntry(): SettingsSearchEntry {
     ]
   }
 }
+
+export function getLinkRoutingBesideSourceSearchEntry(): SettingsSearchEntry {
+  return {
+    title: translate(
+      'auto.components.settings.BrowserLinkRoutingBesideSourceSetting.title',
+      'Open links in a split'
+    ),
+    description: translate(
+      'auto.components.settings.BrowserLinkRoutingBesideSourceSetting.description',
+      'When no browser is visible, links open in a new split beside the pane you clicked instead of a new tab in it.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.browser.search.2d2d995c58', 'browser'),
+      ...translateSearchKeyword('auto.components.settings.browser.search.bea27bac4b', 'links'),
+      ...translateSearchKeyword(
+        'auto.components.settings.browser.search.linkRoutingBesideSource.split',
+        'split'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.browser.search.linkRoutingBesideSource.pane',
+        'pane'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.browser.search.linkRoutingBackground.tab',
+        'tab'
+      )
+    ]
+  }
+}
+
+/** Order matches BrowserPane's search-entry indices 13 and 14. */
+export function getLinkRoutingToggleSearchEntries(): SettingsSearchEntry[] {
+  return [getLinkRoutingBackgroundSearchEntry(), getLinkRoutingBesideSourceSearchEntry()]
+}

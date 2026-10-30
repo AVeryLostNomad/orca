@@ -10386,6 +10386,10 @@
               "focus": "focus",
               "tab": "tab"
             },
+            "linkRoutingBesideSource": {
+              "split": "split",
+              "pane": "pane"
+            },
             "terminalLinkActions": {
               "terminal": "terminal",
               "chat": "chat",
@@ -12561,6 +12565,10 @@
         "BrowserLinkRoutingBackgroundSetting": {
           "title": "Open links in the background",
           "description": "Links from the terminal, chat, and markdown join the browser without taking focus from where you clicked."
+        },
+        "BrowserLinkRoutingBesideSourceSetting": {
+          "title": "Open links in a split",
+          "description": "When no browser is visible, links open in a new split beside the pane you clicked instead of a new tab in it."
         },
         "BrowserTerminalLinkActionsSetting": {
           "title": "Terminal URL clicks",

@@ -20,7 +20,9 @@ export type HttpLinkBrowserTabState = Partial<
     string,
     readonly (Pick<Tab, 'id'> & Partial<Pick<Tab, 'contentType' | 'groupId' | 'lastFocusedAt'>>)[]
   >
-  settings?: Partial<Pick<GlobalSettings, 'openLinksInAppInBackground'>> | null
+  settings?: Partial<
+    Pick<GlobalSettings, 'openLinksInAppInBackground' | 'openLinksInAppBesideSource'>
+  > | null
   createBrowserTab: (
     worktreeId: string,
     url: string,
@@ -33,7 +35,7 @@ export type HttpLinkBrowserRequestFields = Pick<
   'targetGroupId' | 'split' | 'focusOnCreate' | 'selectWorktree'
 >
 
-/** Use the visible browser or split beside the clicked pane so its terminal/agent stays visible; click focus identifies the source group. */
+/** Use the visible browser, else a new tab in the clicked pane (or a split beside it when opted in); click focus identifies the source group. */
 export function resolveHttpLinkBrowserPlacement(
   state: Omit<HttpLinkBrowserTabState, 'createBrowserTab'>,
   worktreeId: string
@@ -49,7 +51,10 @@ export function resolveHttpLinkBrowserPlacement(
     return null
   }
   // Why: an empty pane covers nothing, so the link fills it instead of splitting beside it.
-  if (!groups.find((group) => group.id === sourceGroupId)?.activeTabId) {
+  if (
+    state.settings?.openLinksInAppBesideSource !== true ||
+    !groups.find((group) => group.id === sourceGroupId)?.activeTabId
+  ) {
     return { targetGroupId: sourceGroupId }
   }
   // Why unactivated: a host snapshot reads an activated empty group as a terminal pane (see file-preview.ts).

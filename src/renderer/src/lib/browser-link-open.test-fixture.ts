@@ -6,6 +6,7 @@ import {
   seedStore
 } from '@/store/slices/store-test-helpers'
 import type { BrowserLinkDestination } from './browser-link-destination'
+import type { GlobalSettings } from '../../../shared/global-settings-types'
 
 export const WORKSPACE = 'repo1::/repo'
 export const URL_TO_OPEN = 'https://example.com/a#one'
@@ -83,6 +84,14 @@ export function seedBrowserLinkTestStore(store: BrowserLinkTestStore): void {
         createdAt: tab.createdAt
       }))
     }
+  }))
+}
+
+/** Opts into the beside-source split placement that suites asserting split layouts depend on. */
+export function enableBrowserLinkSplits(store: BrowserLinkTestStore): void {
+  store.setState((state) => ({
+    // SAFETY: link placement reads only the flags set here; the seeded store leaves other settings unset.
+    settings: { ...state.settings, openLinksInAppBesideSource: true } as GlobalSettings
   }))
 }
 

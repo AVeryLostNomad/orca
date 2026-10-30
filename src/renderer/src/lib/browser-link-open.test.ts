@@ -11,6 +11,7 @@ import { selectBrowserLinkDestination } from './browser-link-destination'
 import {
   browserLinkTestDestination,
   createBrowserLinkTestStore,
+  enableBrowserLinkSplits,
   WORKSPACE,
   URL_TO_OPEN,
   type BrowserLinkTestStore
@@ -33,6 +34,7 @@ let store: BrowserLinkTestStore
 
 beforeEach(() => {
   store = createBrowserLinkTestStore()
+  enableBrowserLinkSplits(store)
   mocks.getState.mockImplementation(() => store.getState())
 })
 

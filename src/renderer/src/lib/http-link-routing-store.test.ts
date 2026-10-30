@@ -129,6 +129,9 @@ it.each([
 ] as const)(
   'keeps a registered localhost tab but relinquishes foreground after navigation: %s',
   async (navigation) => {
+    useAppStore.setState((state) => ({
+      settings: { ...state.settings!, openLinksInAppBesideSource: true }
+    }))
     const { registration, register } = deferLocalhostRegistration()
     const completed = observeBrowserLinkOpen()
     openRoutedHttpLink('http://localhost:5180/', {
@@ -319,7 +322,8 @@ it('keeps the main view and workspace selected when revealing a floating HTTP li
     settings: {
       ...getDefaultSettings('/home/test'),
       openLinksInApp: true,
-      floatingTerminalEnabled: true
+      floatingTerminalEnabled: true,
+      openLinksInAppBesideSource: true
     },
     floatingWorkspacePanelOpen: true,
     groupsByWorktree: {

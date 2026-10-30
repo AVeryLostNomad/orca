@@ -10,6 +10,7 @@ import {
 import { layoutApplyTestTransport } from '@/runtime/layout-apply-test-transport.test-fixture'
 import {
   createBrowserLinkTestStore,
+  enableBrowserLinkSplits,
   WORKSPACE,
   URL_TO_OPEN,
   type BrowserLinkTestStore
@@ -48,6 +49,7 @@ let main: TabsDrawnFromMain
 
 beforeEach(async () => {
   store = createBrowserLinkTestStore()
+  enableBrowserLinkSplits(store)
   store.setState({
     tabsByWorktree: {
       [WORKSPACE]: store.getState().unifiedTabsByWorktree[WORKSPACE]!.map((tab) => ({

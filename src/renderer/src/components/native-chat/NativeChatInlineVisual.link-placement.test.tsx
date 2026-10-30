@@ -6,7 +6,11 @@ import { useAppStore } from '@/store'
 import { NativeChatInlineVisual } from './NativeChatInlineVisual'
 import { NativeChatVisualOwnerProvider, useNativeChatVisualOwner } from './native-chat-visual-owner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { seedBrowserLinkTestStore, WORKSPACE } from '@/lib/browser-link-open.test-fixture'
+import {
+  enableBrowserLinkSplits,
+  seedBrowserLinkTestStore,
+  WORKSPACE
+} from '@/lib/browser-link-open.test-fixture'
 import { createStoreCascadesMockApi } from '@/store/slices/store-cascades-test-harness'
 
 vi.mock('./use-native-chat-visual-document', () => ({
@@ -36,6 +40,7 @@ Object.defineProperty(domWindow, 'api', { value: api, configurable: true })
 afterEach(cleanup)
 beforeEach(() => {
   seedBrowserLinkTestStore(useAppStore)
+  enableBrowserLinkSplits(useAppStore)
   useAppStore.setState((state) => ({
     unifiedTabsByWorktree: {
       [WORKSPACE]: state.unifiedTabsByWorktree[WORKSPACE]!.map((tab) =>
