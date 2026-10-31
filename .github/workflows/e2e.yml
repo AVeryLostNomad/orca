@@ -455,7 +455,7 @@ jobs:
 
   ssh-browser-network-route:
     name: ssh browser network route
-    if: inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/ssh-browser-network-execution-route.docker.unit.test.ts')
+    if: (inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/ssh-browser-network-execution-route.docker.unit.test.ts')) && (github.event_name != 'schedule' || github.repository == 'stablyai/orca')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
@@ -681,7 +681,7 @@ jobs:
   # missing-AppData startup check and the explorer file-copy check, which need the same Windows e2e build.
   orcad-serve-mode-switch-windows:
     name: orca serve on Windows (D7 mode switch, missing AppData)
-    if: inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/orcad-serve-mode-switch.spec.ts') || contains(inputs.test_files, 'tests/e2e/windows-missing-appdata-startup.spec.ts') || contains(inputs.test_files, 'tests/e2e/file-explorer-copy-file-windows.spec.ts')
+    if: (inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/orcad-serve-mode-switch.spec.ts') || contains(inputs.test_files, 'tests/e2e/windows-missing-appdata-startup.spec.ts') || contains(inputs.test_files, 'tests/e2e/file-explorer-copy-file-windows.spec.ts')) && (github.event_name != 'schedule' || github.repository == 'stablyai/orca')
     runs-on: windows-2022
     timeout-minutes: 45
     env:

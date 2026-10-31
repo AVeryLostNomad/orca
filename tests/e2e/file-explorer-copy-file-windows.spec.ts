@@ -4,6 +4,7 @@ import path from 'node:path'
 import { runProcess } from '@orca/process-host'
 import { windowsPowerShellPath } from '@orca/process-host/windows-system-binary'
 import { test, expect } from './helpers/orca-app'
+import { fileExplorerRowByName } from './helpers/file-explorer'
 
 test.use({ seedTestRepo: false })
 
@@ -47,10 +48,9 @@ test.describe('file explorer Copy on Windows', () => {
       await window.__store!.getState().addRepoPath(source, 'folder')
     }, source)
     await page.getByRole('option').filter({ hasText: 'workspace' }).click()
-    await page
-      .locator('[data-orca-explorer-shell]')
-      .getByRole('button', { name: FILE_NAME, exact: true })
-      .click({ button: 'right' })
+    await fileExplorerRowByName(page.locator('[data-orca-explorer-shell]'), FILE_NAME).click({
+      button: 'right'
+    })
     await page.getByRole('menuitem', { name: 'Copy', exact: true }).click()
 
     // Waits for the copy to land; the paste below is what proves it.
