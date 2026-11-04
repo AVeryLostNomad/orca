@@ -1,3 +1,5 @@
+import { getPosixBinaryLookup, type PosixBinaryLookupShell } from './posix-binary-lookup'
+
 // Embed launch-prep/--no-daemon wrappers on all hosts. Codex 0.156+ otherwise shares CODEX_HOME servers with the first tab’s Orca hooks/env and lifetime (#22873). agents/queue/--remote require sharing; any -c opts out.
 const CODEX_SHARED_SERVER_ARGS = ['agents', 'queue', '--remote'] as const
 export const CODEX_NO_DAEMON_SKIP_ARGS = [...CODEX_SHARED_SERVER_ARGS, '--no-daemon'] as const
@@ -18,13 +20,14 @@ export const CODEX_COMMAND_IDENTITY_ENV_KEYS = [
 const identitySetArg = (key: string, value: string): string =>
   `shell_environment_policy.set.${key}='${value}'`
 
-export function getPosixCodexShellLaunchPreflight(): string {
+export function getPosixCodexShellLaunchPreflight(shell: PosixBinaryLookupShell = 'posix'): string {
   return `# Why: a typed alias expands inside the shell, after pane launch prep.
 # Why unalias inside the substitution: an alias named codex makes command -v
 # report the alias text, and the subshell leaves the user's own alias intact.
 # Why || : twice — zsh alone aborts inside the substitution, but every shell's
 # assignment adopts its exit status, so an absent codex trips set -e in bash too.
-__orca_codex_binary="$(unalias codex 2>/dev/null || :; command -v codex 2>/dev/null || :)"
+# (bash wrappers resolve from the hash table instead, with no subshell.)
+${getPosixBinaryLookup('codex', '__orca_codex_binary', shell)}
 if [[ -n "\${__orca_codex_binary:-}" && -x "\${__orca_codex_binary}" ]]; then
   # Why the function reserved word: it suppresses alias expansion of the name,
   # which otherwise rewrites this header at parse time and aborts the whole file.

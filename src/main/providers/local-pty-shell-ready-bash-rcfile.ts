@@ -47,7 +47,7 @@ ${MANAGED_DATA_ACCOUNT_POSIX_RESTORE}
 ${getPosixOmpShellWrapper()}
 # Profile scripts must not replace Orca's runtime CODEX_HOME.
 [[ -n "\${ORCA_CODEX_HOME:-}" ]] && export CODEX_HOME="\${ORCA_CODEX_HOME}"
-${getPosixCodexShellLaunchPreflight() + getPosixClaudeShellFunction()}
+${getPosixCodexShellLaunchPreflight('bash') + getPosixClaudeShellFunction('bash')}
 # OSC 133 C/D clears agent status after interrupted CLIs exit without sending Stop/SessionEnd hooks.
 __orca_initializing_wrapper=1
 __orca_osc133_precmd() {

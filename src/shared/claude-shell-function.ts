@@ -1,6 +1,8 @@
+import { getPosixBinaryLookup, type PosixBinaryLookupShell } from './posix-binary-lookup'
+
 /** Re-read account selection on every launch in Orca-routed panes with a real claude binary. Missing/empty pointer restores the user’s config; another pane override wins. Create account homes without a login silently and preserve Anthropic auth. Refuse nonabsolute pointers rather than run under the wrong account. */
-export function getPosixClaudeShellFunction(): string {
-  return `__orca_claude_binary="$(unalias claude 2>/dev/null || :; command -v claude 2>/dev/null || :)"
+export function getPosixClaudeShellFunction(shell: PosixBinaryLookupShell = 'posix'): string {
+  return `${getPosixBinaryLookup('claude', '__orca_claude_binary', shell)}
 if [[ -n "\${ORCA_CLAUDE_PROFILE_POINTER:-}" && -n "\${__orca_claude_binary:-}" && -x "\${__orca_claude_binary}" ]]; then
   function claude {
     local __orca_claude_home __orca_claude_pointer="\${ORCA_CLAUDE_PROFILE_POINTER:-}"

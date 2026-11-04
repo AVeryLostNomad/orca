@@ -41,7 +41,7 @@ ${MANAGED_DATA_ACCOUNT_POSIX_RESTORE}
 ${getPosixOmpShellWrapper()}
 # Preserve the managed CODEX_HOME after user profiles.
 [[ -n "\${ORCA_CODEX_HOME:-}" ]] && export CODEX_HOME="\${ORCA_CODEX_HOME}"
-${getPosixCodexShellLaunchPreflight() + getPosixClaudeShellFunction()}
+${getPosixCodexShellLaunchPreflight('bash') + getPosixClaudeShellFunction('bash')}
 # OSC 133 C/D clears stale agent status when a CLI exits without a stop hook.
 __orca_initializing_wrapper=1
 __orca_osc133_precmd() {
