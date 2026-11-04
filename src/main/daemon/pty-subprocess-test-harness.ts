@@ -60,9 +60,9 @@ export function createConptyPreludeSender(): (cb: (data: string) => void) => voi
   }
 }
 
-/** What a mocked pane printed before the test's own output; the replayed prelude on Windows. */
+/** What a mocked pane replays before the test's own output: none, since spawn answers and strips the DA1 prelude. */
 export function mockConptyStartupOutput(): string[] {
-  return process.platform === 'win32' ? [CONPTY_MOCK_PRELUDE] : []
+  return []
 }
 
 export function mockPtyProcess(pid = 12345): MockPtyProcess {

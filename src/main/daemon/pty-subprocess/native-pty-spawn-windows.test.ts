@@ -13,6 +13,7 @@ import { spawnNativeDaemonPty } from './native-pty-spawn'
 import {
   _resetConptyStartupTrustForTest,
   CONPTY_NO_INPUT_READER_NOTICE,
+  CONPTY_STARTUP_DA1_RESPONSE,
   CONPTY_STARTUP_DECISION_LIMIT_MS
 } from './conpty-startup-input-reader'
 
@@ -43,6 +44,7 @@ function fakePane(pid: number, chunks: string[], exitCode?: number) {
   const pane = {
     pid,
     kill: vi.fn(),
+    write: vi.fn(),
     onData: (listener: (data: string) => void) => {
       dataListeners.add(listener)
       return { dispose: () => dataListeners.delete(listener) }
@@ -119,7 +121,41 @@ describe('Windows shell fallback over node-pty ConPTY', () => {
     expect(broken.kill).toHaveBeenCalledOnce()
     expect(result.process).toBe(healthy)
     expect(result.shellPath).toBe('pwsh.exe')
-    expect(result.claimStartupEvents?.().data).toEqual(['\x1b[1t', '\x1b[c\x1b[?1004h'])
+    expect(result.claimStartupEvents?.().data).toEqual(['\x1b[1t', '\x1b[?1004h'])
+    expect(broken.write).not.toHaveBeenCalled()
+    expect(healthy.write).toHaveBeenCalledWith(CONPTY_STARTUP_DA1_RESPONSE)
+  })
+
+  it("answers the startup DA1 itself so the shell does not wait out ConPTY's timeout", async () => {
+    // Measured: unanswered, bundled ConPTY holds the shell ~3s; answered, the prompt is ~40ms.
+    const pane = fakePane(990001, [CONPTY_PRELUDE])
+    nodePty.spawn.mockReturnValueOnce(pane)
+
+    const result = await spawnNativeDaemonPty(args)
+
+    expect(pane.write).toHaveBeenCalledExactlyOnceWith(CONPTY_STARTUP_DA1_RESPONSE)
+    // Replaying the answered query would let a later responder type a second reply into the shell.
+    expect(result.claimStartupEvents?.().data).toEqual(['\x1b[1t\x1b[?1004h\x1b[?9001h'])
+  })
+
+  it('strips a startup DA1 query split across output chunks', async () => {
+    const pane = fakePane(990001, ['\x1b[1t\x1b', '[', 'c\x1b[?1004h'])
+    nodePty.spawn.mockReturnValueOnce(pane)
+
+    const result = await spawnNativeDaemonPty(args)
+
+    expect(pane.write).toHaveBeenCalledExactlyOnceWith(CONPTY_STARTUP_DA1_RESPONSE)
+    expect(result.claimStartupEvents?.().data).toEqual(['\x1b[1t', '\x1b[?1004h'])
+  })
+
+  it('leaves a cursor-position announcement for the normal responders', async () => {
+    const pane = fakePane(990001, ['\x1b[6n'])
+    nodePty.spawn.mockReturnValueOnce(pane)
+
+    const result = await spawnNativeDaemonPty(args)
+
+    expect(pane.write).not.toHaveBeenCalled()
+    expect(result.claimStartupEvents?.().data).toEqual(['\x1b[6n'])
   })
 
   it('respawns only once, then says so in the pane', async () => {

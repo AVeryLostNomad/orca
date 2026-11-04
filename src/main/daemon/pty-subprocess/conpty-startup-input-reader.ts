@@ -17,15 +17,27 @@ export const CONPTY_STARTUP_DECISION_LIMIT_MS = 5_000
 export const CONPTY_NO_INPUT_READER_NOTICE =
   '\r\n\x1b[31m[Orca] Windows could not start keyboard input for this terminal. Close it and open a new one.\x1b[0m\r\n'
 
-export function classifyConptyStartupOutput(output: string): ConptyStartupVerdict {
-  let rest = output
+const STARTUP_DA1_QUERY = '\x1b[c'
+// Why answer here: ConPTY holds the shell ~3s on its startup DA1 until a reply arrives, and the
+// query lands before any client attaches, so no renderer can answer in time. Same reply Orca's
+// renderer and runtime give a native ConPTY.
+export const CONPTY_STARTUP_DA1_RESPONSE = '\x1b[?61;4c'
+
+function skipWindowVisibilityReports(output: string): number {
+  let offset = 0
   for (;;) {
-    const report = WINDOW_VISIBILITY_REPORTS.find((candidate) => rest.startsWith(candidate))
+    const report = WINDOW_VISIBILITY_REPORTS.find((candidate) =>
+      output.startsWith(candidate, offset)
+    )
     if (!report) {
-      break
+      return offset
     }
-    rest = rest.slice(report.length)
+    offset += report.length
   }
+}
+
+export function classifyConptyStartupOutput(output: string): ConptyStartupVerdict {
+  const rest = output.slice(skipWindowVisibilityReports(output))
   if (INPUT_READER_ANNOUNCEMENTS.some((announcement) => rest.startsWith(announcement))) {
     return 'input-reader'
   }
@@ -46,6 +58,46 @@ export type ConptyStartupWatch = {
   claim(): ConptyStartupEvents
 }
 
+/** Drop `length` chars at `start` of the joined chunks; a query can straddle chunk boundaries. */
+function removeAcrossChunks(chunks: string[], start: number, length: number): string[] {
+  const result: string[] = []
+  let position = 0
+  for (const chunk of chunks) {
+    const chunkStart = position
+    position += chunk.length
+    const cutFrom = Math.max(start - chunkStart, 0)
+    const cutTo = Math.min(start + length - chunkStart, chunk.length)
+    const kept = cutFrom < cutTo ? chunk.slice(0, cutFrom) + chunk.slice(cutTo) : chunk
+    if (kept.length > 0) {
+      result.push(kept)
+    }
+  }
+  return result
+}
+
+/**
+ * Answer ConPTY's startup DA1 so the shell starts without waiting out its timeout, and drop the
+ * answered query from replayed output so no later responder types a second reply into the shell.
+ */
+function answerStartupDeviceAttributes(
+  proc: pty.IPty,
+  events: ConptyStartupEvents,
+  output: string
+): void {
+  const queryStart = skipWindowVisibilityReports(output)
+  if (!output.startsWith(STARTUP_DA1_QUERY, queryStart)) {
+    // CPR (cursor inheritance) is not Orca's spawn shape; leave it to the normal responders.
+    return
+  }
+  try {
+    proc.write(CONPTY_STARTUP_DA1_RESPONSE)
+  } catch {
+    // An unanswered query only costs ConPTY's timeout; keep it visible for the other responders.
+    return
+  }
+  events.data = removeAcrossChunks(events.data, queryStart, STARTUP_DA1_QUERY.length)
+}
+
 /** Buffers a fresh ConPTY's output until its owner claims it, so no startup byte is lost. */
 export function watchConptyStartup(proc: pty.IPty): ConptyStartupWatch {
   const events: ConptyStartupEvents = { data: [], exit: null }
@@ -64,6 +116,9 @@ export function watchConptyStartup(proc: pty.IPty): ConptyStartupWatch {
     const classified = classifyConptyStartupOutput(output)
     if (classified !== 'pending') {
       decided = true
+      if (classified === 'input-reader') {
+        answerStartupDeviceAttributes(proc, events, output)
+      }
       settle(classified)
     }
   })
