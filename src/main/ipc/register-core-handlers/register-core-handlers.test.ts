@@ -331,6 +331,10 @@ vi.mock('../rate-limits', () => ({
   registerRateLimitHandlers: registerRateLimitHandlersMock
 }))
 
+vi.mock('../pane-usage', () => ({
+  registerPaneUsageHandlers: vi.fn()
+}))
+
 vi.mock('../runtime', () => ({
   registerRuntimeHandlers: registerRuntimeHandlersMock
 }))

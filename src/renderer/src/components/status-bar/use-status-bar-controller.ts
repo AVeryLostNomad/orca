@@ -16,12 +16,23 @@ import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import { useStatusBarDensity } from './status-bar-density'
 import { getUsageOwnerHostScope, useOwnerUsageRateLimits } from './use-owner-usage-rate-limits'
 import { isOwnerNotSetUpPlaceholder } from './owner-usage-rate-limits'
+import { resolveFocusedPaneUsage } from './focused-pane-usage'
+import { useFocusedPaneAgent } from './use-focused-pane-agent'
 
 export function useStatusBarController(floatingTerminalOpen: boolean) {
   const floatingTerminalShortcut = useShortcutLabel('floatingTerminal.toggle')
   const localRateLimits = useAppStore((s) => s.rateLimits)
   // Why: with a remote account owner the agents run there, so its usage is the one to show.
   const { rateLimits, remoteOwner, refreshRemote } = useOwnerUsageRateLimits(localRateLimits)
+  const focusedPane = useFocusedPaneAgent()
+  const focusedPaneUsage = resolveFocusedPaneUsage(
+    rateLimits,
+    focusedPane.paneKey,
+    focusedPane.agent
+  )
+  // Why: with ≥1 mapped account the focused pane's bars replace the host's; otherwise host bars stay.
+  const focusedProviders =
+    focusedPaneUsage && focusedPaneUsage.providers.length > 0 ? focusedPaneUsage.providers : null
   const remoteOwned = remoteOwner !== null
   const settings = useAppStore((s) => s.settings)
   const refreshRateLimits = useAppStore((s) => s.refreshRateLimits)
@@ -173,6 +184,7 @@ export function useStatusBarController(floatingTerminalOpen: boolean) {
     floatingTerminalEnabled && floatingTerminalTriggerLocation === 'status-bar'
   // Why: meter-only children (excludes resource-usage) so the % display callout anchors to a real meter cluster.
   const hasVisibleUsageMeters =
+    focusedProviders !== null ||
     showClaude ||
     showCodex ||
     showGemini ||
@@ -185,10 +197,12 @@ export function useStatusBarController(floatingTerminalOpen: boolean) {
     showZcode
   const anyVisible = hasVisibleUsageMeters || showResourceUsage
   // Why: include Settings so durable managed accounts count — a configured user isn't shown the empty state while snapshots hydrate.
-  const isEmptyUsageState = isUsageEmptyState(
-    { claude, codex, gemini, opencodeGo, kimi, antigravity, minimax, grok, cursor, zcode },
-    usageSettings
-  )
+  const isEmptyUsageState =
+    focusedProviders === null &&
+    isUsageEmptyState(
+      { claude, codex, gemini, opencodeGo, kimi, antigravity, minimax, grok, cursor, zcode },
+      usageSettings
+    )
   // Why: one-time nudge — once dismissed, stays hidden even if providers reconnect later.
   const showEmptyUsageCta = isEmptyUsageState && !usageEmptyStateDismissed
   const anyFetching =
@@ -209,21 +223,23 @@ export function useStatusBarController(floatingTerminalOpen: boolean) {
   const showFloatingWorkspaceAttentionDot = !floatingTerminalOpen && hasFloatingUnread
 
   // Respect per-item visibility in the roster so its trigger cannot bypass hidden status items.
-  const rosterProviders = [
-    showClaude ? visibleClaude : null,
-    showCodex ? visibleCodex : null,
-    showGemini ? visibleGemini : null,
-    showAntigravity ? visibleAntigravity : null,
-    showOpencodeGo ? visibleOpencodeGo : null,
-    showKimi ? visibleKimi : null,
-    showMiniMax ? visibleMiniMax : null,
-    showGrok ? visibleGrok : null,
-    showCursor ? visibleCursor : null,
-    showZcode ? visibleZcode : null
-  ]
-    .filter((p): p is ProviderRateLimits => p !== null)
-    // Why: the bar collapses chips from the end, so placeholders give way first.
-    .sort((a, b) => Number(isOwnerNotSetUpPlaceholder(a)) - Number(isOwnerNotSetUpPlaceholder(b)))
+  const rosterProviders =
+    focusedProviders ??
+    [
+      showClaude ? visibleClaude : null,
+      showCodex ? visibleCodex : null,
+      showGemini ? visibleGemini : null,
+      showAntigravity ? visibleAntigravity : null,
+      showOpencodeGo ? visibleOpencodeGo : null,
+      showKimi ? visibleKimi : null,
+      showMiniMax ? visibleMiniMax : null,
+      showGrok ? visibleGrok : null,
+      showCursor ? visibleCursor : null,
+      showZcode ? visibleZcode : null
+    ]
+      .filter((p): p is ProviderRateLimits => p !== null)
+      // Why: the bar collapses chips from the end, so placeholders give way first.
+      .sort((a, b) => Number(isOwnerNotSetUpPlaceholder(a)) - Number(isOwnerNotSetUpPlaceholder(b)))
 
   // Why: the shown accounts are the owning host's; without a scope Settings opens on the default host.
   const hostScope = getUsageOwnerHostScope(remoteOwner)
@@ -274,6 +290,7 @@ export function useStatusBarController(floatingTerminalOpen: boolean) {
     floatingTerminalActionLabel,
     floatingTerminalShortcut,
     handleManageAccounts,
+    focusedPaneUsage,
     handleOpenProviderAccounts,
     handleRefresh,
     handleUsageDetails,

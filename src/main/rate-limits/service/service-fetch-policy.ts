@@ -11,6 +11,7 @@ import {
   type ProviderRateLimits
 } from './service-types'
 import type { RateLimitWindow } from '../../../shared/rate-limit-types'
+import type { PaneUsageLimit, PaneUsageSnapshot } from '../../../shared/pane-usage-types'
 import {
   isSameClaudeUsageWindow,
   isStaleClaudeUsageWindow,
@@ -185,6 +186,50 @@ export abstract class RateLimitServiceFetchPolicy extends RateLimitServiceFetchT
           authProvenance: snapshot.provenance
         }
       }
+    })
+  }
+
+  ingestPaneUsage(snapshot: PaneUsageSnapshot): void {
+    if (this.paneUsage.record(snapshot)) {
+      this.pushToRenderer()
+    }
+  }
+
+  /** Every Claude pane reports its own account, including ones the host bar does not select. */
+  ingestClaudePaneUsage(event: ClaudeStatusLineRateLimits, label: string | null): void {
+    if (!event.paneKey) {
+      return
+    }
+    const now = Date.now()
+    const previous = this.paneUsage.get(event.paneKey)
+    const previousLimits = previous?.agent === 'claude' ? (previous.accounts[0]?.limits ?? []) : []
+    const windows = [
+      { id: 'anthropic:5h', label: 'Claude 5 Hour', raw: event.fiveHour, windowMinutes: 300 },
+      { id: 'anthropic:7d', label: 'Claude 7 Day', raw: event.sevenDay, windowMinutes: 10080 }
+    ]
+    const limits: PaneUsageLimit[] = []
+    for (const { id, label: limitLabel, raw, windowMinutes } of windows) {
+      const window = mapClaudeUsageWindow(raw ?? undefined, windowMinutes)
+      // Partial statusline payloads keep the other window until it resets.
+      const limit = window
+        ? {
+            id,
+            label: limitLabel,
+            usedPercent: window.usedPercent,
+            windowMinutes,
+            resetsAt: window.resetsAt
+          }
+        : previousLimits.find((entry) => entry.id === id && (entry.resetsAt ?? Infinity) > now)
+      if (limit) {
+        limits.push(limit)
+      }
+    }
+    this.ingestPaneUsage({
+      paneKey: event.paneKey,
+      agent: 'claude',
+      updatedAt: now,
+      accounts: [{ provider: 'anthropic', label, active: true, limits }],
+      session: null
     })
   }
 }

@@ -18,6 +18,8 @@ export type ClaudeStatusLineRateLimits = {
   configDir: string | null
   fiveHour: ClaudeStatusLineWindow | null
   sevenDay: ClaudeStatusLineWindow | null
+  /** Reporting terminal pane; absent from posts without a pane identity. */
+  paneKey?: string
 }
 
 function finiteNumber(value: unknown): number | undefined {
@@ -54,7 +56,8 @@ export function parseClaudeStatusLineBody(body: unknown): ClaudeStatusLineRateLi
   if (typeof body !== 'object' || body === null) {
     return null
   }
-  const fields = body as { payload?: unknown; configDir?: unknown }
+  // SAFETY: every field read below is type-checked before use.
+  const fields = body as { payload?: unknown; configDir?: unknown; paneKey?: unknown }
   if (typeof fields.payload !== 'string' || !fields.payload) {
     return null
   }
@@ -77,5 +80,11 @@ export function parseClaudeStatusLineBody(body: unknown): ClaudeStatusLineRateLi
     return null
   }
   const configDir = typeof fields.configDir === 'string' ? fields.configDir.trim() : ''
-  return { configDir: configDir || null, fiveHour, sevenDay }
+  const paneKey = typeof fields.paneKey === 'string' ? fields.paneKey.trim() : ''
+  return {
+    configDir: configDir || null,
+    fiveHour,
+    sevenDay,
+    ...(paneKey ? { paneKey: paneKey.slice(0, 256) } : {})
+  }
 }

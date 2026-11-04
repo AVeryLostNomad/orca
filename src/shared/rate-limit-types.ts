@@ -1,3 +1,5 @@
+import type { PaneUsageSnapshot } from './pane-usage-types'
+
 export type RateLimitWindow = {
   /** Percentage of the window consumed (0–100). */
   usedPercent: number
@@ -197,4 +199,6 @@ export type RateLimitState = {
   codexTarget: RateLimitRuntimeTarget
   inactiveClaudeAccounts: InactiveAccountUsage[]
   inactiveCodexAccounts: InactiveAccountUsage[]
+  /** Live usage per terminal pane; omitted by hosts that predate it. */
+  paneUsage?: PaneUsageSnapshot[]
 }

@@ -5,6 +5,7 @@ import { getPiAgentStatusHandlerSourceLines } from './agent-status-handler-sourc
 import { getPiAgentStatusRuntimeDetectionSourceLines } from './agent-status-runtime-detection-source'
 import { getPiAgentStatusWslCurlSourceLines } from './agent-status-wsl-curl-source'
 import { getPiSubagentSnapshotSourceLines } from './agent-status-subagent-roster-source'
+import { getOmpPaneUsageSourceLines } from './omp-pane-usage-source'
 
 export const ORCA_PI_AGENT_STATUS_EXTENSION_FILE = 'orca-agent-status.ts'
 
@@ -260,6 +261,7 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '}',
     '',
     ...getPiAgentStatusWslCurlSourceLines(),
+    ...(kind === 'omp' ? getOmpPaneUsageSourceLines() : []),
     ...getPiAgentStatusHandlerSourceLines(kind)
   ].join('\n')
 }

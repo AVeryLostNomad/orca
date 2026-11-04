@@ -153,7 +153,8 @@ export abstract class RateLimitServiceConfiguration extends RateLimitServiceAcco
       inactiveCodexAccounts: this.buildInactiveArray(
         this.inactiveCodexCache,
         this.inactiveCodexFetching
-      )
+      ),
+      paneUsage: this.paneUsage.list()
     }
   }
 }

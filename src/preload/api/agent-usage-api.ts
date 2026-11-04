@@ -10,6 +10,7 @@ import type {
   RateLimitRuntimeTarget,
   RateLimitState
 } from '../../shared/rate-limit-types'
+import type { OmpStatsResult } from '../../shared/pane-usage-types'
 
 export type UsageProviderSnapshot = {
   scanState: unknown
@@ -57,4 +58,9 @@ export type RateLimitsApi = {
   fetchInactiveCodexAccounts: () => Promise<void>
   refreshGrok: () => Promise<RateLimitState>
   onUpdate: (callback: (state: RateLimitState) => void) => () => void
+}
+
+export type PaneUsageApi = {
+  /** omp's `/stats` dashboard data; unavailable on paired web clients. */
+  getOmpStats: () => Promise<OmpStatsResult>
 }

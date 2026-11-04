@@ -1,5 +1,6 @@
 import type { PreloadApi } from '../../../preload/api-types'
 import type { StatsSummary } from '../../../shared/process-stats-types'
+import { OMP_STATS_UNAVAILABLE } from '../../../shared/pane-usage-types'
 import { createWebE2EApi } from './preload-api/web-e2e-api'
 import {
   createClaudeAccountsApi,
@@ -111,6 +112,10 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     preflight: createPreflightApi(),
     notifications: createNotificationsApi(),
     rateLimits: createRateLimitsApi(),
+    // omp stats run on the desktop host; paired clients have no local omp to read.
+    paneUsage: {
+      getOmpStats: () => Promise.resolve({ ok: false, error: OMP_STATS_UNAVAILABLE } as const)
+    },
     opencodeGoCredentials: createOpenCodeGoCredentialsApi(),
     minimaxCredentials: createMiniMaxCredentialsApi(),
     zcodePlanCredentials: createZcodePlanCredentialsApi(),

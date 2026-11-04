@@ -207,7 +207,9 @@ export function UsageRosterPanel({
   canSignIn,
   onManageAccounts,
   onUsageDetails,
-  renderRow
+  renderRow,
+  scopeHeader,
+  extraSection
 }: {
   providers: ProviderRateLimits[]
   display: UsagePercentageDisplay
@@ -222,6 +224,10 @@ export function UsageRosterPanel({
   onUsageDetails: () => void
   // Return null to use the default row instead of a host-supplied detail/account wrapper.
   renderRow?: (p: ProviderRateLimits, row: React.ReactNode) => React.ReactNode
+  /** Replaces the "all agents" scope when the bars follow one pane. */
+  scopeHeader?: React.ReactNode
+  /** Rendered after the provider rows. */
+  extraSection?: React.ReactNode
 }): React.JSX.Element {
   // Why: one boundary-scheduled clock keeps every open row current without per-provider timers.
   const now = useResetCountdownClock(
@@ -240,9 +246,11 @@ export function UsageRosterPanel({
           {translate('auto.components.status.bar.UsageRosterPanel.title', 'Usage')}
         </span>
         <div className="flex items-center gap-2 text-muted-foreground">
-          <span className="text-[11px]">
-            {translate('auto.components.status.bar.UsageRosterPanel.allAgents', 'all agents')}
-          </span>
+          {scopeHeader ? null : (
+            <span className="text-[11px]">
+              {translate('auto.components.status.bar.UsageRosterPanel.allAgents', 'all agents')}
+            </span>
+          )}
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()
@@ -289,6 +297,7 @@ export function UsageRosterPanel({
           ]}
         />
       </div>
+      {scopeHeader}
       <div className="border-t border-border/70" />
       {sorted.map((p) => {
         const state = getUsageRosterRowState(p, usedSections(p).length > 0)
@@ -328,6 +337,7 @@ export function UsageRosterPanel({
           </DropdownMenuItem>
         )
       })}
+      {extraSection}
       <div className="border-t border-border/70" />
       <DropdownMenuItem
         onSelect={onUsageDetails}

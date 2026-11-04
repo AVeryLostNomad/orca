@@ -26,6 +26,7 @@ import { FloatingTerminalIconContextMenu } from '@/components/floating-terminal/
 import { ClaudeSwitcherMenu } from './ClaudeSwitcherMenu'
 import { CodexSwitcherMenu } from './CodexSwitcherMenu'
 import { ProviderDetailsMenu } from './ProviderDetailsMenu'
+import { FocusedPaneScopeHeader, FocusedPaneUsageSection } from './FocusedPaneUsageSection'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import { ProviderSegment, UsageOverflowChip, getUsageTone } from './StatusBarProviderSegment'
 import {
@@ -82,6 +83,7 @@ export function StatusBarSurface({
     handleUsageDetails,
     handleUsageMenuOpenChange,
     hasVisibleUsageMeters,
+    focusedPaneUsage,
     isEmptyUsageState,
     isRefreshing,
     overflowing,
@@ -211,13 +213,25 @@ export function StatusBarSurface({
                     canSignIn={canSignInFromUsageRow}
                     onManageAccounts={handleManageAccounts}
                     onUsageDetails={handleUsageDetails}
+                    scopeHeader={
+                      focusedPaneUsage ? (
+                        <FocusedPaneScopeHeader usage={focusedPaneUsage} />
+                      ) : undefined
+                    }
+                    extraSection={
+                      focusedPaneUsage ? (
+                        <FocusedPaneUsageSection usage={focusedPaneUsage} />
+                      ) : undefined
+                    }
                     renderRow={(p, rowNode) => {
                       // Why: a placeholder has nothing to drill into; its row opens the host's accounts.
                       if (isOwnerNotSetUpPlaceholder(p)) {
                         return null
                       }
+                      // Why: focused-pane bars belong to the pane's accounts, so host account switchers don't apply.
+                      const focusedRow = focusedPaneUsage?.providers.includes(p) === true
                       // Claude/Codex detail panels also expose account switching and runtime controls.
-                      if (p.provider === 'claude') {
+                      if (p.provider === 'claude' && !focusedRow) {
                         return (
                           <ClaudeSwitcherMenu
                             claude={p}
@@ -228,7 +242,7 @@ export function StatusBarSurface({
                           />
                         )
                       }
-                      if (p.provider === 'codex') {
+                      if (p.provider === 'codex' && !focusedRow) {
                         return (
                           <CodexSwitcherMenu
                             codex={p}

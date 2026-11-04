@@ -4731,6 +4731,26 @@
             "openSettings": "Open Settings",
             "gotIt": "Got it"
           },
+          "FocusedPaneUsageSection": {
+            "focusedPane": "Focused pane",
+            "otherAccounts": "Other accounts",
+            "session": "This session",
+            "model": "Model",
+            "tokens": "Tokens in / out",
+            "cache": "Cache read / write",
+            "cost": "Cost",
+            "context": "Context",
+            "requests": "Requests",
+            "totalTokens": "Tokens",
+            "cacheRate": "Cache rate",
+            "speed": "Avg TTFT / speed",
+            "topModels": "Top models",
+            "topFolders": "Top folders",
+            "agents": "Main vs subagents",
+            "last24h": "OMP · last 24h",
+            "loading": "Loading stats…",
+            "statsError": "Stats unavailable"
+          },
           "UsageRosterPanel": {
             "title": "Usage",
             "openDetails": "Open usage details",

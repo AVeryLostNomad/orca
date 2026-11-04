@@ -4,10 +4,6 @@ import { parsePaneKey } from '../../../shared/stable-pane-id'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 
-import {
-  CLAUDE_STATUSLINE_PATHNAME,
-  parseClaudeStatusLineBody
-} from '../../../shared/claude-statusline-rate-limits'
 import { mergeAgentHookRequestHeaders } from '../../../shared/agent-hook-listener/hook-envelope'
 import { readRequestBody } from '../../../shared/agent-hook-listener/request-body'
 import { resolveHookSource } from '../../../shared/agent-hook-listener/source-routing'
@@ -15,6 +11,7 @@ import { HOOK_REQUEST_SLOWLORIS_MS } from '../../../shared/agent-hook-listener/l
 import { isHookRequestTruncatedError } from '../../../shared/agent-hook-transport-interference'
 import { clearAllListenerCaches } from '../../../shared/agent-hook-listener/listener-state'
 import { trackEmptyPaneKeyHook } from './server-transport-rules'
+import { receivePaneUsagePost } from './server-pane-usage-routes'
 import { AgentHookServerStatusHookLifecycle } from './server-status-hook-lifecycle'
 import { OPENCODE_STARTUP_PROMPT_CLAIM_PATH } from '../../../shared/opencode-startup-prompt'
 import { CLAUDE_AGENT_VIEW_PATH } from '../../../shared/claude-agent-view'
@@ -116,11 +113,13 @@ export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHook
           res.end()
           return
         }
-        if (pathname === CLAUDE_STATUSLINE_PATHNAME) {
-          const statusLineEvent = parseClaudeStatusLineBody(body)
-          if (statusLineEvent) {
-            this.onClaudeStatusLine?.(statusLineEvent)
-          }
+        if (
+          receivePaneUsagePost(pathname, body, {
+            resolvePaneKey: (paneKey) => this.resolvePaneKeyAlias(paneKey),
+            onClaudeStatusLine: this.onClaudeStatusLine,
+            onPaneUsage: this.onPaneUsage
+          })
+        ) {
           res.writeHead(204)
           res.end()
           return
@@ -259,6 +258,7 @@ export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHook
     this.env = 'production'
     this.onAgentStatus = null
     this.onClaudeStatusLine = null
+    this.onPaneUsage = null
     this.clearStartupPromptClaims?.()
     this.clearStartupPromptClaims = null
     this.onStartupPromptClaim = null

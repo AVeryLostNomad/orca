@@ -23,6 +23,7 @@ import {
   DEFAULT_POLL_MS
 } from './service-types'
 import { readGrokAuthSession } from '../grok-auth'
+import { PaneUsageStore } from '../pane-usage-store'
 
 export abstract class RateLimitServiceState {
   protected state: InternalRateLimitState = {
@@ -123,6 +124,7 @@ export abstract class RateLimitServiceState {
   protected lastInactiveCodexFetchAt = 0
   protected inactiveCodexAccountsGeneration = 0
   protected stateListeners = new Set<(state: RateLimitState) => void>()
+  protected paneUsage = new PaneUsageStore()
 
   constructor() {}
 

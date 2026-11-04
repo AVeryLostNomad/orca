@@ -19,6 +19,9 @@ import { createAccountRuntimeTargetSettingsSync } from './rate-limits/account-ru
 import { normalizeCodexRuntimeSelection } from './codex-accounts/runtime-selection'
 import { normalizeClaudeRuntimeSelection } from './claude-accounts/runtime-selection'
 import type { ClaudeStatusLineRateLimits } from '../shared/claude-statusline-rate-limits'
+import type { PaneUsageSnapshot } from '../shared/pane-usage-types'
+import { normalizeClaudeConfigDir } from './rate-limits/service/service-types'
+import { getClaudeProfileRouter } from './claude-accounts/claude-profile-installed-router'
 
 export type ProviderAccountServices = {
   rateLimits: RateLimitService
@@ -33,6 +36,7 @@ export function createProviderAccountServices(
   options: {
     codexAccountLifecycle?: ConstructorParameters<typeof CodexAccountService>[3]
     setClaudeStatusLineListener: (listener: (event: ClaudeStatusLineRateLimits) => void) => void
+    setPaneUsageListener: (listener: (snapshot: PaneUsageSnapshot) => void) => void
   }
 ): ProviderAccountServices {
   const agentView = getClaudeAgentViewService()
@@ -107,7 +111,9 @@ export function createProviderAccountServices(
   // Live statusLine usage avoids OAuth endpoint polling and its 429s.
   options.setClaudeStatusLineListener((event) => {
     rateLimits.ingestLiveClaudeRateLimits(event)
+    rateLimits.ingestClaudePaneUsage(event, resolveClaudePaneAccountLabel(store, event.configDir))
   })
+  options.setPaneUsageListener((snapshot) => rateLimits.ingestPaneUsage(snapshot))
   rateLimits.setOpenCodeGoConfigResolver(() => {
     const settings = store.getSettings()
     return {
@@ -177,4 +183,29 @@ export function createProviderAccountServices(
       }))
   })
   return { rateLimits, codexRuntimeHome, codexAccounts, claudeRuntimeAuth, claudeAccounts }
+}
+
+// Statusline posts carry CLAUDE_CONFIG_DIR; name the account that folder signs in.
+function resolveClaudePaneAccountLabel(store: Store, configDir: string | null): string | null {
+  const normalized = normalizeClaudeConfigDir(configDir)
+  const router = getClaudeProfileRouter()
+  if (normalized) {
+    for (const account of store.getSettings().claudeManagedAccounts) {
+      const homes = [
+        account.managedAuthPath,
+        account.wslLinuxAuthPath,
+        router?.accountHome(account.id)
+      ]
+      if (homes.some((home) => normalizeClaudeConfigDir(home) === normalized)) {
+        return account.email
+      }
+    }
+  }
+  if (
+    !router ||
+    (normalized && normalized !== normalizeClaudeConfigDir(router.systemDefaultHome()))
+  ) {
+    return null
+  }
+  return router.systemDefaultLogin(60_000)?.email ?? null
 }

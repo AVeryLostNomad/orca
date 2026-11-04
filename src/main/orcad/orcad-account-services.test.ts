@@ -70,6 +70,7 @@ function create(store: Store, isWslHost: boolean): ReturnType<typeof createOrcad
   return createOrcadAccountServices({
     store,
     setClaudeStatusLineListener: vi.fn(),
+    setPaneUsageListener: vi.fn(),
     registerCleanup: (cleanup) => cleanups.push(cleanup),
     clientCodexHomes: {
       selectLaunchHome: async (_target, launchEnv) => clientHome(launchEnv),

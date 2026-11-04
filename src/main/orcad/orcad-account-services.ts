@@ -10,6 +10,7 @@ import type {
   AiVaultPrepareSessionResumeResult
 } from '../../shared/ai-vault-resume-preparation'
 import type { ClaudeStatusLineRateLimits } from '../../shared/claude-statusline-rate-limits'
+import type { PaneUsageSnapshot } from '../../shared/pane-usage-types'
 import { resolveTuiAgentLaunchEnv } from '../../shared/tui-agent-launch-defaults'
 import { createProviderAccountServices } from '../provider-account-services'
 import { createCodexRuntimeHomeLaunchPreparation } from '../codex/codex-runtime-home-launch-preparation'
@@ -50,6 +51,7 @@ export function createOrcadAccountServices(args: {
   setClaudeStatusLineListener: (
     listener: ((event: ClaudeStatusLineRateLimits) => void) | null
   ) => void
+  setPaneUsageListener: (listener: ((snapshot: PaneUsageSnapshot) => void) | null) => void
   registerCleanup: (cleanup: OrcadRuntimeCleanup) => void
   /** Client-provided account homes override host selection, as for PTYs. */
   clientCodexHomes: {
@@ -63,12 +65,14 @@ export function createOrcadAccountServices(args: {
   }
   const { store, clientCodexHomes } = args
   const services = createProviderAccountServices(store, {
-    setClaudeStatusLineListener: args.setClaudeStatusLineListener
+    setClaudeStatusLineListener: args.setClaudeStatusLineListener,
+    setPaneUsageListener: args.setPaneUsageListener
   })
   // Refresh usage on demand through list/subscribe rather than starting a background poller.
   args.registerCleanup(() => {
     services.rateLimits.stop()
     args.setClaudeStatusLineListener(null)
+    args.setPaneUsageListener(null)
   })
   const { codexRuntimeHome } = services
   const prepareCodexHome = createCodexRuntimeHomeLaunchPreparation({

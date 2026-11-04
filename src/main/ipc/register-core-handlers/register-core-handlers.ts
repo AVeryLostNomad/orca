@@ -25,6 +25,7 @@ import { registerExportHandlers } from '../export'
 import { registerStatsHandlers } from '../stats'
 import { registerMemoryHandlers } from '../memory'
 import { registerRateLimitHandlers } from '../rate-limits'
+import { registerPaneUsageHandlers } from '../pane-usage'
 import { registerRuntimeHandlers } from '../runtime'
 import {
   invalidateRuntimeEnvironmentTransport,
@@ -185,6 +186,7 @@ export function registerCoreHandlers(
   registerGrokAccountHandlers()
   registerCursorAccountHandlers()
   registerRateLimitHandlers(rateLimits, codexAccounts)
+  registerPaneUsageHandlers()
   registerGitHubHandlers(store, stats)
   registerGitLabHandlers(store)
   registerHostedReviewHandlers(store, stats)

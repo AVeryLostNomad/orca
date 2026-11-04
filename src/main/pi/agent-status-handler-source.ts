@@ -14,6 +14,7 @@ import {
   getAgentStatusRunCloseOutSourceLines,
   getAgentStatusSessionBoundaryHandlerSourceLines
 } from './agent-status-session-boundary-source'
+import { getOmpPaneUsageHandlerSourceLines } from './omp-pane-usage-source'
 
 export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] {
   const sessionStartHandler =
@@ -132,6 +133,8 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
     '  resetPostQueue()',
     ...getPiSubagentRosterSetupSourceLines(kind),
     ...getOmpSessionOwnerHandlerSourceLines(kind),
+    // Registered before status handlers so those stay the last listener per event.
+    ...(kind === 'omp' ? getOmpPaneUsageHandlerSourceLines() : []),
     ...getAgentStatusSessionBoundaryHandlerSourceLines(kind),
     ...getOmpModelCommandSourceLines(),
     ...sessionStartHandler,

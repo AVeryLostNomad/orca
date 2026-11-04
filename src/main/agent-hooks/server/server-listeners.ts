@@ -16,6 +16,7 @@ import type {
   AgentHookStatusChangeEntry,
   AgentHookStatusFreshnessObservation,
   EnrichedAgentHookEventPayload,
+  ServerPaneUsageListener,
   StatusDropListener
 } from './server-types'
 import { toAgentStatusIpcPayload } from './server-status-identity'
@@ -117,6 +118,13 @@ export abstract class AgentHookServerListeners extends AgentHookServerState {
     listener: ((event: ClaudeStatusLineRateLimits) => void) | null
   ): void {
     this.onClaudeStatusLine = listener
+  }
+
+  protected onPaneUsage: ServerPaneUsageListener = null
+
+  // Pane-scoped agent usage lets the status bar follow the focused pane's account.
+  setPaneUsageListener(listener: ServerPaneUsageListener): void {
+    this.onPaneUsage = listener
   }
 
   subscribeStatusChanges(listener: (statuses: AgentHookStatusChangeEntry[]) => void): () => void {

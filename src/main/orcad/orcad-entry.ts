@@ -178,6 +178,7 @@ async function startOrcadRuntime(
     store: profileStore,
     setClaudeStatusLineListener: (listener) =>
       agentHookServer.setClaudeStatusLineListener(listener),
+    setPaneUsageListener: (listener) => agentHookServer.setPaneUsageListener(listener),
     registerCleanup,
     clientCodexHomes: codexAccountHomes
   })

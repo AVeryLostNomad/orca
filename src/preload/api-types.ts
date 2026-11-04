@@ -15,6 +15,7 @@ import type {
   CodexUsageApi,
   MuseUsageApi,
   OpenCodeUsageApi,
+  PaneUsageApi,
   RateLimitsApi
 } from './api/agent-usage-api'
 import type { AiVaultApi } from './api/ai-vault-api'
@@ -148,6 +149,7 @@ export type PreloadApi = {
   runtime: RuntimeApi['runtime']
   runtimeEnvironments: RuntimeApi['runtimeEnvironments']
   rateLimits: RateLimitsApi
+  paneUsage: PaneUsageApi
   opencodeGoCredentials: {
     getStatus: () => Promise<{ apiKeyConfigured: boolean }>
     saveApiKey: (key: string) => Promise<{ apiKeyConfigured: boolean }>
