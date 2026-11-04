@@ -99,7 +99,7 @@ describeOnWindows("Git Bash launcher shell proof with Orca's real launch", () =>
 
   it.each([
     ['login shell', {}],
-    // Why: with the Codex preflight set, the exec'd shell runs Orca's --rcfile wrapper.
+    // Why: with the Codex preflight set, the launched shell runs Orca's --rcfile wrapper.
     ['rcfile wrapper', { ORCA_CODEX_LAUNCH_PREFLIGHT: 'C:\\orca-missing-preflight.exe' }]
   ])(
     'confirms an idle %s prompt, refutes a running command, and confirms again',
@@ -115,9 +115,12 @@ describeOnWindows("Git Bash launcher shell proof with Orca's real launch", () =>
       const env = createDaemonPtyEnvironment(opts)
       const plan = createPtyShellLaunchPlan(opts, env)
       expect(isGitForWindowsBashLauncherPath(plan.shellPath)).toBe(true)
-      expect(plan.shellArgs.join(' ')).toContain('exec "$BASH"')
-      // Launcher, exec stub, interactive bash: the shape that a size-1 or size-2 rule never matches.
-      await proveIdlePromptCycle(await spawnPlannedPane(plan, env, opts), 3)
+      // The launcher hands `--rcfile ... -i` straight to the interactive bash: no `-c` exec stub.
+      expect(plan.shellArgs[0]).toBe('--rcfile')
+      expect(plan.shellArgs.at(-1)).toBe('-i')
+      expect(plan.shellArgs.join(' ')).not.toContain('exec "$BASH"')
+      // Launcher -> interactive bash: the bare hand-off shape.
+      await proveIdlePromptCycle(await spawnPlannedPane(plan, env, opts), 2)
     },
     60_000
   )
