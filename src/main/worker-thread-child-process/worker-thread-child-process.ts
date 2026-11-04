@@ -1,16 +1,19 @@
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { Worker } from 'node:worker_threads'
+import type { ProcessResult } from '@orca/process-host/process-spec'
 import { LazyWorkerThreadHost, type WorkerThreadFactory } from '../lazy-worker-thread-host'
 import { currentWorkerEntryLayout, resolveWorkerThreadEntryPath } from '../worker-thread-entry-path'
 import type {
   WorkerThreadChildErrorPayload,
   WorkerThreadChildEvent,
   WorkerThreadChildRequest,
-  WorkerThreadChildSpec
+  WorkerThreadChildSpec,
+  WorkerThreadRunResult,
+  WorkerThreadRunSpec
 } from './worker-thread-child-process-protocol'
 
-// #27362: Windows code-integrity hashing can block CreateProcessW for seconds on the calling loop. Spawn in a worker and fail closed if unavailable (#11161).
+// #27362: Windows code-integrity/EDR hooks can block CreateProcessW for seconds on the calling loop, so spawn in a worker (#11161).
 
 // Amortize worker startup across nearby probes.
 export const IDLE_TEARDOWN_MS = 2 * 60_000
@@ -21,6 +24,26 @@ const SPAWN_FAILED_EXIT_CODE = -1
 
 /** False when the child is no longer reachable through a live worker. */
 type SendRequest = (request: WorkerThreadChildRequest) => boolean
+
+type PendingRun = {
+  resolve: (result: ProcessResult) => void
+  reject: (error: Error) => void
+  /** Cleared once reported; runProcess may report termination after it settles. */
+  onChildTerminated?: () => void
+  settled: boolean
+  detachAbort: () => void
+}
+
+function toProcessResult(result: WorkerThreadRunResult): ProcessResult {
+  // Structured clone turns each Buffer into a plain Uint8Array.
+  const toBuffer = (bytes: Uint8Array): Buffer =>
+    Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  return {
+    ...result,
+    stdoutBytes: result.stdoutBytes ? toBuffer(result.stdoutBytes) : undefined,
+    stderrBytes: result.stderrBytes ? toBuffer(result.stderrBytes) : undefined
+  }
+}
 
 function toError(payload: WorkerThreadChildErrorPayload): Error {
   const error: NodeJS.ErrnoException = new Error(payload.message)
@@ -119,6 +142,7 @@ export class WorkerThreadChildProcess extends EventEmitter {
 export class WorkerThreadChildProcessHost {
   private readonly host: LazyWorkerThreadHost<WorkerThreadChildEvent>
   private readonly children = new Map<number, WorkerThreadChildProcess>()
+  private readonly runs = new Map<number, PendingRun>()
   private nextId = 1
 
   constructor(factory: WorkerThreadFactory) {
@@ -128,7 +152,7 @@ export class WorkerThreadChildProcessHost {
       onMessage: (event) => this.route(event),
       onError: (error) => this.abandonAll(`Child process worker failed: ${error.message}`),
       onExit: (code) => this.abandonAll(`Child process worker exited with code ${code}`),
-      isIdle: () => this.children.size === 0,
+      isIdle: () => this.children.size === 0 && this.runs.size === 0,
       onUnavailable: (error) =>
         console.warn(
           `[worker-thread-child-process] worker unavailable. ${error instanceof Error ? error.message : String(error)}`
@@ -137,30 +161,77 @@ export class WorkerThreadChildProcessHost {
   }
 
   spawn(spec: WorkerThreadChildSpec): WorkerThreadChildProcess {
-    const id = this.nextId++
-    const child = new WorkerThreadChildProcess(id, (request) => this.post(request))
-    if (this.host.ensure()) {
-      this.host.clearIdleTimer()
-      this.children.set(id, child)
-      if (this.post({ type: 'spawn', id, spec })) {
-        return child
-      }
-      this.forget(id)
+    const child = this.trySpawn(spec)
+    if (child) {
+      return child
     }
+    const unavailable = new WorkerThreadChildProcess(this.nextId++, () => false)
     // Deferred like Node's own spawn errors, so the caller can attach listeners first.
     process.nextTick(() =>
-      child.receive({
+      unavailable.receive({
         type: 'spawn-error',
-        id,
+        id: unavailable.id,
         error: { message: 'Child process worker is unavailable' }
       })
     )
-    return child
+    return unavailable
+  }
+
+  /** Null when no worker can take the spawn, so callers may spawn inline instead. */
+  trySpawn(spec: WorkerThreadChildSpec): WorkerThreadChildProcess | null {
+    if (!this.host.ensure()) {
+      return null
+    }
+    const id = this.nextId++
+    const child = new WorkerThreadChildProcess(id, (request) => this.post(request))
+    this.host.clearIdleTimer()
+    this.children.set(id, child)
+    if (this.post({ type: 'spawn', id, spec })) {
+      return child
+    }
+    this.forget(id)
+    return null
+  }
+
+  /** runProcess with a boolean termination barrier on the worker; null when no worker is available. */
+  run(
+    spec: WorkerThreadRunSpec,
+    options: { signal?: AbortSignal; onChildTerminated?: () => void } = {}
+  ): Promise<ProcessResult> | null {
+    if (!this.host.ensure()) {
+      return null
+    }
+    const { signal, onChildTerminated } = options
+    if (signal?.aborted) {
+      // Match runProcess: an already-aborted call starts no child.
+      onChildTerminated?.()
+      return Promise.resolve({ code: null, signal: null, stdout: '', stderr: '', timedOut: false })
+    }
+    const id = this.nextId++
+    const pending = Promise.withResolvers<ProcessResult>()
+    const onAbort = (): void => {
+      this.post({ type: 'run-abort', id })
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    this.host.clearIdleTimer()
+    this.runs.set(id, {
+      resolve: pending.resolve,
+      reject: pending.reject,
+      onChildTerminated,
+      settled: false,
+      detachAbort: () => signal?.removeEventListener('abort', onAbort)
+    })
+    if (this.post({ type: 'run', id, spec })) {
+      return pending.promise
+    }
+    this.runs.get(id)?.detachAbort()
+    this.forget(id)
+    return null
   }
 
   private post(request: WorkerThreadChildRequest): boolean {
     const worker = this.host.current
-    if (!worker || !this.children.has(request.id)) {
+    if (!worker || !(this.children.has(request.id) || this.runs.has(request.id))) {
       return false
     }
     try {
@@ -172,6 +243,14 @@ export class WorkerThreadChildProcessHost {
   }
 
   private route(event: WorkerThreadChildEvent): void {
+    if (
+      event.type === 'run-terminated' ||
+      event.type === 'run-result' ||
+      event.type === 'run-error'
+    ) {
+      this.routeRun(event)
+      return
+    }
     const child = this.children.get(event.id)
     if (!child) {
       return
@@ -182,9 +261,39 @@ export class WorkerThreadChildProcessHost {
     child.receive(event)
   }
 
+  private routeRun(
+    event: Extract<WorkerThreadChildEvent, { type: 'run-terminated' | 'run-result' | 'run-error' }>
+  ): void {
+    const run = this.runs.get(event.id)
+    if (!run) {
+      return
+    }
+    if (event.type === 'run-terminated') {
+      const report = run.onChildTerminated
+      run.onChildTerminated = undefined
+      if (run.settled) {
+        this.forget(event.id)
+      }
+      report?.()
+      return
+    }
+    run.detachAbort()
+    run.settled = true
+    // Keep the entry (and worker) until termination evidence arrives, as inline runProcess would.
+    if (!run.onChildTerminated) {
+      this.forget(event.id)
+    }
+    if (event.type === 'run-result') {
+      run.resolve(toProcessResult(event.result))
+    } else {
+      run.reject(toError(event.error))
+    }
+  }
+
   private forget(id: number): void {
     this.children.delete(id)
-    if (this.children.size === 0) {
+    this.runs.delete(id)
+    if (this.children.size === 0 && this.runs.size === 0) {
       this.host.scheduleIdleTeardown()
     }
   }
@@ -192,10 +301,16 @@ export class WorkerThreadChildProcessHost {
   // Worker death closes stdin for graceful stop but proves no child exit; omit close so drain windows/home locks still expire normally.
   private abandonAll(message: string): void {
     const abandoned = [...this.children.values()]
+    const abandonedRuns = [...this.runs.values()]
     this.children.clear()
+    this.runs.clear()
     this.host.destroy()
     for (const child of abandoned) {
       child.receive({ type: 'error', id: child.id, error: { message } })
+    }
+    for (const run of abandonedRuns) {
+      run.detachAbort()
+      run.reject(new Error(message))
     }
   }
 }
@@ -214,7 +329,12 @@ function defaultWorkerFactory(): Worker {
 
 let sharedHost: WorkerThreadChildProcessHost | null = null
 
-export function spawnProcessOnWorkerThread(spec: WorkerThreadChildSpec): WorkerThreadChildProcess {
+export function sharedWorkerThreadChildProcessHost(): WorkerThreadChildProcessHost {
   sharedHost ??= new WorkerThreadChildProcessHost(defaultWorkerFactory)
-  return sharedHost.spawn(spec)
+  return sharedHost
+}
+
+/** Fails closed: an unavailable worker surfaces as a spawn error. */
+export function spawnProcessOnWorkerThread(spec: WorkerThreadChildSpec): WorkerThreadChildProcess {
+  return sharedWorkerThreadChildProcessHost().spawn(spec)
 }

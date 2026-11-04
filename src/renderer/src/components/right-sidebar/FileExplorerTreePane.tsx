@@ -247,12 +247,16 @@ export function FileExplorerTreePane({
           style={FILE_EXPLORER_TREE_HOST_STYLE}
         />
       )}
-      {worktreePath && (
+      {commands.rootNode && (
         <FileExplorerBackgroundMenu
           open={backgroundMenu.bgMenuOpen}
           onOpenChange={backgroundMenu.setBgMenuOpen}
           point={backgroundMenu.bgMenuPoint}
-          worktreePath={worktreePath}
+          rootNode={commands.rootNode}
+          commands={commands}
+          connectionId={connectionId}
+          runtimeDownloadContext={runtimeDownloadContext}
+          supportsFolderDownload={supportsFolderDownload}
           onStartNew={startNew}
         />
       )}

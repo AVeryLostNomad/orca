@@ -29,10 +29,11 @@ function expectedPowerShellRestoreCwdCommand(cwdLiteral: string): string {
   return `try { Set-Location -LiteralPath ${cwdLiteral} -ErrorAction Stop } catch { Write-Warning "Failed to restore working directory: $_" }`
 }
 
-function getGitBashRcfilePath(command: string): string {
-  const rcfilePath = command.match(/--rcfile '([^']+)'/)?.[1]
+function getGitBashRcfilePath(shellArgs: string[]): string {
+  const rcfileIndex = shellArgs.indexOf('--rcfile')
+  const rcfilePath = rcfileIndex === -1 ? undefined : shellArgs[rcfileIndex + 1]
   if (!rcfilePath) {
-    throw new Error(`Git Bash launch command has no rcfile: ${command}`)
+    throw new Error(`Git Bash launch args have no rcfile: ${JSON.stringify(shellArgs)}`)
   }
   return rcfilePath
 }
@@ -275,19 +276,22 @@ describe('resolveWindowsShellLaunchArgs', () => {
       CODEX_LAUNCH_PREFLIGHT
     )
 
-    // Git Bash inherits OEM codepage; UTF-8 must precede exec of the interactive shell.
-    expect(result.shellArgs[0]).toBe('-c')
-    const bashCommand = result.shellArgs[1]
-    expect(bashCommand).toContain('chcp.com 65001')
-    expect(bashCommand).toContain('--rcfile')
-    expect(bashCommand).toMatch(/exec "\$BASH" .* -i$/)
-    expect(bashCommand.indexOf('chcp.com')).toBeLessThan(bashCommand.indexOf('exec'))
-    // Missing chcp.com must not prevent exec; semicolon preserves startup.
-    expect(bashCommand).not.toContain('&&')
+    // The launcher hands argv straight to the interactive bash: no `-c "...; exec $BASH"` stub process.
+    expect(result.shellArgs).toHaveLength(3)
+    expect(result.shellArgs[0]).toBe('--rcfile')
+    expect(result.shellArgs[2]).toBe('-i')
+    // MSYS bash reads forward-slash Windows paths; never pass backslashes through argv.
+    expect(getGitBashRcfilePath(result.shellArgs)).not.toContain('\\')
     expect(result.effectiveCwd).toBe('C:\\')
     expect(result.validationCwd).toBe('C:\\')
 
-    const bashRcfile = readFileSync(getGitBashRcfilePath(bashCommand), 'utf8')
+    const bashRcfile = readFileSync(getGitBashRcfilePath(result.shellArgs), 'utf8')
+    // Git Bash inherits OEM codepage; the rcfile selects UTF-8 before login startup and any TUI,
+    // only under MSYS/Cygwin, and a missing chcp.com must not abort startup.
+    const chcpIndex = bashRcfile.indexOf('chcp.com 65001 >/dev/null 2>&1')
+    expect(chcpIndex).toBeGreaterThan(-1)
+    expect(chcpIndex).toBeLessThan(bashRcfile.indexOf('source /etc/profile'))
+    expect(bashRcfile.lastIndexOf('msys*|cygwin*)', chcpIndex)).toBeGreaterThan(-1)
     expect(bashRcfile).toContain('"${ORCA_CODEX_LAUNCH_PREFLIGHT}" agent hooks prepare-codex')
     expect(bashRcfile).not.toContain(CODEX_LAUNCH_PREFLIGHT)
   })
@@ -302,8 +306,8 @@ describe('resolveWindowsShellLaunchArgs', () => {
       CODEX_LAUNCH_PREFLIGHT
     )
 
-    expect(result.shellArgs[1]).toContain('chcp.com 65001')
-    expect(result.shellArgs[1]).toContain('--rcfile')
+    expect(result.shellArgs[0]).toBe('--rcfile')
+    expect(result.shellArgs.join(' ')).not.toContain('codex')
     expect(result.startupCommandDeliveredInShellArgs).toBeUndefined()
   })
 
@@ -323,7 +327,7 @@ describe('resolveWindowsShellLaunchArgs', () => {
 
     expect(plain.shellArgs).toEqual(launched.shellArgs)
     // The rcfile owns account-following Claude and Codex no-daemon wrappers.
-    const rcfile = readFileSync(getGitBashRcfilePath(plain.shellArgs[1]), 'utf8')
+    const rcfile = readFileSync(getGitBashRcfilePath(plain.shellArgs), 'utf8')
     expect(rcfile).toContain('function claude {')
     expect(rcfile).toContain('set -- --no-daemon "$@"')
     expect(rcfile).toContain('source "$HOME/.bash_profile"')
@@ -353,7 +357,7 @@ describe('resolveWindowsShellLaunchArgs', () => {
     )
     expect(cmd.shellArgs[1]).not.toContain('"')
     expect(cmd.shellArgs[1]).not.toContain(CODEX_LAUNCH_PREFLIGHT)
-    const rcfilePath = getGitBashRcfilePath(gitBash.shellArgs[1])
+    const rcfilePath = getGitBashRcfilePath(gitBash.shellArgs)
     expect(readFileSync(rcfilePath, 'utf8')).toContain('"${ORCA_CODEX_LAUNCH_PREFLIGHT}"')
   })
 

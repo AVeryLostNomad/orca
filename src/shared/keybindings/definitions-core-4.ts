@@ -3,6 +3,22 @@ import { platformBindings } from './definitions-support'
 
 export const KEYBINDING_DEFINITION_CORE_4: readonly KeybindingDefinition[] = [
   {
+    id: 'terminal.search',
+    title: 'Search active pane',
+    group: 'Terminal Panes',
+    scope: 'terminal',
+    searchKeywords: ['shortcut', 'terminal', 'search', 'find'],
+    defaultBindings: platformBindings(['Mod+F'])
+  },
+  {
+    id: 'terminal.clear',
+    title: 'Clear active pane',
+    group: 'Terminal Panes',
+    scope: 'terminal',
+    searchKeywords: ['shortcut', 'pane', 'clear'],
+    defaultBindings: platformBindings(['Mod+K'])
+  },
+  {
     id: 'terminal.focusNextPane',
     title: 'Focus next pane',
     group: 'Terminal Panes',

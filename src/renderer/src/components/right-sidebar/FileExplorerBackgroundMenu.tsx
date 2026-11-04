@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react'
-import { FilePlus, FolderPlus } from 'lucide-react'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { translate } from '@/i18n/i18n'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
+import { FileExplorerNodeMenuItems } from './file-explorer-node-menu-items'
+import type { TreeNode } from './file-explorer-types'
+import { FILE_EXPLORER_DROPDOWN_MENU_PRIMITIVES } from './FileExplorerTreeRowMenu'
+import type { FileTreeNodeCommands } from './use-file-tree-node-commands'
 
 function stopRightButtonMenuSelection(event: React.PointerEvent): void {
   if (event.button !== 2) {
@@ -18,17 +20,26 @@ function stopRightButtonMenuSelection(event: React.PointerEvent): void {
   event.stopPropagation()
 }
 
+/** Empty-area context menu: the folder menu for the workspace root, minus row-only actions. */
 export function FileExplorerBackgroundMenu({
   open,
   onOpenChange,
   point,
-  worktreePath,
+  rootNode,
+  commands,
+  connectionId,
+  runtimeDownloadContext,
+  supportsFolderDownload,
   onStartNew
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   point: { x: number; y: number }
-  worktreePath: string
+  rootNode: TreeNode
+  commands: FileTreeNodeCommands
+  connectionId: string | null
+  runtimeDownloadContext: RuntimeFileOperationArgs | null
+  supportsFolderDownload: boolean
   onStartNew: (type: 'file' | 'folder', parentAbsoluteDir: string) => void
 }): React.JSX.Element {
   useEffect(() => {
@@ -48,26 +59,30 @@ export function FileExplorerBackgroundMenu({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-48"
+        // Why: portaled menu clicks must not count as outside clicks for the tree.
+        data-file-tree-context-menu-root="true"
+        className="w-64"
         sideOffset={0}
         align="start"
         onPointerUpCapture={stopRightButtonMenuSelection}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <DropdownMenuItem onSelect={() => onStartNew('file', worktreePath)}>
-          <FilePlus />
-          {translate(
-            'auto.components.right.sidebar.FileExplorerBackgroundMenu.21fe46ed36',
-            'New File'
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onStartNew('folder', worktreePath)}>
-          <FolderPlus />
-          {translate(
-            'auto.components.right.sidebar.FileExplorerBackgroundMenu.3b5e2dcb8d',
-            'New Folder'
-          )}
-        </DropdownMenuItem>
+        <FileExplorerNodeMenuItems
+          menu={FILE_EXPLORER_DROPDOWN_MENU_PRIMITIVES}
+          node={rootNode}
+          connectionId={connectionId}
+          runtimeDownloadContext={runtimeDownloadContext}
+          supportsFolderDownload={supportsFolderDownload}
+          canOpenInOrcaBrowser={false}
+          targetDir={rootNode.path}
+          selectionSize={1}
+          onStartNew={onStartNew}
+          onCopyPaths={(pathKind) => commands.copyPathsForNode(rootNode, pathKind)}
+          onOpenInTerminal={() => commands.handleOpenInTerminal(rootNode)}
+          onFindInFolder={() => commands.handleFindInFolder(rootNode)}
+          onPaste={() => commands.handlePaste(rootNode.path)}
+          rowActions={null}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   )

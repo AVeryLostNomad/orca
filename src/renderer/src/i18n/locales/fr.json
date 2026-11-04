@@ -13428,10 +13428,6 @@
             "6ed5ce817b": "Recherche",
             "2f4483d6c4": "Aucun fichier ne correspond à ce filtre"
           },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "Nouveau dossier",
-            "21fe46ed36": "Nouveau fichier"
-          },
           "FileExplorerRow": {
             "addc01145f": "Supprimer",
             "fc747429bf": "Renommer",
@@ -13466,7 +13462,11 @@
             "clipboardStagingUnavailable": "Impossible de copier le fichier car le stockage temporaire d'Orca est indisponible",
             "revealInFinder": "Révéler dans le Finder",
             "openContainingFolder": "Ouvrir le dossier contenant",
-            "revealInFileExplorer": "Révéler dans l'explorateur de fichiers"
+            "revealInFileExplorer": "Révéler dans l'explorateur de fichiers",
+            "paste": "Coller",
+            "pasteNothingCopied": "Rien à coller. Copiez d'abord un fichier ou un dossier.",
+            "pasteIntoItself": "Impossible de coller un dossier dans lui-même.",
+            "pasteFailed": "Impossible de coller les fichiers copiés."
           },
           "FileExplorerToolbar": {
             "d238264654": "Afficher les fichiers ignorés par Git",

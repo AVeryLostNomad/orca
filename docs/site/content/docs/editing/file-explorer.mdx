@@ -17,6 +17,10 @@ Files are colored by git status — untracked, modified, staged, ignored. Right-
 
 Right-click a single file and choose **Copy** to place the file itself on the OS clipboard. For SSH worktrees, Orca first stages the remote file locally, then writes that staged file reference to the clipboard; remote folders are excluded.
 
+Choose **Paste** (`Cmd+V` / `Ctrl+V` while the explorer has focus; remappable) to copy whatever files or folders are on the OS clipboard — from Orca's **Copy** or from Finder/Explorer — into the folder you right-clicked, or beside the file you right-clicked. This works across projects and workspaces, including pasting into SSH and remote runtime workspaces, where Orca uploads the files. Folders copy recursively, and a name that already exists gets a copy suffix, as with **Duplicate** (`notes copy.md`, `notes copy 2.md`). Paste is disabled when the clipboard holds no files. It is desktop-only: the web client cannot read copied files from a menu.
+
+Right-click the empty space below the tree for the same menu on the workspace root folder: New File, New Folder, Paste, Copy Path, Copy Relative Path (`.`), Open in Terminal, Find in Folder, and Reveal.
+
 ## Download (SSH / remote)
 
 On the desktop app, right-click a remote file → **Download**, or a remote folder → **Download Folder** when the connection supports recursive transfer. Orca opens a native save/folder dialog. Not available in the web client. Local worktrees do not show this action.

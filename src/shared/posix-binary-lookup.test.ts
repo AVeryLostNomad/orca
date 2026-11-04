@@ -56,4 +56,21 @@ printf '%s' "$found"`
       expect(run(shell, '', 'orca-definitely-missing-binary')).toBe('')
     })
   }
+
+  it('bash older than 4 (macOS /bin/bash 3.2, no BASH_CMDS) still resolves the binary', () => {
+    const lookup = getPosixBinaryLookup('orcafaketool', 'found', 'bash')
+    expect(lookup).toContain('BASH_VERSINFO[0]')
+    // BASH_VERSINFO is readonly, so pin the version check itself to an old bash.
+    const asBash3 = lookup.replace('${BASH_VERSINFO[0]:-0}', '3')
+    expect(asBash3).not.toBe(lookup)
+    const script = `set -eu
+PATH="${posixDir}:$PATH"
+shopt -s expand_aliases; alias orcafaketool='echo hi'
+unset BASH_CMDS 2>/dev/null || :
+${asBash3}
+printf '%s' "$found"`
+    const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' })
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toBe(`${posixDir}/orcafaketool`)
+  })
 })

@@ -9,7 +9,14 @@ import { killSpawnedCommandTree } from './spawned-command-tree-kill'
 import { DEFAULT_GIT_MAX_BUFFER } from './git-exec-options'
 import type { GitAdmissionTier } from './git-exec-options'
 import { workerExecFile } from './worker-exec-file'
-import type { WorkerThreadChildProcess } from '../../worker-thread-child-process/worker-thread-child-process'
+import {
+  spawnProcessOnWorkerThread,
+  type WorkerThreadChildProcess
+} from '../../worker-thread-child-process/worker-thread-child-process'
+import {
+  tryRunProcessOffWindowsMainThread,
+  trySpawnOffWindowsMainThread
+} from '../../worker-thread-child-process/windows-main-thread-spawn-offload'
 
 type ExecFileCaptureOptions = Omit<ExecFileOptions, 'timeout'> & {
   timeout?: number
@@ -45,20 +52,41 @@ export async function execFileCaptureToTermination(
     throw error
   }
   const captureBytes = options.encoding === 'buffer'
-  const pending = runProcess({
-    program,
-    args,
-    cwd: typeof options.cwd === 'string' ? options.cwd : undefined,
-    env: options.env,
-    timeoutMs: options.timeout ?? GIT_TERMINATION_BARRIER_FALLBACK_TIMEOUT_MS,
-    maxOutputBytes: options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER,
-    captureStdoutAsBytes: captureBytes,
-    captureStderrAsBytes: captureBytes,
-    signal: options.signal,
-    terminationBarrier: termination ?? true,
-    onChildTerminated: options.onChildTerminated,
-    ...(options.stdin === undefined ? {} : { input: options.stdin })
-  })
+  const timeoutMs = options.timeout ?? GIT_TERMINATION_BARRIER_FALLBACK_TIMEOUT_MS
+  const maxOutputBytes = options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER
+  const cwd = typeof options.cwd === 'string' ? options.cwd : undefined
+  // A WSL barrier carries callbacks that cannot cross threads, so only plain host trees offload.
+  const offThread = termination
+    ? null
+    : tryRunProcessOffWindowsMainThread(
+        {
+          program,
+          args,
+          cwd,
+          env: options.env,
+          timeoutMs,
+          maxOutputBytes,
+          captureBytes,
+          ...(options.stdin === undefined ? {} : { input: options.stdin })
+        },
+        { signal: options.signal, onChildTerminated: options.onChildTerminated }
+      )
+  const pending =
+    offThread ??
+    runProcess({
+      program,
+      args,
+      cwd,
+      env: options.env,
+      timeoutMs,
+      maxOutputBytes,
+      captureStdoutAsBytes: captureBytes,
+      captureStderrAsBytes: captureBytes,
+      signal: options.signal,
+      terminationBarrier: termination ?? true,
+      onChildTerminated: options.onChildTerminated,
+      ...(options.stdin === undefined ? {} : { input: options.stdin })
+    })
   const result = await pending
   const stdout = captureBytes ? (result.stdoutBytes ?? Buffer.alloc(0)) : result.stdout
   const stderrBytes = result.stderrBytes ?? Buffer.alloc(0)
@@ -151,7 +179,6 @@ export function execFileCapture(
     let settled = false
     let terminating = false
     let child: ChildProcess | WorkerThreadChildProcess | null = null
-    const useWorker = options.spawnOnWorkerThread === true && process.platform === 'darwin'
     let timer: NodeJS.Timeout | null = null
     let terminationReported = false
     const reportChildTerminated = (): void => {
@@ -206,31 +233,41 @@ export function execFileCapture(
 
     try {
       const spawnStartedAt = performance.now()
-      // Why: our abort listener owns tree cleanup; Node's signal handler could kill wsl.exe before taskkill sees its children.
-      const capture = useWorker ? workerExecFile : execFile
-      child = capture(
+      const execOptions = {
+        cwd: options.cwd,
+        encoding: options.encoding,
+        maxBuffer: options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER,
+        env: options.env
+      }
+      const onExit = (
+        error: Error | null,
+        stdout: string | Buffer,
+        stderr: string | Buffer | undefined
+      ): void => {
+        if (terminating) {
+          return
+        }
+        if (!error && stderr === undefined && isExecFileResultObject(stdout)) {
+          finish(null, stdout.stdout, stdout.stderr)
+          return
+        }
+        finish(error, stdout, stderr)
+      }
+      // macOS deletion opts in and fails closed; Windows always offloads when the worker can start.
+      child = workerExecFile(
         command,
         args,
-        {
-          cwd: options.cwd,
-          // Hide console-subsystem children so frequent Git calls cannot flash or take focus.
-          windowsHide: true,
-          encoding: options.encoding,
-          maxBuffer: options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER,
-          env: options.env
-        },
-        (error, stdout, stderr) => {
-          if (terminating) {
-            return
-          }
-          if (!error && stderr === undefined && isExecFileResultObject(stdout)) {
-            finish(null, stdout.stdout, stdout.stderr)
-            return
-          }
-          finish(error, stdout, stderr)
-        }
+        execOptions,
+        onExit,
+        options.spawnOnWorkerThread === true && process.platform === 'darwin'
+          ? spawnProcessOnWorkerThread
+          : trySpawnOffWindowsMainThread
       )
-      recordSubprocessSpawn(command, args, performance.now() - spawnStartedAt)
+      if (!child) {
+        // No signal: our abort listener owns tree cleanup (Node's could kill wsl.exe before taskkill sees its children).
+        child = execFile(command, args, { ...execOptions, windowsHide: true }, onExit)
+        recordSubprocessSpawn(command, args, performance.now() - spawnStartedAt)
+      }
     } catch (error) {
       reportChildTerminated()
       finish(error instanceof Error ? error : new Error(String(error)))
@@ -239,7 +276,7 @@ export function execFileCapture(
 
     child.once('error', (error) => {
       // A lost worker may have spawned a child whose PID never reached us; only close proves termination.
-      if (!useWorker && !child?.pid) {
+      if (child && !('id' in child) && !child.pid) {
         reportChildTerminated()
       }
       if (!terminating) {

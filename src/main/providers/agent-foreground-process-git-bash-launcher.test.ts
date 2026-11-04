@@ -16,6 +16,8 @@ const bash = (pid: number, ppid: number, creationTimeMs?: number): WindowsProces
 })
 
 // Measured in a real Orca Git Bash pane: launcher -> `-c "chcp.com ...; exec $BASH ..."` stub -> interactive bash.
+// Current builds pass `--rcfile ... -i` straight to the launcher (launcher -> interactive bash, the
+// "bare hand-off" below); panes started by older builds keep this three-link shape.
 const IDLE_ROWS: WindowsProcessIdentityRow[] = [
   bash(LAUNCHER_PID, 50),
   bash(EXEC_STUB_PID, LAUNCHER_PID),
@@ -63,6 +65,13 @@ describe('Windows shell proof for the Git Bash launcher', () => {
     await expect(
       confirm(LAUNCHER, [bash(LAUNCHER_PID, 50), bash(SHELL_PID, LAUNCHER_PID)]).result
     ).resolves.toBe(true)
+  })
+
+  it('refutes a command at the prompt of a bare hand-off', async () => {
+    const handOff = [bash(LAUNCHER_PID, 50), bash(SHELL_PID, LAUNCHER_PID)]
+    // chcp.com from the rcfile is briefly the shell's child at startup, like any other command.
+    const chcp = { pid: 700, ppid: SHELL_PID, name: 'chcp.com' }
+    await expect(confirm(LAUNCHER, [...handOff, chcp]).result).resolves.toBe(false)
   })
 
   it('refutes a command at the prompt, directly or behind a fork stub', async () => {

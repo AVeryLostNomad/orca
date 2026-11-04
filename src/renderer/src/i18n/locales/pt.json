@@ -9946,7 +9946,11 @@
             "clipboardStagingUnavailable": "Não foi possível copiar o arquivo porque o armazenamento temporário do Orca não está disponível",
             "revealInFinder": "Mostrar no Finder",
             "openContainingFolder": "Abrir Pasta Contendo o Arquivo",
-            "revealInFileExplorer": "Mostrar no Explorador de Arquivos"
+            "revealInFileExplorer": "Mostrar no Explorador de Arquivos",
+            "paste": "Colar",
+            "pasteNothingCopied": "Nada para colar. Copie um arquivo ou pasta primeiro.",
+            "pasteIntoItself": "Não é possível colar uma pasta dentro dela mesma.",
+            "pasteFailed": "Não foi possível colar os arquivos copiados."
           },
           "AiVaultPanel": {
             "resumeCommandCopied": "Comando para retomar copiado",
@@ -10491,10 +10495,6 @@
             "90cabf6cfc": "Colocar este PR sobre #{{value0}} na pilha",
             "ff81473a57": "Cria um GitHub Stack ou estende a pilha existente do pai.",
             "29732f2fb0": "novo PR"
-          },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "Nova Pasta",
-            "21fe46ed36": "Novo Arquivo"
           },
           "FileExplorerTreeStatus": {
             "ce03835e1f": "Nenhum arquivo neste espaço de trabalho",

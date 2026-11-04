@@ -13290,10 +13290,6 @@
             "6ed5ce817b": "검색",
             "2f4483d6c4": "이 필터와 일치하는 파일이 없습니다"
           },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "새 폴더",
-            "21fe46ed36": "새 파일"
-          },
           "FileExplorerRow": {
             "addc01145f": "삭제",
             "fc747429bf": "이름 바꾸기",
@@ -13328,7 +13324,11 @@
             "clipboardStagingUnavailable": "Orca의 임시 저장소를 사용할 수 없기 때문에 파일을 복사할 수 없습니다.",
             "revealInFinder": "Finder에서 보기",
             "openContainingFolder": "포함된 폴더 열기",
-            "revealInFileExplorer": "파일 탐색기에 표시"
+            "revealInFileExplorer": "파일 탐색기에 표시",
+            "paste": "붙여넣기",
+            "pasteNothingCopied": "붙여넣을 항목이 없습니다. 먼저 파일이나 폴더를 복사하세요.",
+            "pasteIntoItself": "폴더를 자기 자신 안에 붙여넣을 수 없습니다.",
+            "pasteFailed": "복사한 파일을 붙여넣지 못했습니다."
           },
           "FileExplorerToolbar": {
             "d238264654": "Git이 무시한 파일 표시",

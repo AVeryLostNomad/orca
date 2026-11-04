@@ -172,5 +172,8 @@ export function formatFileExplorerPathsForClipboard(
   nodes: readonly TreeNode[],
   pathKind: 'absolute' | 'relative'
 ): string {
-  return nodes.map((node) => (pathKind === 'absolute' ? node.path : node.relativePath)).join('\n')
+  // The workspace root's relative path is empty; '.' is the usable spelling of it.
+  return nodes
+    .map((node) => (pathKind === 'absolute' ? node.path : node.relativePath || '.'))
+    .join('\n')
 }

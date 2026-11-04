@@ -1,3 +1,4 @@
+import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
 import type { TreeNode } from './file-explorer-types'
 
@@ -49,4 +50,9 @@ export function shouldShowCopyFileAction(
     selectionSize === 1 &&
     (globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ !== true
   )
+}
+
+export function shouldShowPasteAction(): boolean {
+  // Browsers expose copied files only inside paste events, never to a menu command.
+  return !isPairedWebClientWindow()
 }

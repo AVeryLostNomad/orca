@@ -26,17 +26,18 @@ const CMD_CODEX_LAUNCH_PREFLIGHT = `if defined ORCA_CODEX_LAUNCH_PREFLIGHT call 
 // Git Bash inherits OEM codepage; select UTF-8 before TUIs write bytes, but keep startup working if chcp.com is missing.
 const GIT_BASH_UTF8_LOGIN_COMMAND = 'chcp.com 65001 >/dev/null 2>&1; exec "$BASH" --login -i'
 
-// Every Bash pane needs account-following wrappers; the rcfile also owns login startup.
-function getGitBashLaunchCommand(): string {
+// Every Bash pane needs account-following wrappers; the rcfile also owns login startup and the
+// UTF-8 codepage switch (GIT_BASH_PRE_PROFILE_BLOCK).
+// Why argv instead of `-c "chcp.com ...; exec $BASH --rcfile ..."`: that stub is a whole extra MSYS
+// bash process per pane (exec starts a new Windows process), which costs tens of ms on every
+// terminal. The Git launcher passes these args straight to the interactive bash.
+function getGitBashShellArgs(): string[] {
   ensureShellReadyWrappersAt()
   const wrapperArgs = getBashWrapperLaunchArgs()
   if (!wrapperArgs) {
-    return GIT_BASH_UTF8_LOGIN_COMMAND
+    return ['-c', GIT_BASH_UTF8_LOGIN_COMMAND]
   }
-  const bashArgs = [...wrapperArgs, '-i']
-    .map((arg) => (arg.startsWith('-') ? arg : quotePosixShell(arg.replace(/\\/g, '/'))))
-    .join(' ')
-  return `chcp.com 65001 >/dev/null 2>&1; exec "$BASH" ${bashArgs}`
+  return [...wrapperArgs, '-i'].map((arg) => (arg.startsWith('-') ? arg : arg.replace(/\\/g, '/')))
 }
 
 /** Shared local/daemon resolution prevents shell-preference drift between execution paths. */
@@ -168,7 +169,7 @@ export function resolveWindowsShellLaunchArgs(
 
   if (isWindowsGitBashShellPath(shellPath)) {
     return {
-      shellArgs: ['-c', getGitBashLaunchCommand()],
+      shellArgs: getGitBashShellArgs(),
       effectiveCwd: nativeCwd,
       validationCwd: nativeCwd
     }

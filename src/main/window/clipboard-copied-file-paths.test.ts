@@ -59,6 +59,21 @@ describe('readClipboardCopiedFilePaths', () => {
     ).toEqual([])
   })
 
+  it("reads GNOME copied-files, the format Orca's own Linux file copy publishes", () => {
+    expect(
+      readClipboardCopiedFilePaths(
+        clipboardWith({ 'x-special/gnome-copied-files': 'copy\nfile:///home/me/my%20dir' }),
+        'linux'
+      )
+    ).toEqual(['/home/me/my dir'])
+    expect(
+      readClipboardCopiedFilePaths(
+        clipboardWith({ 'x-special/gnome-copied-files': 'file:///home/me/a.png' }),
+        'linux'
+      )
+    ).toEqual([])
+  })
+
   it('reads the single file Explorer copied and nothing when it copied several', () => {
     const shellItems = (count: number): Buffer => {
       const cida = Buffer.alloc(4 + 4 * (count + 1))

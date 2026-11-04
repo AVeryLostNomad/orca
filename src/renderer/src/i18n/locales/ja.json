@@ -13352,10 +13352,6 @@
             "6ed5ce817b": "検索",
             "2f4483d6c4": "このフィルターに一致するファイルはありません"
           },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "新規フォルダー",
-            "21fe46ed36": "新規ファイル"
-          },
           "FileExplorerRow": {
             "addc01145f": "削除",
             "fc747429bf": "名前を変更する",
@@ -13390,7 +13386,11 @@
             "clipboardStagingUnavailable": "Orca の一時ストレージが利用できないため、ファイルをコピーできませんでした",
             "revealInFinder": "Finderで表示",
             "openContainingFolder": "含まれているフォルダーを開く",
-            "revealInFileExplorer": "ファイルエクスプローラーで表示"
+            "revealInFileExplorer": "ファイルエクスプローラーで表示",
+            "paste": "貼り付け",
+            "pasteNothingCopied": "貼り付けるものがありません。先にファイルまたはフォルダーをコピーしてください。",
+            "pasteIntoItself": "フォルダーをそれ自身の中に貼り付けることはできません。",
+            "pasteFailed": "コピーしたファイルを貼り付けられませんでした。"
           },
           "FileExplorerToolbar": {
             "d238264654": "Git で無視されたファイルを表示",

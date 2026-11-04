@@ -231,6 +231,14 @@ export const KEYBINDING_DEFINITION_CORE_3: readonly KeybindingDefinition[] = [
     defaultBindings: platformBindings(['Mod+Alt+Shift+C'])
   },
   {
+    id: 'fileExplorer.paste',
+    title: 'Paste copied files',
+    group: 'File Explorer',
+    scope: 'fileExplorer',
+    searchKeywords: ['shortcut', 'file explorer', 'paste', 'copy', 'files'],
+    defaultBindings: platformBindings(['Mod+V'])
+  },
+  {
     id: 'fileExplorer.delete',
     title: 'Delete file',
     group: 'File Explorer',
@@ -286,21 +294,5 @@ export const KEYBINDING_DEFINITION_CORE_3: readonly KeybindingDefinition[] = [
       linux: ['Ctrl+V', 'Ctrl+Shift+V', 'Shift+Insert'],
       win32: ['Ctrl+V', 'Ctrl+Shift+V', 'Shift+Insert']
     }
-  },
-  {
-    id: 'terminal.search',
-    title: 'Search active pane',
-    group: 'Terminal Panes',
-    scope: 'terminal',
-    searchKeywords: ['shortcut', 'terminal', 'search', 'find'],
-    defaultBindings: platformBindings(['Mod+F'])
-  },
-  {
-    id: 'terminal.clear',
-    title: 'Clear active pane',
-    group: 'Terminal Panes',
-    scope: 'terminal',
-    searchKeywords: ['shortcut', 'pane', 'clear'],
-    defaultBindings: platformBindings(['Mod+K'])
   }
 ]

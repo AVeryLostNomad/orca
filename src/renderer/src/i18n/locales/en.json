@@ -14043,10 +14043,6 @@
             "6ed5ce817b": "Search",
             "2f4483d6c4": "No files match this filter"
           },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "New Folder",
-            "21fe46ed36": "New File"
-          },
           "FileExplorerRow": {
             "addc01145f": "Delete",
             "fc747429bf": "Rename",
@@ -14081,7 +14077,11 @@
             "clipboardStagingUnavailable": "Could not copy the file because Orca's temporary storage is unavailable",
             "revealInFinder": "Reveal in Finder",
             "openContainingFolder": "Open Containing Folder",
-            "revealInFileExplorer": "Reveal in File Explorer"
+            "revealInFileExplorer": "Reveal in File Explorer",
+            "paste": "Paste",
+            "pasteNothingCopied": "Nothing to paste. Copy a file or folder first.",
+            "pasteIntoItself": "Cannot paste a folder into itself.",
+            "pasteFailed": "Could not paste the copied files."
           },
           "FileExplorerToolbar": {
             "d238264654": "Show Git Ignored Files",

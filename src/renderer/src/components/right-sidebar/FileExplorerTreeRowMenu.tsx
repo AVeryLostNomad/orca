@@ -19,7 +19,7 @@ import {
 } from './file-explorer-node-menu-items'
 import type { FileTreeNodeCommands } from './use-file-tree-node-commands'
 
-const DROPDOWN_MENU_PRIMITIVES: FileExplorerMenuPrimitives = {
+export const FILE_EXPLORER_DROPDOWN_MENU_PRIMITIVES: FileExplorerMenuPrimitives = {
   Item: DropdownMenuItem,
   Separator: DropdownMenuSeparator,
   Shortcut: DropdownMenuShortcut
@@ -58,6 +58,8 @@ export function FileExplorerTreeRowMenu({
   if (!node) {
     return null
   }
+  // Why: creating or pasting from a file row targets its parent directory.
+  const targetDir = node.isDirectory ? node.path : dirname(node.path)
   return (
     <DropdownMenu
       open
@@ -85,37 +87,39 @@ export function FileExplorerTreeRowMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <FileExplorerNodeMenuItems
-          menu={DROPDOWN_MENU_PRIMITIVES}
+          menu={FILE_EXPLORER_DROPDOWN_MENU_PRIMITIVES}
           node={node}
-          isExpanded={commands.isNodeExpanded(node)}
-          deleteShortcutLabel={commands.deleteShortcutLabel}
           connectionId={connectionId}
           runtimeDownloadContext={runtimeDownloadContext}
           supportsFolderDownload={supportsFolderDownload}
           canOpenInOrcaBrowser={canOpenInOrcaBrowser(node.path)}
-          canCollapseFolderSubtree
-          // Why: creating from a file row targets its parent directory.
-          targetDir={node.isDirectory ? node.path : dirname(node.path)}
+          targetDir={targetDir}
           selectionSize={selectionSize}
           onStartNew={(type, parentAbsoluteDir) => {
             context.close({ restoreFocus: false })
             onStartNew(type, parentAbsoluteDir)
           }}
-          onViewFile={() => openFilePreview(node.relativePath)}
           onCopyPaths={(pathKind) => commands.copyPathsForNode(node, pathKind)}
-          onStartRename={() => {
-            // Why: focus must hand off to the inline rename input, not bounce
-            // back to the row through the menu-close focus restore.
-            context.close({ restoreFocus: false })
-            commands.handleStartRename(node)
-          }}
-          onDuplicate={() => commands.handleDuplicate(node)}
-          onAddFolderAsProject={() => commands.handleAddFolderAsProject(node)}
-          canAddAsProject={commands.canAddAsProject(node)}
           onOpenInTerminal={() => commands.handleOpenInTerminal(node)}
-          onRequestDelete={() => commands.handleContextMenuDelete(node)}
-          onCollapseFolderSubtree={() => commands.handleCollapseFolderSubtree(node)}
           onFindInFolder={() => commands.handleFindInFolder(node)}
+          onPaste={() => commands.handlePaste(targetDir)}
+          rowActions={{
+            isExpanded: commands.isNodeExpanded(node),
+            deleteShortcutLabel: commands.deleteShortcutLabel,
+            canCollapseFolderSubtree: true,
+            canAddAsProject: commands.canAddAsProject(node),
+            onViewFile: () => openFilePreview(node.relativePath),
+            onStartRename: () => {
+              // Why: focus must hand off to the inline rename input, not bounce
+              // back to the row through the menu-close focus restore.
+              context.close({ restoreFocus: false })
+              commands.handleStartRename(node)
+            },
+            onDuplicate: () => commands.handleDuplicate(node),
+            onAddFolderAsProject: () => commands.handleAddFolderAsProject(node),
+            onRequestDelete: () => commands.handleContextMenuDelete(node),
+            onCollapseFolderSubtree: () => commands.handleCollapseFolderSubtree(node)
+          }}
         />
       </DropdownMenuContent>
     </DropdownMenu>

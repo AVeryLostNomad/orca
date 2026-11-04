@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import type { ChildProcess } from 'node:child_process'
+import type * as GitSpawnModule from './git-spawn'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { gitSpawnMock, killSpawnedCommandTreeMock } = vi.hoisted(() => ({
@@ -7,7 +8,10 @@ const { gitSpawnMock, killSpawnedCommandTreeMock } = vi.hoisted(() => ({
   killSpawnedCommandTreeMock: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('./git-spawn', () => ({ gitSpawn: gitSpawnMock }))
+vi.mock('./git-spawn', async (importOriginal) => ({
+  ...(await importOriginal<typeof GitSpawnModule>()),
+  gitSpawn: gitSpawnMock
+}))
 vi.mock('./spawned-command-tree-kill', () => ({
   killSpawnedCommandTree: killSpawnedCommandTreeMock
 }))

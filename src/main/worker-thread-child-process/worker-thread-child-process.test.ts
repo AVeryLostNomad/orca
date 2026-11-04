@@ -230,6 +230,71 @@ describe('WorkerThreadChildProcessHost over a message channel', () => {
     expect(child.kill()).toBe(false)
   })
 
+  it('declines instead of failing a trySpawn when no worker can be started, so callers spawn inline', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const host = new WorkerThreadChildProcessHost(() => {
+      throw new Error('entry missing')
+    })
+
+    expect(host.trySpawn({ program: process.execPath, args: [] })).toBeNull()
+    expect(
+      host.run({
+        program: process.execPath,
+        args: [],
+        timeoutMs: 1_000,
+        maxOutputBytes: 1_024,
+        captureBytes: false
+      })
+    ).toBeNull()
+  })
+
+  it('runs a barrier process on the worker and returns exact bytes plus termination evidence', async () => {
+    const onChildTerminated = vi.fn()
+    const pending = makeConnectedHost().run(
+      {
+        program: process.execPath,
+        args: [
+          '-e',
+          'process.stdin.on("data", d => process.stdout.write(Buffer.concat([Buffer.from([0, 255]), d]))); process.stdin.on("end", () => { process.stderr.write("warn"); process.exit(3) })'
+        ],
+        timeoutMs: 15_000,
+        maxOutputBytes: 1_024,
+        captureBytes: true,
+        input: 'λ'
+      },
+      { onChildTerminated }
+    )
+
+    const result = await pending
+    expect(result).toMatchObject({ code: 3, signal: null, timedOut: false, outputTruncated: false })
+    expect(Buffer.isBuffer(result?.stdoutBytes)).toBe(true)
+    expect(result?.stdoutBytes).toEqual(Buffer.concat([Buffer.from([0, 255]), Buffer.from('λ')]))
+    expect(result?.stderrBytes?.toString()).toBe('warn')
+    await vi.waitFor(() => expect(onChildTerminated).toHaveBeenCalledOnce())
+  }, 20_000)
+
+  it('terminates the worker-owned process when the caller aborts', async () => {
+    const controller = new AbortController()
+    const onChildTerminated = vi.fn()
+    const pending = makeConnectedHost().run(
+      {
+        program: process.execPath,
+        args: ['-e', IDLE_SCRIPT],
+        timeoutMs: 60_000,
+        maxOutputBytes: 1_024,
+        captureBytes: false
+      },
+      { signal: controller.signal, onChildTerminated }
+    )
+    // The worker handles 'run' (spawning the child) before this ordered 'run-abort'.
+    controller.abort()
+
+    const result = await pending
+    expect(result?.code === 0 && result.signal === null).toBe(false)
+    expect(result?.timedOut).toBe(false)
+    await vi.waitFor(() => expect(onChildTerminated).toHaveBeenCalledOnce(), { timeout: 15_000 })
+  }, 30_000)
+
   it('tears the idle worker down only after the last child closes', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const host = makeConnectedHost()

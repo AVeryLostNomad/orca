@@ -13290,10 +13290,6 @@
             "6ed5ce817b": "搜索",
             "2f4483d6c4": "没有文件匹配此筛选条件"
           },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "新建文件夹",
-            "21fe46ed36": "新文件"
-          },
           "FileExplorerRow": {
             "addc01145f": "删除",
             "fc747429bf": "重命名",
@@ -13328,7 +13324,11 @@
             "clipboardStagingUnavailable": "无法复制文件，因为 Orca 的临时存储不可用",
             "revealInFinder": "在 Finder 中显示",
             "openContainingFolder": "打开包含的文件夹",
-            "revealInFileExplorer": "在文件资源管理器中显示"
+            "revealInFileExplorer": "在文件资源管理器中显示",
+            "paste": "粘贴",
+            "pasteNothingCopied": "没有可粘贴的内容。请先复制文件或文件夹。",
+            "pasteIntoItself": "无法将文件夹粘贴到其自身中。",
+            "pasteFailed": "无法粘贴复制的文件。"
           },
           "FileExplorerToolbar": {
             "d238264654": "显示 Git 忽略的文件",

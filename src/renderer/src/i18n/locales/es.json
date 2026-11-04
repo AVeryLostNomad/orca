@@ -13322,10 +13322,6 @@
             "6ed5ce817b": "Buscar",
             "2f4483d6c4": "No hay archivos que coincidan con este filtro"
           },
-          "FileExplorerBackgroundMenu": {
-            "3b5e2dcb8d": "Nueva carpeta",
-            "21fe46ed36": "Nuevo archivo"
-          },
           "FileExplorerRow": {
             "addc01145f": "Eliminar",
             "fc747429bf": "Renombrar",
@@ -13360,7 +13356,11 @@
             "revealInFinder": "Revelar en Finder",
             "openContainingFolder": "Abrir carpeta contenedora",
             "revealInFileExplorer": "Revelar en el Explorador de archivos",
-            "clipboardStagingUnavailable": "No se pudo copiar el archivo porque el almacenamiento temporal de Orca no está disponible"
+            "clipboardStagingUnavailable": "No se pudo copiar el archivo porque el almacenamiento temporal de Orca no está disponible",
+            "paste": "Pegar",
+            "pasteNothingCopied": "No hay nada que pegar. Copia primero un archivo o una carpeta.",
+            "pasteIntoItself": "No se puede pegar una carpeta dentro de sí misma.",
+            "pasteFailed": "No se pudieron pegar los archivos copiados."
           },
           "FileExplorerToolbar": {
             "d238264654": "Mostrar archivos ignorados por Git",

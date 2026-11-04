@@ -11,6 +11,8 @@ import {
   redoFileExplorer,
   undoFileExplorer
 } from './fileExplorerUndoRedo'
+import { dirname } from '@/lib/path'
+import { shouldShowPasteAction } from './file-explorer-row-action-visibility'
 import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
 import type { TreeNode } from './file-explorer-types'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
@@ -34,8 +36,8 @@ function isComposedEditableTarget(event: React.KeyboardEvent): boolean {
 
 /**
  * Explorer command shortcuts on the tree wrapper: rename (Enter), delete,
- * copy-path chords, and explorer undo/redo. Arrow-key navigation stays native
- * to @pierre/trees.
+ * paste, copy-path chords, and explorer undo/redo. Arrow-key navigation stays
+ * native to @pierre/trees.
  */
 export function useFileTreeKeyboardCommands({
   model,
@@ -104,6 +106,21 @@ export function useFileTreeKeyboardCommands({
         if (node) {
           event.preventDefault()
           commands.handleContextMenuDelete(node)
+        }
+        return
+      }
+
+      if (
+        shouldShowPasteAction() &&
+        keybindingMatchesAction('fileExplorer.paste', nativeEvent, platform, keybindings)
+      ) {
+        // Paste lands in the focused folder, beside the focused file, or at the root.
+        const node = buildFocusedNode() ?? buildFirstSelectedNode(model, commands)
+        const targetDir =
+          node && !node.isDirectory ? dirname(node.path) : (node ?? commands.rootNode)?.path
+        if (targetDir) {
+          event.preventDefault()
+          commands.handlePaste(targetDir)
         }
         return
       }

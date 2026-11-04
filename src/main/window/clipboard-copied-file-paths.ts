@@ -56,11 +56,22 @@ function readMacCopiedFilePaths(clipboard: ClipboardFormatReader): string[] {
 }
 
 function readLinuxCopiedFilePaths(clipboard: ClipboardFormatReader): string[] {
-  const urls = readBoundedText(clipboard, 'text/uri-list')
-    .split(/\r\n|\r|\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'))
-  return filePathsFromUrls(urls)
+  for (const format of ['text/uri-list', 'x-special/gnome-copied-files']) {
+    const lines = readBoundedText(clipboard, format)
+      .split(/\r\n|\r|\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+    if (lines.length === 0) {
+      continue
+    }
+    if (format === 'text/uri-list') {
+      return filePathsFromUrls(lines)
+    }
+    // GNOME-family copies (including Orca's own file copy) lead with a copy/cut verb line.
+    const [verb, ...urls] = lines
+    return verb === 'copy' || verb === 'cut' ? filePathsFromUrls(urls) : []
+  }
+  return []
 }
 
 /** Identify file-copy labels so paste does not type them as prompt text; unreadable/incomplete lists return empty. */

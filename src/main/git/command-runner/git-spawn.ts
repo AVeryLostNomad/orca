@@ -127,20 +127,34 @@ export async function withGitAdmission(
   }
 }
 
-export function gitSpawn(args: string[], options: GitSpawnOptions): ChildProcess {
-  const { wslDistro, admissionTier: _admissionTier, ...spawnOptions } = options
+/** Host argv/env for one git child, shared by inline and worker-thread spawns. */
+export function resolveGitSpawnTarget(
+  args: string[],
+  options: Pick<GitSpawnOptions, 'cwd' | 'env' | 'wslDistro'>
+): { binary: string; args: string[]; cwd: string | undefined; env: NodeJS.ProcessEnv } {
   const resolved = resolveGitCommand(args, {
     cwd: options.cwd,
-    ...(wslDistro ? { wslDistro } : {}),
-    ...(spawnOptions.env ? { env: spawnOptions.env } : {})
+    ...(options.wslDistro ? { wslDistro: options.wslDistro } : {}),
+    ...(options.env ? { env: options.env } : {})
   })
+  return {
+    binary: resolved.binary,
+    args: resolved.args,
+    cwd: resolved.cwd,
+    env: untranslatedGitOutputEnv(options.env ?? process.env)
+  }
+}
+
+export function gitSpawn(args: string[], options: GitSpawnOptions): ChildProcess {
+  const { wslDistro: _wslDistro, admissionTier: _admissionTier, ...spawnOptions } = options
+  const target = resolveGitSpawnTarget(args, options)
   const spawnStartedAt = performance.now()
-  const child = spawn(resolved.binary, resolved.args, {
+  const child = spawn(target.binary, target.args, {
     ...spawnOptions,
-    env: untranslatedGitOutputEnv(spawnOptions.env ?? process.env),
+    env: target.env,
     windowsHide: true,
-    cwd: resolved.cwd
+    cwd: target.cwd
   })
-  recordSubprocessSpawn(resolved.binary, resolved.args, performance.now() - spawnStartedAt)
+  recordSubprocessSpawn(target.binary, target.args, performance.now() - spawnStartedAt)
   return child
 }

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react'
 import {
+  ClipboardPaste,
   Copy,
   Download,
   ExternalLink,
@@ -36,10 +37,12 @@ import {
   shouldShowCopyFileAction,
   shouldShowFindInFolderAction,
   shouldShowOpenInTerminalAction,
+  shouldShowPasteAction,
   shouldShowRemoteDownloadAction,
   shouldShowViewFileAction
 } from './file-explorer-row-action-visibility'
 import { copyFileToOsClipboard, downloadRemoteFile } from './file-explorer-row-file-transfer'
+import { useClipboardHasCopiedFiles } from './use-clipboard-has-copied-files'
 
 const isMac = navigator.userAgent.includes('Mac')
 
@@ -58,55 +61,54 @@ export type FileExplorerMenuPrimitives = {
   Shortcut: React.ComponentType<{ children?: React.ReactNode }>
 }
 
+/** Actions that only make sense on an entry row, not on the workspace root itself. */
+export type FileExplorerRowMenuActions = {
+  isExpanded: boolean
+  deleteShortcutLabel: string
+  canCollapseFolderSubtree: boolean
+  canAddAsProject: boolean
+  onViewFile: () => void
+  onStartRename: (node: TreeNode) => void
+  onDuplicate: (node: TreeNode) => void
+  onAddFolderAsProject: () => void
+  onRequestDelete: () => void
+  onCollapseFolderSubtree: () => void
+}
+
 export type FileExplorerNodeMenuItemsProps = {
   menu: FileExplorerMenuPrimitives
   node: TreeNode
-  isExpanded: boolean
-  deleteShortcutLabel: string
   connectionId?: string | null
   runtimeDownloadContext?: RuntimeFileOperationArgs | null
   supportsFolderDownload?: boolean
   canOpenInOrcaBrowser: boolean
-  canCollapseFolderSubtree: boolean
-  /** Absolute directory New File / New Folder create into. */
+  /** Absolute directory New File / New Folder / Paste target. */
   targetDir: string
   selectionSize: number
-  onViewFile: () => void
   onCopyPaths: (pathKind: 'absolute' | 'relative') => void
   onStartNew: (type: 'file' | 'folder', parentAbsoluteDir: string) => void
-  onStartRename: (node: TreeNode) => void
-  onDuplicate: (node: TreeNode) => void
-  onAddFolderAsProject: () => void
-  canAddAsProject: boolean
   onOpenInTerminal: () => void
-  onRequestDelete: () => void
-  onCollapseFolderSubtree: () => void
   onFindInFolder: () => void
+  onPaste: () => void
+  /** Null for the empty-area menu, which acts on the workspace root folder. */
+  rowActions: FileExplorerRowMenuActions | null
 }
 
 export function FileExplorerNodeMenuItems({
   menu,
   node,
-  isExpanded,
-  deleteShortcutLabel,
   connectionId,
   runtimeDownloadContext,
   supportsFolderDownload,
   canOpenInOrcaBrowser,
-  canCollapseFolderSubtree,
   targetDir,
   selectionSize,
-  onViewFile,
   onCopyPaths,
   onStartNew,
-  onStartRename,
-  onDuplicate,
-  onAddFolderAsProject,
-  canAddAsProject,
   onOpenInTerminal,
-  onRequestDelete,
-  onCollapseFolderSubtree,
-  onFindInFolder
+  onFindInFolder,
+  onPaste,
+  rowActions
 }: FileExplorerNodeMenuItemsProps): React.JSX.Element {
   const { Item, Separator, Shortcut } = menu
   const openMarkdownPreview = useAppStore((s) => s.openMarkdownPreview)
@@ -120,7 +122,11 @@ export function FileExplorerNodeMenuItems({
     runtimeDownloadContext,
     supportsFolderDownload
   )
-  const showCopyFileAction = shouldShowCopyFileAction(node, connectionId, selectionSize)
+  const showCopyFileAction =
+    rowActions !== null && shouldShowCopyFileAction(node, connectionId, selectionSize)
+  const showPasteAction = shouldShowPasteAction()
+  const clipboardHasCopiedFiles = useClipboardHasCopiedFiles()
+  const pasteShortcutLabel = useShortcutLabel('fileExplorer.paste')
   const revealOwner = useAppStore((s) =>
     getWorkspaceFileRevealOwner(s, s.activeWorktreeId, {
       connectionId,
@@ -165,6 +171,13 @@ export function FileExplorerNodeMenuItems({
           {translate('auto.components.right.sidebar.FileExplorerRow.98a79948b3', 'Copy')}
         </Item>
       )}
+      {showPasteAction && (
+        <Item disabled={!clipboardHasCopiedFiles} onSelect={onPaste}>
+          <ClipboardPaste />
+          {translate('auto.components.right.sidebar.FileExplorerRow.paste', 'Paste')}
+          {pasteShortcutLabel !== 'Unassigned' ? <Shortcut>{pasteShortcutLabel}</Shortcut> : null}
+        </Item>
+      )}
       <Item onSelect={() => onCopyPaths('absolute')}>
         <Copy />
         {selectionSize > 1
@@ -189,14 +202,14 @@ export function FileExplorerNodeMenuItems({
           <Shortcut>{copyRelativePathShortcutLabel}</Shortcut>
         ) : null}
       </Item>
-      {!node.isDirectory && (
-        <Item onSelect={() => onDuplicate(node)}>
+      {rowActions && !node.isDirectory && (
+        <Item onSelect={() => rowActions.onDuplicate(node)}>
           <Files />
           {translate('auto.components.right.sidebar.FileExplorerRow.0fec99bfd7', 'Duplicate')}
         </Item>
       )}
-      {canAddAsProject && (
-        <Item onSelect={onAddFolderAsProject}>
+      {rowActions?.canAddAsProject && (
+        <Item onSelect={rowActions.onAddFolderAsProject}>
           <FolderPlus />
           {translate(
             'auto.components.right.sidebar.FileExplorerRow.1bb9be455c',
@@ -213,8 +226,8 @@ export function FileExplorerNodeMenuItems({
           )}
         </Item>
       )}
-      {shouldShowViewFileAction(node) && (
-        <Item onSelect={onViewFile}>
+      {rowActions && shouldShowViewFileAction(node) && (
+        <Item onSelect={rowActions.onViewFile}>
           <File />
           {translate('auto.components.right.sidebar.FileExplorerRow.1d8e182c32', 'View File')}
         </Item>
@@ -257,12 +270,16 @@ export function FileExplorerNodeMenuItems({
             : translate('auto.components.right.sidebar.FileExplorerRow.c2112579f6', 'Download')}
         </Item>
       )}
-      {canCollapseFolderSubtree && shouldShowCollapseFolderAction(node, isExpanded) && (
-        <Item onSelect={onCollapseFolderSubtree}>
-          <ListCollapse />
-          {translate('auto.components.right.sidebar.FileExplorerRow.d6a25618aa', 'Collapse Folder')}
-        </Item>
-      )}
+      {rowActions?.canCollapseFolderSubtree &&
+        shouldShowCollapseFolderAction(node, rowActions.isExpanded) && (
+          <Item onSelect={rowActions.onCollapseFolderSubtree}>
+            <ListCollapse />
+            {translate(
+              'auto.components.right.sidebar.FileExplorerRow.d6a25618aa',
+              'Collapse Folder'
+            )}
+          </Item>
+        )}
       {shouldShowFindInFolderAction(node) && (
         <Item onSelect={onFindInFolder}>
           <Search />
@@ -280,21 +297,25 @@ export function FileExplorerNodeMenuItems({
         {getRevealInFileManagerLabel()}
         {revealBlocked ? <LocalOnlyMenuHint /> : null}
       </Item>
-      <Separator />
-      <Item onSelect={() => onStartRename(node)}>
-        <Pencil />
-        {translate('auto.components.right.sidebar.FileExplorerRow.fc747429bf', 'Rename')}
-        <Shortcut>
-          {isMac
-            ? '↩'
-            : translate('auto.components.right.sidebar.FileExplorerRow.a06551beee', 'Enter')}
-        </Shortcut>
-      </Item>
-      <Item variant="destructive" onSelect={onRequestDelete}>
-        <Trash2 />
-        {translate('auto.components.right.sidebar.FileExplorerRow.addc01145f', 'Delete')}
-        <Shortcut>{deleteShortcutLabel}</Shortcut>
-      </Item>
+      {rowActions && (
+        <>
+          <Separator />
+          <Item onSelect={() => rowActions.onStartRename(node)}>
+            <Pencil />
+            {translate('auto.components.right.sidebar.FileExplorerRow.fc747429bf', 'Rename')}
+            <Shortcut>
+              {isMac
+                ? '↩'
+                : translate('auto.components.right.sidebar.FileExplorerRow.a06551beee', 'Enter')}
+            </Shortcut>
+          </Item>
+          <Item variant="destructive" onSelect={rowActions.onRequestDelete}>
+            <Trash2 />
+            {translate('auto.components.right.sidebar.FileExplorerRow.addc01145f', 'Delete')}
+            <Shortcut>{rowActions.deleteShortcutLabel}</Shortcut>
+          </Item>
+        </>
+      )}
     </>
   )
 }

@@ -2,8 +2,9 @@ import { createOutputSink } from '@orca/process-host/bounded-output-sink'
 import { fileURLToPath } from 'node:url'
 import { spawnProcessOnWorkerThread } from '../../worker-thread-child-process/worker-thread-child-process'
 import type { WorkerThreadChildProcess } from '../../worker-thread-child-process/worker-thread-child-process'
+import type { WorkerThreadChildSpec } from '../../worker-thread-child-process/worker-thread-child-process-protocol'
 
-/** Capture a worker-owned child; the caller still owns deadlines and aborts. */
+/** Capture a worker-owned child; the caller still owns deadlines and aborts. Null when `spawn` declines. */
 export function workerExecFile(
   command: string,
   args: string[],
@@ -13,18 +14,24 @@ export function workerExecFile(
     encoding?: string | null
     maxBuffer: number
   },
-  callback: (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => void
-): WorkerThreadChildProcess {
+  callback: (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => void,
+  spawn: (
+    spec: WorkerThreadChildSpec
+  ) => WorkerThreadChildProcess | null = spawnProcessOnWorkerThread
+): WorkerThreadChildProcess | null {
   const encoding = options.encoding === null ? 'buffer' : (options.encoding ?? 'utf8')
   if (encoding !== 'buffer' && !Buffer.isEncoding(encoding)) {
     throw new TypeError(`Unsupported Git output encoding: ${encoding}`)
   }
-  const child = spawnProcessOnWorkerThread({
+  const child = spawn({
     program: command,
     args,
     cwd: options.cwd instanceof URL ? fileURLToPath(options.cwd) : options.cwd,
     env: options.env
   })
+  if (!child) {
+    return null
+  }
   const stdout = createOutputSink(options.maxBuffer)
   const stderr = createOutputSink(options.maxBuffer)
   let completed = false

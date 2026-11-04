@@ -1,5 +1,5 @@
 import type { PipedChildProcess } from '@orca/process-host/process-spec'
-import { spawnProcess } from '@orca/process-host'
+import { runProcess, spawnProcess } from '@orca/process-host'
 import type {
   WorkerThreadChildErrorPayload,
   WorkerThreadChildEvent,
@@ -25,6 +25,47 @@ function toErrorPayload(error: unknown): WorkerThreadChildErrorPayload {
 
 export function serveWorkerThreadChildProcesses(port: WorkerThreadChildPort): void {
   const children = new Map<number, { child: PipedChildProcess; pendingOutputBytes: number }>()
+  const runs = new Map<number, AbortController>()
+
+  const startRun = ({ id, spec }: Extract<WorkerThreadChildRequest, { type: 'run' }>): void => {
+    const controller = new AbortController()
+    runs.set(id, controller)
+    void runProcess({
+      program: spec.program,
+      args: spec.args,
+      cwd: spec.cwd,
+      env: spec.env,
+      timeoutMs: spec.timeoutMs,
+      maxOutputBytes: spec.maxOutputBytes,
+      captureStdoutAsBytes: spec.captureBytes,
+      captureStderrAsBytes: spec.captureBytes,
+      signal: controller.signal,
+      terminationBarrier: true,
+      onChildTerminated: () => port.postMessage({ type: 'run-terminated', id }),
+      ...(spec.input === undefined ? {} : { input: spec.input })
+    }).then(
+      (result) => {
+        runs.delete(id)
+        // Own each capture before transfer; a pooled Buffer may share its backing allocation.
+        const stdoutBytes = result.stdoutBytes ? new Uint8Array(result.stdoutBytes) : undefined
+        const stderrBytes = result.stderrBytes ? new Uint8Array(result.stderrBytes) : undefined
+        const transfer: ArrayBuffer[] = []
+        for (const bytes of [stdoutBytes, stderrBytes]) {
+          if (bytes) {
+            transfer.push(bytes.buffer)
+          }
+        }
+        port.postMessage(
+          { type: 'run-result', id, result: { ...result, stdoutBytes, stderrBytes } },
+          transfer
+        )
+      },
+      (error: unknown) => {
+        runs.delete(id)
+        port.postMessage({ type: 'run-error', id, error: toErrorPayload(error) })
+      }
+    )
+  }
 
   const spawnChild = ({ id, spec }: Extract<WorkerThreadChildRequest, { type: 'spawn' }>): void => {
     let child: PipedChildProcess
@@ -67,6 +108,14 @@ export function serveWorkerThreadChildProcesses(port: WorkerThreadChildPort): vo
   port.on('message', (request) => {
     if (request.type === 'spawn') {
       spawnChild(request)
+      return
+    }
+    if (request.type === 'run') {
+      startRun(request)
+      return
+    }
+    if (request.type === 'run-abort') {
+      runs.get(request.id)?.abort()
       return
     }
     const state = children.get(request.id)

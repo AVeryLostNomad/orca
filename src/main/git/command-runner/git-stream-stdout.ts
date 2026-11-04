@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
 import { withGitSpan } from '../../observability/instrumentation'
 import { recordSubprocessSpawn } from '../../diagnostics/main-thread-churn-probe'
@@ -27,7 +27,9 @@ import {
   isGitAuthFailure,
   resolveGitAccountForCommand
 } from './github-account-env'
-import { gitSpawn } from './git-spawn'
+import { gitSpawn, resolveGitSpawnTarget } from './git-spawn'
+import type { WorkerThreadChildProcess } from '../../worker-thread-child-process/worker-thread-child-process'
+import { trySpawnOffWindowsMainThread } from '../../worker-thread-child-process/windows-main-thread-spawn-offload'
 import { acquireGitAdmission } from './git-subprocess-admission'
 import { GitCommandTimeoutError, gitCommandTimeoutMs } from './git-command-timeout'
 
@@ -102,26 +104,47 @@ export async function gitStreamStdout(
           reject(createAbortError())
           return
         }
-        const stdio: SpawnOptions['stdio'] = ['ignore', 'pipe', 'pipe']
-        const spawnOptions = {
-          cwd: options.cwd,
-          env: accountEnv,
-          stdio,
-          wslDistro: options.wslDistro,
-          windowsHide: true
-        }
-        let child: ChildProcess
-        if (command.wslMode === 'direct-git') {
+        const target =
+          command.wslMode === 'direct-git'
+            ? {
+                binary: command.binary,
+                args: command.args,
+                cwd: command.cwd,
+                env: untranslatedGitOutputEnv(accountEnv)
+              }
+            : resolveGitSpawnTarget(args, {
+                cwd: options.cwd,
+                env: accountEnv,
+                wslDistro: options.wslDistro
+              })
+        let child: ChildProcess | WorkerThreadChildProcess
+        const workerChild = trySpawnOffWindowsMainThread({
+          program: target.binary,
+          args: target.args,
+          cwd: target.cwd,
+          env: target.env
+        })
+        if (workerChild) {
+          // Worker children always pipe stdin; EOF matches the inline 'ignore'.
+          workerChild.stdin.end()
+          child = workerChild
+        } else if (command.wslMode === 'direct-git') {
           const spawnStartedAt = performance.now()
-          child = spawn(command.binary, command.args, {
-            cwd: command.cwd,
-            env: untranslatedGitOutputEnv(spawnOptions.env),
-            stdio: spawnOptions.stdio,
+          child = spawn(target.binary, target.args, {
+            cwd: target.cwd,
+            env: target.env,
+            stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true
           })
-          recordSubprocessSpawn(command.binary, command.args, performance.now() - spawnStartedAt)
+          recordSubprocessSpawn(target.binary, target.args, performance.now() - spawnStartedAt)
         } else {
-          child = gitSpawn(args, spawnOptions)
+          child = gitSpawn(args, {
+            cwd: options.cwd,
+            env: accountEnv,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            wslDistro: options.wslDistro,
+            windowsHide: true
+          })
         }
         let terminationReported = false
         terminationState.current = new Promise<void>((resolveTermination) => {

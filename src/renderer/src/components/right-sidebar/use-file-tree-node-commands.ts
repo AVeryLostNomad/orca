@@ -16,6 +16,7 @@ import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
 import type { FileExplorerOperationOwner, TreeNode } from './file-explorer-types'
 import { useFileDeletion } from './useFileDeletion'
 import { useFileDuplicate } from './useFileDuplicate'
+import { useFileExplorerPaste } from './use-file-explorer-paste'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
 
 type UseFileTreeNodeCommandsParams = {
@@ -32,11 +33,15 @@ type UseFileTreeNodeCommandsParams = {
 
 export type FileTreeNodeCommands = {
   buildNode: (relativePath: string, isDirectory: boolean) => TreeNode | null
+  /** The workspace root as a folder node, for the empty-area menu. */
+  rootNode: TreeNode | null
   isNodeExpanded: (node: TreeNode) => boolean
   deleteShortcutLabel: string
   copyPathsForNode: (node: TreeNode, pathKind: 'absolute' | 'relative') => void
   handleStartRename: (node: TreeNode) => void
   handleDuplicate: (node: TreeNode) => void
+  /** Paste OS-clipboard files into an absolute directory of this workspace. */
+  handlePaste: (targetDir: string) => void
   handleAddFolderAsProject: (node: TreeNode) => void
   canAddAsProject: (node: TreeNode) => boolean
   handleOpenInTerminal: (node: TreeNode) => void
@@ -81,6 +86,21 @@ export function useFileTreeNodeCommands({
         operationOwner
       }
     },
+    [operationOwner, worktreePath]
+  )
+
+  const rootNode = useMemo(
+    (): TreeNode | null =>
+      worktreePath
+        ? {
+            name: basename(worktreePath),
+            path: worktreePath,
+            relativePath: '',
+            isDirectory: true,
+            depth: -1,
+            operationOwner
+          }
+        : null,
     [operationOwner, worktreePath]
   )
 
@@ -143,6 +163,14 @@ export function useFileTreeNodeCommands({
   )
 
   const handleDuplicate = useFileDuplicate({ activeWorktreeId, worktreePath, refreshDir })
+
+  const handlePaste = useFileExplorerPaste({
+    activeWorktreeId,
+    worktreePath,
+    operationOwner,
+    refreshDir,
+    applySelectedPaths
+  })
 
   const handleContextMenuDelete = useCallback(
     (node: TreeNode) => {
@@ -219,11 +247,13 @@ export function useFileTreeNodeCommands({
 
   return {
     buildNode,
+    rootNode,
     isNodeExpanded,
     deleteShortcutLabel: deletion.deleteShortcutLabel,
     copyPathsForNode,
     handleStartRename,
     handleDuplicate,
+    handlePaste,
     handleAddFolderAsProject,
     canAddAsProject,
     handleOpenInTerminal,

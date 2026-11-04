@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { admitSelfInitiatedTreeKill } from '../../own-chromium-tree-kill-guard'
+import type { WorkerThreadChildProcess } from '../../worker-thread-child-process/worker-thread-child-process'
+import { trySpawnOffWindowsMainThread } from '../../worker-thread-child-process/windows-main-thread-spawn-offload'
 
 const WINDOWS_TREE_KILL_WAIT_MS = 2_000
 
@@ -24,17 +26,26 @@ export function killSpawnedCommandTree(
     return Promise.resolve()
   }
   return new Promise((resolve) => {
-    let killer: ChildProcess
+    let killer: ChildProcess | WorkerThreadChildProcess
     try {
+      const taskkillArgs = ['/pid', String(pid), '/t', '/f']
       // Await Windows tree cleanup so shim/WSL descendants cannot outlive their probe.
-      killer = spawn('taskkill', ['/pid', String(pid), '/t', '/f'], {
-        stdio: 'ignore',
-        windowsHide: true
-      })
-      if (!killer || typeof killer.unref !== 'function') {
-        child.kill()
-        resolve()
-        return
+      const workerKiller = trySpawnOffWindowsMainThread({ program: 'taskkill', args: taskkillArgs })
+      if (workerKiller) {
+        workerKiller.stdin.end()
+        killer = workerKiller
+      } else {
+        const inlineKiller = spawn('taskkill', taskkillArgs, {
+          stdio: 'ignore',
+          windowsHide: true
+        })
+        if (!inlineKiller || typeof inlineKiller.unref !== 'function') {
+          child.kill()
+          resolve()
+          return
+        }
+        inlineKiller.unref()
+        killer = inlineKiller
       }
     } catch {
       child.kill()
@@ -63,6 +74,5 @@ export function killSpawnedCommandTree(
       killer.kill()
       finish(true)
     }, WINDOWS_TREE_KILL_WAIT_MS)
-    killer.unref()
   })
 }
