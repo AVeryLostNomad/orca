@@ -328,8 +328,15 @@ function OmpStatsBlock(): React.JSX.Element | null {
 }
 
 /** Popover details for the focused pane: unbarred accounts, session stats, and omp's /stats. */
-export function FocusedPaneUsageSection({ usage }: { usage: FocusedPaneUsage }): React.JSX.Element {
+export function FocusedPaneUsageSection({
+  usage
+}: {
+  usage: FocusedPaneUsage
+}): React.JSX.Element | null {
   const { snapshot } = usage
+  if (usage.otherAccounts.length === 0 && !snapshot.session && snapshot.agent !== 'omp') {
+    return null
+  }
   return (
     <>
       <div className="border-t border-border/70" />

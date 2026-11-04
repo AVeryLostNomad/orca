@@ -16,24 +16,18 @@ import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import { useStatusBarDensity } from './status-bar-density'
 import { getUsageOwnerHostScope, useOwnerUsageRateLimits } from './use-owner-usage-rate-limits'
 import { isOwnerNotSetUpPlaceholder } from './owner-usage-rate-limits'
-import { resolveFocusedPaneUsage } from './focused-pane-usage'
-import { useFocusedPaneAgent } from './use-focused-pane-agent'
+import { useFocusedPaneUsage } from './use-focused-pane-usage'
 
 export function useStatusBarController(floatingTerminalOpen: boolean) {
   const floatingTerminalShortcut = useShortcutLabel('floatingTerminal.toggle')
   const localRateLimits = useAppStore((s) => s.rateLimits)
   // Why: with a remote account owner the agents run there, so its usage is the one to show.
   const { rateLimits, remoteOwner, refreshRemote } = useOwnerUsageRateLimits(localRateLimits)
-  const focusedPane = useFocusedPaneAgent()
-  const focusedPaneUsage = resolveFocusedPaneUsage(
-    rateLimits,
-    focusedPane.paneKey,
-    focusedPane.agent
-  )
+  const remoteOwned = remoteOwner !== null
+  const focusedPaneUsage = useFocusedPaneUsage(rateLimits, remoteOwned)
   // Why: with ≥1 mapped account the focused pane's bars replace the host's; otherwise host bars stay.
   const focusedProviders =
     focusedPaneUsage && focusedPaneUsage.providers.length > 0 ? focusedPaneUsage.providers : null
-  const remoteOwned = remoteOwner !== null
   const settings = useAppStore((s) => s.settings)
   const refreshRateLimits = useAppStore((s) => s.refreshRateLimits)
   const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
