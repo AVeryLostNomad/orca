@@ -5,6 +5,7 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 import { collectAddedLineRanges, overlapsAddedLines } from './check-changed-code-quality.mjs'
+import { resolveCodeQualityBaseRef } from './code-quality-base-ref.mjs'
 import { resolvePullRequestDiffBase } from './git-pull-request-diff-base.mjs'
 import { runAuditTool } from './run-audit-tool.mjs'
 
@@ -147,7 +148,7 @@ function readCompleteDiagnostics(stdout, root, comparisonBase) {
 export function main(
   root = process.cwd(),
   requestedBase = process.argv.slice(2).find((argument) => argument !== '--') ??
-    process.env.ORCA_CODE_QUALITY_BASE ??
+    resolveCodeQualityBaseRef(root) ??
     'origin/main',
   run = runAuditTool
 ) {

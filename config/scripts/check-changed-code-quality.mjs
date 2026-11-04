@@ -5,6 +5,7 @@ import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { runProcessSync } from '@orca/process-host'
 import { scanAstGrep } from './ast-grep-scan.mjs'
+import { resolveCodeQualityBaseRef } from './code-quality-base-ref.mjs'
 import { resolvePullRequestDiffBase } from './git-pull-request-diff-base.mjs'
 import { resolveOxlintInvocation } from './oxlint-cli-invocation.mjs'
 
@@ -133,24 +134,11 @@ export function isRootCodeQualityPath(file) {
 }
 
 function resolveBase(root, requestedBase) {
-  for (const candidate of [
-    requestedBase,
-    process.env.ORCA_CODE_QUALITY_BASE,
-    'origin/main',
-    'main'
-  ]) {
-    if (!candidate) {
-      continue
-    }
-    const result = spawnSync('git', ['rev-parse', '--verify', `${candidate}^{commit}`], {
-      cwd: root,
-      stdio: 'ignore'
-    })
-    if (result.status === 0) {
-      return candidate
-    }
+  const ref = resolveCodeQualityBaseRef(root, requestedBase)
+  if (!ref) {
+    throw new Error('Pass the pull request base SHA or make origin/main available locally.')
   }
-  throw new Error('Pass the pull request base SHA or make origin/main available locally.')
+  return ref
 }
 
 export function collectAddedLineRanges(

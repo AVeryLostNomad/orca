@@ -11,6 +11,7 @@ import {
   readPassHash,
   writePassHash
 } from './check-changed-pass-cache.mjs'
+import { resolveCodeQualityBaseRef } from './code-quality-base-ref.mjs'
 import { planChangedChecks } from './check-changed-selection.mjs'
 import { resolveOxcCliInvocation } from './oxc-cli-invocation.mjs'
 import { resolvePnpmCliInvocation } from './pnpm-cli-invocation.mjs'
@@ -45,23 +46,11 @@ function git(root, args) {
 }
 
 function resolveMergeBase(root, requested) {
-  for (const candidate of [requested, process.env.ORCA_CODE_QUALITY_BASE, 'origin/main', 'main']) {
-    if (!candidate) {
-      continue
-    }
-    const verified = spawnSync(
-      'git',
-      ['rev-parse', '--verify', '--quiet', `${candidate}^{commit}`],
-      {
-        cwd: root,
-        stdio: 'ignore'
-      }
-    )
-    if (verified.status === 0) {
-      return { ref: candidate, mergeBase: git(root, ['merge-base', candidate, 'HEAD']) }
-    }
+  const ref = resolveCodeQualityBaseRef(root, requested)
+  if (!ref) {
+    throw new Error('No base: fetch origin/main (or upstream/main) or pass --base=<ref>.')
   }
-  throw new Error('No base: fetch origin/main or pass --base=<ref>.')
+  return { ref, mergeBase: git(root, ['merge-base', ref, 'HEAD']) }
 }
 
 function seconds(startedAt) {

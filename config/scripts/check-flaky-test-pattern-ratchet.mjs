@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { baseRuleId, scanAstGrep } from './ast-grep-scan.mjs'
+import { resolveCodeQualityBaseRef } from './code-quality-base-ref.mjs'
 import { resolvePullRequestDiffBase } from './git-pull-request-diff-base.mjs'
 import { listTrackedFiles, runCountRatchet } from './ratchet-baseline.mjs'
 
@@ -43,6 +44,8 @@ function git(root, args) {
   return execFileSync('git', args, {
     cwd: root,
     encoding: 'utf8',
+    // Why: long-lived branches can diff thousands of paths, past Node's 1MB default.
+    maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'ignore']
   })
 }
@@ -54,7 +57,7 @@ export function listChangedFiles(root = process.cwd()) {
   }
   let base
   try {
-    const requested = process.env.ORCA_CODE_QUALITY_BASE || 'origin/main'
+    const requested = resolveCodeQualityBaseRef(root) ?? 'origin/main'
     const mergeBase = git(root, ['merge-base', 'HEAD', requested]).trim()
     base = resolvePullRequestDiffBase(root, mergeBase)
   } catch {
