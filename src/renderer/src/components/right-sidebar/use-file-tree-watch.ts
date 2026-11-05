@@ -20,6 +20,7 @@ import {
   mapFsEventsToTreeFileMutations,
   type FileExplorerTreeFileMutation
 } from './file-explorer-tree-watch-mutations'
+import { scopeFsEventsToLoadedDirs } from './file-explorer-loaded-dir-scope'
 
 const WATCH_FLUSH_RETRY_MS = 200
 
@@ -69,13 +70,14 @@ type UseFileTreeWatchParams = {
   /** Defer reconciliation while an inline rename/create or drag is in flight. */
   isInteractionActive: () => boolean
   getKnownFiles: () => readonly string[]
+  isDirLoaded: (relativeDir: string) => boolean
   applyExternalFileMutations: (mutations: readonly FileExplorerTreeFileMutation[]) => void
   refreshFileList: () => void
 }
 
 /**
  * Applies filesystem watcher events for the active worktree as @pierre/trees
- * mutations, escalating to a full flat-list refresh on overflow.
+ * mutations, escalating to a refresh of the loaded folders on overflow.
  *
  * Why: `useEditorExternalWatch` owns the watch IPC lifecycle; this hook only
  * subscribes to fs:changed for tree reconciliation.
@@ -87,6 +89,7 @@ export function useFileTreeWatch({
   operationOwner,
   isInteractionActive,
   getKnownFiles,
+  isDirLoaded,
   applyExternalFileMutations,
   refreshFileList
 }: UseFileTreeWatchParams): void {
@@ -100,6 +103,8 @@ export function useFileTreeWatch({
   isInteractionActiveRef.current = isInteractionActive
   const getKnownFilesRef = useRef(getKnownFiles)
   getKnownFilesRef.current = getKnownFiles
+  const isDirLoadedRef = useRef(isDirLoaded)
+  isDirLoadedRef.current = isDirLoaded
   const applyRef = useRef(applyExternalFileMutations)
   applyRef.current = applyExternalFileMutations
   const refreshRef = useRef(refreshFileList)
@@ -121,7 +126,8 @@ export function useFileTreeWatch({
 
     const process = (payload: FsChangedPayload): void => {
       const { mutations, needsFullRelist } = mapFsEventsToTreeFileMutations({
-        payload,
+        // Why: churn inside never-listed folders must not force a relist.
+        payload: scopeFsEventsToLoadedDirs(payload, currentWorktreePath, isDirLoadedRef.current),
         worktreePath: currentWorktreePath,
         files: getKnownFilesRef.current()
       })

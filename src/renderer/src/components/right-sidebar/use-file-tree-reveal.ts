@@ -51,6 +51,8 @@ type UseFileTreeRevealParams = {
   worktreePath: string | null
   activeFileId: string | null
   enabled: boolean
+  /** Lists folders that were never expanded so a deep path gains a row. */
+  loadDirs: (relativeDirs: readonly string[]) => Promise<void>
 }
 
 /**
@@ -62,9 +64,13 @@ export function useFileTreeReveal({
   activeWorktreeId,
   worktreePath,
   activeFileId,
-  enabled
+  enabled,
+  loadDirs
 }: UseFileTreeRevealParams): void {
   const prevActiveFileIdRef = useRef<string | null>(null)
+  const loadDirsRef = useRef(loadDirs)
+  loadDirsRef.current = loadDirs
+  const pendingRevealLoadRef = useRef<object | null>(null)
 
   useEffect(() => {
     if (activeFileId === prevActiveFileIdRef.current) {
@@ -91,11 +97,16 @@ export function useFileTreeReveal({
     if (!relative) {
       return
     }
+    const target = normalizeTreeRelativePath(relative)
     // Why: auto-reveal must not steal keyboard focus from the editor.
-    if (model.getSelectedPaths().length <= 1) {
-      revealPath(model, normalizeTreeRelativePath(relative), { focus: false, select: true })
-    } else {
-      revealPath(model, normalizeTreeRelativePath(relative), { focus: false, select: false })
+    const reveal = (): boolean =>
+      revealPath(model, target, { focus: false, select: model.getSelectedPaths().length <= 1 })
+    if (!reveal()) {
+      void loadDirsRef.current(getRelativeAncestorDirs(target)).then(() => {
+        if (prevActiveFileIdRef.current === activeFileId) {
+          reveal()
+        }
+      })
     }
   }, [activeFileId, activeWorktreeId, enabled, model, worktreePath])
 
@@ -114,11 +125,17 @@ export function useFileTreeReveal({
       clearPendingExplorerReveal()
       return
     }
-    if (revealPath(model, normalizeTreeRelativePath(relative), { focus: true, select: true })) {
+    const target = normalizeTreeRelativePath(relative)
+    if (revealPath(model, target, { focus: true, select: true })) {
       clearPendingExplorerReveal()
+      return
     }
-    // Why: if the file list has not loaded the path yet, keep the request
-    // pending; treeVersion re-runs this once the model resets with fresh paths.
+    // Why: list the path's folders once per request; treeVersion re-runs this
+    // when they land, and the request stays pending if the path never appears.
+    if (pendingRevealLoadRef.current !== pendingExplorerReveal) {
+      pendingRevealLoadRef.current = pendingExplorerReveal
+      void loadDirsRef.current(getRelativeAncestorDirs(target))
+    }
   }, [
     activeWorktreeId,
     clearPendingExplorerReveal,

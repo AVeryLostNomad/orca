@@ -1,31 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileTree } from '@pierre/trees'
-import type { FileTreeDropResult, FileTreeRenameEvent, FileTreeRenamingItem } from '@pierre/trees'
-import { toast } from 'sonner'
+import type {
+  FileTree,
+  FileTreeDirectoryHandle,
+  FileTreeDropResult,
+  FileTreeItemHandle,
+  FileTreeRenameEvent,
+  FileTreeRenamingItem
+} from '@pierre/trees'
 import { useAppStore } from '@/store'
 import {
   useRuntimeFileListForWorktree,
   type RuntimeFileListState
 } from '@/components/quick-open-file-list'
+import { isFileNameFilterQueryTooLarge } from '../../../../shared/file-name-filter-tokens'
 import {
   buildFileExplorerTreeGitStatus,
   buildFileExplorerTreeInputPaths,
   passesFileExplorerTreeFilters,
   type FileExplorerTreeInputFilters
 } from './file-explorer-tree-input'
-import {
-  applyTreeFileListMutations,
-  type FileExplorerTreeFileMutation
-} from './file-explorer-tree-watch-mutations'
+import type { FileExplorerTreeFileMutation } from './file-explorer-tree-watch-mutations'
 import { buildTreeModelBatchOps } from './file-explorer-tree-batch-operations'
-import { FILE_EXPLORER_TREE_UNSAFE_CSS } from './file-explorer-tree-theme'
+import { createFileExplorerTree } from './create-file-explorer-tree'
+import { getParentRelativeDir } from './file-explorer-loaded-dir-scope'
 import { toWorktreeRelativeDirSet } from './file-explorer-tree-relative-paths'
-import { buildIgnoredSet } from './status-display'
-import { useFileExplorerIgnoredPaths } from './use-file-explorer-ignored-paths'
+import {
+  useFileExplorerLoadedListing,
+  type FileExplorerDirsLoadedEvent
+} from './use-file-explorer-loaded-listing'
 import { resetFileTreePathsWithExpansion } from './use-file-tree-expansion-sync'
-
-/** Matches the old drag-expand delay for hover-open during internal drags. */
-const FILE_TREE_OPEN_ON_DROP_DELAY_MS = 500
 
 /** Narrow model surface the explorer hooks depend on, so tests can mock it. */
 export type FileTreeModelLike = Pick<
@@ -58,6 +61,8 @@ type UseFileExplorerTreeModelParams = {
   activeRepoSupportsGit: boolean
   showDotfiles: boolean
   showGitIgnoredFiles: boolean
+  /** Trimmed name-filter query; non-empty lists the whole worktree so matches outside loaded folders show. */
+  nameFilterQuery: string
   onSelectionChange: (relativePaths: readonly string[]) => void
   onRename: (event: FileTreeRenameEvent) => void
   canRename: (item: FileTreeRenamingItem) => boolean
@@ -69,14 +74,26 @@ type UseFileExplorerTreeModelResult = {
   model: FileTree | null
   fileList: RuntimeFileListState
   ignoredSet: Set<string>
+  /** Whole-worktree listing backing the name filter. */
+  nameFilterLoading: boolean
   refreshFileList: () => void
+  /** Manual refresh: resolves once the root and every loaded folder are re-read. */
+  refreshLoadedDirs: () => Promise<void>
   /** Reconcile watcher/local mutations into both the model and the flat cache. */
   applyExternalFileMutations: (mutations: readonly FileExplorerTreeFileMutation[]) => void
   /** Current flat cache (relative paths; directories carry a trailing slash). */
   getKnownFiles: () => readonly string[]
+  isDirLoaded: (relativeDir: string) => boolean
+  loadDirs: (relativeDirs: readonly string[]) => Promise<void>
 }
 
-/** One @pierre/trees model per active worktree, fed from the flat runtime file list. */
+const EMPTY_PATHS: string[] = []
+
+function asDirectoryHandle(handle: FileTreeItemHandle | null): FileTreeDirectoryHandle | null {
+  return handle && 'expand' in handle ? handle : null
+}
+
+/** One @pierre/trees model per active worktree, fed folder-by-folder as directories expand. */
 export function useFileExplorerTreeModel({
   activeWorktreeId,
   worktreePath,
@@ -84,29 +101,41 @@ export function useFileExplorerTreeModel({
   activeRepoSupportsGit,
   showDotfiles,
   showGitIgnoredFiles,
+  nameFilterQuery,
   onSelectionChange,
   onRename,
   canRename,
   canDrag,
   onDropComplete
 }: UseFileExplorerTreeModelParams): UseFileExplorerTreeModelResult {
-  const [refreshToken, setRefreshToken] = useState(0)
-  const refreshFileList = useCallback(() => setRefreshToken((token) => token + 1), [])
-  const fileList = useRuntimeFileListForWorktree({
+  const modelRef = useRef<FileTree | null>(null)
+  const dirsLoadedHandlerRef = useRef<(event: FileExplorerDirsLoadedEvent) => void>(() => {})
+  const listing = useFileExplorerLoadedListing({
     enabled,
-    worktreeId: activeWorktreeId,
-    refreshToken
-  })
-
-  const ignoredPaths = useFileExplorerIgnoredPaths({
     activeWorktreeId,
-    canLoadIgnoredPaths:
-      activeRepoSupportsGit && enabled && Boolean(worktreePath) && fileList.files.length > 0,
-    relativePaths: fileList.files,
-    shouldDebounceIgnoredQuery: false,
-    worktreePath
+    worktreePath,
+    activeRepoSupportsGit,
+    hideIgnored: activeRepoSupportsGit && !showGitIgnoredFiles,
+    onDirsLoaded: (event) => dirsLoadedHandlerRef.current(event)
   })
-  const ignoredSet = useMemo(() => buildIgnoredSet(ignoredPaths), [ignoredPaths])
+  const { ignoredSet, getKnownFiles, refresh, applyMutations } = listing
+  const refreshFileList = useCallback(() => {
+    void refresh()
+  }, [refresh])
+
+  const nameFilterEnabled =
+    enabled && nameFilterQuery.length > 0 && !isFileNameFilterQueryTooLarge(nameFilterQuery)
+  const nameFilterList = useRuntimeFileListForWorktree({
+    enabled: nameFilterEnabled,
+    worktreeId: activeWorktreeId,
+    // Why: SSH/runtime hosts answer a query with a top-N path search; their capped full listing serves the filter better.
+    query: listing.fileList.operationOwner?.kind === 'local' ? nameFilterQuery : undefined,
+    hostFilterWhenCapped: true
+  })
+  const nameFilterFiles = nameFilterEnabled ? nameFilterList.files : EMPTY_PATHS
+  const nameFilterFilesRef = useRef(nameFilterFiles)
+  nameFilterFilesRef.current = nameFilterFiles
+
   const filters = useMemo<FileExplorerTreeInputFilters>(
     () => ({ showDotfiles, showGitIgnoredFiles, ignoredSet }),
     [ignoredSet, showDotfiles, showGitIgnoredFiles]
@@ -125,14 +154,19 @@ export function useFileExplorerTreeModel({
   const onDropCompleteRef = useRef(onDropComplete)
   onDropCompleteRef.current = onDropComplete
 
-  // Flat cache: watcher/local mutations keep it in step with the model so the
-  // next filter-driven reset cannot resurrect deleted paths.
-  const knownFilesRef = useRef<readonly string[]>([])
-  const lastSyncedFilesRef = useRef<readonly string[] | null>(null)
   const lastResetSignatureRef = useRef<string | null>(null)
-  const relistDirtyRef = useRef(false)
-  const fileListLoadingRef = useRef(fileList.loading)
-  fileListLoadingRef.current = fileList.loading
+  // Why: name-filter matches outside loaded folders join the model only while filtering.
+  const buildInputPaths = useCallback(
+    (inputFilters: FileExplorerTreeInputFilters): string[] => {
+      const known = getKnownFiles()
+      const extra = nameFilterFilesRef.current
+      return buildFileExplorerTreeInputPaths(
+        extra.length > 0 ? [...known, ...extra] : known,
+        inputFilters
+      )
+    },
+    [getKnownFiles]
+  )
 
   const [model, setModel] = useState<FileTree | null>(null)
   useEffect(() => {
@@ -141,47 +175,17 @@ export function useFileExplorerTreeModel({
       return
     }
     lastResetSignatureRef.current = null
-    const created = new FileTree({
-      paths: [],
-      initialExpansion: 'closed',
-      flattenEmptyDirectories: false,
-      stickyFolders: false,
-      // Why: Orca's own name-filter input drives model.setSearch(); the
-      // library's built-in search UI stays off.
-      search: false,
-      fileTreeSearchMode: 'hide-non-matches',
+    const created = createFileExplorerTree({
       onSelectionChange: (paths) => onSelectionChangeRef.current(paths),
-      renaming: {
-        canRename: (item) => canRenameRef.current(item),
-        onRename: (event) => onRenameRef.current(event),
-        onError: (error) => toast.error(error)
-      },
-      dragAndDrop: {
-        canDrag: (paths) => canDragRef.current(paths),
-        onDropComplete: (event) => onDropCompleteRef.current(event),
-        onDropError: (error) => toast.error(error),
-        openOnDropDelay: FILE_TREE_OPEN_ON_DROP_DELAY_MS
-      },
-      composition: {
-        contextMenu: {
-          enabled: true,
-          triggerMode: 'both',
-          // Why: right-clicking outside the current multi-selection retargets
-          // it, mirroring the old explorer's context-menu selection rules.
-          onOpen: (item) => {
-            if (!created.getSelectedPaths().includes(item.path)) {
-              for (const selected of created.getSelectedPaths()) {
-                created.getItem(selected)?.deselect()
-              }
-              created.getItem(item.path)?.select()
-            }
-          }
-        }
-      },
-      unsafeCSS: FILE_EXPLORER_TREE_UNSAFE_CSS
+      canRename: (item) => canRenameRef.current(item),
+      onRename: (event) => onRenameRef.current(event),
+      canDrag: (paths) => canDragRef.current(paths),
+      onDropComplete: (event) => onDropCompleteRef.current(event)
     })
+    modelRef.current = created
     setModel(created)
     return () => {
+      modelRef.current = null
       created.cleanUp()
     }
   }, [activeWorktreeId])
@@ -192,16 +196,7 @@ export function useFileExplorerTreeModel({
     if (!model || !activeWorktreeId || !worktreePath) {
       return
     }
-    if (lastSyncedFilesRef.current !== fileList.files) {
-      lastSyncedFilesRef.current = fileList.files
-      knownFilesRef.current = fileList.files
-      if (relistDirtyRef.current && !fileList.loading) {
-        // Why: mutations applied mid-relist may be missing from that scan.
-        relistDirtyRef.current = false
-        refreshFileList()
-      }
-    }
-    const inputPaths = buildFileExplorerTreeInputPaths(knownFilesRef.current, filters)
+    const inputPaths = buildInputPaths(filters)
     const signature = inputPaths.join('\n')
     if (signature === lastResetSignatureRef.current) {
       return
@@ -217,49 +212,90 @@ export function useFileExplorerTreeModel({
     model,
     activeWorktreeId,
     worktreePath,
-    fileList.files,
-    fileList.loading,
+    listing.listingVersion,
+    nameFilterFiles,
     filters,
-    refreshFileList
+    buildInputPaths
   ])
+
+  const applyModelMutations = useCallback(
+    (
+      mutations: readonly FileExplorerTreeFileMutation[],
+      currentFilters: FileExplorerTreeInputFilters
+    ): boolean => {
+      const target = modelRef.current
+      if (!target) {
+        return true
+      }
+      const ops = buildTreeModelBatchOps(target, mutations, (relativePath) =>
+        passesFileExplorerTreeFilters(relativePath, currentFilters)
+      )
+      if (ops === null) {
+        return false
+      }
+      try {
+        if (ops.length > 0) {
+          target.batch(ops)
+        }
+      } catch (error) {
+        console.warn('[file-explorer] tree mutation batch failed; relisting', error)
+        return false
+      }
+      lastResetSignatureRef.current = buildInputPaths(currentFilters).join('\n')
+      return true
+    },
+    [buildInputPaths]
+  )
 
   const applyExternalFileMutations = useCallback(
     (mutations: readonly FileExplorerTreeFileMutation[]) => {
       if (!model || mutations.length === 0) {
         return
       }
-      const nextKnownFiles = applyTreeFileListMutations(knownFilesRef.current, mutations)
-      const currentFilters = filtersRef.current
-      const ops = buildTreeModelBatchOps(model, mutations, (relativePath) =>
-        passesFileExplorerTreeFilters(relativePath, currentFilters)
-      )
-      if (ops === null) {
-        refreshFileList()
-        return
-      }
-      try {
-        if (ops.length > 0) {
-          model.batch(ops)
-        }
-      } catch (error) {
-        console.warn('[file-explorer] watcher mutation batch failed; relisting', error)
+      const scoped = applyMutations(mutations)
+      if (scoped.length > 0 && !applyModelMutations(scoped, filtersRef.current)) {
         lastResetSignatureRef.current = null
         refreshFileList()
-        return
       }
-      knownFilesRef.current = nextKnownFiles
-      if (fileListLoadingRef.current) {
-        relistDirtyRef.current = true
-      }
-      lastResetSignatureRef.current = buildFileExplorerTreeInputPaths(
-        knownFilesRef.current,
-        currentFilters
-      ).join('\n')
     },
-    [model, refreshFileList]
+    [applyModelMutations, applyMutations, model, refreshFileList]
   )
 
-  const getKnownFiles = useCallback((): readonly string[] => knownFilesRef.current, [])
+  dirsLoadedHandlerRef.current = ({ mutations, ignoredSet: loadedIgnoredSet }) => {
+    const target = modelRef.current
+    if (!target || !activeWorktreeId || !worktreePath) {
+      return
+    }
+    const currentFilters = {
+      ...filtersRef.current,
+      ignoredSet: new Set(loadedIgnoredSet)
+    }
+    if (!applyModelMutations(mutations, currentFilters)) {
+      lastResetSignatureRef.current = null
+      refreshFileList()
+      return
+    }
+    // Why: re-open newly listed folders the user had expanded before the
+    // expansion sync sees them collapsed and forgets them.
+    const expanded = toWorktreeRelativeDirSet(
+      useAppStore.getState().expandedDirs[activeWorktreeId] ?? [],
+      worktreePath
+    )
+    for (const mutation of mutations) {
+      if (mutation.kind !== 'create' || !mutation.isDirectory) {
+        continue
+      }
+      if (!expanded.has(mutation.relativePath)) {
+        continue
+      }
+      const parent = getParentRelativeDir(mutation.relativePath)
+      // Why: expand() opens collapsed ancestors too, so only follow an open parent.
+      if (parent && !asDirectoryHandle(target.getItem(parent))?.isExpanded()) {
+        continue
+      }
+      asDirectoryHandle(target.getItem(mutation.relativePath))?.expand()
+    }
+  }
 
   const gitStatusEntries = useAppStore((s) =>
     activeWorktreeId ? s.gitStatusByWorktree[activeWorktreeId] : undefined
@@ -272,16 +308,23 @@ export function useFileExplorerTreeModel({
       model.setGitStatus([])
       return
     }
-    const visibleIgnoredPaths = showGitIgnoredFiles ? [...ignoredSet] : []
+    // Why: a trailing slash tells the library an ignored path is a folder so its row dims too.
+    const visibleIgnoredPaths = showGitIgnoredFiles
+      ? [...ignoredSet].map((path) => (model.getItem(path)?.isDirectory() ? `${path}/` : path))
+      : []
     model.setGitStatus(buildFileExplorerTreeGitStatus(gitStatusEntries ?? [], visibleIgnoredPaths))
   }, [model, activeRepoSupportsGit, gitStatusEntries, ignoredSet, showGitIgnoredFiles])
 
   return {
     model,
-    fileList,
+    fileList: listing.fileList,
     ignoredSet,
+    nameFilterLoading: nameFilterEnabled && nameFilterList.loading,
     refreshFileList,
+    refreshLoadedDirs: refresh,
     applyExternalFileMutations,
-    getKnownFiles
+    getKnownFiles,
+    isDirLoaded: listing.isDirLoaded,
+    loadDirs: listing.loadDirs
   }
 }

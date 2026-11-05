@@ -56,6 +56,7 @@ export function resetFileTreePathsWithExpansion(
   paths: string[],
   expandedDirs: ReadonlySet<string>
 ): void {
+  const activeSearch = model.getSearchValue()
   model.resetPaths(paths, { initialExpandedPaths: [...expandedDirs] })
   // Initial expansion opens ancestors too; restore explicit collapses without forgetting children.
   const collapsedAncestors = new Set<string>()
@@ -71,6 +72,12 @@ export function resetFileTreePathsWithExpansion(
     if (handle?.isDirectory()) {
       ;(handle as FileTreeDirectoryHandle).collapse()
     }
+  }
+  // Why: the library keeps stale matches across resetPaths and ignores an unchanged query,
+  // so name-filter results that arrive after typing would never show.
+  if (activeSearch) {
+    model.setSearch(null)
+    model.setSearch(activeSearch)
   }
 }
 

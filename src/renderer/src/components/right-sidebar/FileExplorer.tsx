@@ -34,6 +34,7 @@ import { useFileTreeRename } from './use-file-tree-rename'
 import { useFileTreeSelectionBridge } from './use-file-tree-selection-bridge'
 import { useFileTreeWatch } from './use-file-tree-watch'
 import {
+  getRelativeAncestorDirs,
   normalizeTreeRelativePath,
   toWorktreeRelativeDirSet
 } from './file-explorer-tree-relative-paths'
@@ -90,20 +91,30 @@ function FileExplorerFiles(): React.JSX.Element {
   const canRenameRef = useRef<(item: FileTreeRenamingItem) => boolean>(() => true)
   const canDragRef = useRef<(paths: readonly string[]) => boolean>(() => true)
   const dropCompleteRef = useRef<(event: FileTreeDropResult) => void>(() => {})
-  const { model, fileList, refreshFileList, applyExternalFileMutations, getKnownFiles } =
-    useFileExplorerTreeModel({
-      activeWorktreeId,
-      worktreePath,
-      enabled: Boolean(visibleFilesWorktreePath),
-      activeRepoSupportsGit,
-      showDotfiles,
-      showGitIgnoredFiles,
-      onSelectionChange: (paths) => selectionHandlerRef.current(paths),
-      onRename: (event) => renameHandlerRef.current(event),
-      canRename: (item) => canRenameRef.current(item),
-      canDrag: (paths) => canDragRef.current(paths),
-      onDropComplete: (event) => dropCompleteRef.current(event)
-    })
+  const {
+    model,
+    fileList,
+    nameFilterLoading,
+    refreshFileList,
+    refreshLoadedDirs,
+    applyExternalFileMutations,
+    getKnownFiles,
+    isDirLoaded,
+    loadDirs
+  } = useFileExplorerTreeModel({
+    activeWorktreeId,
+    worktreePath,
+    enabled: Boolean(visibleFilesWorktreePath),
+    activeRepoSupportsGit,
+    showDotfiles,
+    showGitIgnoredFiles,
+    nameFilterQuery: hasNameFilter ? nameFilterQuery.trim() : '',
+    onSelectionChange: (paths) => selectionHandlerRef.current(paths),
+    onRename: (event) => renameHandlerRef.current(event),
+    canRename: (item) => canRenameRef.current(item),
+    canDrag: (paths) => canDragRef.current(paths),
+    onDropComplete: (event) => dropCompleteRef.current(event)
+  })
   const { selectedPaths, handleSelectionChange, applySelectedPaths } = useFileTreeSelectionBridge({
     model,
     worktreePath
@@ -118,6 +129,28 @@ function FileExplorerFiles(): React.JSX.Element {
     refreshFileList,
     applyExternalFileMutations
   })
+  // Why: placeholder names must not collide with entries of a folder that was never listed.
+  const createInFolder = create.startNew
+  const startNew = useCallback(
+    (kind: 'file' | 'folder', parentAbsoluteDir: string) => {
+      const parentRelative = worktreePath
+        ? normalizeTreeRelativePath(
+            getRelativePathInsideRoot(parentAbsoluteDir, worktreePath) ?? ''
+          )
+        : ''
+      const unloaded = parentRelative
+        ? [...getRelativeAncestorDirs(parentRelative), parentRelative].filter(
+            (dir) => !isDirLoaded(dir)
+          )
+        : []
+      if (unloaded.length === 0) {
+        createInFolder(kind, parentAbsoluteDir)
+        return
+      }
+      void loadDirs(unloaded).then(() => createInFolder(kind, parentAbsoluteDir))
+    },
+    [createInFolder, isDirLoaded, loadDirs, worktreePath]
+  )
   renameHandlerRef.current = useFileTreeRename({
     activeWorktreeId,
     worktreePath,
@@ -172,6 +205,7 @@ function FileExplorerFiles(): React.JSX.Element {
     operationOwner: fileList.operationOwner,
     isInteractionActive,
     getKnownFiles,
+    isDirLoaded,
     applyExternalFileMutations,
     refreshFileList
   })
@@ -188,9 +222,7 @@ function FileExplorerFiles(): React.JSX.Element {
     [nameFilterQuery, showRightSidebarFiles, showRightSidebarSearch]
   )
 
-  const manualRefresh = useFileExplorerManualRefresh(
-    useCallback(async () => refreshFileList(), [refreshFileList])
-  )
+  const manualRefresh = useFileExplorerManualRefresh(refreshLoadedDirs)
   const canCollapseAll = isFilesViewActive && !hasNameFilter && expandedCount > 0
   const handleCollapseAll = useCallback(() => {
     if (!activeWorktreeId || !isFilesViewActive || hasNameFilter) {
@@ -282,7 +314,7 @@ function FileExplorerFiles(): React.JSX.Element {
           >
             <FileExplorerNameFilter
               query={nameFilterQuery}
-              loading={hasNameFilter && fileList.loading}
+              loading={nameFilterLoading}
               onQueryChange={setNameFilterQuery}
               onClear={handleClearNameFilter}
             />
@@ -324,7 +356,8 @@ function FileExplorerFiles(): React.JSX.Element {
           hasNameFilter={hasNameFilter}
           selectedPaths={selectedPaths}
           applySelectedPaths={applySelectedPaths}
-          startNew={create.startNew}
+          startNew={startNew}
+          loadDirs={loadDirs}
           isCreatePending={create.isCreatePending}
           isRenameActive={isRenameActive}
           nativeDropDir={nativeImport.nativeDropDir}

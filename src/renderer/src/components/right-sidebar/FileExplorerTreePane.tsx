@@ -46,6 +46,7 @@ type FileExplorerTreePaneProps = {
   selectedPaths: Set<string>
   applySelectedPaths: (absolutePaths: Set<string>) => void
   startNew: (kind: 'file' | 'folder', parentAbsoluteDir: string) => void
+  loadDirs: (relativeDirs: readonly string[]) => Promise<void>
   isCreatePending: boolean
   isRenameActive: () => boolean
   nativeDropDir: string | null
@@ -75,6 +76,7 @@ export function FileExplorerTreePane({
   selectedPaths,
   applySelectedPaths,
   startNew,
+  loadDirs,
   isCreatePending,
   isRenameActive,
   nativeDropDir,
@@ -97,7 +99,8 @@ export function FileExplorerTreePane({
     activeWorktreeId,
     worktreePath,
     activeFileId,
-    enabled: isFilesViewActive
+    enabled: isFilesViewActive,
+    loadDirs
   })
   const commands = useFileTreeNodeCommands({
     model,

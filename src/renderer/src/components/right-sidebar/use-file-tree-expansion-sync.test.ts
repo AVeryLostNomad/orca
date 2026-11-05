@@ -89,6 +89,22 @@ describe('diffExpandedDirPaths', () => {
 })
 
 describe('resetFileTreePathsWithExpansion', () => {
+  it('re-runs an active name filter against the new paths', () => {
+    const model = new FileTree({
+      paths: ['src/'],
+      initialExpansion: 'closed',
+      flattenEmptyDirectories: false,
+      fileTreeSearchMode: 'hide-non-matches'
+    })
+    try {
+      model.setSearch('needle')
+      resetFileTreePathsWithExpansion(model, ['src/', 'deep/dir/needle.pdf'], new Set())
+      expect(model.getSearchMatchingPaths()).toContain('deep/dir/needle.pdf')
+    } finally {
+      model.cleanUp()
+    }
+  })
+
   it('keeps collapsed ancestors closed across rebuilds while remembering nested expansion', () => {
     const paths = ['benchmarks/dandadan/vfx/image.png', 'docs/guide.md']
     const model = new FileTree({
