@@ -22,13 +22,17 @@ export function useFileExplorerRootNavigation(
     },
     [worktreeId]
   )
-  const revealOutsideRoot = useCallback(() => {
-    if (!worktreeId || choice === FILE_EXPLORER_FULL_ROOT) {
-      return
-    }
-    setReturnTarget({ worktreeId, choice })
-    useAppStore.getState().setExplorerDisplayRootForWorktree(worktreeId, FILE_EXPLORER_FULL_ROOT)
-  }, [worktreeId, choice])
+  /** Leaves the current root for `target` (default: the full root) and remembers the way back. */
+  const revealOutsideRoot = useCallback(
+    (target: string = FILE_EXPLORER_FULL_ROOT) => {
+      if (!worktreeId || choice === target) {
+        return
+      }
+      setReturnTarget({ worktreeId, choice })
+      useAppStore.getState().setExplorerDisplayRootForWorktree(worktreeId, target)
+    },
+    [worktreeId, choice]
+  )
   const returnRoot =
     choice === FILE_EXPLORER_FULL_ROOT && returnTarget?.worktreeId === worktreeId
       ? (options?.find((option) => option.value === returnTarget.choice) ?? null)

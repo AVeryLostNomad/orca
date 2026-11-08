@@ -179,6 +179,10 @@ vi.mock('./PortsPanel', () => ({
   default: () => <div data-ports-panel />
 }))
 
+vi.mock('../unity/unity-workbench-store', () => ({
+  useUnityWorkspaceProjectRoots: () => []
+}))
+
 function openingTag(markup: string, className: string): string {
   const match = markup.match(new RegExp(`<[^>]+class="[^"]*${className}[^"]*"[^>]*>`))
   if (!match) {

@@ -42,6 +42,13 @@ const GUIDE_REFERENCES = {
     'provider-vercel.md',
     'ssh-host.md',
     'windows-scripts.md'
+  ],
+  unity: [
+    'editor-automation.md',
+    'playmode-verification.md',
+    'safe-mode-and-recovery.md',
+    'tests-and-builds.md',
+    'version-control.md'
   ]
 }
 const GUIDE_REFERENCE_PATHS = Object.entries(GUIDE_REFERENCES).flatMap(([guide, references]) =>

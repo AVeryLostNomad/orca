@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Plug, Files, GitBranch, ListChecks, Workflow } from 'lucide-react'
+import { Box, Plug, Files, GitBranch, ListChecks, Workflow } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useRepoById } from '@/store/selectors'
 import { isFolderRepo } from '../../../../shared/repo-kind'
@@ -20,6 +20,7 @@ import {
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { translate } from '@/i18n/i18n'
 import { AgentSessionHistoryIcon } from './agent-session-history-icon'
+import { useUnityWorkspaceProjectRoots } from '../unity/unity-workbench-store'
 import type { ActivityBarItem } from './activity-bar-buttons'
 
 export type RightSidebarActivityItems = {
@@ -55,6 +56,9 @@ export function useRightSidebarActivityItems({
       s.runtimeEnvironments
     )
   )
+  // Ungated by open state so a reveal into the Unity tab never renders a fallback while roots load; the lookup is cached per workspace.
+  const unityWorktreeId = useAppStore((s) => s.activeWorktreeId)
+  const hasUnityProject = useUnityWorkspaceProjectRoots(unityWorktreeId).length > 0
   const pluginSystemEnabled = useAppStore((s) => s.settings?.pluginSystemEnabled === true)
   const pluginPanels = usePluginPanels()
   const visiblePluginPanels = useMemo(
@@ -121,6 +125,13 @@ export function useRightSidebarActivityItems({
         shortcut: portsShortcut === 'Unassigned' ? '' : portsShortcut,
         sshOnly: true
       },
+      {
+        id: 'unity',
+        icon: Box,
+        title: translate('auto.components.right.sidebar.index.unity', 'Unity'),
+        shortcut: '',
+        unityOnly: true
+      },
       // Append plugin tabs to preserve built-in navigation positions.
       ...getPluginPanelActivityItems(visiblePluginPanels, pluginPanelErrors)
     ],
@@ -139,9 +150,10 @@ export function useRightSidebarActivityItems({
       getVisibleRightSidebarActivityItems(activityItems, {
         isFolder,
         isFolderWorkspace,
-        hasSshHost
+        hasSshHost,
+        hasUnityProject
       }),
-    [activityItems, isFolder, isFolderWorkspace, hasSshHost]
+    [activityItems, isFolder, isFolderWorkspace, hasSshHost, hasUnityProject]
   )
 
   const activeFolderWorkspaceKey = isFolderWorkspace ? (activeWorktreeId ?? null) : null

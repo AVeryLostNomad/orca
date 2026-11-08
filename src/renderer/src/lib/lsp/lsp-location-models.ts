@@ -2,7 +2,7 @@ import type * as Monaco from 'monaco-editor'
 import { detectLanguage } from '@/lib/language-detect'
 import type { LspWorkspaceSession } from './lsp-client'
 import { getLspBindingForUri } from './lsp-document-binding'
-import { lspUriFromPath, pathFromLspUri } from './lsp-file-uri'
+import { pathFromLspUri } from './lsp-file-uri'
 
 type MonacoModule = typeof Monaco
 
@@ -76,7 +76,7 @@ function evictPreviewModels(keep: Set<string>): void {
  *  Why: standalone Monaco's peek/preview only resolves already-existing models. */
 export async function resolveLspLocationModels(
   monaco: MonacoModule,
-  session: LspWorkspaceSession,
+  session: LspWorkspaceSession | undefined,
   locations: Monaco.languages.Location[]
 ): Promise<Monaco.languages.Location[]> {
   const uriByLspUri = new Map<string, Monaco.Uri>()
@@ -92,7 +92,7 @@ export async function resolveLspLocationModels(
       uriByLspUri.set(lspUri, location.uri)
       continue
     }
-    const binding = getLspBindingForUri(session.sessionId, lspUriFromPath(filePath))
+    const binding = session && getLspBindingForUri(session.sessionId, lspUri)
     if (binding && !binding.model.isDisposed()) {
       uriByLspUri.set(lspUri, binding.model.uri)
       continue

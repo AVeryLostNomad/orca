@@ -13,9 +13,6 @@ import { LspSession, toIpcLspError, type LspSessionArgs } from './lsp-session'
 import { routeLspDocumentNotification, takeLspDocumentsOwnedBy } from './lsp-document-ownership'
 import {
   LSP_DEFAULT_IDLE_SHUTDOWN_MS,
-  LSP_MAX_RESTART_ATTEMPTS,
-  LSP_RESTART_BACKOFF_MS,
-  LSP_RESTART_STABILITY_MS,
   armLspIdleTimer,
   clearLspIdleTimer,
   clearManagedLspSessionTimers,
@@ -23,6 +20,13 @@ import {
   lspSessionKey,
   type ManagedLspSession
 } from './lsp-managed-session-state'
+import {
+  armLspRestartStabilityTimer,
+  detachLspSession,
+  restartLspServerSessions,
+  scheduleLspCrashRestart,
+  type LspRestartHooks
+} from './lsp-session-restart'
 
 type SessionEventSink = (sessionId: string, event: LspSessionEvent) => void
 
@@ -43,6 +47,12 @@ export class LspSessionManager {
     }
   ) {}
 
+  private readonly restartHooks: LspRestartHooks = {
+    isShuttingDown: () => this.shuttingDown,
+    emitStatus: (managed) => this.emitStatus(managed),
+    start: (managed) => this.startSession(managed)
+  }
+
   private emitStatus(managed: ManagedSession): void {
     this.deps.emitEvent(managed.sessionId, {
       kind: 'status',
@@ -60,10 +70,17 @@ export class LspSessionManager {
     if (this.shuttingDown) {
       return { ok: false, error: 'shutting down' }
     }
-    if (!getLspServerEntry(serverId)) {
+    const entry = getLspServerEntry(serverId)
+    if (!entry) {
       return { ok: false, error: `unknown language server: ${serverId}` }
     }
     const key = lspSessionKey(serverId, rootPath)
+    if (!this.sessions.has(key) && entry.sessionGate) {
+      const refusal = await entry.sessionGate({ rootPath })
+      if (refusal) {
+        return { ok: false, error: refusal }
+      }
+    }
     let managed = this.sessions.get(key)
     if (!managed) {
       managed = createManagedLspSession(`lsp-${this.nextSessionNumber++}`, serverId, rootPath)
@@ -91,7 +108,8 @@ export class LspSessionManager {
       sessionId: managed.sessionId,
       status: managed.status,
       epoch: managed.epoch,
-      serverCapabilities: managed.session.serverCapabilities
+      serverCapabilities: managed.session.serverCapabilities,
+      projectInitializationPending: managed.session.projectInitializationPending
     }
   }
 
@@ -120,16 +138,19 @@ export class LspSessionManager {
         ? this.deps.createSession(sessionArgs, entry)
         : new LspSession(sessionArgs)
       await session.start()
+      // Idle stop or app shutdown may have dropped this entry while it started.
+      if (
+        this.shuttingDown ||
+        this.sessions.get(lspSessionKey(managed.serverId, managed.rootPath)) !== managed
+      ) {
+        await session.dispose()
+        return
+      }
       managed.session = session
       managed.status = 'ready'
       managed.epoch += 1
       this.emitStatus(managed)
-      if (managed.restartAttempts > 0) {
-        managed.stabilityTimer = setTimeout(() => {
-          managed.stabilityTimer = null
-          managed.restartAttempts = 0
-        }, LSP_RESTART_STABILITY_MS)
-      }
+      armLspRestartStabilityTimer(managed)
     } catch (error) {
       managed.status = 'error'
       managed.lastError = error instanceof Error ? error.message : String(error)
@@ -139,40 +160,12 @@ export class LspSessionManager {
   }
 
   private handleUnexpectedExit(managed: ManagedSession): void {
-    const dead = managed.session
-    managed.session = null
-    if (managed.stabilityTimer) {
-      clearTimeout(managed.stabilityTimer)
-      managed.stabilityTimer = null
-    }
-    void dead?.dispose()
+    void detachLspSession(managed)?.dispose()
     if (this.shuttingDown || managed.subscriberWebContentsIds.size === 0) {
       this.removeSession(managed)
       return
     }
-    if (managed.restartAttempts >= LSP_MAX_RESTART_ATTEMPTS) {
-      managed.status = 'error'
-      managed.lastError = 'language server crashed repeatedly'
-      this.emitStatus(managed)
-      return
-    }
-    const delay = LSP_RESTART_BACKOFF_MS[managed.restartAttempts] ?? 8000
-    managed.restartAttempts += 1
-    managed.status = 'starting'
-    this.emitStatus(managed)
-    managed.restartTimer = setTimeout(() => {
-      managed.restartTimer = null
-      if (this.shuttingDown || managed.session || managed.starting) {
-        return
-      }
-      managed.starting = this.startSession(managed)
-        .catch(() => {
-          // emitStatus already reported the failure.
-        })
-        .finally(() => {
-          managed.starting = null
-        })
-    }, delay)
+    scheduleLspCrashRestart(managed, this.restartHooks)
   }
 
   private findBySessionId(sessionId: string): ManagedSession | undefined {
@@ -294,6 +287,10 @@ export class LspSessionManager {
   private removeSession(managed: ManagedSession): void {
     clearManagedLspSessionTimers(managed)
     this.sessions.delete(lspSessionKey(managed.serverId, managed.rootPath))
+  }
+
+  restartServer(serverId: LspServerId): Promise<void> {
+    return restartLspServerSessions(this.sessions.values(), serverId, this.restartHooks)
   }
 
   getServerStates(): LspServerStateSnapshot[] {

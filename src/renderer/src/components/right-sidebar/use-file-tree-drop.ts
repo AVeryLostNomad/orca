@@ -1,12 +1,16 @@
 import { useCallback } from 'react'
 import type { FileTreeDropResult } from '@pierre/trees'
 import { toast } from 'sonner'
-import { basename, joinPath } from '@/lib/path'
+import { basename } from '@/lib/path'
 import { extractIpcErrorMessage } from '@/lib/rename-file'
 import { executeOpenEditorPathMove } from '@/lib/execute-open-editor-path-move'
 import { commitFileExplorerOp } from './fileExplorerUndoRedo'
 import { captureFileExplorerOperationGuard } from './file-explorer-operation-owner'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
+import {
+  normalizeTreeRelativePath,
+  toWorktreeRelativePath,
+  treePathToAbsolute
+} from './file-explorer-tree-relative-paths'
 import type { FileExplorerTreeFileMutation } from './file-explorer-tree-watch-mutations'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
@@ -15,6 +19,8 @@ type UseFileTreeDropParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to; defaults to the worktree. */
+  treeRootPath?: string | null
   operationOwner: FileExplorerOperationOwner | undefined
   refreshFileList: () => void
   applyExternalFileMutations: (mutations: readonly FileExplorerTreeFileMutation[]) => void
@@ -28,13 +34,14 @@ export function useFileTreeDrop({
   model,
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   operationOwner,
   refreshFileList,
   applyExternalFileMutations
 }: UseFileTreeDropParams): (event: FileTreeDropResult) => void {
   return useCallback(
     (event: FileTreeDropResult) => {
-      if (!model || !activeWorktreeId || !worktreePath) {
+      if (!model || !activeWorktreeId || !worktreePath || !treeRootPath) {
         return
       }
       const destinationRelativeDir = event.target.directoryPath
@@ -51,8 +58,8 @@ export function useFileTreeDrop({
           if (fromRelative === toRelative) {
             continue
           }
-          const fromPath = joinPath(worktreePath, fromRelative)
-          const toPath = joinPath(worktreePath, toRelative)
+          const fromPath = treePathToAbsolute(treeRootPath, fromRelative)
+          const toPath = treePathToAbsolute(treeRootPath, toRelative)
           try {
             const operationGuard = captureFileExplorerOperationGuard(
               activeWorktreeId,
@@ -105,8 +112,8 @@ export function useFileTreeDrop({
             applyExternalFileMutations([
               {
                 kind: 'rename',
-                fromRelativePath: fromRelative,
-                toRelativePath: toRelative,
+                fromRelativePath: toWorktreeRelativePath(fromPath, worktreePath),
+                toRelativePath: toWorktreeRelativePath(toPath, worktreePath),
                 isDirectory
               }
             ])
@@ -131,6 +138,7 @@ export function useFileTreeDrop({
       model,
       operationOwner,
       refreshFileList,
+      treeRootPath,
       worktreePath
     ]
   )

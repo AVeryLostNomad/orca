@@ -19,19 +19,20 @@ type UseFileTreeSelectionBridgeResult = {
 /** Mirrors tree selection (relative) into the absolute-path set the explorer commands use. */
 export function useFileTreeSelectionBridge({
   model,
-  worktreePath
+  treeRootPath
 }: {
   model: FileTreeModelLike | null
-  worktreePath: string | null
+  /** Directory tree paths are relative to (the worktree, or its Unity scope folder). */
+  treeRootPath: string | null
 }): UseFileTreeSelectionBridgeResult {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(EMPTY_SELECTION)
-  const worktreePathRef = useRef(worktreePath)
-  worktreePathRef.current = worktreePath
+  const treeRootPathRef = useRef(treeRootPath)
+  treeRootPathRef.current = treeRootPath
   const modelRef = useRef(model)
   modelRef.current = model
 
   const handleSelectionChange = useCallback((relativePaths: readonly string[]) => {
-    const root = worktreePathRef.current
+    const root = treeRootPathRef.current
     if (!root) {
       setSelectedPaths(EMPTY_SELECTION)
       return
@@ -43,7 +44,7 @@ export function useFileTreeSelectionBridge({
 
   const applySelectedPaths = useCallback((absolutePaths: Set<string>) => {
     const currentModel = modelRef.current
-    const root = worktreePathRef.current
+    const root = treeRootPathRef.current
     if (!currentModel || !root) {
       return
     }

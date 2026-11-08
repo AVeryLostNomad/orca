@@ -48,11 +48,14 @@ function revealPath(
 type UseFileTreeRevealParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
-  worktreePath: string | null
+  /** Directory tree paths are relative to (the worktree, or its Unity scope folder). */
+  treeRootPath: string | null
   activeFileId: string | null
   enabled: boolean
   /** Lists folders that were never expanded so a deep path gains a row. */
   loadDirs: (relativeDirs: readonly string[]) => Promise<void>
+  /** Explicit reveal of a path outside a scoped tree; the request stays pending for the new root. */
+  onRevealOutsideTree?: (absolutePath: string) => void
 }
 
 /**
@@ -62,14 +65,17 @@ type UseFileTreeRevealParams = {
 export function useFileTreeReveal({
   model,
   activeWorktreeId,
-  worktreePath,
+  treeRootPath,
   activeFileId,
   enabled,
-  loadDirs
+  loadDirs,
+  onRevealOutsideTree
 }: UseFileTreeRevealParams): void {
   const prevActiveFileIdRef = useRef<string | null>(null)
   const loadDirsRef = useRef(loadDirs)
   loadDirsRef.current = loadDirs
+  const onRevealOutsideTreeRef = useRef(onRevealOutsideTree)
+  onRevealOutsideTreeRef.current = onRevealOutsideTree
   const pendingRevealLoadRef = useRef<object | null>(null)
 
   useEffect(() => {
@@ -77,7 +83,7 @@ export function useFileTreeReveal({
       return
     }
     prevActiveFileIdRef.current = activeFileId
-    if (!enabled || !model || !activeFileId || !activeWorktreeId || !worktreePath) {
+    if (!enabled || !model || !activeFileId || !activeWorktreeId || !treeRootPath) {
       return
     }
     const state = useAppStore.getState()
@@ -93,7 +99,8 @@ export function useFileTreeReveal({
     ) {
       return
     }
-    const relative = getRelativePathInsideRoot(activeFile.filePath, worktreePath)
+    // Why: passive follow never changes the explorer scope; files outside it just aren't revealed.
+    const relative = getRelativePathInsideRoot(activeFile.filePath, treeRootPath)
     if (!relative) {
       return
     }
@@ -108,19 +115,23 @@ export function useFileTreeReveal({
         }
       })
     }
-  }, [activeFileId, activeWorktreeId, enabled, model, worktreePath])
+  }, [activeFileId, activeWorktreeId, enabled, model, treeRootPath])
 
   const pendingExplorerReveal = useAppStore((s) => s.pendingExplorerReveal)
   const clearPendingExplorerReveal = useAppStore((s) => s.clearPendingExplorerReveal)
   const treeVersion = useFileTreeVersion(model)
   useEffect(() => {
-    if (!pendingExplorerReveal || !model || !activeWorktreeId || !worktreePath) {
+    if (!pendingExplorerReveal || !model || !activeWorktreeId || !treeRootPath) {
       return
     }
     if (pendingExplorerReveal.worktreeId !== activeWorktreeId) {
       return
     }
-    const relative = getRelativePathInsideRoot(pendingExplorerReveal.filePath, worktreePath)
+    const relative = getRelativePathInsideRoot(pendingExplorerReveal.filePath, treeRootPath)
+    if (relative === null && onRevealOutsideTreeRef.current) {
+      onRevealOutsideTreeRef.current(pendingExplorerReveal.filePath)
+      return
+    }
     if (!relative) {
       clearPendingExplorerReveal()
       return
@@ -142,6 +153,6 @@ export function useFileTreeReveal({
     model,
     pendingExplorerReveal,
     treeVersion,
-    worktreePath
+    treeRootPath
   ])
 }

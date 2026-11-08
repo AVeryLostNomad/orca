@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -247,5 +250,42 @@ describe('LspSessionManager', () => {
     expect(factory.sessions[0].disposedForTest).toBe(true)
     const after = await manager.ensureSession('typescript', '/repo', 1)
     expect(after.ok).toBe(false)
+  })
+  // Roslyn plus a private .NET SDK is a large download; it must never start outside Unity projects.
+  it('refuses C# outside Unity projects before acquiring, and starts it for a nested Unity project', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'orca-lsp-gate-'))
+    try {
+      const plain = join(root, 'plain')
+      mkdirSync(join(plain, 'src'), { recursive: true })
+      writeFileSync(join(plain, 'src', 'Program.cs'), 'class P {}')
+      const workspace = join(root, 'repo')
+      mkdirSync(join(workspace, 'Game', 'Assets'), { recursive: true })
+      mkdirSync(join(workspace, 'Game', 'ProjectSettings'), { recursive: true })
+      writeFileSync(
+        join(workspace, 'Game', 'ProjectSettings', 'ProjectVersion.txt'),
+        'm_EditorVersion: 6000.0.0f1'
+      )
+      const factory = createFakeSessionFactory()
+      const ensureServerAvailable = vi.fn(async () => SPAWN_SPEC)
+      const manager = new LspSessionManager({
+        emitEvent: () => {},
+        ensureServerAvailable,
+        createSession: factory.createSession
+      })
+
+      const refused = await manager.ensureSession('csharp', plain, 1)
+      expect(refused).toEqual({
+        ok: false,
+        error: 'C# language support starts only in Unity projects'
+      })
+      expect(ensureServerAvailable).not.toHaveBeenCalled()
+
+      const started = await manager.ensureSession('csharp', workspace, 1)
+      expect(started.ok).toBe(true)
+      expect(ensureServerAvailable).toHaveBeenCalledWith('csharp')
+      await manager.shutdownAll()
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

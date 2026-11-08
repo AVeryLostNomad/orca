@@ -34,7 +34,8 @@ type FileExplorerTreeRowMenuProps = {
   runtimeDownloadContext: RuntimeFileOperationArgs | null
   supportsFolderDownload: boolean
   canOpenInOrcaBrowser: (filePath: string) => boolean
-  openFilePreview: (relativePath: string) => void
+  /** Opens a tree-model path as a preview tab. */
+  openFilePreview: (treePath: string) => void
   onStartNew: (type: 'file' | 'folder', parentAbsoluteDir: string) => void
 }
 
@@ -108,7 +109,7 @@ export function FileExplorerTreeRowMenu({
             deleteShortcutLabel: commands.deleteShortcutLabel,
             canCollapseFolderSubtree: true,
             canAddAsProject: commands.canAddAsProject(node),
-            onViewFile: () => openFilePreview(node.relativePath),
+            onViewFile: () => openFilePreview(item.path),
             onStartRename: () => {
               // Why: focus must hand off to the inline rename input, not bounce
               // back to the row through the menu-close focus restore.

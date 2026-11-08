@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useRef } from 'react'
 import type {
   FileTreeDirectoryHandle,
   FileTreeDropResult,
@@ -19,6 +19,12 @@ import { FileExplorerNameFilter } from './FileExplorerNameFilter'
 import { FileExplorerQueryStrip } from './FileExplorerQueryStrip'
 import { FileExplorerToolbar } from './FileExplorerToolbar'
 import { FileExplorerTreePane } from './FileExplorerTreePane'
+import { FileExplorerUnityScopeSelect } from './FileExplorerUnityScopeSelect'
+import { useFileExplorerUnityScope } from './use-file-explorer-unity-scope'
+import {
+  useSelectedTreeFolderRelativePath,
+  useTreeRootDirLoader
+} from './use-file-explorer-tree-root'
 import { SearchFilters } from './SearchFilters'
 import { SearchQueryRow } from './SearchQueryRow'
 import { SearchResultsPane } from './SearchResultsPane'
@@ -72,6 +78,8 @@ function FileExplorerFiles(): React.JSX.Element {
   )
 
   const worktreePath = activeWorktree?.path ?? null
+  const unityScope = useFileExplorerUnityScope(activeWorktreeId, worktreePath)
+  const treeRootPath = unityScope.treeRootPath
   const isFilesViewActive = explorerView === 'files'
   const visibleFilesWorktreePath = getVisibleFileExplorerWorktreePath({
     explorerView,
@@ -104,6 +112,7 @@ function FileExplorerFiles(): React.JSX.Element {
   } = useFileExplorerTreeModel({
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     enabled: Boolean(visibleFilesWorktreePath),
     activeRepoSupportsGit,
     showDotfiles,
@@ -117,7 +126,7 @@ function FileExplorerFiles(): React.JSX.Element {
   })
   const { selectedPaths, handleSelectionChange, applySelectedPaths } = useFileTreeSelectionBridge({
     model,
-    worktreePath
+    treeRootPath
   })
   selectionHandlerRef.current = handleSelectionChange
 
@@ -125,6 +134,7 @@ function FileExplorerFiles(): React.JSX.Element {
     model,
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     operationOwner: fileList.operationOwner,
     refreshFileList,
     applyExternalFileMutations
@@ -154,6 +164,7 @@ function FileExplorerFiles(): React.JSX.Element {
   renameHandlerRef.current = useFileTreeRename({
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     refreshFileList,
     applyExternalFileMutations,
     handleCreateCommit: create.handleRenameCommit
@@ -163,13 +174,14 @@ function FileExplorerFiles(): React.JSX.Element {
     model,
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     operationOwner: fileList.operationOwner,
     refreshFileList,
     applyExternalFileMutations
   })
   const dragOut = useFileTreeDragOut({
     activeWorktreeId,
-    worktreePath,
+    treeRootPath,
     operationOwner: fileList.operationOwner,
     selectedPaths
   })
@@ -177,11 +189,13 @@ function FileExplorerFiles(): React.JSX.Element {
     model,
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     operationOwner: fileList.operationOwner,
     refreshFileList,
     applySelectedPaths
   })
 
+  const loadTreeDirs = useTreeRootDirLoader(loadDirs, treeRootPath, worktreePath)
   const modelRef = useRef(model)
   modelRef.current = model
   const createPendingRef = useRef(create.isCreatePending)
@@ -228,11 +242,11 @@ function FileExplorerFiles(): React.JSX.Element {
     if (!activeWorktreeId || !isFilesViewActive || hasNameFilter) {
       return
     }
-    if (model && worktreePath) {
+    if (model && treeRootPath) {
       const stored = useAppStore.getState().expandedDirs[activeWorktreeId] ?? new Set<string>()
       const relativeDirs = new Set([
         ...readFileTreeExpansionSnapshot(model).visibleExpanded,
-        ...toWorktreeRelativeDirSet(stored, worktreePath)
+        ...toWorktreeRelativeDirSet(stored, treeRootPath)
       ])
       for (const relativeDir of relativeDirs) {
         const handle = model.getItem(relativeDir)
@@ -242,7 +256,7 @@ function FileExplorerFiles(): React.JSX.Element {
       }
     }
     collapseAllDirs(activeWorktreeId)
-  }, [activeWorktreeId, collapseAllDirs, hasNameFilter, isFilesViewActive, model, worktreePath])
+  }, [activeWorktreeId, collapseAllDirs, hasNameFilter, isFilesViewActive, model, treeRootPath])
   const handleToggleDotfiles = useCallback(() => {
     if (activeWorktreeId) {
       toggleShowDotfilesForWorktree(activeWorktreeId)
@@ -254,17 +268,12 @@ function FileExplorerFiles(): React.JSX.Element {
 
   // Why: the global "find in folder" shortcut reads the selected folder off
   // the explorer shell element.
-  const selectedFolderRelativePath = useMemo(() => {
-    if (!model || !worktreePath || selectedPaths.size !== 1) {
-      return undefined
-    }
-    const relative = getRelativePathInsideRoot([...selectedPaths][0], worktreePath)
-    if (!relative) {
-      return undefined
-    }
-    const normalized = normalizeTreeRelativePath(relative)
-    return model.getItem(normalized)?.isDirectory() ? normalized : undefined
-  }, [model, selectedPaths, worktreePath])
+  const selectedFolderRelativePath = useSelectedTreeFolderRelativePath(
+    model,
+    selectedPaths,
+    treeRootPath,
+    worktreePath
+  )
 
   if (!worktreePath) {
     return (
@@ -302,6 +311,7 @@ function FileExplorerFiles(): React.JSX.Element {
         onToggleGitIgnoredFiles={toggleGitIgnoredFiles}
         showDotfiles={showDotfiles}
         onToggleDotfiles={handleToggleDotfiles}
+        scopeSelect={<FileExplorerUnityScopeSelect scope={unityScope} />}
       />
       <FileExplorerQueryStrip view={explorerView} onSelectView={handleSelectExplorerView}>
         {/* Why: keep both query rows mounted and cross-fade so the Names/Contents
@@ -347,6 +357,7 @@ function FileExplorerFiles(): React.JSX.Element {
           activeRepo={activeRepo}
           activeWorktreeId={activeWorktreeId}
           worktreePath={worktreePath}
+          treeRootPath={treeRootPath}
           visibleFilesWorktreePath={visibleFilesWorktreePath}
           explorerView={explorerView}
           isFilesViewActive={isFilesViewActive}
@@ -357,7 +368,8 @@ function FileExplorerFiles(): React.JSX.Element {
           selectedPaths={selectedPaths}
           applySelectedPaths={applySelectedPaths}
           startNew={startNew}
-          loadDirs={loadDirs}
+          loadDirs={loadTreeDirs}
+          onRevealOutsideTree={unityScope.revealOutsideScope}
           isCreatePending={create.isCreatePending}
           isRenameActive={isRenameActive}
           nativeDropDir={nativeImport.nativeDropDir}

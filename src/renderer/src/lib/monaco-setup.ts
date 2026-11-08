@@ -10,14 +10,18 @@ import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { installMonacoDiffProviderFactory } from './diff-comparison/monaco-diff-provider'
 import { registerAstroLanguage } from './monaco-languages/register-astro'
+import { registerHlslLanguage } from './monaco-languages/register-hlsl'
 import { registerJsonlLanguage } from './monaco-languages/register-jsonl'
 import { registerLeanLanguage } from './monaco-languages/register-lean'
 import { registerNimLanguage } from './monaco-languages/register-nim'
 import { registerQuartoLanguage } from './monaco-languages/register-quarto'
+import { registerShaderlabLanguage } from './monaco-languages/register-shaderlab'
 import { registerShellMarkdownAliases } from './monaco-languages/register-shell-markdown-aliases'
 import { registerSvelteLanguage } from './monaco-languages/register-svelte'
 import { registerTomlLanguage } from './monaco-languages/register-toml'
 import { registerTypstLanguage } from './monaco-languages/register-typst'
+import { registerUnityYamlLanguage } from './monaco-languages/register-unity-yaml'
+import { registerUssLanguage } from './monaco-languages/register-uss'
 import { registerVueLanguage } from './monaco-languages/register-vue'
 import { registerZigLanguage } from './monaco-languages/register-zig'
 import { installMonacoDelayerCancellationGuard } from './monaco-delayer-cancellation-guard'
@@ -81,6 +85,10 @@ runMonacoSetupSteps([
   ['JSONL language registration', () => registerJsonlLanguage(monaco)],
   ['TOML language registration', () => registerTomlLanguage(monaco)],
   ['Quarto language registration', () => registerQuartoLanguage(monaco)],
+  ['HLSL language registration', () => registerHlslLanguage(monaco)],
+  ['ShaderLab language registration', () => registerShaderlabLanguage(monaco)],
+  ['Unity YAML language registration', () => registerUnityYamlLanguage(monaco)],
+  ['USS language registration', () => registerUssLanguage(monaco)],
   ['shell Markdown alias registration', () => registerShellMarkdownAliases(monaco)],
   ['delayer cancellation guard', installMonacoDelayerCancellationGuard],
   ['diff editor disposal guard', () => installMonacoDiffEditorDisposalGuard(monaco)],

@@ -3,14 +3,18 @@ import type React from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { detectLanguage } from '@/lib/language-detect'
-import { basename, joinPath } from '@/lib/path'
+import { basename } from '@/lib/path'
 import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import {
   getFileExplorerOwnerUnresolvedMessage,
   requireMatchingFileExplorerOperationRoute
 } from './file-explorer-operation-owner'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
+import {
+  normalizeTreeRelativePath,
+  toWorktreeRelativePath,
+  treePathToAbsolute
+} from './file-explorer-tree-relative-paths'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
 
 export type FileTreeRowTarget = { relativePath: string; isFolder: boolean }
@@ -44,11 +48,14 @@ type UseFileTreeActivationParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to; defaults to the worktree. */
+  treeRootPath?: string | null
   operationOwner: FileExplorerOperationOwner | undefined
 }
 
 type UseFileTreeActivationResult = {
-  openFilePreview: (relativePath: string) => void
+  /** Opens a tree-model path as a preview tab. */
+  openFilePreview: (treePath: string) => void
   handleClick: (event: React.MouseEvent<HTMLDivElement>) => void
   handleDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => void
   handleKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
@@ -63,6 +70,7 @@ export function useFileTreeActivation({
   model,
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   operationOwner
 }: UseFileTreeActivationParams): UseFileTreeActivationResult {
   const openFile = useAppStore((s) => s.openFile)
@@ -96,8 +104,8 @@ export function useFileTreeActivation({
   )
 
   const openFilePreview = useCallback(
-    (relativePath: string) => {
-      if (!activeWorktreeId || !worktreePath) {
+    (treePath: string) => {
+      if (!activeWorktreeId || !worktreePath || !treeRootPath) {
         return
       }
       let runtimeEnvironmentId: string | null
@@ -108,9 +116,9 @@ export function useFileTreeActivation({
         toast.error(getFileExplorerOwnerUnresolvedMessage())
         return
       }
-      const relative = normalizeTreeRelativePath(relativePath)
-      const absolutePath = joinPath(worktreePath, relative)
-      const language = detectLanguage(basename(relative))
+      const absolutePath = treePathToAbsolute(treeRootPath, treePath)
+      const relative = toWorktreeRelativePath(absolutePath, worktreePath)
+      const language = detectLanguage(basename(normalizeTreeRelativePath(treePath)))
       const openInMonaco = (): void => {
         openFile(
           {
@@ -143,7 +151,7 @@ export function useFileTreeActivation({
         }
       })
     },
-    [activeWorktreeId, openFile, openInCodeServerTab, operationOwner, worktreePath]
+    [activeWorktreeId, openFile, openInCodeServerTab, operationOwner, treeRootPath, worktreePath]
   )
 
   const handleClick = useCallback(
@@ -163,13 +171,11 @@ export function useFileTreeActivation({
   const handleDoubleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const row = resolveFileTreeRowFromEvent(event.nativeEvent)
-      if (row && !row.isFolder && worktreePath) {
-        makePreviewFilePermanent(
-          joinPath(worktreePath, normalizeTreeRelativePath(row.relativePath))
-        )
+      if (row && !row.isFolder && treeRootPath) {
+        makePreviewFilePermanent(treePathToAbsolute(treeRootPath, row.relativePath))
       }
     },
-    [makePreviewFilePermanent, worktreePath]
+    [makePreviewFilePermanent, treeRootPath]
   )
 
   // Why: Space activates the focused row; Enter is the rename key (old

@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import type React from 'react'
-import { joinPath } from '@/lib/path'
+import { treePathToAbsolute } from './file-explorer-tree-relative-paths'
 import {
   encodeWorkspaceFilePaths,
   WORKSPACE_FILE_PATH_MIME,
@@ -8,13 +8,13 @@ import {
   writeWorkspaceFileDragSourceIfResolved
 } from '@/lib/workspace-file-drag'
 import { resolveFileTreeRowFromEvent } from './use-file-tree-activation'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
 import { getFileExplorerOperationExecutionHostId } from './file-explorer-operation-owner'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 
 type UseFileTreeDragOutParams = {
   activeWorktreeId: string | null
-  worktreePath: string | null
+  /** Directory tree paths are relative to (the worktree, or its Unity scope folder). */
+  treeRootPath: string | null
   /** The whole tree comes from one listing, so one owner covers every dragged path. */
   operationOwner: FileExplorerOperationOwner | undefined
   selectedPaths: Set<string>
@@ -35,7 +35,7 @@ type UseFileTreeDragOutResult = {
  */
 export function useFileTreeDragOut({
   activeWorktreeId,
-  worktreePath,
+  treeRootPath,
   operationOwner,
   selectedPaths
 }: UseFileTreeDragOutParams): UseFileTreeDragOutResult {
@@ -45,14 +45,14 @@ export function useFileTreeDragOut({
 
   const handleDragStartCapture = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
-      if (!worktreePath) {
+      if (!treeRootPath) {
         return
       }
       const row = resolveFileTreeRowFromEvent(event.nativeEvent)
       if (!row) {
         return
       }
-      const absolutePath = joinPath(worktreePath, normalizeTreeRelativePath(row.relativePath))
+      const absolutePath = treePathToAbsolute(treeRootPath, row.relativePath)
       const selected = selectedPathsRef.current
       const paths = selected.has(absolutePath) && selected.size > 1 ? [...selected] : [absolutePath]
       event.dataTransfer.setData(WORKSPACE_FILE_PATH_MIME, absolutePath)
@@ -70,7 +70,7 @@ export function useFileTreeDragOut({
       }
       draggingRef.current = true
     },
-    [activeWorktreeId, operationOwner, worktreePath]
+    [activeWorktreeId, operationOwner, treeRootPath]
   )
 
   const handleDragEndCapture = useCallback(() => {

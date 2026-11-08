@@ -1,15 +1,21 @@
 import { useCallback } from 'react'
 import type { FileTreeRenameEvent } from '@pierre/trees'
 import { toast } from 'sonner'
-import { basename, joinPath } from '@/lib/path'
+import { basename } from '@/lib/path'
 import { renameFileOnDisk } from '@/lib/rename-file'
 import { getFileExplorerOwnerUnresolvedMessage } from './file-explorer-operation-owner'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
+import {
+  normalizeTreeRelativePath,
+  toWorktreeRelativePath,
+  treePathToAbsolute
+} from './file-explorer-tree-relative-paths'
 import type { FileExplorerTreeFileMutation } from './file-explorer-tree-watch-mutations'
 
 type UseFileTreeRenameParams = {
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to; defaults to the worktree. */
+  treeRootPath?: string | null
   refreshFileList: () => void
   applyExternalFileMutations: (mutations: readonly FileExplorerTreeFileMutation[]) => void
   /** Returns true when the commit belonged to a create placeholder. */
@@ -20,6 +26,7 @@ type UseFileTreeRenameParams = {
 export function useFileTreeRename({
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   refreshFileList,
   applyExternalFileMutations,
   handleCreateCommit
@@ -29,16 +36,20 @@ export function useFileTreeRename({
       if (handleCreateCommit(event)) {
         return
       }
-      if (!activeWorktreeId || !worktreePath) {
+      if (!activeWorktreeId || !worktreePath || !treeRootPath) {
         return
       }
-      const sourceRelative = normalizeTreeRelativePath(event.sourcePath)
-      const destinationRelative = normalizeTreeRelativePath(event.destinationPath)
-      const newName = basename(destinationRelative)
+      const oldPath = treePathToAbsolute(treeRootPath, event.sourcePath)
+      const sourceRelative = toWorktreeRelativePath(oldPath, worktreePath)
+      const destinationRelative = toWorktreeRelativePath(
+        treePathToAbsolute(treeRootPath, event.destinationPath),
+        worktreePath
+      )
+      const newName = basename(normalizeTreeRelativePath(event.destinationPath))
       void (async () => {
         try {
           await renameFileOnDisk({
-            oldPath: joinPath(worktreePath, sourceRelative),
+            oldPath,
             newName,
             worktreeId: activeWorktreeId,
             worktreePath
@@ -66,6 +77,7 @@ export function useFileTreeRename({
       applyExternalFileMutations,
       handleCreateCommit,
       refreshFileList,
+      treeRootPath,
       worktreePath
     ]
   )

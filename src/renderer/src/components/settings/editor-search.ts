@@ -1,6 +1,7 @@
 import { translate } from '@/i18n/i18n'
 import { translateSearchKeyword } from './settings-search-keywords'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
+import { getUnitySettingsSearchEntries } from './unity-settings-search'
 
 export const getEditorPaneSearchEntries = createLocalizedCatalog(() => [
   {
@@ -78,6 +79,7 @@ export const getEditorPaneSearchEntries = createLocalizedCatalog(() => [
       )
     ]
   },
+  ...getUnitySettingsSearchEntries(),
   {
     title: translate(
       'auto.components.settings.general.search.editorFontFamily',

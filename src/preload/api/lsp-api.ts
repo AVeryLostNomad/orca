@@ -31,6 +31,8 @@ export type LspApi = {
   ) => () => void
   getServerStates: () => Promise<LspServerStateSnapshot[]>
   retryServer: (args: { serverId: LspServerId }) => Promise<LspServerStateSnapshot[]>
+  /** Re-spawns live sessions of the server (e.g. after regenerating project files). */
+  restartServer: (args: { serverId: LspServerId }) => Promise<LspServerStateSnapshot[]>
   onServerStateChanged: (
     callback: (payload: { serverId: LspServerId; state: LspServerInstallState }) => void
   ) => () => void

@@ -19,7 +19,8 @@ export const LSP_SERVER_LANGUAGE_IDS: Record<LspServerId, string[]> = {
   marksman: ['markdown'],
   taplo: ['toml'],
   terraform: ['hcl'],
-  gopls: ['go']
+  gopls: ['go'],
+  csharp: ['csharp']
 }
 
 /** Project-conditional takeovers: in a matching workspace the override server

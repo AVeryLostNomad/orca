@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '@/store'
-import { selectDirsToAutoLoad } from './file-explorer-loaded-listing'
+import { selectDirsToAutoLoad, withScopeRootExpanded } from './file-explorer-loaded-listing'
 import { toWorktreeRelativeDirSet } from './file-explorer-tree-relative-paths'
 import { useFileExplorerConnectionState } from './use-file-explorer-connection-state'
 
@@ -15,6 +15,8 @@ type UseFileExplorerListingTriggersParams = {
   enabled: boolean
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Worktree-relative tree root ('' = whole worktree), loaded like an expanded folder. */
+  scopePrefix: string
   /** New identity after every load; newly attached folders may unblock expanded children. */
   listingVersion: object
   refresh: () => Promise<void>
@@ -27,6 +29,7 @@ export function useFileExplorerListingTriggers({
   enabled,
   activeWorktreeId,
   worktreePath,
+  scopePrefix,
   listingVersion,
   refresh,
   loadDirs,
@@ -61,7 +64,10 @@ export function useFileExplorerListingTriggers({
     if (!enabled || !worktreePath || !loadedDirs.has('')) {
       return
     }
-    const expanded = toWorktreeRelativeDirSet(storedExpanded ?? [], worktreePath)
+    const expanded = withScopeRootExpanded(
+      toWorktreeRelativeDirSet(storedExpanded ?? [], worktreePath),
+      scopePrefix
+    )
     for (const dir of failedDirs) {
       if (!expanded.has(dir)) {
         failedDirs.delete(dir)
@@ -75,7 +81,7 @@ export function useFileExplorerListingTriggers({
     if (wanted.length > 0) {
       void loadDirs(wanted)
     }
-  }, [enabled, worktreePath, storedExpanded, listingVersion, loadDirs])
+  }, [enabled, worktreePath, scopePrefix, storedExpanded, listingVersion, loadDirs])
 
   return { connectionPending }
 }

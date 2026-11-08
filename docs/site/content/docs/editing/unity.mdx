@@ -1,0 +1,51 @@
+---
+title: C# & Unity
+---
+
+Orca runs the Roslyn C# language server (the one VS Code's C# extension uses) and layers Unity-specific insight on top, modeled on Rider's Unity support. Everything is local-only; SSH workspaces keep the basic editor.
+
+## C# language server
+
+Opening a `.cs` file that belongs to a Unity project in a local workspace starts **C# (Roslyn)**. The Unity project can be the workspace itself, a folder that contains the workspace, or a folder up to two levels below it. C# files anywhere else keep basic syntax highlighting, and nothing is downloaded or started for them. The first time it starts, Orca downloads the pinned server and, unless your `dotnet` already has a .NET 10 runtime and an SDK, a private .NET SDK (a few hundred MB, verified by hash). The editor chip shows **Loading projects…** until Roslyn has loaded the solution.
+
+Orca opens the `.sln`/`.slnx` at the workspace root, then the solution of a Unity project in or below the workspace, then any `.csproj` files it finds. You get completion (including types from unimported namespaces, which add the `using`), hover, signature help, go to definition (including decompiled sources), references with CodeLens counts, rename, code actions, formatting, inlay parameter hints, semantic highlighting, and pull diagnostics. Typing `///` above a member generates its doc comment.
+
+Toggle the server under **Settings → Language Servers**; it starts only in Unity projects.
+
+## Unity projects
+
+A folder with `Assets/` and `ProjectSettings/ProjectVersion.txt` is a Unity project. Turn the integration off under **Settings → Editor → Unity**.
+
+- **Unity analyzers.** Microsoft.Unity.Analyzers load into Roslyn, so Unity diagnostics (UNT\*) appear and unused-member warnings are suppressed for Unity messages and serialized fields.
+- **Event functions.** In classes deriving from `MonoBehaviour`, `ScriptableObject`, `Editor`, `EditorWindow`, `StateMachineBehaviour`, or `AssetPostprocessor`, completion offers the messages you have not implemented yet (`Update`, `OnTriggerEnter(Collider other)`, …) with full signatures, plus an `IEnumerator` variant where Unity allows coroutines. Implemented messages get a lens; frequently called ones are marked.
+- **Signature checks.** A misspelled or mistyped message (`OnCollisionEnter(Collider c)`) gets a warning and a quick fix.
+- **Performance-critical context.** Inside `Update`, `FixedUpdate`, `LateUpdate`, `OnGUI`, and methods they call, expensive calls (`GetComponent`, `Find*`, `SendMessage`, `Resources.Load`, …) and string-based `Animator`/`Material` lookups are flagged.
+- **Project-aware strings.** Tags, layers, sorting layers, build scenes, and input axes complete inside `CompareTag`, `LayerMask.NameToLayer`, `SceneManager.LoadScene`, `Input.GetAxis`, and similar calls. Unknown names are flagged.
+- **Asset usages.** Script classes show how many scenes, prefabs, and assets reference them; methods bound to UnityEvents show their handler usages. Click a lens to list and open them.
+- **Serialized fields** are marked.
+- **Unity docs.** **Open Unity Documentation** (`Shift+F1`) opens the scripting reference for the symbol at the caret, matched to the project's editor version.
+- **`.meta` files** are hidden in the explorer, Quick Open, and search. Renaming, moving, or deleting a file or folder in Orca carries its `.meta` along so asset references survive. Turn hiding off under **Settings → Editor → Unity**.
+- **Explorer scope.** A dropdown in the explorer header roots the tree at `Assets` (the default, like Unity's Project window), `Packages`, or the **Whole folder**; projects in a monorepo are listed by name. The choice is remembered per workspace; revealing a file outside the scope switches to the scope that holds it. Change the default under **Settings → Editor → Unity**.
+- **File types.** ShaderLab (`.shader`) and HLSL (`.hlsl`, `.cginc`, `.compute`, …) are highlighted; `.asmdef`/`.asmref` validate against their schemas; USS, UXML, and Unity's YAML assets (`.unity`, `.prefab`, `.asset`, …) get their own highlighting.
+
+## Unity editor control
+
+Editor control uses the [Unity CLI](https://docs.unity.com/en-us/unity-cli/unity-cli) and the Unity Pipeline package. When a project lacks the package, Orca offers to install it (`unity pipeline install`); choose **Don't ask again** to silence the prompt for that project. If the CLI is missing, the toolbar links to its install guide.
+
+With the editor running, the editor toolbar shows the connection and editor version and offers **Play/Stop**, **Pause**, **Step**, **Refresh assets**, **Recompile**, and **Regenerate project files** (use this when the solution is missing). Saving a file under `Assets/` or `Packages/` refreshes assets automatically; turn this off under **Settings → Editor → Unity**.
+
+The **Unity** sidebar tab holds:
+
+- **Console** — the editor's log with level and text filters and collapsed duplicates. Click an entry to open its source line.
+- **Tests** — EditMode and PlayMode tests. Run all, selected, or failed tests and jump from a failure to its source.
+
+Agents learn this workflow from the bundled [`unity` skill](/docs/cli/skills#unity): install it with `orca skills install --skill unity`.
+
+### Orca as Unity's script editor
+
+When you open a local Unity project, Orca copies its editor package into `Packages/com.stablyai.orca.ide`, writes `Library/Orca/orca-editor.json`, and updates the package when a newer Orca ships one. It never downgrades the package. On first load the package makes Orca Unity's **External Script Editor**, once per project; if you switch to another editor later, it stays switched. With Orca selected:
+
+- Double-clicking a script, a console entry, or a compile error opens that line in Orca, adding the project folder to Orca first if needed.
+- The package generates the `.sln` and `.csproj` files Orca's C# support loads. Unity's **Preferences → External Tools** picks which package sources get projects (embedded and local packages by default) and has **Regenerate project files**.
+
+Commit or ignore `Packages/com.stablyai.orca.ide` as you like; Orca reinstalls it when it is missing. Turn off **Use Orca as the Script Editor** under **Settings → Editor → Unity** to stop the automatic install.

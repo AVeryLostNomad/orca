@@ -141,6 +141,11 @@ const bundledPluginResources = {
   from: 'resources/plugins/launch',
   to: 'plugins/launch'
 }
+// Orca copies this Unity package (with its committed .meta files) into opened Unity projects.
+const unityEditorPackageResource = {
+  from: 'resources/unity',
+  to: 'unity'
+}
 // Packaged main/CLI/SSH/speech paths lack pnpm links; copy runtime closure so bare requires cannot fall through to checkout dependencies.
 // Ship only the 166KB emoji dataset used by worktree naming, not all 49MB of emojibase-data.
 const emojiShortcodeDatasetResource = {
@@ -153,6 +158,7 @@ const commonExtraResources = [
   orcadTemplateNodeModulesExtraResource,
   ...bundledRipgrepExtraResources,
   bundledPluginResources,
+  unityEditorPackageResource,
   skillFreshnessResources,
   ...agentBrowserSkillResources,
   nativeChatVisualsResource,
@@ -324,6 +330,7 @@ module.exports = {
     '!resources/native-chat-visuals/**',
     // extraResources already ships plugin bytes; exclude source duplicates.
     '!resources/plugins/launch/**',
+    '!resources/unity/**',
     // Platform extraResources selects speech natives; asar would duplicate it and ship other variants.
     '!node_modules/sherpa-onnx*{,/**/*}',
     // CLI shim belongs beside resources/bin/orca.exe; unpacking source creates a second .cmd without its executable (#7351).
@@ -579,7 +586,9 @@ module.exports = {
     fileAssociations: [
       // Fork: mac-level associations replace the top-level list, so re-add the Open With editors.
       ...openWithFileExtensions
-        .filter((ext) => !MARKDOWN_FILE_EXTENSIONS.includes(ext) && !TABULAR_FILE_EXTENSIONS.includes(ext))
+        .filter(
+          (ext) => !MARKDOWN_FILE_EXTENSIONS.includes(ext) && !TABULAR_FILE_EXTENSIONS.includes(ext)
+        )
         .map((ext) => ({
           ext,
           name: `${ext.toUpperCase()} File`,

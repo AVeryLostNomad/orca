@@ -5,7 +5,8 @@ import {
   applyMutationsToLoadedListing,
   assembleLoadedListing,
   mergeDirListing,
-  selectDirsToAutoLoad
+  selectDirsToAutoLoad,
+  withScopeRootExpanded
 } from './file-explorer-loaded-listing'
 
 const file = (name: string): DirEntry => ({ name, isDirectory: false, isSymlink: false })
@@ -90,5 +91,16 @@ describe('selectDirsToAutoLoad', () => {
     const expanded = new Set(['a', 'a/b', 'c', 'c/d', 'hidden/under-collapsed'])
     const wanted = selectDirsToAutoLoad(expanded, new Set(['']), (dir) => dir === 'c')
     expect(wanted).toEqual(['a', 'a/b'])
+  })
+
+  it('loads folders expanded inside a scoped tree whose root the user never expanded', () => {
+    const expanded = withScopeRootExpanded(new Set(['Assets/Scripts']), 'Assets')
+    expect(selectDirsToAutoLoad(expanded, new Set(['']), () => false)).toEqual([
+      'Assets',
+      'Assets/Scripts'
+    ])
+    expect(selectDirsToAutoLoad(expanded, new Set(['', 'Assets']), () => false)).toEqual([
+      'Assets/Scripts'
+    ])
   })
 })

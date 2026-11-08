@@ -11,7 +11,11 @@ export const LSP_CLIENT_CAPABILITIES = {
     executeCommand: { dynamicRegistration: false },
     workspaceEdit: { documentChanges: true, resourceOperations: [] },
     didChangeWatchedFiles: { dynamicRegistration: false },
-    symbol: {}
+    symbol: {},
+    diagnostics: { refreshSupport: true },
+    codeLens: { refreshSupport: true },
+    inlayHint: { refreshSupport: true },
+    semanticTokens: { refreshSupport: true }
   },
   textDocument: {
     synchronization: { didSave: true, willSave: false, willSaveWaitUntil: false },
@@ -21,18 +25,33 @@ export const LSP_CLIENT_CAPABILITIES = {
       codeDescriptionSupport: true,
       dataSupport: true
     },
+    // Explicit false: Roslyn only advertises a static diagnosticProvider then.
+    diagnostic: { dynamicRegistration: false, relatedDocumentSupport: true },
     completion: {
       contextSupport: true,
       completionItem: {
         snippetSupport: true,
-        commitCharactersSupport: false,
+        commitCharactersSupport: true,
         documentationFormat: ['markdown', 'plaintext'],
         deprecatedSupport: true,
+        tagSupport: { valueSet: [1] },
         insertReplaceSupport: true,
-        resolveSupport: { properties: ['documentation', 'detail', 'additionalTextEdits'] },
+        insertTextModeSupport: { valueSet: [1, 2] },
+        resolveSupport: {
+          properties: ['documentation', 'detail', 'additionalTextEdits', 'command']
+        },
         labelDetailsSupport: true
       },
-      completionItemKind: { valueSet: Array.from({ length: 25 }, (_, index) => index + 1) }
+      completionItemKind: { valueSet: Array.from({ length: 25 }, (_, index) => index + 1) },
+      completionList: {
+        itemDefaults: [
+          'commitCharacters',
+          'editRange',
+          'insertTextFormat',
+          'insertTextMode',
+          'data'
+        ]
+      }
     },
     hover: { contentFormat: ['markdown', 'plaintext'] },
     signatureHelp: {
@@ -72,6 +91,7 @@ export const LSP_CLIENT_CAPABILITIES = {
     formatting: {},
     rangeFormatting: {},
     onTypeFormatting: {},
+    codeLens: { dynamicRegistration: false, resolveSupport: { properties: ['command'] } },
     rename: { prepareSupport: true },
     documentLink: { tooltipSupport: true },
     foldingRange: { lineFoldingOnly: false },

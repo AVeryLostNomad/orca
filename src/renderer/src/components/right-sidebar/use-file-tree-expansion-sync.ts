@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { FileTreeDirectoryHandle } from '@pierre/trees'
 import { useAppStore } from '@/store'
+import { getRelativePathInsideRoot } from '@/lib/path'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
 import {
   getRelativeAncestorDirs,
@@ -96,7 +97,8 @@ function areSetsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): bo
 type UseFileTreeExpansionSyncParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
-  worktreePath: string | null
+  /** Directory tree paths are relative to (the worktree, or its Unity scope folder). */
+  treeRootPath: string | null
   /** True while the name filter drives model search; its auto-expansion is ephemeral. */
   suspended: boolean
 }
@@ -105,14 +107,14 @@ type UseFileTreeExpansionSyncParams = {
 export function useFileTreeExpansionSync({
   model,
   activeWorktreeId,
-  worktreePath,
+  treeRootPath,
   suspended
 }: UseFileTreeExpansionSyncParams): void {
   const suspendedRef = useRef(suspended)
   suspendedRef.current = suspended
 
   useEffect(() => {
-    if (!model || !activeWorktreeId || !worktreePath) {
+    if (!model || !activeWorktreeId || !treeRootPath) {
       return
     }
     let frame: number | null = null
@@ -123,10 +125,17 @@ export function useFileTreeExpansionSync({
       }
       const state = useAppStore.getState()
       const storedAbsolute = state.expandedDirs[activeWorktreeId] ?? new Set<string>()
-      const storedRelative = toWorktreeRelativeDirSet(storedAbsolute, worktreePath)
+      const storedRelative = toWorktreeRelativeDirSet(storedAbsolute, treeRootPath)
       const next = diffExpandedDirPaths(readFileTreeExpansionSnapshot(model), storedRelative)
       if (!areSetsEqual(next, storedRelative)) {
-        state.setExpandedDirs(activeWorktreeId, toAbsoluteDirSet(next, worktreePath))
+        // Why: a scoped tree must not forget folders expanded in the whole-folder view.
+        const outsideTree = [...storedAbsolute].filter(
+          (dir) => !getRelativePathInsideRoot(dir, treeRootPath)
+        )
+        state.setExpandedDirs(
+          activeWorktreeId,
+          new Set([...outsideTree, ...toAbsoluteDirSet(next, treeRootPath)])
+        )
       }
     }
     const unsubscribe = model.subscribe(() => {
@@ -141,5 +150,5 @@ export function useFileTreeExpansionSync({
         cancelAnimationFrame(frame)
       }
     }
-  }, [model, activeWorktreeId, worktreePath])
+  }, [model, activeWorktreeId, treeRootPath])
 }

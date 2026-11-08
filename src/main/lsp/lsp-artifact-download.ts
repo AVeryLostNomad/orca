@@ -7,6 +7,11 @@ import { pipeline } from 'node:stream/promises'
 import { net } from 'electron'
 import { spawnProcess } from '@orca/process-host'
 import { tarExecutable } from '../data-studio/ads-server-installer'
+import { trySpawnOffWindowsMainThread } from '../worker-thread-child-process/windows-main-thread-spawn-offload'
+import type { ChildProcessHandle } from '@orca/process-host/process-spec'
+import type { WorkerThreadChildProcess } from '../worker-thread-child-process/worker-thread-child-process'
+
+type ArchiveToolChild = ChildProcessHandle | WorkerThreadChildProcess
 
 export class LspInstallError extends Error {}
 
@@ -66,21 +71,47 @@ function downloadToFile(
   })
 }
 
-export function sha256File(path: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = createHash('sha256')
-    const stream = createReadStream(path)
-    stream.on('data', (chunk) => hash.update(chunk))
-    stream.on('end', () => resolve(hash.digest('hex')))
-    stream.on('error', reject)
-  })
+export type LspArtifactHashAlgorithm = 'sha256' | 'sha512'
+
+function hashFile(path: string, algorithm: LspArtifactHashAlgorithm): Promise<string> {
+  const { promise, resolve, reject } = Promise.withResolvers<string>()
+  const hash = createHash(algorithm)
+  const stream = createReadStream(path)
+  stream.on('data', (chunk) => hash.update(chunk))
+  stream.on('end', () => resolve(hash.digest('hex')))
+  stream.on('error', reject)
+  return promise
 }
 
-export async function assertSha256(path: string, expected: string): Promise<void> {
-  const actual = await sha256File(path)
+export async function assertFileHash(
+  path: string,
+  algorithm: LspArtifactHashAlgorithm,
+  expected: string
+): Promise<void> {
+  const actual = await hashFile(path, algorithm)
   if (actual !== expected.toLowerCase()) {
-    throw new LspInstallError(`sha256 mismatch for ${path}: expected ${expected}, got ${actual}`)
+    throw new LspInstallError(
+      `${algorithm} mismatch for ${path}: expected ${expected}, got ${actual}`
+    )
   }
+}
+
+// Installs extract on the main process; Windows main-thread spawns can stall ~5s.
+function spawnArchiveTool(program: string, args: string[]): ArchiveToolChild {
+  const spec = { program, args }
+  const child =
+    trySpawnOffWindowsMainThread(spec) ??
+    spawnProcess({ ...spec, stdio: ['pipe', 'ignore', 'pipe'] })
+  child.stdin?.end()
+  return child
+}
+
+function collectStderrTail(child: ArchiveToolChild): () => string {
+  let stderrTail = ''
+  child.stderr?.on('data', (chunk: Buffer | string) => {
+    stderrTail = (stderrTail + chunk.toString()).slice(-2048)
+  })
+  return () => stderrTail.trim()
 }
 
 export function extractTarGz(
@@ -88,86 +119,70 @@ export function extractTarGz(
   destination: string,
   options?: { excludePatterns?: string[] }
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    mkdirSync(destination, { recursive: true })
-    const excludeArgs = (options?.excludePatterns ?? []).flatMap((pattern) => [
-      '--exclude',
-      pattern
-    ])
-    const child = spawnProcess({
-      program: tarExecutable(),
-      args: ['-xzf', archive, '-C', destination, ...excludeArgs],
-      stdio: ['ignore', 'ignore', 'pipe']
-    })
-    let stderrTail = ''
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderrTail = (stderrTail + chunk.toString()).slice(-2048)
-    })
-    child.on('error', reject)
-    child.on('exit', (code) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        reject(new LspInstallError(`tar exited with ${code}: ${stderrTail.trim()}`))
-      }
-    })
+  const { promise, resolve, reject } = Promise.withResolvers<void>()
+  mkdirSync(destination, { recursive: true })
+  const excludeArgs = (options?.excludePatterns ?? []).flatMap((pattern) => ['--exclude', pattern])
+  const child = spawnArchiveTool(tarExecutable(), [
+    '-xzf',
+    archive,
+    '-C',
+    destination,
+    ...excludeArgs
+  ])
+  const stderrTail = collectStderrTail(child)
+  child.on('error', reject)
+  child.on('exit', (code: number | null) => {
+    if (code === 0) {
+      resolve()
+    } else {
+      reject(new LspInstallError(`tar exited with ${code}: ${stderrTail()}`))
+    }
   })
+  return promise
 }
 
 // System32 bsdtar handles zip too, with PowerShell Expand-Archive as fallback
 // (mirrors code-server-windows-install).
 export function extractZip(archive: string, destination: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    mkdirSync(destination, { recursive: true })
-    const runTar = (): void => {
-      const child = spawnProcess({
-        program: tarExecutable(),
-        args: ['-xf', archive, '-C', destination],
-        stdio: ['ignore', 'ignore', 'pipe']
-      })
-      let stderrTail = ''
-      child.stderr?.on('data', (chunk: Buffer) => {
-        stderrTail = (stderrTail + chunk.toString()).slice(-2048)
-      })
-      child.on('error', (error) => {
-        if (process.platform === 'win32') {
-          runPowershellFallback()
-        } else {
-          reject(error)
-        }
-      })
-      child.on('exit', (code) => {
-        if (code === 0) {
-          resolve()
-        } else if (process.platform === 'win32') {
-          runPowershellFallback()
-        } else {
-          reject(new LspInstallError(`tar exited with ${code}: ${stderrTail.trim()}`))
-        }
-      })
+  const { promise, resolve, reject } = Promise.withResolvers<void>()
+  mkdirSync(destination, { recursive: true })
+  const runPowershellFallback = (): void => {
+    // Single-quoted literals: `$` and backticks in profile paths stay inert.
+    const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`
+    const child = spawnArchiveTool('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Expand-Archive -LiteralPath ${literal(archive)} -DestinationPath ${literal(destination)} -Force`
+    ])
+    child.on('error', reject)
+    child.on('exit', (code: number | null) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new LspInstallError(`Expand-Archive exited with ${code}`))
+      }
+    })
+  }
+  const child = spawnArchiveTool(tarExecutable(), ['-xf', archive, '-C', destination])
+  const stderrTail = collectStderrTail(child)
+  child.on('error', (error: Error) => {
+    if (process.platform === 'win32') {
+      runPowershellFallback()
+    } else {
+      reject(error)
     }
-    const runPowershellFallback = (): void => {
-      const child = spawnProcess({
-        program: 'powershell.exe',
-        args: [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `Expand-Archive -LiteralPath "${archive}" -DestinationPath "${destination}" -Force`
-        ],
-        stdio: 'ignore'
-      })
-      child.on('error', reject)
-      child.on('exit', (code) => {
-        if (code === 0) {
-          resolve()
-        } else {
-          reject(new LspInstallError(`Expand-Archive exited with ${code}`))
-        }
-      })
-    }
-    runTar()
   })
+  child.on('exit', (code: number | null) => {
+    if (code === 0) {
+      resolve()
+    } else if (process.platform === 'win32') {
+      runPowershellFallback()
+    } else {
+      reject(new LspInstallError(`tar exited with ${code}: ${stderrTail()}`))
+    }
+  })
+  return promise
 }
 
 export async function gunzipFile(archive: string, destination: string): Promise<void> {

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import type { FileTreeDirectoryHandle } from '@pierre/trees'
-import { dirname, joinPath } from '@/lib/path'
+import { dirname } from '@/lib/path'
 import { hasNativeFileDragTypes } from '../../../../shared/native-file-drop'
 import { useFileExplorerImport } from './useFileExplorerImport'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
+import { normalizeTreeRelativePath, treePathToAbsolute } from './file-explorer-tree-relative-paths'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
 
@@ -34,6 +34,8 @@ type UseFileTreeNativeImportParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to; defaults to the worktree. */
+  treeRootPath?: string | null
   operationOwner: FileExplorerOperationOwner | undefined
   refreshFileList: () => void
   applySelectedPaths: (absolutePaths: Set<string>) => void
@@ -58,6 +60,7 @@ export function useFileTreeNativeImport({
   model,
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   operationOwner,
   refreshFileList,
   applySelectedPaths
@@ -125,6 +128,7 @@ export function useFileTreeNativeImport({
 
   const fileDropOwnerRef = useFileExplorerImport({
     worktreePath,
+    displayRootPath: treeRootPath,
     worktreeId: activeWorktreeId,
     refreshDir: useCallback(async () => refreshFileList(), [refreshFileList]),
     clearNativeDragState,
@@ -140,7 +144,9 @@ export function useFileTreeNativeImport({
   })
 
   const nativeDropDir =
-    worktreePath && nativeDropRelativeDir ? joinPath(worktreePath, nativeDropRelativeDir) : null
+    treeRootPath && nativeDropRelativeDir
+      ? treePathToAbsolute(treeRootPath, nativeDropRelativeDir)
+      : null
 
   return {
     nativeDropDir,

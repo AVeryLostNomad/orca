@@ -67,6 +67,7 @@ const {
   registerDataStudioHandlersMock,
   registerEditorThemeHandlersMock,
   registerLspHandlersMock,
+  registerUnityHandlersMock,
   registerSkillsHandlersMock,
   registerSkillDeleteIpcHandlersMock,
   registerWorkspaceSpaceHandlersMock,
@@ -142,6 +143,7 @@ const {
   registerDataStudioHandlersMock: vi.fn(),
   registerEditorThemeHandlersMock: vi.fn(),
   registerLspHandlersMock: vi.fn(),
+  registerUnityHandlersMock: vi.fn(),
   registerSkillsHandlersMock: vi.fn(),
   registerSkillDeleteIpcHandlersMock: vi.fn(),
   registerWorkspaceSpaceHandlersMock: vi.fn(),
@@ -208,6 +210,10 @@ vi.mock('../editor-themes', () => ({
 
 vi.mock('../lsp', () => ({
   registerLspHandlers: registerLspHandlersMock
+}))
+
+vi.mock('../unity', () => ({
+  registerUnityHandlers: registerUnityHandlersMock
 }))
 
 vi.mock('../cli', () => ({

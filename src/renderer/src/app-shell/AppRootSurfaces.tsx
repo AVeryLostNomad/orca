@@ -16,6 +16,8 @@ import { NativeChatResumeOnRestartModal } from '../components/NativeChatResumeRu
 import { TelemetryFirstLaunchSurface } from '../components/TelemetryFirstLaunchSurface'
 import { ZoomOverlay } from '../components/ZoomOverlay'
 import { shouldRenderPetOverlay } from '../components/pet/pet-overlay-visibility'
+import { UnityBackgroundServices } from '../components/unity/UnityBackgroundServices'
+import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
 import { useAppStore } from '../store'
 import type { UpdateStatus } from '../../../shared/update-status-types'
 import { useLazyModalMounts } from './use-lazy-modal-mounts'
@@ -304,6 +306,12 @@ export function AppRootSurfaces(props: {
       <OverlayBoundary boundaryId="overlay.zoom" resetKey={activeView}>
         <ZoomOverlay />
       </OverlayBoundary>
+      {/* Unity features target this machine's projects; paired web clients have no local editor. */}
+      {!isPairedWebClientWindow() ? (
+        <OverlayBoundary boundaryId="overlay.unity-background">
+          <UnityBackgroundServices />
+        </OverlayBoundary>
+      ) : null}
       <Suspense fallback={null}>
         {activeModal === 'delete-worktree' ? (
           <ModalBoundary boundaryId="modal.delete-worktree" resetKey>

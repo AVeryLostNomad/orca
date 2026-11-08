@@ -10,7 +10,7 @@ import {
   type MessageConnection
 } from 'vscode-jsonrpc/node'
 import type { LspResponseError, LspServerId, LspSessionEvent } from '../../shared/lsp-types'
-import type { LspServerRegistryEntry } from './lsp-server-registry'
+import type { LspServerHookContext, LspServerRegistryEntry } from './lsp-server-registry'
 import type { LspSpawnSpec } from './lsp-server-acquisition'
 import { LSP_CLIENT_CAPABILITIES } from './lsp-client-capabilities'
 import { killProcessTree } from './lsp-process-termination'
@@ -49,15 +49,20 @@ export class LspSession {
   /** uri → ownerWebContentsId, so a second window's duplicate didOpen is dropped. */
   readonly openDocuments = new Map<string, number>()
 
+  /** Undefined for servers without a project-loaded notification. */
+  projectInitializationPending: boolean | undefined
+
   constructor(private readonly args: LspSessionArgs) {
     this.serverId = args.entry.id
+    this.projectInitializationPending = args.entry.projectLoadedNotification ? true : undefined
   }
 
   async start(): Promise<void> {
     const { spawnSpec, entry, rootPath } = this.args
+    const workspaceArgs = (await entry.workspaceArgs?.({ rootPath })) ?? []
     const child = spawnProcess({
       program: spawnSpec.command,
-      args: spawnSpec.args,
+      args: [...spawnSpec.args, ...workspaceArgs],
       env: spawnSpec.env,
       cwd: rootPath,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -82,6 +87,9 @@ export class LspSession {
 
     connection.onRequest((method, params) => this.handleServerRequest(method, params))
     connection.onNotification((method, params) => {
+      if (method === entry.projectLoadedNotification) {
+        this.projectInitializationPending = false
+      }
       this.args.onEvent({ kind: 'notification', method, params })
     })
     connection.onError(() => {
@@ -114,6 +122,17 @@ export class LspSession {
         settings: entry.workspaceConfiguration
       })
     }
+    await entry.afterInitialized?.(this.hookContext())
+  }
+
+  private hookContext(): LspServerHookContext {
+    return {
+      rootPath: this.args.rootPath,
+      notify: (method, params) => this.notify(method, params),
+      request: (method, params) =>
+        this.connection?.sendRequest(method, params) ??
+        Promise.reject(new Error('language server is not running'))
+    }
   }
 
   private requestWithTimeout(method: string, params: unknown, timeoutMs: number): Promise<unknown> {
@@ -140,6 +159,10 @@ export class LspSession {
   }
 
   private handleServerRequest(method: string, params: unknown): unknown {
+    const handlers = this.args.entry.serverRequestHandlers
+    if (handlers && Object.hasOwn(handlers, method)) {
+      return handlers[method](params, this.hookContext())
+    }
     if (method === 'workspace/configuration') {
       const items = (params as { items?: { section?: string }[] } | null)?.items ?? []
       const configuration = this.args.entry.workspaceConfiguration ?? {}

@@ -1,0 +1,14 @@
+{
+  "name": "StablyAI.Orca.Ide.Editor",
+  "rootNamespace": "StablyAI.Orca.Ide",
+  "references": [],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

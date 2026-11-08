@@ -31,6 +31,16 @@ export function toAbsoluteDirSet(
   return result
 }
 
+/** Absolute path of a tree-model path; the tree root may sit below the worktree (Unity scope). */
+export function treePathToAbsolute(treeRootPath: string, treePath: string): string {
+  return joinPath(treeRootPath, normalizeTreeRelativePath(treePath))
+}
+
+/** Worktree-relative POSIX path of an absolute path ('' for the root or anything outside it). */
+export function toWorktreeRelativePath(absolutePath: string, worktreePath: string): string {
+  return normalizeTreeRelativePath(getRelativePathInsideRoot(absolutePath, worktreePath) ?? '')
+}
+
 /** 'a/b/c.txt' → ['a', 'a/b'] — every ancestor directory, shallowest first. */
 export function getRelativeAncestorDirs(relativePath: string): string[] {
   const normalized = normalizeTreeRelativePath(relativePath)

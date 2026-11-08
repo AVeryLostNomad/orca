@@ -100,6 +100,8 @@ export type RightSidebarTab =
   | 'source-control'
   | 'checks'
   | 'ports'
+  // Shown only when the active local workspace contains a Unity project.
+  | 'unity'
   // Plugin IDs encode their dynamic panel namespace without opening the static tab union.
   | `plugin:${string}`
 export type ActiveRightSidebarTab = Exclude<RightSidebarTab, 'search'>

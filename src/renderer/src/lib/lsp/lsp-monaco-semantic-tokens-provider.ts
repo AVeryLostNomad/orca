@@ -1,6 +1,7 @@
 import type * as Monaco from 'monaco-editor'
 import { requestLsp, type LspWorkspaceSession } from './lsp-client'
 import { lspBindingFor, lspCapability } from './lsp-provider-binding-access'
+import { onLspRefreshRequest } from './lsp-refresh-requests'
 
 type MonacoModule = typeof Monaco
 
@@ -24,7 +25,10 @@ export function registerLspSemanticTokensProvider(
   }
   const supportsDelta =
     typeof semanticTokensOptions.full === 'object' && semanticTokensOptions.full.delta === true
+  const changed = new monaco.Emitter<void>()
+  onLspRefreshRequest('semanticTokens', () => changed.fire())
   monaco.languages.registerDocumentSemanticTokensProvider(languageId, {
+    onDidChange: changed.event,
     getLegend: () => ({
       tokenTypes: semanticTokensOptions.legend?.tokenTypes ?? [],
       tokenModifiers: semanticTokensOptions.legend?.tokenModifiers ?? []

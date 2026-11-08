@@ -1,9 +1,23 @@
 import { URI } from 'vscode-uri'
 
-/** Canonical LSP `file:` URI for an absolute path (Windows drive letters get
- *  percent-encoded correctly, e.g. file:///c%3A/...). */
-export function lspUriFromPath(filePath: string): string {
-  return URI.file(filePath).toString()
+// Roslyn fails on percent-encoded drive colons (file:///c%3A/...) — hover
+// returns null and pull diagnostics throw UriFormatException — so, like
+// vscode-csharp, it gets unencoded URIs.
+const UNENCODED_URI_SERVERS: Record<string, true> = { csharp: true }
+
+/** `file:` URI for an absolute path in the form `serverId` expects: canonical
+ *  LSP encoding (file:///c%3A/...) unless the server needs it unencoded. */
+export function lspUriFromPath(filePath: string, serverId: string): string {
+  return URI.file(filePath).toString(UNENCODED_URI_SERVERS[serverId] === true)
+}
+
+/** Encoding-independent identity for comparing URIs servers send back. */
+export function canonicalLspUri(uri: string): string {
+  try {
+    return URI.parse(uri).toString()
+  } catch {
+    return uri
+  }
 }
 
 export function pathFromLspUri(uri: string): string | null {

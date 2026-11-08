@@ -1,9 +1,10 @@
 import type * as Monaco from 'monaco-editor'
-import type { CodeAction, Command, Diagnostic, WorkspaceEdit } from 'vscode-languageserver-protocol'
+import type { CodeAction, Command, Diagnostic } from 'vscode-languageserver-protocol'
 import { requestLsp } from './lsp-client'
+import { executeLspCommand } from './lsp-client-commands'
 import type { LspDocumentBinding } from './lsp-document-binding'
 import { toLspRange, toMonacoMarker } from './lsp-monaco-converters'
-import { applyLspWorkspaceEdit, toMonacoWorkspaceEdit } from './lsp-monaco-workspace-edit'
+import { toMonacoWorkspaceEdit } from './lsp-monaco-workspace-edit'
 import { lspBindingFor, lspCapability } from './lsp-provider-binding-access'
 
 type MonacoModule = typeof Monaco
@@ -25,14 +26,6 @@ type CommandInvocation = {
 const EXECUTE_LSP_COMMAND = 'orca.lsp.executeCommand'
 const codeActionState = new WeakMap<Monaco.languages.CodeAction, CodeActionState>()
 const registeredCommandMonacos = new WeakSet<object>()
-
-function isWorkspaceEdit(value: unknown): value is WorkspaceEdit {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    ('changes' in value || 'documentChanges' in value)
-  )
-}
 
 function toLspDiagnostic(marker: Monaco.editor.IMarkerData): Diagnostic {
   const severityByMarker: Record<number, 1 | 2 | 3 | 4> = { 8: 1, 4: 2, 2: 3, 1: 4 }
@@ -105,17 +98,7 @@ function installLspCommandExecutor(monaco: MonacoModule): void {
       ) {
         return
       }
-      const result = await requestLsp<unknown>(
-        invocation.binding.session,
-        'workspace/executeCommand',
-        invocation.command
-      )
-      if (isWorkspaceEdit(result)) {
-        const applied = applyLspWorkspaceEdit(monaco, invocation.binding.session, result)
-        if (!applied.applied) {
-          throw new Error(applied.failureReason)
-        }
-      }
+      await executeLspCommand(monaco, invocation.binding, invocation.command, 'always')
     }
   )
 }

@@ -5,6 +5,7 @@ import { useAppStore } from '../../store'
 import { Separator } from '../ui/separator'
 import { EditorCoreSettingsSection } from './EditorCoreSettingsSection'
 import { EditorDiffMarkdownSettingsSection } from './EditorDiffMarkdownSettingsSection'
+import { UnitySettings } from './UnitySettings'
 import { lazyWithRetry } from '@/lib/lazy-with-retry'
 
 // Why lazy: the preview boots Monaco; settings sections must not pull it in eagerly.
@@ -44,6 +45,8 @@ export function EditorPane({
       />
       <Separator />
       <EditorDiffMarkdownSettingsSection settings={settings} updateSettings={updateSettings} />
+      <Separator />
+      <UnitySettings settings={settings} updateSettings={updateSettings} />
     </div>
   )
 

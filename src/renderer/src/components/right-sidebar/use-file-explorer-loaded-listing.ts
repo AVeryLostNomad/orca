@@ -17,6 +17,7 @@ import {
   mergeIgnoredPaths,
   replayWaveEntry,
   selectExpandedDirChain,
+  withScopeRootExpanded,
   type LoadedListing,
   type WaveReplayEntry
 } from './file-explorer-loaded-listing'
@@ -41,6 +42,8 @@ type UseFileExplorerLoadedListingParams = {
   enabled: boolean
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Worktree-relative tree root ('' = whole worktree); it and its ancestors load as if expanded. */
+  scopePrefix: string
   activeRepoSupportsGit: boolean
   /** Hidden ignored rows must be classified before they reach the tree, or they flash. */
   hideIgnored: boolean
@@ -73,6 +76,7 @@ export function useFileExplorerLoadedListing({
   enabled,
   activeWorktreeId,
   worktreePath,
+  scopePrefix,
   activeRepoSupportsGit,
   hideIgnored,
   onDirsLoaded
@@ -101,6 +105,8 @@ export function useFileExplorerLoadedListing({
   targetRef.current = { activeWorktreeId, worktreePath }
   const hideIgnoredRef = useRef(hideIgnored)
   hideIgnoredRef.current = hideIgnored
+  const scopePrefixRef = useRef(scopePrefix)
+  scopePrefixRef.current = scopePrefix
   const gitRef = useRef(activeRepoSupportsGit)
   gitRef.current = activeRepoSupportsGit
   const onDirsLoadedRef = useRef(onDirsLoaded)
@@ -147,9 +153,9 @@ export function useFileExplorerLoadedListing({
     }
     waveLogRef.current = []
     setLoading(true)
-    const expanded = toWorktreeRelativeDirSet(
-      useAppStore.getState().expandedDirs[worktreeId] ?? [],
-      root
+    const expanded = withScopeRootExpanded(
+      toWorktreeRelativeDirSet(useAppStore.getState().expandedDirs[worktreeId] ?? [], root),
+      scopePrefixRef.current
     )
     const dirs = [
       ...new Set(['', ...listingRef.current.loadedDirs, ...selectExpandedDirChain(expanded)])
@@ -285,6 +291,7 @@ export function useFileExplorerLoadedListing({
     enabled,
     activeWorktreeId,
     worktreePath,
+    scopePrefix,
     listingVersion: snapshot,
     refresh,
     loadDirs,

@@ -7,16 +7,19 @@ import { getConnectionIdForFile } from '@/lib/connection-context'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
-import { acquireLspSession, type LspSessionLease } from './lsp-client'
+import { acquireLspSession, onLspSessionStatus, type LspSessionLease } from './lsp-client'
 import { ensureLspDocumentBinding } from './lsp-document-binding'
 import { ensureLspDiagnosticsSubscription } from './lsp-diagnostics-markers'
 import { ensureLspProvidersForLanguage } from './lsp-monaco-providers'
+import { ensureLspPullDiagnostics } from './lsp-pull-diagnostics'
+import { ensureLspServerMessageToasts } from './lsp-server-message-toasts'
+import { attachLspDocCommentAutoInsert } from './lsp-auto-insert'
 import {
   disableBuiltInFeaturesForLspServer,
   lspServerForLanguageIfEnabled
 } from './lsp-language-support'
 import { installLspEditorOpener } from './lsp-editor-opener'
-import { resolveLspProjectServerOverride } from './lsp-angular-project-detect'
+import { resolveLspProjectServer } from './lsp-project-server-detect'
 
 function resolveLocalWorkspaceRoot(worktreeId: string): string | null {
   const state = useAppStore.getState()
@@ -34,6 +37,7 @@ export type EditorLspStatus =
   | { phase: 'idle' }
   | { phase: 'installing'; serverId: string; progress: number }
   | { phase: 'starting'; serverId: string }
+  | { phase: 'loading-projects'; serverId: string }
   | { phase: 'error'; serverId: string; message: string }
 
 /** Attach language-server intellisense to a mounted file editor. Local
@@ -67,11 +71,14 @@ export function useLspForEditor(args: {
       return
     }
     let cancelled = false
-    // May be swapped for a project-conditional server (e.g. Angular for .html).
+    const editorDisposers: (() => void)[] = []
+    // May be swapped for a project-conditional server (e.g. Angular for .html)
+    // or dropped (C# outside Unity projects).
     let activeServerId = serverId
+    let serverResolved = false
     const unsubscribeInstallState = window.api?.lsp?.onServerStateChanged?.(
       ({ serverId: changedServerId, state }) => {
-        if (cancelled || changedServerId !== activeServerId) {
+        if (cancelled || !serverResolved || changedServerId !== activeServerId) {
           return
         }
         if (state.phase === 'installing') {
@@ -79,18 +86,25 @@ export function useLspForEditor(args: {
         }
       }
     )
-    setStatus({ phase: 'starting', serverId })
     void (async () => {
       let lease: LspSessionLease | null = null
       try {
-        activeServerId = await resolveLspProjectServerOverride(
+        const projectServerId = await resolveLspProjectServer(
           useAppStore.getState().settings,
           serverId,
-          rootPath
+          rootPath,
+          filePath
         )
         if (cancelled) {
           return
         }
+        if (!projectServerId) {
+          setStatus({ phase: 'idle' })
+          return
+        }
+        activeServerId = projectServerId
+        serverResolved = true
+        setStatus({ phase: 'starting', serverId: activeServerId })
         lease = await acquireLspSession(activeServerId, rootPath)
         if (!lease) {
           if (!cancelled) {
@@ -112,11 +126,34 @@ export function useLspForEditor(args: {
         }
         installLspEditorOpener(monaco)
         ensureLspDiagnosticsSubscription(monaco, lease.session)
+        ensureLspServerMessageToasts(lease.session)
         ensureLspProvidersForLanguage(monaco, language, lease.session)
         disableBuiltInFeaturesForLspServer(activeServerId)
-        ensureLspDocumentBinding(model, lease, filePath, language, worktreeId, documentId)
+        const session = lease.session
+        const binding = ensureLspDocumentBinding(
+          model,
+          lease,
+          filePath,
+          language,
+          worktreeId,
+          documentId
+        )
         lease = null
-        setStatus({ phase: 'idle' })
+        ensureLspPullDiagnostics(monaco, binding)
+        const autoInsert = attachLspDocCommentAutoInsert(monaco, mountedEditor, binding)
+        if (autoInsert) {
+          editorDisposers.push(() => autoInsert.dispose())
+        }
+        const showProjectStatus = (): void =>
+          setStatus(
+            session.projectInitializationPending
+              ? { phase: 'loading-projects', serverId: session.serverId }
+              : { phase: 'idle' }
+          )
+        showProjectStatus()
+        if (session.projectInitializationPending !== undefined) {
+          editorDisposers.push(onLspSessionStatus(session, showProjectStatus))
+        }
       } catch (error) {
         if (!cancelled) {
           setStatus({ phase: 'error', serverId: activeServerId, message: String(error) })
@@ -128,6 +165,9 @@ export function useLspForEditor(args: {
     return () => {
       cancelled = true
       unsubscribeInstallState?.()
+      for (const dispose of editorDisposers) {
+        dispose()
+      }
     }
   }, [mountedEditor, filePath, language, worktreeId, documentId, serverId])
   return status

@@ -11,6 +11,9 @@ export type LspWorkspaceSession = {
   epoch: number
   capabilities: Record<string, unknown>
   status: LspSessionStatus
+  /** True while the server is still loading projects (Roslyn); undefined for
+   *  servers that never report it. */
+  projectInitializationPending?: boolean
 }
 
 export type LspSessionLease = {
@@ -19,6 +22,7 @@ export type LspSessionLease = {
 }
 
 const ENSURE_FAILURE_RETRY_MS = 30_000
+const PROJECT_INITIALIZATION_COMPLETE = 'workspace/projectInitializationComplete'
 
 const sessionPromisesByKey = new Map<string, Promise<LspWorkspaceSession | null>>()
 const sessionsById = new Map<string, LspWorkspaceSession>()
@@ -52,6 +56,15 @@ function subscribeTransportOnce(): void {
   active.onEvent((sessionId, event) => dispatchEvent(sessionId, event))
 }
 
+function notifyStatusListeners(session: LspWorkspaceSession): void {
+  const listeners = statusListeners.get(session.sessionId)
+  if (listeners) {
+    for (const listener of listeners) {
+      listener(session)
+    }
+  }
+}
+
 function dispatchEvent(sessionId: string, event: LspSessionEvent): void {
   const session = sessionsById.get(sessionId)
   if (!session) {
@@ -64,17 +77,20 @@ function dispatchEvent(sessionId: string, event: LspSessionEvent): void {
         listener(event.params)
       }
     }
+    if (event.method === PROJECT_INITIALIZATION_COMPLETE && session.projectInitializationPending) {
+      session.projectInitializationPending = false
+      notifyStatusListeners(session)
+    }
     return
   }
   if (event.kind === 'status') {
+    // A re-initialized server loads its projects again.
+    if (session.projectInitializationPending !== undefined && event.epoch !== session.epoch) {
+      session.projectInitializationPending = true
+    }
     session.status = event.status
     session.epoch = event.epoch
-    const listeners = statusListeners.get(sessionId)
-    if (listeners) {
-      for (const listener of listeners) {
-        listener(session)
-      }
-    }
+    notifyStatusListeners(session)
     return
   }
   const handler = serverRequestHandlers.get(event.method)
@@ -131,6 +147,7 @@ export function acquireLspSession(
         if (existing) {
           existing.status = result.status
           existing.epoch = result.epoch
+          existing.projectInitializationPending = result.projectInitializationPending
           return existing
         }
         const session: LspWorkspaceSession = {
@@ -139,7 +156,8 @@ export function acquireLspSession(
           sessionId: result.sessionId,
           epoch: result.epoch,
           capabilities: (result.serverCapabilities as Record<string, unknown> | null) ?? {},
-          status: result.status
+          status: result.status,
+          projectInitializationPending: result.projectInitializationPending
         }
         sessionsById.set(result.sessionId, session)
         return session

@@ -167,6 +167,21 @@ export function assembleLoadedListing(listings: ReadonlyMap<string, readonly Dir
   return { files, loadedDirs }
 }
 
+/** A scoped tree shows its root's contents unexpanded, so the root and its ancestors count as expanded. */
+export function withScopeRootExpanded(
+  expandedDirs: ReadonlySet<string>,
+  scopePrefix: string
+): ReadonlySet<string> {
+  if (!scopePrefix) {
+    return expandedDirs
+  }
+  const next = new Set(expandedDirs)
+  for (let dir = scopePrefix; dir; dir = getParentRelativeDir(dir)) {
+    next.add(dir)
+  }
+  return next
+}
+
 /** Stored expanded dirs whose every ancestor is also expanded, shallowest first. */
 export function selectExpandedDirChain(expandedDirs: ReadonlySet<string>): string[] {
   const chain: string[] = []

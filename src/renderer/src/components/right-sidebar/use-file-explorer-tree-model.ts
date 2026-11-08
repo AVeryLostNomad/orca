@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   FileTree,
-  FileTreeDirectoryHandle,
   FileTreeDropResult,
-  FileTreeItemHandle,
   FileTreeRenameEvent,
   FileTreeRenamingItem
 } from '@pierre/trees'
@@ -14,7 +12,6 @@ import {
 } from '@/components/quick-open-file-list'
 import { isFileNameFilterQueryTooLarge } from '../../../../shared/file-name-filter-tokens'
 import {
-  buildFileExplorerTreeGitStatus,
   buildFileExplorerTreeInputPaths,
   passesFileExplorerTreeFilters,
   type FileExplorerTreeInputFilters
@@ -22,13 +19,21 @@ import {
 import type { FileExplorerTreeFileMutation } from './file-explorer-tree-watch-mutations'
 import { buildTreeModelBatchOps } from './file-explorer-tree-batch-operations'
 import { createFileExplorerTree } from './create-file-explorer-tree'
-import { getParentRelativeDir } from './file-explorer-loaded-dir-scope'
-import { toWorktreeRelativeDirSet } from './file-explorer-tree-relative-paths'
+import {
+  toWorktreeRelativeDirSet,
+  toWorktreeRelativePath
+} from './file-explorer-tree-relative-paths'
+import { scopeTreeInputPaths, scopeTreeMutations } from './file-explorer-tree-scope'
+import {
+  expandRestoredTreeDirs,
+  useFileTreeContentReset,
+  useFileTreeGitStatus
+} from './use-file-tree-model-sync'
 import {
   useFileExplorerLoadedListing,
   type FileExplorerDirsLoadedEvent
 } from './use-file-explorer-loaded-listing'
-import { resetFileTreePathsWithExpansion } from './use-file-tree-expansion-sync'
+import { useHiddenUnityMetaRoots } from '@/components/unity/use-hidden-unity-meta-roots'
 
 /** Narrow model surface the explorer hooks depend on, so tests can mock it. */
 export type FileTreeModelLike = Pick<
@@ -57,6 +62,8 @@ export type FileTreeModelLike = Pick<
 type UseFileExplorerTreeModelParams = {
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory the tree is rooted at (a Unity Assets/Packages scope); defaults to the worktree. */
+  treeRootPath?: string | null
   enabled: boolean
   activeRepoSupportsGit: boolean
   showDotfiles: boolean
@@ -89,14 +96,11 @@ type UseFileExplorerTreeModelResult = {
 
 const EMPTY_PATHS: string[] = []
 
-function asDirectoryHandle(handle: FileTreeItemHandle | null): FileTreeDirectoryHandle | null {
-  return handle && 'expand' in handle ? handle : null
-}
-
 /** One @pierre/trees model per active worktree, fed folder-by-folder as directories expand. */
 export function useFileExplorerTreeModel({
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   enabled,
   activeRepoSupportsGit,
   showDotfiles,
@@ -110,10 +114,15 @@ export function useFileExplorerTreeModel({
 }: UseFileExplorerTreeModelParams): UseFileExplorerTreeModelResult {
   const modelRef = useRef<FileTree | null>(null)
   const dirsLoadedHandlerRef = useRef<(event: FileExplorerDirsLoadedEvent) => void>(() => {})
+  const scopePrefix =
+    worktreePath && treeRootPath ? toWorktreeRelativePath(treeRootPath, worktreePath) : ''
+  const scopePrefixRef = useRef(scopePrefix)
+  scopePrefixRef.current = scopePrefix
   const listing = useFileExplorerLoadedListing({
     enabled,
     activeWorktreeId,
     worktreePath,
+    scopePrefix,
     activeRepoSupportsGit,
     hideIgnored: activeRepoSupportsGit && !showGitIgnoredFiles,
     onDirsLoaded: (event) => dirsLoadedHandlerRef.current(event)
@@ -136,9 +145,10 @@ export function useFileExplorerTreeModel({
   const nameFilterFilesRef = useRef(nameFilterFiles)
   nameFilterFilesRef.current = nameFilterFiles
 
+  const hiddenUnityMetaRoots = useHiddenUnityMetaRoots(activeWorktreeId, worktreePath)
   const filters = useMemo<FileExplorerTreeInputFilters>(
-    () => ({ showDotfiles, showGitIgnoredFiles, ignoredSet }),
-    [ignoredSet, showDotfiles, showGitIgnoredFiles]
+    () => ({ showDotfiles, showGitIgnoredFiles, ignoredSet, hiddenUnityMetaRoots }),
+    [ignoredSet, showDotfiles, showGitIgnoredFiles, hiddenUnityMetaRoots]
   )
   const filtersRef = useRef(filters)
   filtersRef.current = filters
@@ -160,9 +170,10 @@ export function useFileExplorerTreeModel({
     (inputFilters: FileExplorerTreeInputFilters): string[] => {
       const known = getKnownFiles()
       const extra = nameFilterFilesRef.current
-      return buildFileExplorerTreeInputPaths(
-        extra.length > 0 ? [...known, ...extra] : known,
-        inputFilters
+      const listed = extra.length > 0 ? [...known, ...extra] : known
+      return scopeTreeInputPaths(
+        scopePrefixRef.current,
+        buildFileExplorerTreeInputPaths(listed, inputFilters)
       )
     },
     [getKnownFiles]
@@ -188,35 +199,20 @@ export function useFileExplorerTreeModel({
       modelRef.current = null
       created.cleanUp()
     }
-  }, [activeWorktreeId])
+  }, [activeWorktreeId, treeRootPath])
 
-  // Why: reset by content signature only — expansion state is read from the
-  // store at reset time, so expanding a folder never triggers a tree rebuild.
-  useEffect(() => {
-    if (!model || !activeWorktreeId || !worktreePath) {
-      return
-    }
-    const inputPaths = buildInputPaths(filters)
-    const signature = inputPaths.join('\n')
-    if (signature === lastResetSignatureRef.current) {
-      return
-    }
-    const expanded = useAppStore.getState().expandedDirs[activeWorktreeId] ?? new Set<string>()
-    resetFileTreePathsWithExpansion(
-      model,
-      inputPaths,
-      toWorktreeRelativeDirSet(expanded, worktreePath)
-    )
-    lastResetSignatureRef.current = signature
-  }, [
+  useFileTreeContentReset({
     model,
     activeWorktreeId,
-    worktreePath,
-    listing.listingVersion,
-    nameFilterFiles,
-    filters,
-    buildInputPaths
-  ])
+    treeRootPath,
+    contentVersion: useMemo(
+      () => [listing.listingVersion, nameFilterFiles, filters],
+      [listing.listingVersion, nameFilterFiles, filters]
+    ),
+    buildInputPaths: () => buildInputPaths(filters),
+    lastResetSignatureRef
+  })
+  const { isDirLoaded, loadDirs } = listing
 
   const applyModelMutations = useCallback(
     (
@@ -227,8 +223,13 @@ export function useFileExplorerTreeModel({
       if (!target) {
         return true
       }
-      const ops = buildTreeModelBatchOps(target, mutations, (relativePath) =>
-        passesFileExplorerTreeFilters(relativePath, currentFilters)
+      const prefix = scopePrefixRef.current
+      const scoped = scopeTreeMutations(prefix, mutations)
+      if (scoped === null) {
+        return false
+      }
+      const ops = buildTreeModelBatchOps(target, scoped, (treePath) =>
+        passesFileExplorerTreeFilters(prefix ? `${prefix}/${treePath}` : treePath, currentFilters)
       )
       if (ops === null) {
         return false
@@ -263,7 +264,7 @@ export function useFileExplorerTreeModel({
 
   dirsLoadedHandlerRef.current = ({ mutations, ignoredSet: loadedIgnoredSet }) => {
     const target = modelRef.current
-    if (!target || !activeWorktreeId || !worktreePath) {
+    if (!target || !activeWorktreeId || !worktreePath || !treeRootPath) {
       return
     }
     const currentFilters = {
@@ -275,45 +276,24 @@ export function useFileExplorerTreeModel({
       refreshFileList()
       return
     }
-    // Why: re-open newly listed folders the user had expanded before the
-    // expansion sync sees them collapsed and forgets them.
-    const expanded = toWorktreeRelativeDirSet(
-      useAppStore.getState().expandedDirs[activeWorktreeId] ?? [],
-      worktreePath
+    expandRestoredTreeDirs(
+      target,
+      scopeTreeMutations(scopePrefix, mutations) ?? [],
+      toWorktreeRelativeDirSet(
+        useAppStore.getState().expandedDirs[activeWorktreeId] ?? [],
+        treeRootPath
+      )
     )
-    for (const mutation of mutations) {
-      if (mutation.kind !== 'create' || !mutation.isDirectory) {
-        continue
-      }
-      if (!expanded.has(mutation.relativePath)) {
-        continue
-      }
-      const parent = getParentRelativeDir(mutation.relativePath)
-      // Why: expand() opens collapsed ancestors too, so only follow an open parent.
-      if (parent && !asDirectoryHandle(target.getItem(parent))?.isExpanded()) {
-        continue
-      }
-      asDirectoryHandle(target.getItem(mutation.relativePath))?.expand()
-    }
   }
 
-  const gitStatusEntries = useAppStore((s) =>
-    activeWorktreeId ? s.gitStatusByWorktree[activeWorktreeId] : undefined
-  )
-  useEffect(() => {
-    if (!model) {
-      return
-    }
-    if (!activeRepoSupportsGit) {
-      model.setGitStatus([])
-      return
-    }
-    // Why: a trailing slash tells the library an ignored path is a folder so its row dims too.
-    const visibleIgnoredPaths = showGitIgnoredFiles
-      ? [...ignoredSet].map((path) => (model.getItem(path)?.isDirectory() ? `${path}/` : path))
-      : []
-    model.setGitStatus(buildFileExplorerTreeGitStatus(gitStatusEntries ?? [], visibleIgnoredPaths))
-  }, [model, activeRepoSupportsGit, gitStatusEntries, ignoredSet, showGitIgnoredFiles])
+  useFileTreeGitStatus({
+    model,
+    activeWorktreeId,
+    activeRepoSupportsGit,
+    showGitIgnoredFiles,
+    ignoredSet,
+    scopePrefix
+  })
 
   return {
     model,
@@ -324,7 +304,7 @@ export function useFileExplorerTreeModel({
     refreshLoadedDirs: refresh,
     applyExternalFileMutations,
     getKnownFiles,
-    isDirLoaded: listing.isDirLoaded,
-    loadDirs: listing.loadDirs
+    isDirLoaded,
+    loadDirs
   }
 }

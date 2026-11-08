@@ -1525,6 +1525,83 @@
       },
       "floatingWorkspaceNotesTab": {
         "label": "Notes"
+      },
+      "unity": {
+        "docs": {
+          "openFailed": "Could not open Unity documentation for {{topic}}",
+          "linkLabel": "Open Unity documentation",
+          "openAction": "Open Unity Documentation",
+          "noTopic": "No Unity documentation for the symbol at the caret"
+        },
+        "completion": {
+          "frequentlyCalled": "Frequently called: keep this method cheap.",
+          "coroutine": "Unity coroutine",
+          "eventFunction": "Unity event function"
+        },
+        "signature": {
+          "mustBeStatic": "must be static",
+          "mustNotBeStatic": "must not be static",
+          "mustNotBeGeneric": "must not be generic",
+          "mustReturnOrCoroutine": "must return {{returnType}} or IEnumerator",
+          "mustReturn": "must return {{returnType}}",
+          "incorrectParameters": "has incorrect parameters",
+          "incorrect": "Incorrect signature for Unity event function '{{name}}': {{problem}}. Expected '{{expected}}'.",
+          "changeFix": "Change signature to '{{expected}}'",
+          "caseMismatch": "'{{actual}}' differs from Unity event function '{{name}}' only by case; Unity will not call it.",
+          "renameFix": "Rename to '{{name}}'"
+        },
+        "perf": {
+          "reason": {
+            "componentLookup": "Searches components on every call; cache the result in Awake/Start.",
+            "sceneSearch": "Searches the whole scene on every call; cache the result.",
+            "messageDispatch": "Uses reflection-based message dispatch; call the method directly.",
+            "addComponent": "Adds a component and runs its initialization.",
+            "resourcesLoad": "Loads an asset synchronously from disk.",
+            "resourcesLoadAll": "Loads assets synchronously from disk.",
+            "instantiate": "Clones a whole object hierarchy and allocates; consider pooling.",
+            "cameraMain": "Searches for the MainCamera tag on every access in this Unity version; cache it."
+          },
+          "expensiveVia": "Expensive method invocation '{{api}}' in a frequently called context (reached from {{chain}}). {{reason}}",
+          "expensive": "Expensive method invocation '{{api}}' in a frequently called context. {{reason}}",
+          "stringLookup": "String-based lookup in '{{api}}' hashes the name on every call; cache it with {{helper}}.",
+          "calledFrom": "Called from {{chain}}",
+          "calledEveryFrame": "Unity calls {{root}} every frame",
+          "criticalContext": "Performance-critical context"
+        },
+        "lens": {
+          "eventFunction": "Unity event function",
+          "frequentlyCalled": "frequently called",
+          "coroutine": "coroutine",
+          "serializable": "Serializable",
+          "serializableTooltip": "Unity serializes this value; it is stored in scenes, prefabs and assets.",
+          "noAssetUsages": "No asset usages",
+          "noAssetUsagesTooltip": "No scene, prefab or asset references this script.",
+          "assetUsageOne": "1 asset usage",
+          "assetUsageOther": "{{count}} asset usages",
+          "handlerUsageOne": "1 event handler usage",
+          "handlerUsageOther": "{{count}} event handler usages"
+        },
+        "hover": {
+          "eventFunction": "Unity event function",
+          "frequentlyCalled": "Frequently called: expensive calls here are flagged."
+        },
+        "strings": {
+          "tagDetail": "Tag",
+          "layerDetail": "Layer {{index}}",
+          "sortingLayerDetail": "Sorting layer",
+          "inputAxisDetail": "Input axis",
+          "sceneBuildIndex": "build index {{index}}",
+          "sceneDisabled": "disabled in build",
+          "sceneDetail": "Scene · {{status}}",
+          "scenePathDetail": "Scene path · {{status}}",
+          "sceneIndexOutOfRange": "Build index {{index}} is out of range: {{count}} scene(s) are enabled in the build settings.",
+          "unknownTag": "The tag '{{value}}' is not defined in the Tags & Layers settings.",
+          "unknownLayer": "The layer '{{value}}' is not defined in the Tags & Layers settings.",
+          "unknownSortingLayer": "The sorting layer '{{value}}' is not defined in the Tags & Layers settings.",
+          "unknownInputAxis": "The input axis '{{value}}' is not defined in the Input Manager.",
+          "unknownScene": "The scene '{{value}}' is not in the build settings.",
+          "disabledScene": "The scene '{{value}}' is disabled in the build settings."
+        }
       }
     },
     "hooks": {
@@ -10929,7 +11006,25 @@
             "intellisenseKw": "intellisense",
             "newTabVscodeDesc": "Offer \"New VS Code Tab\" in the new tab menu.",
             "diagnosticsKw": "diagnostics",
-            "completionsKw": "completions"
+            "completionsKw": "completions",
+            "unityIntegration": "Unity Integration",
+            "unityIntegrationDesc": "Editor controls, console, tests and meta-file handling for workspaces that contain a Unity project.",
+            "unityKw": "unity",
+            "playModeKw": "play mode",
+            "pipelineKw": "pipeline",
+            "unityHideMeta": "Hide .meta Files",
+            "unityHideMetaDesc": "Hide Unity .meta files in the file explorer and quick open.",
+            "metaKw": "meta",
+            "unityAutoRefresh": "Refresh Assets on Save",
+            "unityAutoRefreshDesc": "Ask the connected Unity editor to refresh its asset database after saving files under Assets or Packages.",
+            "unityEditorPackage": "Use Orca as the Script Editor",
+            "unityEditorPackageDesc": "Install Orca's editor package into opened Unity projects so Unity opens scripts in Orca.",
+            "externalScriptEditorKw": "external script editor",
+            "refreshKw": "refresh",
+            "unityExplorerScope": "Default Explorer Scope",
+            "unityExplorerScopeDesc": "What the file explorer shows for a Unity project until you pick a scope in its header.",
+            "assetsKw": "assets",
+            "scopeKw": "scope"
           }
         },
         "git": {
@@ -13842,7 +13937,8 @@
           "retry": "Retry",
           "installed": "Installed · v{{value0}}",
           "installing": "Installing… {{value0}}%",
-          "title": "Code Intelligence (Language Servers)"
+          "title": "Code Intelligence (Language Servers)",
+          "unityOnly": "Starts only in Unity projects"
         },
         "editor": {
           "search": {
@@ -13939,6 +14035,24 @@
           "description": "Pin the Claude and Codex accounts agents use in this project.",
           "explainer": "Agents started in this project sign in as the pinned account, alongside agents on other accounts. Unset accounts inherit from the project group, then the global selection. Applies to newly started agents.",
           "selectLabel": "{{agent}} account"
+        },
+        "UnitySettings": {
+          "integrationTitle": "Unity Integration",
+          "integrationDescription": "Editor controls, console, tests and meta-file handling for workspaces that contain a Unity project.",
+          "hideMetaTitle": "Hide .meta Files",
+          "hideMetaDescription": "Hide Unity .meta files in the file explorer and quick open. Renames, moves and deletes still carry them along.",
+          "autoRefreshTitle": "Refresh Assets on Save",
+          "autoRefreshDescription": "Ask the connected Unity editor to refresh its asset database after saving files under Assets or Packages.",
+          "editorPackageTitle": "Use Orca as the Script Editor",
+          "editorPackageDescription": "Install Orca's editor package into opened Unity projects. It makes Orca Unity's External Script Editor once per project and generates the project files Orca's C# support loads.",
+          "title": "Unity",
+          "description": "Unity project support. Editor control uses the Unity CLI and the Unity Pipeline package.",
+          "dismissedPrompts": "Projects with the Unity Pipeline install prompt hidden: {{value0}}",
+          "resetPrompts": "Show Again",
+          "scopeTitle": "Default Explorer Scope",
+          "scopeDescription": "What the file explorer shows for a Unity project until you pick a scope in its header.",
+          "scopeAssets": "Assets",
+          "scopeWholeFolder": "Whole folder"
         }
       },
       "right": {
@@ -14888,7 +15002,8 @@
             "fc3095d2ed": "explorer",
             "aiVaultSessionHistory": "Agents",
             "folderWorkspaces": "Attached worktrees",
-            "parentPrChecks": "PR Checks"
+            "parentPrChecks": "PR Checks",
+            "unity": "Unity"
           },
           "right": {
             "panel": {
@@ -15586,6 +15701,10 @@
           },
           "FileExplorerTreePane": {
             "24ff3db033": "No files match this filter"
+          },
+          "FileExplorerUnityScopeSelect": {
+            "wholeFolder": "Whole folder",
+            "label": "Explorer scope"
           }
         }
       },
@@ -17534,7 +17653,8 @@
         "EditorLspStatusChip": {
           "starting": "Starting {{value0}} language server…",
           "error": "{{value0}} language server unavailable",
-          "installing": "Installing {{value0}} support… {{value1}}%"
+          "installing": "Installing {{value0}} support… {{value1}}%",
+          "loadingProjects": "Loading {{value0}} projects…"
         },
         "EditorPanelCopyIntoWorkspaceButton": {
           "saveFirst": "Save the file before copying it into the workspace",
@@ -19733,6 +19853,120 @@
       "projectAccounts": {
         "inheritFromGroup": "Inherit from {{group}}: {{account}}",
         "unavailableOption": "{{ref}} (unavailable)"
+      },
+      "unity": {
+        "unity": {
+          "editor": {
+            "commands": {
+              "playFailed": "Couldn’t enter Play Mode",
+              "pauseFailed": "Couldn’t toggle pause",
+              "stopFailed": "Couldn’t exit Play Mode",
+              "stepFailed": "Couldn’t step a frame",
+              "refreshFailed": "Couldn’t refresh Unity assets",
+              "recompileFailed": "Couldn’t recompile scripts",
+              "regenerateFailed": "Couldn’t regenerate project files",
+              "unavailable": "Unity integration is unavailable in this window.",
+              "compileError": "Unity: 1 compile error",
+              "compileErrors": "Unity: {{count}} compile errors",
+              "showConsole": "Show console",
+              "regenerated": "Unity project files regenerated",
+              "openFailed": "Couldn’t open Unity",
+              "upgradingPipeline": "Updating Unity Pipeline…",
+              "installingPipeline": "Installing Unity Pipeline…",
+              "pipelineUpgraded": "Unity Pipeline updated",
+              "pipelineInstalled": "Unity Pipeline installed",
+              "pipelineUpgradeFailed": "Couldn’t update Unity Pipeline",
+              "pipelineInstallFailed": "Couldn’t install Unity Pipeline"
+            }
+          }
+        },
+        "UnityConsoleRow": {
+          "collapseEntry": "Collapse entry",
+          "expandEntry": "Expand entry",
+          "occurrences": "{{count}} occurrences"
+        },
+        "UnityConsoleSection": {
+          "logs": "Logs",
+          "warnings": "Warnings",
+          "errors": "Errors",
+          "collapseDuplicates": "Collapse duplicates",
+          "clear": "Clear console",
+          "filterMessages": "Filter messages",
+          "clearFilter": "Clear filter",
+          "empty": "No console messages.",
+          "noMatches": "No messages match the current filters."
+        },
+        "UnityEditorToolbar": {
+          "cliMissing": "Unity CLI not installed",
+          "statusConnected": "Unity editor connected ({{state}})",
+          "statusNoPipeline": "Unity Pipeline not installed; the editor can’t be controlled",
+          "statusDisconnected": "Unity editor not running",
+          "projectFilesMissing": "Project files missing — Regenerate",
+          "stop": "Stop",
+          "play": "Play",
+          "resume": "Resume",
+          "pause": "Pause",
+          "step": "Step",
+          "refresh": "Refresh assets",
+          "recompile": "Recompile scripts",
+          "moreActions": "More Unity actions",
+          "regenerate": "Regenerate project files",
+          "openConsole": "Open Unity console",
+          "runTests": "Run tests",
+          "openInUnity": "Open in Unity",
+          "installPipeline": "Install Unity Pipeline",
+          "updatePipeline": "Update Unity Pipeline"
+        },
+        "UnityPanel": {
+          "noProject": "No Unity project in this workspace.",
+          "checking": "Checking editor…",
+          "notRunning": "Editor not running",
+          "connectedPlaying": "Connected · playing",
+          "connectedPaused": "Connected · paused",
+          "connected": "Connected · {{state}}",
+          "section": "Unity panel section",
+          "console": "Console",
+          "tests": "Tests",
+          "disconnectedTitle": "Unity editor is not running",
+          "disconnectedBody": "Open the project in Unity to see its console and run tests.",
+          "cliMissing": "The Unity CLI was not found. Install it to connect Orca to the editor.",
+          "opening": "Opening…",
+          "openInUnity": "Open in Unity",
+          "waitingForEditor": "Waiting for the editor to connect…"
+        },
+        "UnityEditorPackageInstall": {
+          "installed": "Orca is now Unity's script editor for {{name}}",
+          "updated": "Updated Orca's Unity editor package to {{version}} for {{name}}"
+        },
+        "UnityPipelinePrompt": {
+          "description": "Installs the Unity Pipeline package ({{command}}).",
+          "dontAskAgain": "Don’t ask again",
+          "notNow": "Not now",
+          "install": "Install",
+          "title": "Enable Unity editor integration for {{name}}?"
+        },
+        "UnityTestRow": {
+          "passed": "Passed",
+          "failed": "Failed",
+          "skipped": "Skipped",
+          "inconclusive": "Inconclusive",
+          "notRun": "Not run",
+          "collapse": "Collapse",
+          "expand": "Expand",
+          "select": "Select {{name}}"
+        },
+        "UnityTestsSection": {
+          "runAll": "Run all",
+          "refreshTests": "Refresh test list",
+          "testMode": "Test mode",
+          "runSelected": "Run selected",
+          "rerunFailed": "Rerun failed",
+          "running": "Running…",
+          "summary": "{{passed}} passed · {{failed}} failed · {{skipped}} skipped · {{duration}}",
+          "notRunYet": "No results yet",
+          "loading": "Loading tests…",
+          "empty": "No {{mode}} tests in this project."
+        }
       }
     },
     "i18n": {

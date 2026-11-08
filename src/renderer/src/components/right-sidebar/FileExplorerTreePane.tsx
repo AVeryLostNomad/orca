@@ -36,6 +36,8 @@ type FileExplorerTreePaneProps = {
   activeRepo: Repo | null
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to (the worktree, or its Unity scope folder). */
+  treeRootPath: string | null
   visibleFilesWorktreePath: string | null
   explorerView: RightSidebarExplorerView
   isFilesViewActive: boolean
@@ -46,7 +48,10 @@ type FileExplorerTreePaneProps = {
   selectedPaths: Set<string>
   applySelectedPaths: (absolutePaths: Set<string>) => void
   startNew: (kind: 'file' | 'folder', parentAbsoluteDir: string) => void
-  loadDirs: (relativeDirs: readonly string[]) => Promise<void>
+  /** Lists folders by tree-model path. */
+  loadDirs: (treeDirs: readonly string[]) => Promise<void>
+  /** Explicit reveal of a file outside a scoped tree. */
+  onRevealOutsideTree?: (absolutePath: string) => void
   isCreatePending: boolean
   isRenameActive: () => boolean
   nativeDropDir: string | null
@@ -66,6 +71,7 @@ export function FileExplorerTreePane({
   activeRepo,
   activeWorktreeId,
   worktreePath,
+  treeRootPath,
   visibleFilesWorktreePath,
   explorerView,
   isFilesViewActive,
@@ -77,6 +83,7 @@ export function FileExplorerTreePane({
   applySelectedPaths,
   startNew,
   loadDirs,
+  onRevealOutsideTree,
   isCreatePending,
   isRenameActive,
   nativeDropDir,
@@ -91,21 +98,24 @@ export function FileExplorerTreePane({
     model,
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     operationOwner: fileList.operationOwner
   })
-  useFileTreeExpansionSync({ model, activeWorktreeId, worktreePath, suspended: hasNameFilter })
+  useFileTreeExpansionSync({ model, activeWorktreeId, treeRootPath, suspended: hasNameFilter })
   useFileTreeReveal({
     model,
     activeWorktreeId,
-    worktreePath,
+    treeRootPath,
     activeFileId,
     enabled: isFilesViewActive,
-    loadDirs
+    loadDirs,
+    onRevealOutsideTree
   })
   const commands = useFileTreeNodeCommands({
     model,
     activeWorktreeId,
     worktreePath,
+    treeRootPath,
     activeRepo,
     operationOwner: fileList.operationOwner,
     selectedPaths,
@@ -119,7 +129,7 @@ export function FileExplorerTreePane({
     isRenameActive
   })
   const backgroundMenu = useFileExplorerBackgroundMenu({
-    worktreePath,
+    treeRootPath,
     createPending: isCreatePending,
     startNew
   })
@@ -218,7 +228,9 @@ export function FileExplorerTreePane({
         explorerView !== 'files' && 'pointer-events-none invisible',
         isNativeDragOver && explorerView === 'files' && !nativeDropDir && 'bg-border'
       )}
-      data-file-explorer-drop-dir={nativeDropDir ?? visibleFilesWorktreePath ?? undefined}
+      data-file-explorer-drop-dir={
+        nativeDropDir ?? (visibleFilesWorktreePath ? treeRootPath : null) ?? undefined
+      }
       onClick={activation.handleClick}
       onDoubleClick={(event) => {
         activation.handleDoubleClick(event)

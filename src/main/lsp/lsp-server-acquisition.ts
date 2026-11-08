@@ -14,6 +14,13 @@ import {
 } from './lsp-github-binary-installer'
 import { resolveOrInstallGopls } from './lsp-user-toolchain-resolver'
 import { getLspServerEntry, lspNodeBundlePin } from './lsp-server-registry'
+import { resolveLspDotnet } from './lsp-dotnet-resolver'
+import {
+  ROSLYN_VERSION,
+  ensureRoslynInstalled,
+  resolveInstalledRoslyn,
+  roslynAssetForCurrentPlatform
+} from './lsp-roslyn-installer'
 
 export type LspSpawnSpec = {
   command: string
@@ -66,6 +73,14 @@ export function getLspInstallState(serverId: LspServerId): LspServerInstallState
     }
     return resolveInstalledLspBinary(serverId)
       ? { phase: 'installed', version: pin.version }
+      : { phase: 'not-installed' }
+  }
+  if (entry.acquisition.kind === 'dotnet-roslyn') {
+    if (!roslynAssetForCurrentPlatform()) {
+      return { phase: 'error', message: 'no pinned C# language server for this platform' }
+    }
+    return resolveInstalledRoslyn()
+      ? { phase: 'installed', version: ROSLYN_VERSION }
       : { phase: 'not-installed' }
   }
   return { phase: 'not-installed' }
@@ -124,6 +139,22 @@ export async function ensureLspServerAvailable(serverId: LspServerId): Promise<L
         args: entry.args ?? [],
         env: { ...process.env },
         installRoot: join(binaryPath, '..')
+      }
+    }
+    if (entry.acquisition.kind === 'dotnet-roslyn') {
+      onProgress(0)
+      // A private SDK download dwarfs the server package, so it gets most of the bar.
+      const dotnet = await resolveLspDotnet((fraction) => onProgress(fraction * 0.75))
+      const serverDll = await ensureRoslynInstalled((fraction) =>
+        onProgress(0.75 + fraction * 0.25)
+      )
+      setInstallState(serverId, { phase: 'installed', version: ROSLYN_VERSION })
+      const installRoot = join(serverDll, '..')
+      return {
+        command: dotnet.command,
+        args: [serverDll, ...(entry.args ?? []), ...(entry.installArgs?.({ installRoot }) ?? [])],
+        env: dotnet.env,
+        installRoot
       }
     }
     setInstallState(serverId, { phase: 'installing', progress: 0 })

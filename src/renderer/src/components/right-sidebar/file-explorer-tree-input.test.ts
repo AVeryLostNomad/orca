@@ -8,7 +8,12 @@ import {
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 
 describe('buildFileExplorerTreeInputPaths', () => {
-  const filters = { showDotfiles: true, showGitIgnoredFiles: true, ignoredSet: new Set<string>() }
+  const filters = {
+    showDotfiles: true,
+    showGitIgnoredFiles: true,
+    ignoredSet: new Set<string>(),
+    hiddenUnityMetaRoots: []
+  }
 
   it('normalizes separators and dedupes', () => {
     expect(buildFileExplorerTreeInputPaths(['src\\a.ts', 'src/a.ts', 'src/b.ts'], filters)).toEqual(
@@ -33,6 +38,15 @@ describe('buildFileExplorerTreeInputPaths', () => {
         ignoredSet: new Set(['dist'])
       })
     ).toEqual(['src/a.ts'])
+  })
+
+  it('hides .meta files only inside Unity roots', () => {
+    expect(
+      buildFileExplorerTreeInputPaths(
+        ['Game/Assets/a.cs', 'Game/Assets/a.cs.meta', 'Game/Assets.meta', 'docs/notes.meta'],
+        { ...filters, hiddenUnityMetaRoots: ['Game'] }
+      )
+    ).toEqual(['Game/Assets/a.cs', 'docs/notes.meta'])
   })
 
   it('promotes conflicting ancestors to directories before a reset', () => {

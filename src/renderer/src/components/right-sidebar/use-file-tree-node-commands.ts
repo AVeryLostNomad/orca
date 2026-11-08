@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import type { FileTreeDirectoryHandle } from '@pierre/trees'
 import { useAppStore } from '@/store'
-import { basename, getRelativePathInsideRoot, joinPath } from '@/lib/path'
+import { basename, getRelativePathInsideRoot } from '@/lib/path'
 import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import type { Repo } from '../../../../shared/repo-types'
 import type { OpenFile } from '@/store/slices/editor'
@@ -12,7 +12,11 @@ import {
 import { formatFileExplorerPathsForClipboard } from './file-explorer-selection'
 import { isPathEqualOrDescendant } from './file-explorer-paths'
 import { folderRelativePathToIncludeGlob } from './file-search-include-pattern'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
+import {
+  normalizeTreeRelativePath,
+  toWorktreeRelativePath,
+  treePathToAbsolute
+} from './file-explorer-tree-relative-paths'
 import type { FileExplorerOperationOwner, TreeNode } from './file-explorer-types'
 import { useFileDeletion } from './useFileDeletion'
 import { useFileDuplicate } from './useFileDuplicate'
@@ -23,6 +27,8 @@ type UseFileTreeNodeCommandsParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to; defaults to the worktree. */
+  treeRootPath?: string | null
   activeRepo: Repo | null
   operationOwner: FileExplorerOperationOwner | undefined
   selectedPaths: Set<string>
@@ -32,8 +38,9 @@ type UseFileTreeNodeCommandsParams = {
 }
 
 export type FileTreeNodeCommands = {
-  buildNode: (relativePath: string, isDirectory: boolean) => TreeNode | null
-  /** The workspace root as a folder node, for the empty-area menu. */
+  /** Node for a tree-model path; its `relativePath` stays worktree-relative. */
+  buildNode: (treePath: string, isDirectory: boolean) => TreeNode | null
+  /** The tree root (workspace or Unity scope folder) as a folder node, for the empty-area menu. */
   rootNode: TreeNode | null
   isNodeExpanded: (node: TreeNode) => boolean
   deleteShortcutLabel: string
@@ -55,6 +62,7 @@ export function useFileTreeNodeCommands({
   model,
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   activeRepo,
   operationOwner,
   selectedPaths,
@@ -69,56 +77,65 @@ export function useFileTreeNodeCommands({
   const isWindows = useMemo(() => navigator.userAgent.includes('Windows'), [])
 
   const buildNode = useCallback(
-    (relativePath: string, isDirectory: boolean): TreeNode | null => {
-      if (!worktreePath) {
+    (treePath: string, isDirectory: boolean): TreeNode | null => {
+      if (!worktreePath || !treeRootPath) {
         return null
       }
-      const relative = normalizeTreeRelativePath(relativePath)
-      if (!relative) {
+      const treeRelative = normalizeTreeRelativePath(treePath)
+      if (!treeRelative) {
         return null
       }
+      const path = treePathToAbsolute(treeRootPath, treeRelative)
       return {
-        name: basename(relative),
-        path: joinPath(worktreePath, relative),
-        relativePath: relative,
+        name: basename(treeRelative),
+        path,
+        relativePath: toWorktreeRelativePath(path, worktreePath),
         isDirectory,
-        depth: relative.split('/').length - 1,
+        depth: treeRelative.split('/').length - 1,
         operationOwner
       }
     },
-    [operationOwner, worktreePath]
+    [operationOwner, treeRootPath, worktreePath]
   )
 
   const rootNode = useMemo(
     (): TreeNode | null =>
-      worktreePath
+      worktreePath && treeRootPath
         ? {
-            name: basename(worktreePath),
-            path: worktreePath,
-            relativePath: '',
+            name: basename(treeRootPath),
+            path: treeRootPath,
+            relativePath: toWorktreeRelativePath(treeRootPath, worktreePath),
             isDirectory: true,
             depth: -1,
             operationOwner
           }
         : null,
-    [operationOwner, worktreePath]
+    [operationOwner, treeRootPath, worktreePath]
+  )
+
+  const treePathOf = useCallback(
+    (node: TreeNode): string =>
+      treeRootPath
+        ? normalizeTreeRelativePath(getRelativePathInsideRoot(node.path, treeRootPath) ?? '')
+        : node.relativePath,
+    [treeRootPath]
   )
 
   const isNodeExpanded = useCallback(
     (node: TreeNode): boolean => {
-      const handle = model?.getItem(node.relativePath)
+      const handle = model?.getItem(treePathOf(node))
       return handle?.isDirectory() ? (handle as FileTreeDirectoryHandle).isExpanded() : false
     },
-    [model]
+    [model, treePathOf]
   )
 
   const buildSelectedNodes = useCallback((): TreeNode[] => {
-    if (!model || !worktreePath) {
+    if (!model || !treeRootPath) {
       return []
     }
     const nodes: TreeNode[] = []
     for (const absolutePath of selectedPaths) {
-      const relative = getRelativePathInsideRoot(absolutePath, worktreePath)
+      const relative = getRelativePathInsideRoot(absolutePath, treeRootPath)
       if (!relative) {
         continue
       }
@@ -129,7 +146,7 @@ export function useFileTreeNodeCommands({
       }
     }
     return nodes
-  }, [buildNode, model, selectedPaths, worktreePath])
+  }, [buildNode, model, selectedPaths, treeRootPath])
 
   // Why: refresh granularity is the whole flat list; the watcher applies
   // fine-grained mutations, so this only backs undo/redo and failure resyncs.
@@ -157,9 +174,9 @@ export function useFileTreeNodeCommands({
 
   const handleStartRename = useCallback(
     (node: TreeNode) => {
-      model?.startRenaming(node.relativePath)
+      model?.startRenaming(treePathOf(node))
     },
-    [model]
+    [model, treePathOf]
   )
 
   const handleDuplicate = useFileDuplicate({ activeWorktreeId, worktreePath, refreshDir })
@@ -186,7 +203,7 @@ export function useFileTreeNodeCommands({
 
   const handleCollapseFolderSubtree = useCallback(
     (node: TreeNode) => {
-      if (!model || !activeWorktreeId || !worktreePath || !node.isDirectory) {
+      if (!model || !activeWorktreeId || !treeRootPath || !node.isDirectory) {
         return
       }
       const expanded = useAppStore.getState().expandedDirs[activeWorktreeId] ?? new Set<string>()
@@ -194,7 +211,7 @@ export function useFileTreeNodeCommands({
         if (!isPathEqualOrDescendant(absoluteDir, node.path)) {
           continue
         }
-        const relative = getRelativePathInsideRoot(absoluteDir, worktreePath)
+        const relative = getRelativePathInsideRoot(absoluteDir, treeRootPath)
         const handle = relative ? model.getItem(normalizeTreeRelativePath(relative)) : null
         if (handle?.isDirectory()) {
           ;(handle as FileTreeDirectoryHandle).collapse()
@@ -202,7 +219,7 @@ export function useFileTreeNodeCommands({
       }
       collapseDirSubtree(activeWorktreeId, node.path)
     },
-    [activeWorktreeId, collapseDirSubtree, model, worktreePath]
+    [activeWorktreeId, collapseDirSubtree, model, treeRootPath]
   )
 
   const handleFindInFolder = useCallback(

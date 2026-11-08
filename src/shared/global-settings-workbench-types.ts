@@ -30,6 +30,18 @@ export type WorkbenchSettings = {
   newTabVSCodeEnabled?: boolean
   /** Offer "New Data Studio Tab" in the new-tab menu. */
   newTabDataStudioEnabled?: boolean
+  /** Unity project features (toolbar, console, tests, meta-file handling). Unset means true. */
+  unityIntegrationEnabled?: boolean
+  /** Hide `*.meta` files inside Unity projects in the explorer and quick open. Unset means true. */
+  unityHideMetaFiles?: boolean
+  /** Refresh the Unity editor's asset database after saving Assets/Packages files. Unset means true. */
+  unityAutoRefreshOnSave?: boolean
+  /** Copy Orca's Unity editor package into opened Unity projects so Orca becomes the script editor. Unset means true. */
+  unityAutoInstallEditorPackage?: boolean
+  /** Unity project roots whose "install Unity Pipeline" prompt the user dismissed for good. */
+  unityPipelinePromptDismissed?: string[]
+  /** Explorer root for workspaces with a Unity project until the user picks one. Unset means 'assets'. */
+  unityExplorerDefaultScope?: 'assets' | 'whole-folder'
   /** Metadata for Orca-stored GitHub PAT accounts; tokens live in encrypted credential files, never here. */
   githubPatAccounts?: GithubPatAccountMeta[]
 }

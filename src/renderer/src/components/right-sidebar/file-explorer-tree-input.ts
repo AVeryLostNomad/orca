@@ -6,14 +6,17 @@ import type { GitFileStatus, GitStatusEntry } from '../../../../shared/git-statu
 import { normalizeRelativePath } from '@/lib/path'
 import { isDotfileRelativePath } from './file-explorer-entries'
 import { buildStatusMap, isPathIgnored } from './status-display'
+import { isHiddenUnityMetaPath } from '@/components/unity/unity-meta-paths'
 
 export type FileExplorerTreeInputFilters = {
   showDotfiles: boolean
   showGitIgnoredFiles: boolean
   ignoredSet: Set<string>
+  /** Worktree-relative Unity roots whose `.meta` files stay out of the tree. */
+  hiddenUnityMetaRoots: readonly string[]
 }
 
-/** Visibility of one worktree-relative path under the explorer's dotfile/gitignore toggles. */
+/** Visibility of one worktree-relative path under the explorer's dotfile/gitignore/Unity toggles. */
 export function passesFileExplorerTreeFilters(
   relativePath: string,
   filters: FileExplorerTreeInputFilters
@@ -27,6 +30,9 @@ export function passesFileExplorerTreeFilters(
     return false
   }
   if (!filters.showGitIgnoredFiles && isPathIgnored(filters.ignoredSet, path)) {
+    return false
+  }
+  if (isHiddenUnityMetaPath(path, filters.hiddenUnityMetaRoots)) {
     return false
   }
   return true

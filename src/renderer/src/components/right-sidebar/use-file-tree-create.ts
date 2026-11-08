@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FileTreeRenameEvent, FileTreeRenamingItem } from '@pierre/trees'
-import { getRelativePathInsideRoot, joinPath } from '@/lib/path'
+import { getRelativePathInsideRoot } from '@/lib/path'
 import { createExplorerEntryOnDisk } from './file-explorer-create-entry'
 import { getCreatePlaceholderRelativePath } from './file-explorer-create-placeholder'
-import { normalizeTreeRelativePath } from './file-explorer-tree-relative-paths'
+import {
+  normalizeTreeRelativePath,
+  toWorktreeRelativePath,
+  treePathToAbsolute
+} from './file-explorer-tree-relative-paths'
 import type { FileExplorerTreeFileMutation } from './file-explorer-tree-watch-mutations'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import type { FileTreeModelLike } from './use-file-explorer-tree-model'
@@ -19,6 +23,8 @@ type UseFileTreeCreateParams = {
   model: FileTreeModelLike | null
   activeWorktreeId: string | null
   worktreePath: string | null
+  /** Directory tree paths are relative to; defaults to the worktree. */
+  treeRootPath?: string | null
   operationOwner: FileExplorerOperationOwner | undefined
   refreshFileList: () => void
   applyExternalFileMutations: (mutations: readonly FileExplorerTreeFileMutation[]) => void
@@ -50,6 +56,7 @@ export function useFileTreeCreate({
   model,
   activeWorktreeId,
   worktreePath,
+  treeRootPath = worktreePath,
   operationOwner,
   refreshFileList,
   applyExternalFileMutations
@@ -60,15 +67,17 @@ export function useFileTreeCreate({
 
   const commitCreate = useCallback(
     (kind: 'file' | 'folder', destinationRelativePath: string) => {
-      if (!activeWorktreeId || !worktreePath || !model) {
+      if (!activeWorktreeId || !worktreePath || !treeRootPath || !model) {
         return
       }
-      const relative = normalizeTreeRelativePath(destinationRelativePath)
+      const treeRelative = normalizeTreeRelativePath(destinationRelativePath)
+      const fullPath = treePathToAbsolute(treeRootPath, treeRelative)
+      const relative = toWorktreeRelativePath(fullPath, worktreePath)
       void (async () => {
         const created = await createExplorerEntryOnDisk({
           worktreeId: activeWorktreeId,
           worktreePath,
-          fullPath: joinPath(worktreePath, relative),
+          fullPath,
           relativePath: relative,
           kind,
           operationOwner,
@@ -81,8 +90,8 @@ export function useFileTreeCreate({
             { kind: 'create', relativePath: relative, isDirectory: kind === 'folder' }
           ])
         } else {
-          const canonical = kind === 'folder' ? `${relative}/` : relative
-          if (model.getItem(relative)) {
+          const canonical = kind === 'folder' ? `${treeRelative}/` : treeRelative
+          if (model.getItem(treeRelative)) {
             try {
               model.remove(canonical, { recursive: true })
             } catch {
@@ -98,17 +107,18 @@ export function useFileTreeCreate({
       model,
       operationOwner,
       refreshFileList,
+      treeRootPath,
       worktreePath
     ]
   )
 
   const startNew = useCallback(
     (kind: 'file' | 'folder', parentAbsoluteDir: string) => {
-      if (!model || !worktreePath || pendingRef.current) {
+      if (!model || !treeRootPath || pendingRef.current) {
         return
       }
       const parentRelative = normalizeTreeRelativePath(
-        getRelativePathInsideRoot(parentAbsoluteDir, worktreePath) ?? ''
+        getRelativePathInsideRoot(parentAbsoluteDir, treeRootPath) ?? ''
       )
       const placeholder = getCreatePlaceholderRelativePath(parentRelative, (candidate) =>
         Boolean(model.getItem(candidate))
@@ -132,7 +142,7 @@ export function useFileTreeCreate({
         }
       }
     },
-    [model, refreshFileList, worktreePath]
+    [model, refreshFileList, treeRootPath]
   )
 
   const canRename = useCallback((item: FileTreeRenamingItem): boolean => {

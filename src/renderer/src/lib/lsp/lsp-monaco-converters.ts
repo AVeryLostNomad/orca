@@ -133,7 +133,7 @@ const COMPLETION_KIND_BY_LSP: Record<number, number> = {
 
 export function toMonacoCompletionItem(
   item: CompletionItem,
-  defaultRange: Monaco.IRange
+  defaultRange: Monaco.languages.CompletionItem['range']
 ): Monaco.languages.CompletionItem {
   let range: Monaco.languages.CompletionItem['range'] = defaultRange
   let insertText = item.insertText ?? item.label
@@ -166,11 +166,8 @@ export function toMonacoCompletionItem(
     filterText: item.filterText,
     preselect: item.preselect,
     insertText,
-    // 4 = InsertAsSnippet
-    insertTextRules:
-      item.insertTextFormat === 2
-        ? (4 as Monaco.languages.CompletionItemInsertTextRule)
-        : undefined,
+    // Bit flags 4 = InsertAsSnippet, 1 = KeepWhitespace (LSP insertTextMode asIs).
+    insertTextRules: (item.insertTextFormat === 2 ? 4 : 0) | (item.insertTextMode === 1 ? 1 : 0),
     range,
     tags: item.tags as Monaco.languages.CompletionItemTag[] | undefined,
     additionalTextEdits: item.additionalTextEdits?.map((edit) => ({

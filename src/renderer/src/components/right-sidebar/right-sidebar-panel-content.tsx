@@ -4,6 +4,7 @@ import type { ActiveRightSidebarTab } from '@/store/slices/editor'
 import { isPluginPanelTabKey } from '../../../../shared/plugins/plugin-manifest'
 import { useAppStore } from '@/store'
 import { RecoverableRenderErrorBoundary } from '@/components/error-boundaries/RecoverableRenderErrorBoundary'
+import { useUnityPanelSection } from '../unity/unity-panel-section'
 
 const FileExplorer = lazy(() => import('./FileExplorer'))
 const SourceControl = lazy(() => import('./SourceControl'))
@@ -13,6 +14,7 @@ const AiVaultSidebarPanel = lazy(() => import('./AiVaultSidebarPanel'))
 const FolderWorkspaceWorktreesPanel = lazy(() => import('./FolderWorkspaceWorktreesPanel'))
 const FolderWorkspacePrChecksPanel = lazy(() => import('./FolderWorkspacePrChecksPanel'))
 const PluginPanel = lazy(() => import('./PluginPanel'))
+const UnityPanel = lazy(() => import('../unity/UnityPanel'))
 
 type RightSidebarPanelContentProps = {
   effectiveTab: ActiveRightSidebarTab
@@ -27,6 +29,7 @@ export function RightSidebarPanelContent({
   const explorerView = useAppStore((s) =>
     effectiveTab === 'explorer' ? s.rightSidebarExplorerView : null
   )
+  const unitySection = useUnityPanelSection()
   const resetKey = JSON.stringify([effectiveTab, explorerView, activeWorktreeId])
 
   return (
@@ -49,6 +52,12 @@ export function RightSidebarPanelContent({
           {effectiveTab === 'pr-checks' && (
             <FolderWorkspacePrChecksPanel
               isVisible={rightSidebarOpen && effectiveTab === 'pr-checks'}
+            />
+          )}
+          {effectiveTab === 'unity' && (
+            <UnityPanel
+              isVisible={rightSidebarOpen && effectiveTab === 'unity'}
+              section={unitySection}
             />
           )}
           {/* Remount on plugin changes so an old iframe cannot post through the next plugin's rebound bridge. */}

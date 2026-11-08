@@ -28,6 +28,7 @@ import type { DataStudioApi } from './api/data-studio-api'
 import type { PrototypesApi } from './api/prototype-api'
 import type { EditorThemesApi } from './api/editor-theme-api'
 import type { LspApi } from './api/lsp-api'
+import type { UnityApi } from './api/unity-api'
 import type { CrashReportsApi, FeedbackApi } from './api/crash-report-api'
 import type { DashboardApi, TerminalPreviewApi } from './api/dashboard-api'
 import type { DocPreviewApi } from './api/doc-preview-api'
@@ -178,6 +179,7 @@ export type PreloadApi = {
   prototypes: PrototypesApi
   editorThemes: EditorThemesApi
   lsp: LspApi
+  unity: UnityApi
 }
 
 export type {

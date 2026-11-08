@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   LspInstallError,
-  assertSha256,
+  assertFileHash,
   extractTarGz,
   fetchLspArtifact
 } from './lsp-artifact-download'
@@ -65,7 +65,7 @@ async function install(bundleId: string, onProgress: (fraction: number) => void)
       onProgress(fraction * 0.8)
     )
     onProgress(0.8)
-    await assertSha256(archivePath, pin.sha256)
+    await assertFileHash(archivePath, 'sha256', pin.sha256)
     onProgress(0.85)
     // npm .bin shims are symlinks Windows bsdtar can't create (exit 1); every
     // pinned entryRelativePath targets the real file, so skip them everywhere.

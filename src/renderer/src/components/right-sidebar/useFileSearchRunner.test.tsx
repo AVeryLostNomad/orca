@@ -29,6 +29,10 @@ vi.mock('@/store', () => ({
   )
 }))
 
+vi.mock('@/components/unity/use-hidden-unity-meta-roots', () => ({
+  useHiddenUnityMetaRoots: () => []
+}))
+
 const RESULTS: SearchResult = {
   files: [],
   totalMatches: 0,

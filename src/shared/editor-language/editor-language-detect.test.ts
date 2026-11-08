@@ -119,6 +119,30 @@ describe('detectLanguage', () => {
     expect(detectLanguage('scripts/legacy.cjs')).toBe('javascript')
   })
 
+  // Unity assets must never resolve to yaml/css: those language servers reject !u! tags and -unity-* properties.
+  it.each([
+    ['Assets/Scripts/Player.cs', 'csharp'],
+    ['Assets/Game.asmdef', 'json'],
+    ['Assets/Game.asmref', 'json'],
+    ['Assets/Controls.inputactions', 'json'],
+    ['Assets/UI/Menu.uxml', 'xml'],
+    ['Assets/UI/Menu.uss', 'uss'],
+    ['Assets/UI/Default.tss', 'uss'],
+    ['Assets/Shaders/Water.shader', 'shaderlab'],
+    ['Assets/Shaders/Common.hlsl', 'hlsl'],
+    ['Assets/Shaders/Legacy.cginc', 'hlsl'],
+    ['Assets/Shaders/Blur.compute', 'hlsl'],
+    ['Assets/Scenes/Main.unity', 'unity-yaml'],
+    ['Assets/Prefabs/Enemy.prefab', 'unity-yaml'],
+    ['Assets/Animation/Hero.overrideController', 'unity-yaml'],
+    ['Assets/Physics/Ice.physicsMaterial2D', 'unity-yaml'],
+    ['Assets/Textures/Target.renderTexture', 'unity-yaml'],
+    ['Assets/Scripts/Player.cs.meta', 'unity-yaml'],
+    ['C:\\Unity\\Project\\Assets\\WATER.SHADER', 'shaderlab']
+  ])('maps Unity file %s to %s', (filePath, language) => {
+    expect(detectLanguage(filePath)).toBe(language)
+  })
+
   it('maps .r files to the r language id regardless of case', () => {
     expect(detectLanguage('analysis/model.r')).toBe('r')
     expect(detectLanguage('analysis/MODEL.R')).toBe('r')

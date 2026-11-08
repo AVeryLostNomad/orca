@@ -22,13 +22,13 @@ import {
 import { quiesceDocumentSave, requestEditorDocumentSave } from '@/components/editor/editor-autosave'
 import { commitFileExplorerOp } from './fileExplorerUndoRedo'
 import { deleteRuntimePath, writeRuntimeFile } from '@/runtime/runtime-file-mutation-client'
-import {
-  assertFileWriteApplied,
-  missingOrIdenticalPrecondition
-} from '../../../../shared/file-write-disk-precondition'
 import { deleteWithPermanentFallback } from './file-explorer-trash-fallback'
 import { readRuntimeFileContent } from '@/runtime/runtime-file-read-client'
 import { translate } from '@/i18n/i18n'
+import {
+  restoreDeletedFileForUndo,
+  snapshotDeletedFileForUndo
+} from './file-explorer-delete-undo-snapshot'
 
 type UseFileDeletionParams = {
   activeWorktreeId: string | null
@@ -123,23 +123,18 @@ export function useFileDeletion({
 
         const parentDir = dirname(node.path)
         // Snapshot before deletion, but record undo only after success to avoid poisoning the stack.
-        let undoContent: string | undefined
-        if (!node.isDirectory) {
-          try {
-            const rf = await readRuntimeFileContent({
+        const undoSnapshot = await snapshotDeletedFileForUndo(
+          node,
+          !isRemote,
+          (filePath, relativePath) =>
+            readRuntimeFileContent({
               target: fileContext.target,
-              filePath: node.path,
-              relativePath: node.relativePath,
+              filePath,
+              relativePath,
               worktreeId: activeWorktreeId ?? undefined,
               connectionId: operationRoute.connectionId
             })
-            if (!rf.isBinary) {
-              undoContent = rf.content
-            }
-          } catch {
-            // Unreadable snapshots cannot safely support undo.
-          }
-        }
+        )
 
         operationGuard.assertCurrent()
         const deletion = await deleteWithPermanentFallback({
@@ -156,23 +151,20 @@ export function useFileDeletion({
         }
         const { permanent } = deletion
 
-        if (undoContent !== undefined) {
+        if (undoSnapshot !== undefined) {
           commitFileExplorerOp({
             undo: async () => {
               const currentRoute = operationGuard.assertCurrent()
-              // Undo must not overwrite a path recreated since deletion.
-              assertFileWriteApplied(
-                await writeRuntimeFile(
-                  {
-                    ...fileContext,
-                    target: currentRoute.target,
-                    connectionId: currentRoute.connectionId
-                  },
-                  node.path,
-                  undoContent,
-                  undefined,
-                  missingOrIdenticalPrecondition(undoContent)
-                )
+              const currentContext = {
+                ...fileContext,
+                target: currentRoute.target,
+                connectionId: currentRoute.connectionId
+              }
+              await restoreDeletedFileForUndo(
+                node.path,
+                undoSnapshot,
+                (filePath, content, precondition) =>
+                  writeRuntimeFile(currentContext, filePath, content, undefined, precondition)
               )
               await refreshDir(parentDir)
             },

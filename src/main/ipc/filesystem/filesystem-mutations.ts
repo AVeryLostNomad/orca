@@ -31,6 +31,7 @@ import { sweepAbandonedRuntimeUploadTempPath } from '../runtime-upload-temp-swee
 import type { RuntimeUploadFileStreamRequest } from '../../../shared/runtime-upload-staging-contract'
 import { resolveEnvironment } from '../../../shared/runtime-environment-store'
 import { windowsFsPath } from '../../wsl/wsl-unc-drive-fs-path'
+import { renameWithUnityMetaCompanion } from './unity-meta-companion'
 
 export function registerFilesystemMutationHandlers(store: Store): void {
   ipcMain.handle(
@@ -108,7 +109,9 @@ export function registerFilesystemMutationHandlers(store: Store): void {
         args.access,
         store
       )
-      await renameLocalPathSerializedByDestination(from, to)
+      await (store.getSettings().unityIntegrationEnabled !== false
+        ? renameWithUnityMetaCompanion(from, to, renameLocalPathSerializedByDestination)
+        : renameLocalPathSerializedByDestination(from, to))
     }
   )
 

@@ -1,0 +1,19 @@
+{
+  "name": "com.stablyai.orca.ide",
+  "displayName": "Orca Editor Integration",
+  "version": "1.0.0",
+  "description": "Makes Orca Unity's External Script Editor: opens scripts and console locations in Orca and generates the .sln/.csproj files Orca's C# language server loads. Orca installs and updates this package automatically.",
+  "keywords": [
+    "code editor",
+    "csproj",
+    "editor",
+    "ide",
+    "orca"
+  ],
+  "author": {
+    "name": "Stably AI",
+    "url": "https://github.com/stablyai/orca"
+  },
+  "dependencies": {},
+  "unity": "2021.3"
+}

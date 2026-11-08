@@ -4,7 +4,7 @@ import {
   type EditorDocumentSavedDetail
 } from '@/components/editor/editor-autosave'
 import type { WorkingDocumentId } from '@/store/slices/editor/working-document'
-import { lspUriFromPath } from './lsp-file-uri'
+import { canonicalLspUri, lspUriFromPath } from './lsp-file-uri'
 import { toLspRange } from './lsp-monaco-converters'
 import {
   notifyLsp,
@@ -49,8 +49,9 @@ function installLspDidSaveBridge(): void {
   })
 }
 
+// Servers may echo a URI in another encoding (Roslyn: file:///c:/ vs file:///c%3A/).
 function sessionUriKey(sessionId: string, uri: string): string {
-  return `${sessionId}${uri}`
+  return `${sessionId}${canonicalLspUri(uri)}`
 }
 
 export function getLspBindingForModel(
@@ -98,7 +99,7 @@ export function ensureLspDocumentBinding(
   }
   const { session } = lease
   installLspDidSaveBridge()
-  const uri = lspUriFromPath(filePath)
+  const uri = lspUriFromPath(filePath, session.serverId)
   const languageId = lspLanguageIdForFile(filePath, monacoLanguageId)
   // Own the version counter: a server restart resets the document, so the
   // model's internal version id (which keeps growing) can't be reused.

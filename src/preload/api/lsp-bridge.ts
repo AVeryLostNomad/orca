@@ -50,6 +50,8 @@ export const lspApi = {
     ipcRenderer.invoke('lsp:getServerStates'),
   retryServer: (args: { serverId: LspServerId }): Promise<LspServerStateSnapshot[]> =>
     ipcRenderer.invoke('lsp:retryServer', args),
+  restartServer: (args: { serverId: LspServerId }): Promise<LspServerStateSnapshot[]> =>
+    ipcRenderer.invoke('lsp:restartServer', args),
   onServerStateChanged: (
     callback: (payload: { serverId: LspServerId; state: LspServerInstallState }) => void
   ): (() => void) => {

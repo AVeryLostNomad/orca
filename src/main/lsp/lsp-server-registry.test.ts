@@ -12,6 +12,7 @@ import {
 import { getLspServerRegistry, lspNodeBundlePin, lspServerLanguageIds } from './lsp-server-registry'
 import nodeBundleConfig from '../../../config/lsp-node-server-bundles.json'
 import binaryAssetConfig from '../../../config/lsp-binary-assets.json'
+import roslynConfig from '../../../config/lsp-roslyn.json'
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 
@@ -96,6 +97,33 @@ describe('lsp server registry integrity', () => {
         }
       }
     }
+  })
+
+  it('pins Roslyn and a private .NET SDK for every supported platform', () => {
+    const platforms = [
+      'darwin-arm64',
+      'darwin-x64',
+      'linux-x64',
+      'linux-arm64',
+      'win32-x64',
+      'win32-arm64'
+    ]
+    const roslynAssets: Record<
+      string,
+      { url: string; sha256: string; serverRelativePath: string }
+    > = roslynConfig.roslyn.assets
+    const sdkAssets: Record<string, { url: string; sha512: string; archive: string }> =
+      roslynConfig.dotnetSdk.assets
+    for (const platform of platforms) {
+      expect(roslynAssets[platform]?.sha256, `roslyn ${platform}`).toMatch(SHA256_PATTERN)
+      expect(roslynAssets[platform]?.serverRelativePath).toMatch(
+        /^content\/LanguageServer\/[\w-]+\/Microsoft\.CodeAnalysis\.LanguageServer\.dll$/
+      )
+      expect(sdkAssets[platform]?.sha512, `sdk ${platform}`).toMatch(/^[0-9a-f]{128}$/)
+      expect(sdkAssets[platform]?.archive).toBe(platform.startsWith('win32') ? 'zip' : 'tar.gz')
+      expect(sdkAssets[platform]?.url).toMatch(/^https:\/\//)
+    }
+    expect(roslynConfig.unityAnalyzers.sha256).toMatch(SHA256_PATTERN)
   })
 
   it('gives every server either args ending in a stdio-style mode or a known default', () => {

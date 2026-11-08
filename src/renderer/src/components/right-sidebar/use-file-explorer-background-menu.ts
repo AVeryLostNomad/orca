@@ -14,11 +14,12 @@ type UseFileExplorerBackgroundMenuResult = {
 
 /** Empty-space interactions of the explorer surface: background menu and new-file double click. */
 export function useFileExplorerBackgroundMenu({
-  worktreePath,
+  treeRootPath,
   createPending,
   startNew
 }: {
-  worktreePath: string | null
+  /** Directory empty-space creation targets (the worktree, or its Unity scope folder). */
+  treeRootPath: string | null
   createPending: boolean
   startNew: (kind: 'file' | 'folder', parentAbsoluteDir: string) => void
 }): UseFileExplorerBackgroundMenuResult {
@@ -41,15 +42,15 @@ export function useFileExplorerBackgroundMenu({
 
   const handleBackgroundDoubleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!worktreePath || createPending) {
+      if (!treeRootPath || createPending) {
         return
       }
       if (resolveFileTreeRowFromEvent(event.nativeEvent)) {
         return
       }
-      startNew('file', worktreePath)
+      startNew('file', treeRootPath)
     },
-    [createPending, startNew, worktreePath]
+    [createPending, startNew, treeRootPath]
   )
 
   return {

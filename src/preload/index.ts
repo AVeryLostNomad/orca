@@ -92,6 +92,7 @@ import { dataStudioApi } from './api/data-studio-bridge'
 import { prototypesApi } from './api/prototypes-bridge'
 import { editorThemesApi } from './api/editor-theme-bridge'
 import { lspApi } from './api/lsp-bridge'
+import { unityApi } from './api/unity-bridge'
 
 installBrowserFindListener()
 
@@ -197,7 +198,8 @@ const api = {
   dataStudio: dataStudioApi,
   prototypes: prototypesApi,
   editorThemes: editorThemesApi,
-  lsp: lspApi
+  lsp: lspApi,
+  unity: unityApi
 } satisfies PreloadApi
 if (process.contextIsolated) {
   try {

@@ -25,6 +25,8 @@ export type ActivityBarItem = {
   folderOnly?: boolean
   /** When true, shown only for workspaces on an SSH host. */
   sshOnly?: boolean
+  /** When true, shown only when the active local workspace contains a Unity project. */
+  unityOnly?: boolean
   /** Host-owned health indicator; plugin content cannot style this chrome. */
   statusIndicator?: CheckStatus
 }

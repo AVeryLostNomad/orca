@@ -127,6 +127,12 @@ export function LanguageServerSettings({
                   <div className="text-xs font-medium">{server.displayName}</div>
                   <div className="truncate text-[11px] text-muted-foreground">
                     {server.languageIds.join(', ')} · {installStateLabel(server)}
+                    {server.serverId === 'csharp'
+                      ? ` · ${translate(
+                          'auto.components.settings.LanguageServerSettings.unityOnly',
+                          'Starts only in Unity projects'
+                        )}`
+                      : null}
                   </div>
                 </div>
                 {server.install.phase === 'error' ? (

@@ -17,6 +17,7 @@ export type LspServerId =
   | 'taplo'
   | 'terraform'
   | 'gopls'
+  | 'csharp'
 
 export type LspServerInstallState =
   | { phase: 'not-installed' }
@@ -40,6 +41,9 @@ export type LspEnsureSessionResult =
       /** Bumped on every (re)initialize; clients re-send didOpen when it grows. */
       epoch: number
       serverCapabilities: unknown
+      /** Set for servers that load projects after initialize (C#): true until the
+       *  server reports the workspace loaded for the current epoch. */
+      projectInitializationPending?: boolean
     }
   | { ok: false; error: string }
 

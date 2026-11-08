@@ -26,10 +26,12 @@ import {
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
 import { resolveLspLocationModels } from './lsp-location-models'
 import { registerLspCodeActionProvider } from './lsp-monaco-code-action-provider'
+import { registerLspCodeLensProvider } from './lsp-monaco-code-lens-provider'
 import { registerLspCompletionProvider } from './lsp-monaco-completion-provider'
 import { registerLspRenameProvider } from './lsp-monaco-rename-provider'
 import { registerLspSemanticTokensProvider } from './lsp-monaco-semantic-tokens-provider'
 import { ensureLspWorkspaceEditHandler } from './lsp-monaco-workspace-edit'
+import { onLspRefreshRequest } from './lsp-refresh-requests'
 
 type MonacoModule = typeof Monaco
 
@@ -54,6 +56,7 @@ export function ensureLspProvidersForLanguage(
   registerLspCompletionProvider(monaco, languageId, firstSession)
   registerLspRenameProvider(monaco, languageId)
   registerLspSemanticTokensProvider(monaco, languageId, firstSession)
+  registerLspCodeLensProvider(monaco, languageId)
 
   monaco.languages.registerHoverProvider(languageId, {
     async provideHover(model, position, token) {
@@ -227,7 +230,10 @@ export function ensureLspProvidersForLanguage(
     }
   })
 
+  const inlayHintsChanged = new monaco.Emitter<void>()
+  onLspRefreshRequest('inlayHint', () => inlayHintsChanged.fire())
   monaco.languages.registerInlayHintsProvider(languageId, {
+    onDidChangeInlayHints: inlayHintsChanged.event,
     async provideInlayHints(model, range, token) {
       const binding = lspBindingFor(model)
       if (!binding || !lspCapability(binding.session, 'inlayHintProvider')) {

@@ -2390,6 +2390,13 @@ html.native-shell .app-layout {
   width: 100%;
 }
 
+/* Unity performance-critical method marker in the glyph margin. */
+.monaco-editor .orca-unity-perf-glyph {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 /* Git working-copy gutter; independent of conflict and comment decorations.
    Monaco sizes .cldr to the whole lines-decorations lane; narrowing the Git one
    keeps folding chevrons clickable beside it. The bar is a pseudo-element inset

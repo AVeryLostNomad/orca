@@ -6,6 +6,7 @@ import TabBar from '../tab-bar/TabBar'
 
 import { TabBarQuickCommandsButton } from '../tab-bar/TabBarQuickCommandsButton'
 import { TabGroupPaneActionsMenu } from './TabGroupPaneActionsMenu'
+import { UnityEditorToolbar } from '../unity/UnityEditorToolbar'
 import { useTabGroupWorkspaceModel } from './useTabGroupWorkspaceModel'
 import { closeTerminalTab } from '../terminal/terminal-tab-actions'
 import { resolveGroupTabFromVisibleId } from './tab-group-visible-id'
@@ -321,6 +322,10 @@ export default function TabGroupPanel({
                 <TabGroupPaneActionsMenu isFocused={isFocused} onCloseGroup={commands.closeGroup} />
               ) : null}
             </div>
+            {/* Workspace-wide controls belong to exactly one strip: the top-right group's. */}
+            {reserveClosedExplorerToggleSpace ? (
+              <UnityEditorToolbar worktreeId={worktreeId} />
+            ) : null}
             {/* Why: Electron drag hit-test respects no-drag only on DOM descendants, not z-index siblings, so this no-drag spacer keeps the floating right-sidebar toggle + window controls clickable. */}
             {reserveClosedExplorerToggleSpace && !rightSidebarOpen ? (
               <div

@@ -17,17 +17,21 @@ function goplsBinaryName(): string {
   return process.platform === 'win32' ? 'gopls.exe' : 'gopls'
 }
 
-async function hydratedEnv(): Promise<NodeJS.ProcessEnv> {
+export async function hydratedToolchainEnv(): Promise<NodeJS.ProcessEnv> {
   const hydration = await hydrateShellPath()
   const env = { ...process.env }
   if (hydration.ok && hydration.segments.length > 0) {
-    const current = env.PATH ?? env.Path ?? ''
-    env.PATH = [...hydration.segments, ...current.split(delimiter).filter(Boolean)].join(delimiter)
+    // A spread loses Windows' case-insensitive `Path`; write back to the real key.
+    const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH'
+    const current = env[pathKey] ?? ''
+    env[pathKey] = [...hydration.segments, ...current.split(delimiter).filter(Boolean)].join(
+      delimiter
+    )
   }
   return env
 }
 
-function runCommand(
+export function runToolchainCommand(
   command: string,
   args: string[],
   env: NodeJS.ProcessEnv
@@ -63,24 +67,28 @@ export function resolveOrInstallGopls(): Promise<GoplsResolution> {
 }
 
 async function resolve(): Promise<GoplsResolution> {
-  const env = await hydratedEnv()
+  const env = await hydratedToolchainEnv()
 
   const cached = join(goplsCacheBinDir(), goplsBinaryName())
   if (existsSync(cached)) {
     return { kind: 'found', command: cached, env }
   }
 
-  if ((await runCommand(goplsBinaryName(), ['version'], env)).ok) {
+  if ((await runToolchainCommand(goplsBinaryName(), ['version'], env)).ok) {
     return { kind: 'found', command: goplsBinaryName(), env }
   }
 
-  const goProbe = await runCommand('go', ['version'], env)
+  const goProbe = await runToolchainCommand('go', ['version'], env)
   if (!goProbe.ok) {
     return { kind: 'toolchain-missing' }
   }
   mkdirSync(goplsCacheBinDir(), { recursive: true })
   const installEnv = { ...env, GOBIN: goplsCacheBinDir() }
-  const install = await runCommand('go', ['install', 'golang.org/x/tools/gopls@latest'], installEnv)
+  const install = await runToolchainCommand(
+    'go',
+    ['install', 'golang.org/x/tools/gopls@latest'],
+    installEnv
+  )
   if (!install.ok) {
     return { kind: 'install-failed', message: install.output.trim().slice(-1024) }
   }

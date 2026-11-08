@@ -102,6 +102,11 @@ export function registerLspHandlers(): void {
     return getManager().getServerStates()
   })
 
+  ipcMain.handle('lsp:restartServer', async (_event, args: { serverId: LspServerId }) => {
+    await getManager().restartServer(args.serverId)
+    return getManager().getServerStates()
+  })
+
   onLspInstallStateChanged((serverId, state) => {
     for (const target of webContents.getAllWebContents()) {
       if (!target.isDestroyed()) {

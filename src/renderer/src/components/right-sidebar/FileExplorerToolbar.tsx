@@ -33,6 +33,8 @@ type FileExplorerToolbarProps = {
   onToggleGitIgnoredFiles: () => void
   showDotfiles: boolean
   onToggleDotfiles: () => void
+  /** Optional root picker shown after the workspace name (Unity Assets/Packages scope). */
+  scopeSelect?: React.ReactNode
 }
 
 export function FileExplorerToolbar({
@@ -50,16 +52,17 @@ export function FileExplorerToolbar({
   showGitIgnoredFiles,
   onToggleGitIgnoredFiles,
   showDotfiles,
-  onToggleDotfiles
+  onToggleDotfiles,
+  scopeSelect
 }: FileExplorerToolbarProps): React.JSX.Element {
   return (
     <div className="flex h-8 min-h-8 items-center gap-2 border-b border-border px-2">
-      <span
-        className="min-w-0 flex-1 truncate text-xs font-medium text-foreground"
-        title={repoName}
-      >
-        {repoName}
-      </span>
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <span className="min-w-0 truncate text-xs font-medium text-foreground" title={repoName}>
+          {repoName}
+        </span>
+        {scopeSelect}
+      </div>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

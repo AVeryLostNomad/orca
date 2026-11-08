@@ -11,6 +11,7 @@ import {
 } from '@/lib/editor-font-zoom'
 import { useMonacoThemeName } from '@/lib/monaco-highlighting/use-monaco-theme-name'
 import { useLspForEditor } from '@/lib/lsp/use-lsp-for-editor'
+import { useUnityInsightForEditor } from '@/lib/unity/use-unity-insight-for-editor'
 import { EditorLspStatusChip } from './EditorLspStatusChip'
 
 import { useContextualCopySetup } from './useContextualCopySetup'
@@ -186,6 +187,13 @@ export default function MonacoEditor({
     language,
     worktreeId,
     documentId: workingDocumentId
+  })
+  useUnityInsightForEditor({
+    mountedEditor: readOnly ? null : mountedEditor,
+    filePath,
+    relativePath,
+    language,
+    worktreeId
   })
   useMonacoGitGutter({
     mountedEditor,

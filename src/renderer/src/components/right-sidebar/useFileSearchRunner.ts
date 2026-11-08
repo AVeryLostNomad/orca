@@ -19,6 +19,8 @@ import {
 import { isTwinWorkspace } from '@/lib/resolve-owner'
 import type { SearchResult } from '../../../../shared/code-search-types'
 import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { useHiddenUnityMetaRoots } from '@/components/unity/use-hidden-unity-meta-roots'
+import { isHiddenUnityMetaPath } from '@/components/unity/unity-meta-paths'
 
 const SEARCH_DEBOUNCE_MS = 300
 const SEARCH_MAX_RESULTS = 2000
@@ -56,6 +58,9 @@ export function useFileSearchRunner({
   // Reject out-of-order completions so old searches cannot overwrite newer queries.
   const latestSearchIdRef = useRef(0)
   const searchControllerRef = useRef<AbortController | null>(null)
+  const hiddenUnityMetaRoots = useHiddenUnityMetaRoots(activeWorktreeId, worktreePath)
+  const hiddenUnityMetaRootsRef = useRef(hiddenUnityMetaRoots)
+  hiddenUnityMetaRootsRef.current = hiddenUnityMetaRoots
 
   const cancelPendingSearch = useCallback(() => {
     const interrupted = searchControllerRef.current !== null || searchTimerRef.current !== null
@@ -164,7 +169,27 @@ export function useFileSearchRunner({
             controller.signal
           )
           if (latestSearchIdRef.current === searchId) {
-            updateActiveSearchState({ results, resultOwner })
+            const hiddenRoots = hiddenUnityMetaRootsRef.current
+            const visibleFiles: SearchResult['files'] = []
+            let hiddenMatches = 0
+            for (const file of results.files) {
+              if (isHiddenUnityMetaPath(file.relativePath, hiddenRoots)) {
+                hiddenMatches += file.matchCount ?? file.matches.length
+              } else {
+                visibleFiles.push(file)
+              }
+            }
+            updateActiveSearchState({
+              results:
+                visibleFiles.length === results.files.length
+                  ? results
+                  : {
+                      ...results,
+                      files: visibleFiles,
+                      totalMatches: results.totalMatches - hiddenMatches
+                    },
+              resultOwner
+            })
           }
         } catch (err) {
           if (controller.signal.aborted) {

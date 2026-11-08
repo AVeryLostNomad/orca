@@ -160,6 +160,22 @@
           "identitySha256": "ce9a81cb2e6bbb8487107d2e088bf9fd6e0ba71ebc6bcc1929f827fde65fec6b"
         }
       ]
+    },
+    {
+      "name": "unity",
+      "sourcePath": "skills/unity",
+      "packageDigest": "fafdb9e0806d5c2ef8eb6b5b3261d6c5b5e02a63b641b3b7c5ce6f6fc0c794c8",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 2790,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "fae13fc51dd83399d5f43481fcc4b21e5f8ad4b15e01fc27232c34563469d613",
+          "textNormalizedSha256": "fae13fc51dd83399d5f43481fcc4b21e5f8ad4b15e01fc27232c34563469d613",
+          "identitySha256": "fae13fc51dd83399d5f43481fcc4b21e5f8ad4b15e01fc27232c34563469d613"
+        }
+      ]
     }
   ]
 }

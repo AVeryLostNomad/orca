@@ -9,7 +9,7 @@ export type ShikiLanguageCatalogEntry = {
 }
 
 // Monaco language id → shiki TextMate grammar. Languages absent here keep
-// their Monarch/built-in tokenizer (jsonl, csv/tsv, notebook, nim, plaintext).
+// their Monarch/built-in tokenizer (jsonl, csv/tsv, notebook, nim, unity-yaml, plaintext).
 export const SHIKI_LANGUAGE_CATALOG: Record<string, ShikiLanguageCatalogEntry> = {
   // Why: Monaco has one shared id for .ts/.tsx (and .js/.jsx), so the JSX-capable
   // grammar covers both; old-style `<T>expr` assertions mis-color as JSX, which
@@ -24,6 +24,8 @@ export const SHIKI_LANGUAGE_CATALOG: Record<string, ShikiLanguageCatalogEntry> =
   markdown: { shikiLanguage: 'markdown', loadLanguage: () => import('@shikijs/langs/markdown') },
   html: { shikiLanguage: 'html', loadLanguage: () => import('@shikijs/langs/html') },
   css: { shikiLanguage: 'css', loadLanguage: () => import('@shikijs/langs/css') },
+  // Unity Style Sheets share CSS syntax; only their language id keeps CSS validation away.
+  uss: { shikiLanguage: 'css', loadLanguage: () => import('@shikijs/langs/css') },
   scss: { shikiLanguage: 'scss', loadLanguage: () => import('@shikijs/langs/scss') },
   less: { shikiLanguage: 'less', loadLanguage: () => import('@shikijs/langs/less') },
   xml: { shikiLanguage: 'xml', loadLanguage: () => import('@shikijs/langs/xml') },
@@ -77,7 +79,12 @@ export const SHIKI_LANGUAGE_CATALOG: Record<string, ShikiLanguageCatalogEntry> =
     shikiLanguage: 'system-verilog',
     loadLanguage: () => import('@shikijs/langs/system-verilog')
   },
-  verilog: { shikiLanguage: 'verilog', loadLanguage: () => import('@shikijs/langs/verilog') }
+  verilog: { shikiLanguage: 'verilog', loadLanguage: () => import('@shikijs/langs/verilog') },
+  shaderlab: {
+    shikiLanguage: 'shaderlab',
+    loadLanguage: () => import('@shikijs/langs/shaderlab')
+  },
+  hlsl: { shikiLanguage: 'hlsl', loadLanguage: () => import('@shikijs/langs/hlsl') }
 }
 
 export function getShikiLanguageCatalogEntry(

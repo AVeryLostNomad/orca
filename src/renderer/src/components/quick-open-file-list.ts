@@ -1,9 +1,7 @@
 import { getRuntimeFileListTarget } from './quick-open-file-list-target'
 import { cleanRuntimeFileListError } from './runtime-file-list-error'
-export {
-  getRuntimeFileListTarget,
-  getNestedWorktreeExcludeRequest
-} from './quick-open-file-list-target'
+export { getRuntimeFileListTarget }
+export { getNestedWorktreeExcludeRequest } from './quick-open-file-list-target'
 export type {
   NestedWorktreeExcludeRequest,
   RuntimeFileListTarget
@@ -39,6 +37,7 @@ import {
   getFileExplorerOperationRoute
 } from '@/components/right-sidebar/file-explorer-operation-owner'
 import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { useWithoutHiddenUnityMetaFiles } from '@/components/unity/use-hidden-unity-meta-roots'
 
 export type RuntimeFileListState = {
   files: string[]
@@ -317,7 +316,7 @@ export function useRuntimeFileListForWorktree({
   ])
 
   return {
-    files: currentListing.files,
+    files: useWithoutHiddenUnityMetaFiles(currentListing.files, worktreeId, worktreePath),
     loading: loading || connectionPending,
     loadError,
     truncated: currentListing.truncated,
