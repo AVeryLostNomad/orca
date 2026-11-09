@@ -33,16 +33,23 @@ export function setupContextualCopy({
 }): void {
   let copyHintInterval: number | null = null
   let primarySelectionTimer: number | null = null
+  // Null exactly while the hint is hidden; the key skips re-layouts that would force a page layout.
   let copyHintWidgetPosition: editor.IContentWidgetPosition | null = null
+  let copyHintPositionKey = ''
   let lastCopiedSelectionKey: string | null = null
+  let copyHintHeight = 0
   const copyHintNode = document.createElement('div')
   copyHintNode.className =
     'pointer-events-none rounded-md border border-border/90 bg-background px-2.5 py-1 text-xs font-medium text-foreground shadow-[0_6px_18px_rgba(15,23,42,0.18)] backdrop-blur whitespace-nowrap'
   const updateCopyHintLabel = (): void => {
-    copyHintNode.textContent = `Copy context ${formatShortcutLabel(
+    const label = `Copy context ${formatShortcutLabel(
       'editor.copyContext',
       useAppStore.getState().keybindings
     )}`
+    // Rewriting identical text still replaces the text node and dirties style on every keystroke.
+    if (copyHintNode.textContent !== label) {
+      copyHintNode.textContent = label
+    }
   }
   updateCopyHintLabel()
   copyHintNode.style.display = 'none'
@@ -54,6 +61,15 @@ export function setupContextualCopy({
     getPosition: () => copyHintWidgetPosition
   }
   editorInstance.addContentWidget(copyHintWidget)
+
+  const hideCopyHint = (): void => {
+    if (copyHintWidgetPosition === null) {
+      return
+    }
+    copyHintNode.style.display = 'none'
+    copyHintWidgetPosition = null
+    editorInstance.layoutContentWidget(copyHintWidget)
+  }
 
   const showCopyToast = (): void => {
     const selection = editorInstance.getSelection()
@@ -90,21 +106,15 @@ export function setupContextualCopy({
   }
 
   const updateCopyHint = (): void => {
-    updateCopyHintLabel()
     const model = editorInstance.getModel()
     const selection = editorInstance.getSelection()
     // Why: hint ticks need selection bounds; extracting the selected text scales with file size.
     if (!model || !selection || selection.isEmpty() || !canCopySelectionWithContext(selection)) {
-      copyHintNode.style.display = 'none'
-      copyHintWidgetPosition = null
-      editorInstance.layoutContentWidget(copyHintWidget)
+      hideCopyHint()
       return
     }
-
     if (lastCopiedSelectionKey !== null && lastCopiedSelectionKey === getSelectionKey()) {
-      copyHintNode.style.display = 'none'
-      copyHintWidgetPosition = null
-      editorInstance.layoutContentWidget(copyHintWidget)
+      hideCopyHint()
       return
     }
 
@@ -120,13 +130,13 @@ export function setupContextualCopy({
     })
 
     if (!startVisiblePosition || !endVisiblePosition) {
-      copyHintNode.style.display = 'none'
-      copyHintWidgetPosition = null
-      editorInstance.layoutContentWidget(copyHintWidget)
+      hideCopyHint()
       return
     }
+    updateCopyHintLabel()
 
-    const hintHeight = copyHintNode.offsetHeight || 28
+    // Single-line hint: measure once; offsetHeight on every 150ms poll forces a page layout.
+    const hintHeight = (copyHintHeight ||= copyHintNode.offsetHeight) || 28
     const verticalGap = 8
     const viewportHeight = editorInstance.getLayoutInfo().height
     const selectionTop = startVisiblePosition.top
@@ -141,6 +151,11 @@ export function setupContextualCopy({
         ? model.getLineMaxColumn(endLine)
         : selection.endColumn
 
+    const positionKey = `${anchorLineNumber}:${anchorColumn}:${placeAbove}`
+    if (copyHintWidgetPosition !== null && positionKey === copyHintPositionKey) {
+      return
+    }
+    copyHintPositionKey = positionKey
     copyHintWidgetPosition = {
       position: { lineNumber: anchorLineNumber, column: anchorColumn },
       secondaryPosition: {
@@ -157,15 +172,13 @@ export function setupContextualCopy({
     editorInstance.layoutContentWidget(copyHintWidget)
   }
 
-  const isCopyHintVisible = (): boolean => copyHintNode.style.display === 'block'
-
   const startCopyHintPolling = (): void => {
     if (copyHintInterval !== null) {
       return
     }
     copyHintInterval = window.setInterval(() => {
       updateCopyHint()
-      if (!isCopyHintVisible()) {
+      if (copyHintWidgetPosition === null) {
         stopCopyHintPolling()
       }
     }, 150)
@@ -180,7 +193,7 @@ export function setupContextualCopy({
 
   const refreshCopyHintAndPolling = (): void => {
     updateCopyHint()
-    if (editorInstance.hasTextFocus() && isCopyHintVisible()) {
+    if (editorInstance.hasTextFocus() && copyHintWidgetPosition !== null) {
       // Poll only visible hints; selection-free focused editors otherwise burn idle CPU.
       startCopyHintPolling()
     } else {
@@ -254,9 +267,7 @@ export function setupContextualCopy({
     await window.api.ui.writeClipboardText(copiedText)
     // Suppress the hint for this selection after copying so it does not duplicate the confirmation toast.
     lastCopiedSelectionKey = getSelectionKey()
-    copyHintNode.style.display = 'none'
-    copyHintWidgetPosition = null
-    editorInstance.layoutContentWidget(copyHintWidget)
+    hideCopyHint()
     showCopyToast()
     return true
   }
@@ -278,9 +289,7 @@ export function setupContextualCopy({
   })
   const blurListener = editorInstance.onDidBlurEditorText(() => {
     stopCopyHintPolling()
-    copyHintNode.style.display = 'none'
-    copyHintWidgetPosition = null
-    editorInstance.layoutContentWidget(copyHintWidget)
+    hideCopyHint()
   })
 
   const editorDomNode = editorInstance.getContainerDomNode()

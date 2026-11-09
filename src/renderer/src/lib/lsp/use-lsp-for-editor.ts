@@ -16,9 +16,11 @@ import { ensureLspServerMessageToasts } from './lsp-server-message-toasts'
 import { attachLspDocCommentAutoInsert } from './lsp-auto-insert'
 import {
   disableBuiltInFeaturesForLspServer,
+  lspServerFormatsOnType,
   lspServerForLanguageIfEnabled
 } from './lsp-language-support'
 import { installLspEditorOpener } from './lsp-editor-opener'
+import { lspCapability } from './lsp-provider-binding-access'
 import { resolveLspProjectServer } from './lsp-project-server-detect'
 
 function resolveLocalWorkspaceRoot(worktreeId: string): string | null {
@@ -143,6 +145,18 @@ export function useLspForEditor(args: {
         const autoInsert = attachLspDocCommentAutoInsert(monaco, mountedEditor, binding)
         if (autoInsert) {
           editorDisposers.push(() => autoInsert.dispose())
+        }
+        if (
+          lspServerFormatsOnType(session.serverId) &&
+          lspCapability(session, 'documentOnTypeFormattingProvider')
+        ) {
+          mountedEditor.updateOptions({ formatOnType: true })
+          editorDisposers.push(() => {
+            // A disposed editor has no model; its options are gone with it.
+            if (mountedEditor.getModel()) {
+              mountedEditor.updateOptions({ formatOnType: false })
+            }
+          })
         }
         const showProjectStatus = (): void =>
           setStatus(

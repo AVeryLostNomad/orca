@@ -110,10 +110,7 @@ function App(): React.JSX.Element {
             <BrowserWebAuthnAccountDialog />
           </LinkRoutingPreferenceDialogProvider>
         </ConfirmationDialogProvider>
-        {createPortal(
-          <Toaster closeButton toastOptions={{ className: 'font-sans text-sm' }} />,
-          document.body
-        )}
+        {createPortal(<Toaster />, document.body)}
         <PlainSshTerminalPanels />
       </TooltipProvider>
       <SkillFreshnessNudge />

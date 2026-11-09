@@ -7,6 +7,7 @@ import { Minus, XIcon } from 'lucide-react'
 import * as DialogPrimitive from 'radix-ui/dialog'
 
 import { cn } from '@/lib/utils'
+import { BodyOverlayFlag } from '@/lib/body-overlay-marker'
 import { handleImeOverlayEscape } from '@/lib/ime-overlay-escape'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -40,7 +41,9 @@ function DialogOverlay({
         className
       )}
       {...props}
-    />
+    >
+      <BodyOverlayFlag attribute="data-modal-overlay-open" />
+    </DialogPrimitive.Overlay>
   )
 }
 

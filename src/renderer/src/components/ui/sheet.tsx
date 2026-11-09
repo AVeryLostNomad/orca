@@ -6,6 +6,7 @@ import * as SheetPrimitive from 'radix-ui/dialog'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
+import { BodyOverlayFlag } from '@/lib/body-overlay-marker'
 import { handleImeOverlayEscape } from '@/lib/ime-overlay-escape'
 import { translate } from '@/i18n/i18n'
 
@@ -36,7 +37,9 @@ function SheetOverlay({
       // Disable native dragging: the titlebar hit-test ignores z-index and would drag the window instead of activating sheet controls.
       style={{ ...style, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       {...props}
-    />
+    >
+      <BodyOverlayFlag attribute="data-modal-overlay-open" />
+    </SheetPrimitive.Overlay>
   )
 }
 

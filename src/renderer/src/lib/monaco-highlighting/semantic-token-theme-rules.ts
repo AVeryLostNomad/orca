@@ -30,7 +30,31 @@ const SEMANTIC_TOKEN_SCOPE_SOURCES: Record<string, string[]> = {
   number: ['constant.numeric'],
   regexp: ['string.regexp'],
   operator: ['keyword.operator'],
-  decorator: ['entity.name.function.decorator', 'meta.decorator', 'punctuation.decorator']
+  decorator: ['entity.name.function.decorator', 'meta.decorator', 'punctuation.decorator'],
+  // Roslyn's C# types; the first scope mirrors vscode-csharp's semanticTokenScopes. Structural types
+  // (punctuation, text, json*/regex*) stay unmapped so TextMate colors keep winning there.
+  field: ['entity.name.variable.field', 'variable.other.property', 'variable.other', 'variable'],
+  constant: ['variable.other.constant', 'constant.other', 'variable.other', 'variable'],
+  extensionMethod: [
+    'entity.name.function.extension',
+    'entity.name.function.member',
+    'entity.name.function'
+  ],
+  operatorOverloaded: ['entity.name.function.member.overload', 'keyword.operator'],
+  delegate: ['entity.name.type.delegate', 'entity.name.type', 'support.type'],
+  recordClass: ['entity.name.type.class', 'entity.name.class', 'entity.name.type'],
+  recordStruct: ['entity.name.type.struct', 'entity.name.type'],
+  module: ['entity.name.type.module', 'entity.name.type'],
+  controlKeyword: ['keyword.control'],
+  label: ['entity.name.label'],
+  stringVerbatim: ['string.verbatim', 'string'],
+  stringEscapeCharacter: ['constant.character.escape'],
+  preprocessorText: ['meta.preprocessor'],
+  excludedCode: ['support.other.excluded', 'comment'],
+  xmlDocCommentName: ['comment.documentation.name', 'comment'],
+  xmlDocCommentAttributeName: ['comment.documentation.attribute.name', 'comment'],
+  xmlDocCommentText: ['comment.documentation', 'comment'],
+  xmlDocCommentDelimiter: ['comment.documentation.delimiter', 'comment']
 }
 
 function scopeSelectorMatches(selector: string, scope: string): boolean {

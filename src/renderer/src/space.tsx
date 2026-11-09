@@ -85,7 +85,7 @@ function SpaceWindowRoot(): React.JSX.Element {
           {activeModal === 'delete-worktree' ? <DeleteWorktreeDialog /> : null}
           {activeModal === 'preserved-branch-review' ? <PreservedBranchBatchReviewModal /> : null}
         </ConfirmationDialogProvider>
-        <Toaster closeButton toastOptions={{ className: 'font-sans text-sm' }} />
+        <Toaster />
       </TooltipProvider>
     </RecoverableRenderErrorBoundary>
   )

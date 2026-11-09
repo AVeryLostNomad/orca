@@ -56,6 +56,27 @@ describe('working documents', () => {
     expect(store.getState().workingDocuments[id]?.isDirty).toBe(false)
   })
 
+  it('keeps the open-file list identity while typing does not change its dirty badge', () => {
+    const store = createEditorStore()
+    const id = store.getState().retainWorkingDocument('tab-1', target())
+    store.getState().acceptWorkingDocumentLoad(id, 0, 'disk', getDiskBaselineSignature('disk'))
+    store.setState({
+      openFiles: [
+        { id: 'tab-1', filePath: '/repo/file.ts', relativePath: 'file.ts', worktreeId: 'wt-1' }
+      ]
+    } as never)
+    store.getState().setWorkingDocumentContent(id, 'disk!')
+    const dirtyFiles = store.getState().openFiles
+    expect(dirtyFiles[0]?.isDirty).toBe(true)
+
+    store.getState().setWorkingDocumentContent(id, 'disk!!')
+    store.getState().setWorkingDocumentContent(id, 'dis!!')
+
+    expect(store.getState().openFiles).toBe(dirtyFiles)
+    store.getState().setWorkingDocumentContent(id, 'disk')
+    expect(store.getState().openFiles[0]?.isDirty).toBe(false)
+  })
+
   it('keeps comparison-only formatting changes dirty until those exact bytes are saved', () => {
     const store = createEditorStore()
     const state = store.getState()

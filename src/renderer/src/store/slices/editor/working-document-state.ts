@@ -112,26 +112,33 @@ export function getEditorClosePlan(
   return { tabIds: [...closingTabs], dirtyDocumentIds }
 }
 
-/** Per-file dirty/preview badges from working documents; map `openFiles` through it (content only). */
-export function dirtyBadgeProjection(
-  state: Pick<AppState, 'workingDocumentIdsByTab' | 'workingDocuments' | 'unifiedTabsByWorktree'>
-): (file: OpenFile) => OpenFile {
+/** `openFiles` with per-file dirty/preview badges from working documents (content only). Returns the
+ *  same array when no badge changed so keystrokes don't re-render every `openFiles` subscriber. */
+export function openFilesWithDirtyBadges(
+  state: Pick<AppState, 'openFiles' | 'workingDocumentIdsByTab' | 'unifiedTabsByWorktree'>,
+  workingDocuments: AppState['workingDocuments'],
+  workingDocumentIdsByTab: AppState['workingDocumentIdsByTab'] = state.workingDocumentIdsByTab
+): OpenFile[] {
   const dirtyByTab = new Map<string, boolean>()
-  for (const [tabId, ids] of Object.entries(state.workingDocumentIdsByTab)) {
+  for (const [tabId, ids] of Object.entries(workingDocumentIdsByTab)) {
     dirtyByTab.set(
       tabId,
-      ids.some((id) => state.workingDocuments[id]?.isDirty === true)
+      ids.some((id) => workingDocuments[id]?.isDirty === true)
     )
   }
-  return (file) => {
+  let changed = false
+  const projected = state.openFiles.map((file) => {
     const dirty =
       dirtyByTab.get(file.id) ??
       Object.values(state.unifiedTabsByWorktree ?? {}).some((tabs) =>
         tabs.some((tab) => tab.entityId === file.id && dirtyByTab.get(tab.id) === true)
       )
     const isPreview = dirty && file.isPreview ? undefined : file.isPreview
-    return file.isDirty === dirty && file.isPreview === isPreview
-      ? file
-      : { ...file, isDirty: dirty, isPreview }
-  }
+    if (file.isDirty === dirty && file.isPreview === isPreview) {
+      return file
+    }
+    changed = true
+    return { ...file, isDirty: dirty, isPreview }
+  })
+  return changed ? projected : state.openFiles
 }

@@ -1,11 +1,14 @@
-import { getDiskBaselineSignature } from '../../../../../../shared/disk-baseline-signature'
+import {
+  diskBaselineSignatureLength,
+  getDiskBaselineSignature
+} from '../../../../../../shared/disk-baseline-signature'
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
 import {
   getWorkingDocumentId,
   type WorkingDocument,
   type WorkingDocumentId
 } from '../working-document'
-import { dirtyBadgeProjection, type WorkingDocumentState } from '../working-document-state'
+import { openFilesWithDirtyBadges, type WorkingDocumentState } from '../working-document-state'
 import {
   dirtyDocumentPreviewTabsOwnedByMain,
   promoteDirtyDocumentPreviewTabs
@@ -75,9 +78,7 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         return {
           workingDocuments,
           workingDocumentIdsByTab,
-          openFiles: state.openFiles.map(
-            dirtyBadgeProjection({ ...state, workingDocuments, workingDocumentIdsByTab })
-          )
+          openFiles: openFilesWithDirtyBadges(state, workingDocuments, workingDocumentIdsByTab)
         }
       })
       return id
@@ -144,7 +145,7 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         }
         return {
           workingDocuments,
-          openFiles: state.openFiles.map(dirtyBadgeProjection({ ...state, workingDocuments }))
+          openFiles: openFilesWithDirtyBadges(state, workingDocuments)
         }
       }),
     setWorkingDocumentDiskBaseline: (id, diskSignature) =>
@@ -177,8 +178,14 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         ) {
           return state
         }
+        // The signature embeds the length: a length change is dirty without hashing the whole file per keystroke.
+        const baselineLength =
+          document.lastKnownDiskSignature === undefined
+            ? null
+            : diskBaselineSignatureLength(document.lastKnownDiskSignature)
         const isDirty =
           document.lastKnownDiskSignature === undefined ||
+          (baselineLength !== null && baselineLength !== content.length) ||
           getDiskBaselineSignature(content) !== document.lastKnownDiskSignature
         const workingDocuments = {
           ...state.workingDocuments,
@@ -194,7 +201,7 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         }
         return {
           workingDocuments,
-          openFiles: state.openFiles.map(dirtyBadgeProjection({ ...state, workingDocuments })),
+          openFiles: openFilesWithDirtyBadges(state, workingDocuments),
           ...(isDirty ? { unifiedTabsByWorktree: promoteDirtyDocumentPreviewTabs(state, id) } : {})
         }
       })
@@ -221,7 +228,7 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         const workingDocuments = { ...state.workingDocuments, [id]: next }
         return {
           workingDocuments,
-          openFiles: state.openFiles.map(dirtyBadgeProjection({ ...state, workingDocuments }))
+          openFiles: openFilesWithDirtyBadges(state, workingDocuments)
         }
       }),
     setWorkingDocumentExternalState: (id, patch) =>
@@ -259,9 +266,7 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         return {
           workingDocuments,
           workingDocumentIdsByTab,
-          openFiles: state.openFiles.map(
-            dirtyBadgeProjection({ ...state, workingDocuments, workingDocumentIdsByTab })
-          )
+          openFiles: openFilesWithDirtyBadges(state, workingDocuments, workingDocumentIdsByTab)
         }
       }),
     discardWorkingDocument: (id) =>
@@ -281,9 +286,7 @@ export function createWorkingDocumentState(set: EditorSet, get: EditorGet): Work
         )
         return {
           workingDocuments: pruned,
-          openFiles: state.openFiles.map(
-            dirtyBadgeProjection({ ...state, workingDocuments: pruned })
-          )
+          openFiles: openFilesWithDirtyBadges(state, pruned)
         }
       })
   }

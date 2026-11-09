@@ -2,6 +2,7 @@ import { OnboardingLanguageSwitcher } from './OnboardingLanguageSwitcher'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { isEditableTarget } from '@/lib/editable-target'
+import { useBodyOverlayFlag } from '@/lib/body-overlay-marker'
 import { getScreenSubmitModifierLabel, isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { OnboardingState } from '../../../../shared/onboarding-state-types'
@@ -129,6 +130,7 @@ export default function OnboardingFlow({
   onOnboardingChange
 }: OnboardingFlowProps): React.JSX.Element {
   const flow = useOnboardingFlow(onboarding, onOnboardingChange)
+  useBodyOverlayFlag('data-onboarding-overlay-open')
   const continueShortcutModifierLabel = getScreenSubmitModifierLabel()
   const { currentStep, stepIndex, busyLabel } = flow
   const copy = stepCopy[currentStep.id]

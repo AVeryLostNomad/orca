@@ -20,9 +20,11 @@ import {
   toMonacoHover,
   toMonacoInlayHints,
   toMonacoLocations,
+  toMonacoMarkdown,
   toMonacoSignatureHelp,
   toMonacoTextEdits
 } from './lsp-monaco-converters'
+import type { LspDocumentBinding } from './lsp-document-binding'
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
 import { resolveLspLocationModels } from './lsp-location-models'
 import { registerLspCodeActionProvider } from './lsp-monaco-code-action-provider'
@@ -36,6 +38,11 @@ import { onLspRefreshRequest } from './lsp-refresh-requests'
 type MonacoModule = typeof Monaco
 
 const providersByLanguage = new Set<string>()
+// Round-trips the raw LSP hint through Monaco for inlayHint/resolve.
+const lspInlayHintByMonacoHint = new WeakMap<
+  Monaco.languages.InlayHint,
+  { hint: InlayHint; binding: LspDocumentBinding }
+>()
 
 /** Register the full provider suite for a Monaco language id (idempotent).
  *  Providers resolve the model's binding at call time, so any number of
@@ -230,6 +237,36 @@ export function ensureLspProvidersForLanguage(
     }
   })
 
+  const onTypeOptions = lspCapability<{
+    firstTriggerCharacter: string
+    moreTriggerCharacter?: string[]
+  }>(firstSession, 'documentOnTypeFormattingProvider')
+  if (onTypeOptions) {
+    monaco.languages.registerOnTypeFormattingEditProvider(languageId, {
+      autoFormatTriggerCharacters: [
+        onTypeOptions.firstTriggerCharacter,
+        ...(onTypeOptions.moreTriggerCharacter ?? [])
+      ],
+      async provideOnTypeFormattingEdits(model, position, ch, options, token) {
+        const binding = lspBindingFor(model)
+        if (!binding || !lspCapability(binding.session, 'documentOnTypeFormattingProvider')) {
+          return null
+        }
+        const edits = await requestLsp<TextEdit[] | null>(
+          binding.session,
+          'textDocument/onTypeFormatting',
+          {
+            ...lspPositionParams(binding, position),
+            ch,
+            options: { tabSize: options.tabSize, insertSpaces: options.insertSpaces }
+          },
+          token
+        )
+        return toMonacoTextEdits(edits)
+      }
+    })
+  }
+
   const inlayHintsChanged = new monaco.Emitter<void>()
   onLspRefreshRequest('inlayHint', () => inlayHintsChanged.fire())
   monaco.languages.registerInlayHintsProvider(languageId, {
@@ -245,7 +282,31 @@ export function ensureLspProvidersForLanguage(
         { textDocument: { uri: binding.uri }, range: toLspRange(range) },
         token
       )
-      return { hints: toMonacoInlayHints(hints), dispose: () => {} }
+      const lspHints = hints ?? []
+      const monacoHints = toMonacoInlayHints(lspHints)
+      monacoHints.forEach((hint, index) => {
+        lspInlayHintByMonacoHint.set(hint, { hint: lspHints[index], binding })
+      })
+      return { hints: monacoHints, dispose: () => {} }
+    },
+    // Roslyn sends parameter/type hints bare and fills their hover tooltip on resolve.
+    async resolveInlayHint(hint, token) {
+      const stashed = lspInlayHintByMonacoHint.get(hint)
+      if (
+        !stashed ||
+        hint.tooltip ||
+        !lspCapability<{ resolveProvider?: boolean }>(stashed.binding.session, 'inlayHintProvider')
+          ?.resolveProvider
+      ) {
+        return hint
+      }
+      const resolved = await requestLsp<InlayHint>(
+        stashed.binding.session,
+        'inlayHint/resolve',
+        stashed.hint,
+        token
+      )
+      return resolved?.tooltip ? { ...hint, tooltip: toMonacoMarkdown(resolved.tooltip)[0] } : hint
     }
   })
 }

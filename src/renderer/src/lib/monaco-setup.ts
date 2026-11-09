@@ -10,6 +10,7 @@ import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { installMonacoDiffProviderFactory } from './diff-comparison/monaco-diff-provider'
 import { registerAstroLanguage } from './monaco-languages/register-astro'
+import { registerCSharpSnippets } from './monaco-languages/register-csharp-snippets'
 import { registerHlslLanguage } from './monaco-languages/register-hlsl'
 import { registerJsonlLanguage } from './monaco-languages/register-jsonl'
 import { registerLeanLanguage } from './monaco-languages/register-lean'
@@ -88,6 +89,7 @@ runMonacoSetupSteps([
   ['HLSL language registration', () => registerHlslLanguage(monaco)],
   ['ShaderLab language registration', () => registerShaderlabLanguage(monaco)],
   ['Unity YAML language registration', () => registerUnityYamlLanguage(monaco)],
+  ['C# snippet completion', () => registerCSharpSnippets(monaco)],
   ['USS language registration', () => registerUssLanguage(monaco)],
   ['shell Markdown alias registration', () => registerShellMarkdownAliases(monaco)],
   ['delayer cancellation guard', installMonacoDelayerCancellationGuard],

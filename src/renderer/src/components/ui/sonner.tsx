@@ -5,7 +5,7 @@ import {
   OctagonXIcon,
   TriangleAlertIcon
 } from 'lucide-react'
-import type { SyntheticEvent } from 'react'
+import { memo, type SyntheticEvent } from 'react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import { useAppStore } from '@/store'
 
@@ -17,12 +17,10 @@ export const INLINE_ACTION_CLASS_NAMES = {
 
 // Why: scope to real modals; Radix menus/selects also set body pointer-events:none.
 function isModalOverlayOpen(element: Element): boolean {
-  return (
-    element.ownerDocument.body.querySelector(
-      ":scope > [data-slot='dialog-overlay'], :scope > [data-slot='sheet-overlay']"
-    ) !== null
-  )
+  return element.ownerDocument.body.hasAttribute('data-modal-overlay-open')
 }
+
+const TOAST_OPTIONS: ToasterProps['toastOptions'] = { className: 'font-sans text-sm' }
 
 function blockModalToastInteraction(event: SyntheticEvent): void {
   const target = event.target
@@ -37,7 +35,8 @@ function blockModalToastInteraction(event: SyntheticEvent): void {
   }
 }
 
-const Toaster = ({ ...props }: ToasterProps) => {
+// Memoized without props: the app root re-renders often, and each Sonner render does real work.
+const Toaster = memo(function Toaster() {
   const theme = useAppStore((s) => s.settings?.theme) || 'system'
 
   return (
@@ -61,6 +60,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
     >
       <Sonner
         theme={theme as ToasterProps['theme']}
+        // Explicit: Sonner otherwise reads getComputedStyle(<html>).direction every render, forcing style recalc.
+        dir="ltr"
+        closeButton
+        toastOptions={TOAST_OPTIONS}
         position="bottom-right"
         // Reserve status-bar clearance at both normal and sub-600px mobileOffset breakpoints.
         offset={{ bottom: 'calc(2.5rem + env(safe-area-inset-bottom, 0px))' }}
@@ -82,10 +85,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
             '--width': 'min(26rem, calc(100vw - 2rem))'
           } as React.CSSProperties
         }
-        {...props}
       />
     </div>
   )
-}
+})
 
 export { Toaster }

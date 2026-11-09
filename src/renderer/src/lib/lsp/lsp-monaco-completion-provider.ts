@@ -1,8 +1,13 @@
 import type * as Monaco from 'monaco-editor'
 import type { CompletionItem, CompletionList } from 'vscode-languageserver-protocol'
+import type { LspServerId } from '../../../../shared/lsp-types'
 import { requestLsp, type LspWorkspaceSession } from './lsp-client'
 import { executeLspCommand } from './lsp-client-commands'
-import { lspCompletionItemsWithDefaults } from './lsp-completion-list'
+import {
+  completionListReplaceStart,
+  lspCompletionItemsWithDefaults,
+  narrowIncompleteCompletionList
+} from './lsp-completion-list'
 import type { LspDocumentBinding } from './lsp-document-binding'
 import { toMonacoCompletionItem } from './lsp-monaco-converters'
 import { lspBindingFor, lspCapability, lspPositionParams } from './lsp-provider-binding-access'
@@ -26,6 +31,22 @@ type CompletionEntry = {
 const entryByMonacoItem = new WeakMap<Monaco.languages.CompletionItem, CompletionEntry>()
 const COMPLETION_ACCEPTED_COMMAND = 'orca.lsp.completionAccepted'
 const registeredMonacos = new WeakSet<object>()
+// Servers that rank every match ahead of non-matches before truncating an incomplete list
+// (Roslyn: CompletionHandler.FilterCompletionList), so a non-matching tail proves completeness.
+const SERVERS_RANKING_MATCHES_FIRST: Partial<Record<LspServerId, true>> = { csharp: true }
+
+/** Text Monaco filters default-range items by: replace start to caret, when both share a line. */
+function typedPrefixForList(
+  model: Monaco.editor.ITextModel,
+  position: Monaco.Position,
+  list: CompletionList
+): string {
+  const start = completionListReplaceStart(list)
+  if (!start || start.line !== position.lineNumber - 1 || start.character > position.column - 1) {
+    return ''
+  }
+  return model.getLineContent(position.lineNumber).slice(start.character, position.column - 1)
+}
 
 // Shared by Monaco's focus-time resolve and the accept command, so accepting
 // never issues a second resolve; failures/cancellations stay retryable.
@@ -105,8 +126,15 @@ export function registerLspCompletionProvider(
       if (!response) {
         return null
       }
+      const narrowed = Array.isArray(response)
+        ? response
+        : narrowIncompleteCompletionList(
+            response,
+            typedPrefixForList(model, position, response),
+            SERVERS_RANKING_MATCHES_FIRST[binding.session.serverId] === true
+          )
       const options = lspCapability<CompletionOptions>(binding.session, 'completionProvider')
-      const items = lspCompletionItemsWithDefaults(response, options?.allCommitCharacters)
+      const items = lspCompletionItemsWithDefaults(narrowed, options?.allCommitCharacters)
       const wordInfo = model.getWordUntilPosition(position)
       const defaultRange: Monaco.IRange = {
         startLineNumber: position.lineNumber,
@@ -130,7 +158,7 @@ export function registerLspCompletionProvider(
       })
       return {
         suggestions,
-        incomplete: !Array.isArray(response) && Boolean(response.isIncomplete)
+        incomplete: !Array.isArray(narrowed) && Boolean(narrowed.isIncomplete)
       }
     },
     async resolveCompletionItem(item, token) {

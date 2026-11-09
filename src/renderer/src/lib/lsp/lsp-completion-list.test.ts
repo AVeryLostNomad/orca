@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { CompletionList } from 'vscode-languageserver-protocol'
-import { lspCompletionItemsWithDefaults } from './lsp-completion-list'
+import {
+  lspCompletionItemsWithDefaults,
+  narrowIncompleteCompletionList
+} from './lsp-completion-list'
 
 const range = (start: number, end: number) => ({
   start: { line: 3, character: start },
@@ -57,5 +60,64 @@ describe('lspCompletionItemsWithDefaults', () => {
     })
     expect(item.insertTextFormat).toBe(2)
     expect(item.commitCharacters).toEqual([';'])
+  })
+})
+
+describe('narrowIncompleteCompletionList', () => {
+  // Roslyn shape: ranked matches first, then non-matching padding up to the 1000-item cap.
+  const capped = (items: CompletionList['items']): CompletionList => ({
+    isIncomplete: true,
+    itemDefaults: { editRange: range(4, 8) },
+    items
+  })
+  const labels = (list: CompletionList) => list.items.map((item) => item.label)
+
+  it('keeps only subsequence matches and marks a padded ranked list complete', () => {
+    const list = capped([
+      { label: 'GetComponent' },
+      { label: 'GetComponent<>', filterText: 'GetComponent' },
+      { label: 'gameObject' },
+      { label: 'SphereCollider' }
+    ])
+    const narrowed = narrowIncompleteCompletionList(list, 'gEtC', true)
+    expect(labels(narrowed)).toEqual(['GetComponent', 'GetComponent<>'])
+    expect(narrowed.isIncomplete).toBe(false)
+  })
+
+  it('stays incomplete when the truncated tail still matches (more matches may exist)', () => {
+    const narrowed = narrowIncompleteCompletionList(
+      capped([{ label: 'GetComponent' }, { label: 'GetComponents' }]),
+      'Get',
+      true
+    )
+    expect(narrowed.isIncomplete).toBe(true)
+  })
+
+  it('never infers completeness for servers whose truncation order is unknown', () => {
+    const narrowed = narrowIncompleteCompletionList(
+      capped([{ label: 'GetComponent' }, { label: 'SphereCollider' }]),
+      'Get',
+      false
+    )
+    expect(labels(narrowed)).toEqual(['GetComponent'])
+    expect(narrowed.isIncomplete).toBe(true)
+  })
+
+  it('keeps items with their own edit range, which filter against a different span', () => {
+    const override = { label: 'override Update', textEdit: { range: range(0, 8), newText: 'x' } }
+    const narrowed = narrowIncompleteCompletionList(
+      capped([{ label: 'GetComponent' }, override]),
+      'Get',
+      true
+    )
+    expect(labels(narrowed)).toEqual(['GetComponent', 'override Update'])
+    expect(narrowed.isIncomplete).toBe(true)
+  })
+
+  it('leaves complete lists and empty prefixes (right after a trigger character) untouched', () => {
+    const complete: CompletionList = { isIncomplete: false, items: [{ label: 'SphereCollider' }] }
+    expect(narrowIncompleteCompletionList(complete, 'Get', true)).toBe(complete)
+    const afterDot = capped([{ label: 'position' }, { label: 'SphereCollider' }])
+    expect(narrowIncompleteCompletionList(afterDot, '', true)).toBe(afterDot)
   })
 })

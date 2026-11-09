@@ -24,6 +24,13 @@ export function lspServerForLanguageIfEnabled(
   return serverId
 }
 
+// C# IDEs (Visual Studio, Rider) format as you type; other ecosystems keep VS Code's off default.
+const FORMAT_ON_TYPE_SERVERS: Partial<Record<LspServerId, true>> = { csharp: true }
+
+export function lspServerFormatsOnType(serverId: LspServerId): boolean {
+  return FORMAT_ON_TYPE_SERVERS[serverId] === true
+}
+
 const gatedServerIds = new Set<LspServerId>()
 
 // Once an LSP session serves a language Monaco's built-in workers also cover,
