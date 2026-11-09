@@ -156,7 +156,9 @@ describe('getBranchCompare', () => {
       })
       expect(gitExecFileAsyncMock.mock.calls.some(([args]) => args[0] === 'merge-base')).toBe(true)
       expect(
-        gitExecFileAsyncMock.mock.calls.some(([args]) => ['diff', 'rev-list'].includes(args[0]))
+        gitExecFileAsyncMock.mock.calls.some(
+          ([args]) => args.includes('diff') || args[0] === 'rev-list'
+        )
       ).toBe(false)
     }
   )
@@ -180,7 +182,9 @@ describe('getBranchCompare', () => {
       entries: []
     })
     expect(
-      gitExecFileAsyncMock.mock.calls.some(([args]) => ['diff', 'rev-list'].includes(args[0]))
+      gitExecFileAsyncMock.mock.calls.some(
+        ([args]) => args.includes('diff') || args[0] === 'rev-list'
+      )
     ).toBe(false)
   })
 
@@ -327,7 +331,19 @@ describe('getBranchCompare', () => {
     const result = await getBranchCompare('/repo', 'origin/main')
 
     expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
-      ['diff', '--raw', '--numstat', '-z', '-M', '-C', 'merge-base-oid', 'head-oid', '--'],
+      [
+        '-c',
+        'core.bigFileThreshold=8m',
+        'diff',
+        '--raw',
+        '--numstat',
+        '-z',
+        '-M',
+        '-C',
+        'merge-base-oid',
+        'head-oid',
+        '--'
+      ],
       expect.objectContaining({ cwd: '/repo' })
     )
     expect(result.entries).toEqual([
@@ -468,7 +484,19 @@ describe('getBranchCompare', () => {
     const result = await getBranchCompare('/repo', 'origin/main')
 
     expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
-      ['diff', '--raw', '--numstat', '-z', '-M', '-C', 'merge-base-oid', 'head-oid', '--'],
+      [
+        '-c',
+        'core.bigFileThreshold=8m',
+        'diff',
+        '--raw',
+        '--numstat',
+        '-z',
+        '-M',
+        '-C',
+        'merge-base-oid',
+        'head-oid',
+        '--'
+      ],
       expect.objectContaining({ cwd: '/repo' })
     )
     expect(result.entries).toEqual([
@@ -502,7 +530,19 @@ describe('getCommitCompare', () => {
     const result = await getCommitCompare('/repo', 'commit-oid')
 
     expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
-      ['diff', '--raw', '--numstat', '-z', '-M', '-C', 'parent-oid', 'commit-oid', '--'],
+      [
+        '-c',
+        'core.bigFileThreshold=8m',
+        'diff',
+        '--raw',
+        '--numstat',
+        '-z',
+        '-M',
+        '-C',
+        'parent-oid',
+        'commit-oid',
+        '--'
+      ],
       expect.objectContaining({ cwd: '/repo' })
     )
     expect(result.entries).toEqual([

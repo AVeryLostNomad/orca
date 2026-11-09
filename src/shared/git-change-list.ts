@@ -1,5 +1,6 @@
 import type { GitBranchChangeEntry } from './git-diff-compare-types'
 import type { GitBranchChangeStatus } from './git-status-types'
+import { GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS } from './git-line-stats-big-file-threshold'
 import { parseNumstat } from './git-uncommitted-line-stats'
 
 const CHANGE_STATUS: Record<string, GitBranchChangeStatus> = {
@@ -12,8 +13,17 @@ const CHANGE_STATUS: Record<string, GitBranchChangeStatus> = {
 export function gitChangeListArgs(fromOid: string | null, toOid: string): string[] {
   const format = ['--raw', '--numstat', '-z', '-M', '-C']
   return fromOid
-    ? ['diff', ...format, fromOid, toOid, '--']
-    : ['diff-tree', '--root', '--no-commit-id', '-r', ...format, toOid, '--']
+    ? [...GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS, 'diff', ...format, fromOid, toOid, '--']
+    : [
+        ...GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS,
+        'diff-tree',
+        '--root',
+        '--no-commit-id',
+        '-r',
+        ...format,
+        toOid,
+        '--'
+      ]
 }
 
 export function parseGitChangeList(

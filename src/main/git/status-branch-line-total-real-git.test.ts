@@ -203,6 +203,30 @@ describe('branch line total against a real repository', () => {
     })
   })
 
+  it('skips content-diffing files over the big-file threshold, like binaries', async () => {
+    const repo = await createFixtureRepo()
+    const bigLines = 'line\n'.repeat(2 * 1024 * 1024)
+    await write(repo, 'scene.unity', bigLines)
+    await write(repo, 'small.txt', 'a\n')
+    const mergeBase = commitAll(repo, 'base')
+    await write(repo, 'scene.unity', `${bigLines}edit\n`)
+    await write(repo, 'small.txt', 'a\nb\n')
+
+    const result = await getStatus(repo, { branchLineTotalMergeBase: mergeBase })
+
+    const scene = result.entries.find((entry) => entry.path === 'scene.unity')
+    expect(scene?.status).toBe('modified')
+    expect(scene?.added).toBeUndefined()
+    expect(scene?.removed).toBeUndefined()
+    expect(result.branchLineTotal).toEqual({
+      added: 1,
+      removed: 0,
+      mergeBase,
+      test: NO_LINES,
+      generated: NO_LINES
+    })
+  })
+
   it('contributes nothing for a pure rename', async () => {
     const repo = await createFixtureRepo()
     await write(repo, 'f.txt', 'a\nb\nc\nd\n')

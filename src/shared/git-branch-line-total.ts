@@ -1,5 +1,6 @@
 import { GitStatusReadLeaseOwner } from './git-status-read-lease-owner'
 import type { GitBranchLineTotal } from './git-status-types'
+import { GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS } from './git-line-stats-big-file-threshold'
 import {
   collectUntrackedAdditions,
   parseNumstat,
@@ -53,6 +54,7 @@ export async function settleGitBranchLineTotalWithinSoftDeadline(input: {
  * -M matches CHANGES numstat without -C’s wide-diff cost; trailing -- disambiguates OIDs from paths. */
 export function buildGitBranchLineTotalDiffArgs(mergeBase: string): string[] {
   return [
+    ...GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS,
     '-c',
     'core.quotePath=false',
     '-c',

@@ -563,6 +563,8 @@ describe('getStatus', () => {
     expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
       [
         '-c',
+        'core.bigFileThreshold=8m',
+        '-c',
         'core.quotePath=false',
         '-c',
         'diff.autoRefreshIndex=false',

@@ -1,5 +1,6 @@
 import type { GitStatusEntry } from '../../../shared/git-status-types'
 import { collectGitStatusLineStatInputs } from '../../../shared/git-status-line-stat-inputs'
+import { GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS } from '../../../shared/git-line-stats-big-file-threshold'
 import {
   applyLineStats,
   collectUntrackedAdditions,
@@ -19,6 +20,7 @@ async function runNumstat(
   try {
     const { stdout } = await gitExecFileAsync(
       [
+        ...GIT_LINE_STATS_BIG_FILE_CONFIG_ARGS,
         '-c',
         'core.quotePath=false',
         '-c',

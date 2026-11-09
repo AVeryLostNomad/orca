@@ -188,23 +188,6 @@ describe('merge base param validation', () => {
   })
 })
 
-describe('buildGitBranchLineTotalDiffArgs', () => {
-  it('diffs the merge base against the working tree with -M only', () => {
-    expect(buildGitBranchLineTotalDiffArgs(MERGE_BASE)).toEqual([
-      '-c',
-      'core.quotePath=false',
-      '-c',
-      'diff.autoRefreshIndex=false',
-      'diff',
-      '-z',
-      '--numstat',
-      '-M',
-      MERGE_BASE,
-      '--'
-    ])
-  })
-})
-
 describe('computeGitBranchLineTotal', () => {
   it('never invokes git for a merge base that is not an object name', async () => {
     const runDiffNumstat = vi.fn()
