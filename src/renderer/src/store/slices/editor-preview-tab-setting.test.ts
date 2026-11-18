@@ -73,6 +73,20 @@ describe('editor preview tab setting', () => {
     expect(store.getState().openFiles[0].isPreview).toBe(true)
   })
 
+  it('releases the working document of a replaced preview', () => {
+    const store = storeWithPreviewTabs(true)
+
+    openPreview(store, 'src/a.ts')
+    openPreview(store, 'src/b.ts')
+
+    // A retained document would hand a's old content to its next tab without reading disk.
+    expect(
+      Object.values(store.getState().workingDocuments).map(
+        (document) => document.target.relativePath
+      )
+    ).toEqual(['src/b.ts'])
+  })
+
   it('keeps both files open when preview tabs are disabled', () => {
     const store = storeWithPreviewTabs(false)
 

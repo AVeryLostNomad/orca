@@ -652,6 +652,42 @@ describe('useEditorPanelContentState', () => {
     expect(mocks.getRuntimeGitDiff).toHaveBeenCalledTimes(2)
   })
 
+  it('reloads a clean working document that the unstaged diff read shows is behind disk', async () => {
+    const activeFile = createOpenFile({
+      id: 'wt-1::diff::unstaged::file.ts',
+      mode: 'diff',
+      diffSource: 'unstaged'
+    })
+    const textDiff = (modifiedContent: string): DiffContent => ({
+      kind: 'text',
+      originalContent: 'staged content',
+      modifiedContent,
+      originalIsBinary: false,
+      modifiedIsBinary: false
+    })
+    mocks.getRuntimeGitDiff
+      .mockResolvedValueOnce(textDiff('staged content'))
+      .mockResolvedValueOnce(textDiff('agent edit'))
+    mocks.readRuntimeFileContent
+      .mockResolvedValueOnce({ content: 'staged content', isBinary: false })
+      .mockResolvedValueOnce({ content: 'agent edit', isBinary: false })
+    const documentContent = (): string | undefined =>
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the test state is built by createEditorWorkingDocumentTestState, which carries the document slices this reads.
+      getWorkingDocumentForFile(getCanonicalTestState() as never, activeFile.id)?.content
+
+    await renderProbe(activeFile)
+    await vi.waitFor(() => expect(documentContent()).toBe('staged content'))
+
+    // No watch event announces the edit; only git status and the diff read see it.
+    await renderProbe(activeFile, {
+      gitStatusByWorktree: {
+        'wt-1': [{ path: 'file.ts', status: 'modified', area: 'unstaged' }]
+      }
+    })
+
+    await vi.waitFor(() => expect(documentContent()).toBe('agent edit'))
+  })
+
   registerReloadGenerationTests({
     createDeferred,
     createOpenFile,

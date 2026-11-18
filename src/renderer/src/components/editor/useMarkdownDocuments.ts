@@ -17,6 +17,7 @@ import {
 } from './markdown-doc-links'
 import { selectMarkdownDocumentWorktreePath } from './markdown-document-worktree-path-selector'
 import { requestSharedMarkdownDocumentList } from './markdown-document-list-request'
+import { isMarkdownDocumentListingCapacityError } from '../../../../shared/markdown-document-listing-limits'
 import { findRestoredEditorWorkspaceRuntimeOwner } from './restored-editor-workspace-runtime-owner'
 import {
   getLatestMarkdownMembershipChangeAt,
@@ -131,6 +132,13 @@ export function useMarkdownDocuments(
         }
         setSnapshot({ key: scopeKey, documents })
       } catch (err) {
+        // Oversized workspaces just lose doc-link completion; not worth a toast on every open/save.
+        if (isMarkdownDocumentListingCapacityError(err)) {
+          if (requestRef.current === requestId) {
+            setSnapshot({ key: scopeKey, documents: [] })
+          }
+          return
+        }
         console.error('Failed to list markdown documents:', err)
         // Watcher refreshes are background work: keep the last good list and stay quiet.
         if (background) {

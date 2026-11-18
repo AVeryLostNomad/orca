@@ -17,6 +17,8 @@ import {
 } from './editor-panel-content-types'
 import { getEditorGitBaselineScope } from './editor-panel-file-mode'
 import type { EditorPanelContentLoadOptions } from './useEditorPanelExternalContentEvents'
+import { getWorkingDocumentForFile } from '@/store/slices/editor/working-document-state'
+import { reloadWorkingDocumentIfDiskDiffers } from './working-document-loader'
 
 const inFlightDiffReads = new Map<string, InFlightContentRead<DiffContent>>()
 
@@ -47,6 +49,22 @@ function inFlightDiffKey(
       ? `${file.commitCompare.parentOid ?? 'empty-tree'}..${file.commitCompare.commitOid}::${file.branchOldPath ?? ''}`
       : ''
   return `${connectionId ?? ''}::${file.diffSource ?? ''}::${compareAgainstHead ? 'head' : 'default'}::${file.filePath}::${branch}::${commit}`
+}
+
+// Why: the pane renders the working document, which only watch events refresh; this read is the same disk.
+function reloadWorkingDocumentMissedByWatch(fileId: string, workingTreeDiff: DiffContent): void {
+  if (
+    workingTreeDiff.kind !== 'text' ||
+    workingTreeDiff.largeDiffRenderLimit?.limited ||
+    workingTreeDiff.modifiedReadState === 'absent' ||
+    workingTreeDiff.modifiedReadState === 'unavailable'
+  ) {
+    return
+  }
+  const document = getWorkingDocumentForFile(useAppStore.getState(), fileId)
+  if (document) {
+    reloadWorkingDocumentIfDiskDiffers(document.id, workingTreeDiff.modifiedContent)
+  }
 }
 
 export function useEditorPanelDiffContentLoader({
@@ -180,6 +198,9 @@ export function useEditorPanelDiffContentLoader({
         const result = await pending.promise
         if (diffReadGenerationRef.current[file.id] !== generation) {
           return
+        }
+        if (effectiveDiffSource === 'unstaged') {
+          reloadWorkingDocumentMissedByWatch(file.id, result)
         }
         setDiffContents((prev) => ({
           ...prev,

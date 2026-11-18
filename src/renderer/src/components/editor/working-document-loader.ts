@@ -142,3 +142,21 @@ export function loadWorkingDocument(
   })
   return promise
 }
+
+/** Takes another loader's fresh disk read: a clean document that disagrees missed its watch event. */
+export function reloadWorkingDocumentIfDiskDiffers(
+  id: WorkingDocumentId,
+  diskContent: string
+): void {
+  const document = useAppStore.getState().workingDocuments[id]
+  if (
+    !document ||
+    document.isDirty ||
+    document.loadState !== 'ready' ||
+    document.content === diskContent
+  ) {
+    return
+  }
+  // Load failures are recorded on the document itself.
+  void loadWorkingDocument(id, { force: true }).catch(() => {})
+}

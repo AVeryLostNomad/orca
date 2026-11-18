@@ -126,6 +126,25 @@ describe('shared working document Monaco lifetime', () => {
     })
   })
 
+  it('syncs a still-mounted model to the document readmitted under its id', () => {
+    const id = admit('diff-preview')
+    const model = acquireWorkingDocumentModel(id)
+    const detach = attachWorkingDocumentEditor(id, 'diff-pane')
+    const state = context.store.getState()
+    // The file's next tab replaces the preview before the old pane unmounts.
+    state.releaseWorkingDocumentsForTab('diff-preview')
+    state.retainWorkingDocument('edit-preview', target())
+    state.acceptWorkingDocumentLoad(
+      id,
+      0,
+      'const n = 2\n',
+      getDiskBaselineSignature('const n = 2\n')
+    )
+
+    expect(model.getValue()).toBe('const n = 2\n')
+    detach()
+  })
+
   it('retains a released model until its in-flight save settles', () => {
     const id = admit('ordinary')
     const model = acquireWorkingDocumentModel(id)

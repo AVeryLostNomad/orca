@@ -3,6 +3,7 @@ import type { MarkdownDocument } from './filesystem-entry-types'
 import {
   assertMarkdownDocumentsWithinLimit,
   createMarkdownDocumentListingBudget,
+  isMarkdownDocumentListingCapacityError,
   MARKDOWN_DOCUMENT_LISTING_ERROR_CODE,
   MarkdownDocumentListingCapacityError,
   retainMarkdownDocument
@@ -51,5 +52,23 @@ describe('Markdown document listing limits', () => {
     expect(budget.metadataBytes).toBe(0)
     retainMarkdownDocument(budget, { ...document('éé'), filePath: 'éé' })
     expect(budget.documents).toBe(1)
+  })
+
+  it('recognizes capacity errors after IPC/RPC transports drop the class', () => {
+    const capacity = new MarkdownDocumentListingCapacityError()
+    expect(isMarkdownDocumentListingCapacityError(capacity)).toBe(true)
+    expect(
+      isMarkdownDocumentListingCapacityError(
+        new Error(
+          `Error invoking remote method 'fs:listMarkdownDocuments': ${capacity.name}: ${capacity.message}`
+        )
+      )
+    ).toBe(true)
+    expect(
+      isMarkdownDocumentListingCapacityError({ code: MARKDOWN_DOCUMENT_LISTING_ERROR_CODE })
+    ).toBe(true)
+    expect(isMarkdownDocumentListingCapacityError(new Error('EACCES: permission denied'))).toBe(
+      false
+    )
   })
 })

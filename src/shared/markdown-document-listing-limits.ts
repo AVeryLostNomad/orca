@@ -31,6 +31,22 @@ export class MarkdownDocumentListingCapacityError extends Error {
   }
 }
 
+// IPC/RPC transports drop the class, so match the stable code or message instead.
+export function isMarkdownDocumentListingCapacityError(error: unknown): boolean {
+  if (error instanceof MarkdownDocumentListingCapacityError) {
+    return true
+  }
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+  return (
+    ('code' in error && error.code === MARKDOWN_DOCUMENT_LISTING_ERROR_CODE) ||
+    ('message' in error &&
+      typeof error.message === 'string' &&
+      error.message.includes(MARKDOWN_DOCUMENT_LISTING_ERROR_MESSAGE))
+  )
+}
+
 export function createMarkdownDocumentListingBudget(
   requested: Partial<MarkdownDocumentListingLimits> = {}
 ): MarkdownDocumentListingBudget {

@@ -120,7 +120,8 @@ export abstract class DaemonPtyDaemonRecovery extends DaemonPtyCheckpointPersist
   }
 
   protected async replaceUnhealthyMacResolverDaemonBeforeNewPty(): Promise<void> {
-    if (!this.respawnFn) {
+    // A daemon with live sessions is preserved whatever its verdict; skip the per-pane socket + scutil probe.
+    if (!this.respawnFn || this.activeSessionIds.size > 0) {
       return
     }
 

@@ -32,6 +32,7 @@ export function createTabsCreateActions(
       const id = init?.id ?? createBrowserUuid()
       const splitGroupId = init?.split ? createBrowserUuid() : undefined
       let created!: Tab
+      let replacedPreviewTabId: string | undefined
       set((current) => {
         init?.validatePlacement?.(current)
         const state =
@@ -77,6 +78,7 @@ export function createTabsCreateActions(
               canReplacePreviewContentType(contentType, tab.contentType)
           )
           if (existingPreview) {
+            replacedPreviewTabId = existingPreview.id
             nextTabs = existingTabs.filter((tab) => tab.id !== existingPreview.id)
             nextOrder = nextOrder.filter((tabId) => tabId !== existingPreview.id)
           }
@@ -155,6 +157,10 @@ export function createTabsCreateActions(
           }
         }
       })
+      if (replacedPreviewTabId) {
+        // A replaced preview is a close: a retained document would serve its old content to the file's next tab.
+        get().releaseWorkingDocumentsForTab?.(replacedPreviewTabId)
+      }
       if (init?.recordInteraction !== false) {
         get().recordFeatureInteraction?.('terminal-tabs')
       }

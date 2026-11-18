@@ -60,6 +60,10 @@ function synchronizeModels(): void {
   const state = useAppStore.getState()
   for (const [id, entry] of models) {
     const document = state.workingDocuments[id]
+    if (!document) {
+      // A document readmitted under this id restarts its revisions; its number must not match the old text.
+      entry.revision = -1
+    }
     if (document && document.revision !== entry.revision && document.content !== undefined) {
       entry.revision = document.revision
       beginProgrammaticContentSync(id)

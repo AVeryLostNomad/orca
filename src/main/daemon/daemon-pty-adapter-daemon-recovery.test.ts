@@ -507,21 +507,17 @@ describe('DaemonPtyAdapter (IPtyProvider)', () => {
       await respawnServer?.shutdown()
     })
 
-    it('preserves an unhealthy macOS resolver daemon when it owns live sessions', async () => {
+    it('skips the macOS resolver probe and preserves the daemon when it owns live sessions', async () => {
       const respawnFn = vi.fn()
       const exits: { id: string; code: number }[] = []
       const respawnAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn: respawnFn })
       respawnAdapter.onExit((payload) => exits.push(payload))
       const existing = await respawnAdapter.spawn({ cols: 80, rows: 24 })
-      getMacDaemonSystemResolverHealthMock.mockResolvedValueOnce('unhealthy')
+      getMacDaemonSystemResolverHealthMock.mockResolvedValue('unhealthy')
 
       const next = await respawnAdapter.spawn({ cols: 80, rows: 24, isNewSession: true })
 
-      expect(getMacDaemonSystemResolverHealthMock).toHaveBeenCalledWith(
-        socketPath,
-        tokenPath,
-        respawnAdapter.protocolVersion
-      )
+      expect(getMacDaemonSystemResolverHealthMock).not.toHaveBeenCalled()
       expect(respawnFn).not.toHaveBeenCalled()
       expect(exits).toEqual([])
       expect(next.id).toBeDefined()
