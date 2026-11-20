@@ -26,6 +26,8 @@ import {
 import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 import { useProjectHostSetupProjection } from '@/store/selectors'
 import { terminalQuickCommandMatchesWorkspaceProject } from '@/lib/terminal-quick-command-project-scope'
+import { usePackageJsonQuickCommands } from '@/hooks/use-package-json-quick-commands'
+import type { TerminalQuickCommandMode } from '../../../../shared/terminal-quick-command-types'
 
 type TabBarQuickCommandsButtonProps = {
   worktreeId: string
@@ -79,21 +81,27 @@ export function TabBarQuickCommandsButton({
     return { repoCommands: repoList, globalCommands: globalList }
   }, [executionHostId, hosts, projectHostSetupProjection.setups, repoId])
 
+  const { commands: autoCommands, refresh: refreshAutoCommands } = usePackageJsonQuickCommands(
+    worktreeId,
+    repoId !== null
+  )
+
   const recentId = recentByGroup[groupId] ?? null
-  // Prefer group history across scopes, then the first repo command, then a global command.
+  // Prefer group history across scopes, then the first repo command, then a global command, then a package script.
   const mostRecent = useMemo(() => {
     if (recentId) {
       const match =
         repoCommands.find((entry) => entry.key === recentId) ??
         globalCommands.find((entry) => entry.key === recentId) ??
+        autoCommands.find((entry) => entry.key === recentId) ??
         repoCommands.find((entry) => entry.command.id === recentId) ??
         globalCommands.find((entry) => entry.command.id === recentId)
       if (match) {
         return match
       }
     }
-    return repoCommands[0] ?? globalCommands[0] ?? null
-  }, [repoCommands, globalCommands, recentId])
+    return repoCommands[0] ?? globalCommands[0] ?? autoCommands[0] ?? null
+  }, [repoCommands, globalCommands, autoCommands, recentId])
 
   const [editor, setEditor] = useState<
     | { mode: 'add'; command: TerminalQuickCommand; hostId: ExecutionHostId }
@@ -101,7 +109,7 @@ export function TabBarQuickCommandsButton({
     | null
   >(null)
 
-  const totalVisible = repoCommands.length + globalCommands.length
+  const totalVisible = repoCommands.length + globalCommands.length + autoCommands.length
   const hasAnyCommands = totalVisible > 0
   const defaultHostId = hosts.some((host) => host.hostId === executionHostId)
     ? executionHostId
@@ -111,7 +119,10 @@ export function TabBarQuickCommandsButton({
     setEditor({
       mode: 'add',
       hostId,
-      command: createTerminalQuickCommandDraft({ type: 'repo', repoId: repoId ?? '' })
+      command: createTerminalQuickCommandDraft({
+        type: 'repo',
+        repoId: repoId ?? ''
+      })
     })
   }
 
@@ -142,9 +153,11 @@ export function TabBarQuickCommandsButton({
     void useAppStore.getState().deleteTerminalQuickCommand(entry.hostId, command.id)
   }
 
-  const handleRun = (entry: HostedTerminalQuickCommand): void => {
+  const handleRun = (entry: HostedTerminalQuickCommand, mode?: TerminalQuickCommandMode): void => {
+    const { command } = entry
     runQuickCommandInNewTab({
-      command: entry.command,
+      // Why: the right-click override is one-off; the saved command keeps its own mode.
+      command: mode && command.action !== 'agent-prompt' ? { ...command, mode } : command,
       worktreeId,
       groupId,
       historyId: entry.key
@@ -211,14 +224,22 @@ export function TabBarQuickCommandsButton({
         isFocused={isFocused}
         repoCommands={repoCommands}
         globalCommands={globalCommands}
+        autoCommands={autoCommands}
         mostRecent={mostRecent}
         addHosts={hosts}
         hostLoadFailed={remoteHostLoadFailed}
         hostOwnershipPending={remoteHostPending}
-        onMenuOpen={refreshRemoteHost}
+        onMenuOpen={() => {
+          refreshRemoteHost()
+          refreshAutoCommands()
+        }}
         onAddCommand={addRepoCommand}
         onEditCommand={(entry) =>
-          setEditor({ mode: 'edit', command: entry.command, hostId: entry.hostId })
+          setEditor({
+            mode: 'edit',
+            command: entry.command,
+            hostId: entry.hostId
+          })
         }
         onDeleteCommand={(entry) => void handleDeleteCommand(entry)}
         onRunCommand={handleRun}

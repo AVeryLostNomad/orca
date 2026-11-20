@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Play } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { Command, CommandInput } from '@/components/ui/command'
 import {
   DropdownMenu,
@@ -9,12 +9,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import { TabBarQuickCommandsList } from './TabBarQuickCommandsList'
-import {
-  getTerminalQuickCommandBody,
-  isTerminalAgentQuickCommand
-} from '../../../../shared/terminal-quick-commands'
-import { getAgentLabel } from '@/lib/agent-catalog'
 import { TabBarQuickCommandItem } from './TabBarQuickCommandItem'
+import { TabBarQuickCommandRunButton } from './TabBarQuickCommandRunButton'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
@@ -28,10 +24,15 @@ import type {
   HostedTerminalQuickCommand,
   TerminalQuickCommandHost
 } from '@/hooks/use-terminal-quick-command-hosts'
+import type { TerminalQuickCommandMode } from '../../../../shared/terminal-quick-command-types'
+
+const NO_AUTO_COMMANDS: readonly HostedTerminalQuickCommand[] = []
 type TabBarQuickCommandsMenuProps = {
   isFocused: boolean
   repoCommands: readonly HostedTerminalQuickCommand[]
   globalCommands: readonly HostedTerminalQuickCommand[]
+  /** Commands discovered automatically (package.json scripts); listed last, read-only. */
+  autoCommands?: readonly HostedTerminalQuickCommand[]
   mostRecent: HostedTerminalQuickCommand | null
   addHosts: readonly TerminalQuickCommandHost[]
   hostLoadFailed: boolean
@@ -40,13 +41,14 @@ type TabBarQuickCommandsMenuProps = {
   onDeleteCommand: (entry: HostedTerminalQuickCommand) => void
   onEditCommand: (entry: HostedTerminalQuickCommand) => void
   onMenuOpen: () => void
-  onRunCommand: (entry: HostedTerminalQuickCommand) => void
+  onRunCommand: (entry: HostedTerminalQuickCommand, mode?: TerminalQuickCommandMode) => void
 }
 
 export function TabBarQuickCommandsMenu({
   isFocused,
   repoCommands,
   globalCommands,
+  autoCommands = NO_AUTO_COMMANDS,
   mostRecent,
   addHosts,
   hostLoadFailed,
@@ -68,7 +70,7 @@ export function TabBarQuickCommandsMenu({
   const menuImeEnter = useImeEnterGestureOwnership()
   // Suppress tooltip reopening when closing the menu restores focus to its chevron.
   const suppressMoreCommandsTooltipRef = useRef(false)
-  const showSearch = repoCommands.length + globalCommands.length > 1
+  const showSearch = repoCommands.length + globalCommands.length + autoCommands.length > 1
   const filteredRepoCommands = useMemo(
     () => searchHostedTerminalQuickCommands(repoCommands, query),
     [repoCommands, query]
@@ -77,10 +79,27 @@ export function TabBarQuickCommandsMenu({
     () => searchHostedTerminalQuickCommands(globalCommands, query),
     [globalCommands, query]
   )
-  const filteredVisibleCommands = useMemo(
-    () => [...filteredRepoCommands, ...filteredGlobalCommands],
-    [filteredRepoCommands, filteredGlobalCommands]
+  const filteredAutoCommands = useMemo(
+    () => searchHostedTerminalQuickCommands(autoCommands, query),
+    [autoCommands, query]
   )
+  const filteredVisibleCommands = useMemo(
+    () => [...filteredRepoCommands, ...filteredGlobalCommands, ...filteredAutoCommands],
+    [filteredRepoCommands, filteredGlobalCommands, filteredAutoCommands]
+  )
+  const sectionStartKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (filteredRepoCommands.length > 0 && filteredGlobalCommands[0]) {
+      keys.add(filteredGlobalCommands[0].key)
+    }
+    if (
+      filteredRepoCommands.length + filteredGlobalCommands.length > 0 &&
+      filteredAutoCommands[0]
+    ) {
+      keys.add(filteredAutoCommands[0].key)
+    }
+    return keys
+  }, [filteredRepoCommands, filteredGlobalCommands, filteredAutoCommands])
   const commandValue = useMemo(() => {
     const activeValue =
       !query.trim() &&
@@ -149,7 +168,11 @@ export function TabBarQuickCommandsMenu({
   const closeMenu = useCallback((): void => {
     handleOpenChange(false)
   }, [handleOpenChange])
-  useTabBarQuickCommandsShortcut({ isFocused, menuOpen, onOpenChange: handleOpenChange })
+  useTabBarQuickCommandsShortcut({
+    isFocused,
+    menuOpen,
+    onOpenChange: handleOpenChange
+  })
   useEffect(() => {
     if (!menuOpen || !showSearch) {
       return
@@ -159,9 +182,13 @@ export function TabBarQuickCommandsMenu({
     return cancelFocusFrame
   }, [cancelFocusFrame, focusSearchInput, menuOpen, showSearch])
   const runAndClose = useCallback(
-    (entry: HostedTerminalQuickCommand): void => {
+    (entry: HostedTerminalQuickCommand, mode?: TerminalQuickCommandMode): void => {
       closeMenu()
-      onRunCommand(entry)
+      if (mode) {
+        onRunCommand(entry, mode)
+      } else {
+        onRunCommand(entry)
+      }
     },
     [closeMenu, onRunCommand]
   )
@@ -171,7 +198,7 @@ export function TabBarQuickCommandsMenu({
     filteredCommands: filteredVisibleCommands,
     getCommandId: (entry) => entry.key,
     onCommandValueChange: setCommandValueOverride,
-    onRun: runAndClose,
+    onRun: (entry) => runAndClose(entry),
     selectedCommand
   })
   // Why: cmdk only tracks mounted items; selection belongs to the full command list.
@@ -195,6 +222,7 @@ export function TabBarQuickCommandsMenu({
       onHighlight={() => setCommandValueOverride(entry.key)}
       onActiveElementChange={attachActiveCommand}
       onRun={() => runAndClose(entry)}
+      onRunInMode={(mode) => runAndClose(entry, mode)}
       onEdit={() => {
         closeMenu()
         onEditCommand(entry)
@@ -215,56 +243,11 @@ export function TabBarQuickCommandsMenu({
     'flex items-center bg-transparent leading-none text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
   return (
     <div className={splitButtonClass}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => mostRecent && runAndClose(mostRecent)}
-            disabled={!mostRecent}
-            className={cn(innerButtonBase, 'gap-1.5 rounded-l-md rounded-r-none px-1.5')}
-            aria-label={
-              mostRecent
-                ? translate(
-                    'auto.components.tab.bar.TabBarQuickCommandsButton.b775303755',
-                    'Run quick command: {{value0}}',
-                    { value0: mostRecent.command.label }
-                  )
-                : translate(
-                    'auto.components.tab.bar.TabBarQuickCommandsButton.85482c57bc',
-                    'Run quick command'
-                  )
-            }
-          >
-            <Play className="size-3 shrink-0" fill="currentColor" strokeWidth={0} />
-            {/* Why: keyed to the strip's width, not focus, so narrow split groups stay icon-only without reflowing. */}
-            <span className="max-w-[160px] truncate text-[12px] font-medium @max-[480px]/tab-strip:hidden">
-              {mostRecent?.command.label ??
-                translate('auto.components.tab.bar.TabBarQuickCommandsButton.7b1c9d6ae1', 'Run')}
-            </span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={6}>
-          {mostRecent
-            ? isTerminalAgentQuickCommand(mostRecent.command)
-              ? translate(
-                  'auto.components.tab.bar.TabBarQuickCommandsButton.77ac113df0',
-                  'Start {{value0}}: {{value1}}',
-                  {
-                    value0: getAgentLabel(mostRecent.command.agent),
-                    value1: getTerminalQuickCommandBody(mostRecent.command)
-                  }
-                )
-              : translate(
-                  'auto.components.tab.bar.TabBarQuickCommandsButton.37e1bb90ce',
-                  'Run: {{value0}}',
-                  { value0: getTerminalQuickCommandBody(mostRecent.command) }
-                )
-            : translate(
-                'auto.components.tab.bar.TabBarQuickCommandsButton.85482c57bc',
-                'Run quick command'
-              )}
-        </TooltipContent>
-      </Tooltip>
+      <TabBarQuickCommandRunButton
+        mostRecent={mostRecent}
+        className={cn(innerButtonBase, 'gap-1.5 rounded-l-md rounded-r-none px-1.5')}
+        onRun={(entry, mode) => runAndClose(entry, mode)}
+      />
       <DropdownMenu modal={false} open={menuOpen} onOpenChange={handleOpenChange}>
         <Tooltip open={moreCommandsTooltipOpen} onOpenChange={handleMoreCommandsTooltipOpenChange}>
           <TooltipTrigger asChild>
@@ -359,9 +342,7 @@ export function TabBarQuickCommandsMenu({
             ) : null}
             <TabBarQuickCommandsList
               commands={filteredVisibleCommands}
-              firstGlobalCommand={
-                filteredRepoCommands.length > 0 ? filteredGlobalCommands[0] : undefined
-              }
+              sectionStartKeys={sectionStartKeys}
               selectedKey={commandValue}
               query={query}
               commandListRef={commandListRef}

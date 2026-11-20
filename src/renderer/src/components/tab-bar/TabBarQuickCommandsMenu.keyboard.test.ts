@@ -125,6 +125,13 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenuTrigger: () => null
 }))
 
+vi.mock('@/components/ui/context-menu', () => ({
+  ContextMenu: () => null,
+  ContextMenuContent: () => null,
+  ContextMenuItem: () => null,
+  ContextMenuTrigger: () => null
+}))
+
 vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: () => null,
   TooltipContent: () => null,

@@ -4257,7 +4257,11 @@
             "53b17a4b1b": "Couldn't copy",
             "a9a564b7e7": "Copy {{value0}}",
             "69a1441a21": "Nothing to copy",
-            "192a4616a5": "Quick command actions"
+            "192a4616a5": "Quick command actions",
+            "runInPopup": "Run in popup",
+            "runInTab": "Run in new tab",
+            "autoFromPackageJson": "Detected automatically from {{value0}}",
+            "autoBadge": "auto"
           },
           "shell": {
             "icons": {

@@ -6,14 +6,15 @@ import { translate } from '@/i18n/i18n'
 
 export function TabBarQuickCommandsList({
   commands,
-  firstGlobalCommand,
+  sectionStartKeys,
   selectedKey,
   query,
   commandListRef,
   renderCommand
 }: {
   commands: readonly HostedTerminalQuickCommand[]
-  firstGlobalCommand: HostedTerminalQuickCommand | undefined
+  /** Rows that start a new section (saved global, then automatic) and get a separator above. */
+  sectionStartKeys: ReadonlySet<string>
   selectedKey: string
   query: string
   commandListRef: RefObject<HTMLDivElement | null>
@@ -53,7 +54,7 @@ export function TabBarQuickCommandsList({
           minimumRows={10}
           renderRow={(entry) => (
             <Fragment key={entry.key}>
-              {entry === firstGlobalCommand ? <CommandSeparator className="my-1" /> : null}
+              {sectionStartKeys.has(entry.key) ? <CommandSeparator className="my-1" /> : null}
               {renderCommand(entry)}
             </Fragment>
           )}

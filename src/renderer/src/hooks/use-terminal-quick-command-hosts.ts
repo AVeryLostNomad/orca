@@ -35,6 +35,8 @@ export type HostedTerminalQuickCommand = {
   hostId: ExecutionHostId
   hostLabel: string
   key: string
+  /** Set for commands Orca discovered automatically (not saved by the user). */
+  source?: { kind: 'package-json'; packageJsonPath: string }
 }
 
 type TerminalQuickCommandHostState = {

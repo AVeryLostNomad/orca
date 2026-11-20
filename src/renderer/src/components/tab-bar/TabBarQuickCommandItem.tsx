@@ -1,9 +1,11 @@
 import { useId, type MouseEvent, type PointerEvent } from 'react'
-import { Check, Copy, Pencil, Play, Trash2 } from 'lucide-react'
+import { Check, Copy, PanelTop, Pencil, Play, SquareTerminal, Trash2, Zap } from 'lucide-react'
 import {
   getTerminalQuickCommandBody,
+  getTerminalQuickCommandMode,
   isTerminalAgentQuickCommand
 } from '../../../../shared/terminal-quick-commands'
+import type { TerminalQuickCommandMode } from '../../../../shared/terminal-quick-command-types'
 import { AgentIcon, getAgentLabel } from '@/lib/agent-catalog'
 import { translate } from '@/i18n/i18n'
 import { useClipboardTextCopyFeedback } from '@/hooks/use-clipboard-text-copy-feedback'
@@ -19,6 +21,8 @@ type TabBarQuickCommandItemProps = {
   onHighlight?: () => void
   onActiveElementChange?: (element: HTMLDivElement | null) => void
   onRun: () => void
+  /** Run once in the other mode (tab ↔ popup) without changing the saved command. */
+  onRunInMode?: (mode: TerminalQuickCommandMode) => void
   onEdit: () => void
   onDelete: () => void
 }
@@ -38,11 +42,22 @@ export function TabBarQuickCommandItem({
   onHighlight,
   onActiveElementChange,
   onRun,
+  onRunInMode,
   onEdit,
   onDelete
 }: TabBarQuickCommandItemProps): React.JSX.Element {
   const id = useId()
   const { command } = entry
+  const isAuto = entry.source?.kind === 'package-json'
+  const alternateMode: TerminalQuickCommandMode | null = isTerminalAgentQuickCommand(command)
+    ? null
+    : getTerminalQuickCommandMode(command) === 'modal'
+      ? 'tab'
+      : 'modal'
+  const alternateModeLabel =
+    alternateMode === 'modal'
+      ? translate('auto.components.tab.bar.TabBarQuickCommandsButton.runInPopup', 'Run in popup')
+      : translate('auto.components.tab.bar.TabBarQuickCommandsButton.runInTab', 'Run in new tab')
   const body = getTerminalQuickCommandBody(command)
   const { canCopy, copyText, status } = useClipboardTextCopyFeedback(body)
 
@@ -92,7 +107,22 @@ export function TabBarQuickCommandItem({
           <span className="min-w-0 flex-1 truncate font-medium text-foreground">
             {command.label}
           </span>
-          {showHostLabel ? (
+          {isAuto ? (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded border border-border/60 px-1 text-[10px] leading-4 text-muted-foreground"
+              title={translate(
+                'auto.components.tab.bar.TabBarQuickCommandsButton.autoFromPackageJson',
+                'Detected automatically from {{value0}}',
+                { value0: entry.source?.packageJsonPath ?? 'package.json' }
+              )}
+            >
+              <Zap className="size-2.5" />
+              {entry.source?.packageJsonPath === 'package.json'
+                ? translate('auto.components.tab.bar.TabBarQuickCommandsButton.autoBadge', 'auto')
+                : entry.source?.packageJsonPath.replace(/\/package\.json$/, '')}
+            </span>
+          ) : null}
+          {showHostLabel && !isAuto ? (
             <span className="shrink-0 text-[11px] text-muted-foreground">{entry.hostLabel}</span>
           ) : null}
         </span>
@@ -115,6 +145,25 @@ export function TabBarQuickCommandItem({
         )}
         className="flex shrink-0 items-center gap-0.5 can-hover:opacity-0 transition-opacity group-hover/qc:opacity-100 group-data-[selected=true]/qc:opacity-100"
       >
+        {alternateMode && onRunInMode ? (
+          <button
+            type="button"
+            onPointerDown={stopRowSelect}
+            onClick={(event) => {
+              stopRowSelect(event)
+              onRunInMode(alternateMode)
+            }}
+            className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={alternateModeLabel}
+            title={alternateModeLabel}
+          >
+            {alternateMode === 'modal' ? (
+              <PanelTop className="size-3" />
+            ) : (
+              <SquareTerminal className="size-3" />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={!canCopy}
@@ -133,38 +182,42 @@ export function TabBarQuickCommandItem({
         >
           {status === 'copied' ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>
-        <button
-          type="button"
-          onPointerDown={stopRowSelect}
-          onClick={(event) => {
-            stopRowSelect(event)
-            onEdit()
-          }}
-          className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={translate(
-            'auto.components.tab.bar.TabBarQuickCommandsButton.15529ede69',
-            'Edit {{value0}}',
-            { value0: command.label }
-          )}
-        >
-          <Pencil className="size-3" />
-        </button>
-        <button
-          type="button"
-          onPointerDown={stopRowSelect}
-          onClick={(event) => {
-            stopRowSelect(event)
-            onDelete()
-          }}
-          className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
-          aria-label={translate(
-            'auto.components.tab.bar.TabBarQuickCommandsButton.196593b6a9',
-            'Remove {{value0}}',
-            { value0: command.label }
-          )}
-        >
-          <Trash2 className="size-3" />
-        </button>
+        {isAuto ? null : (
+          <>
+            <button
+              type="button"
+              onPointerDown={stopRowSelect}
+              onClick={(event) => {
+                stopRowSelect(event)
+                onEdit()
+              }}
+              className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={translate(
+                'auto.components.tab.bar.TabBarQuickCommandsButton.15529ede69',
+                'Edit {{value0}}',
+                { value0: command.label }
+              )}
+            >
+              <Pencil className="size-3" />
+            </button>
+            <button
+              type="button"
+              onPointerDown={stopRowSelect}
+              onClick={(event) => {
+                stopRowSelect(event)
+                onDelete()
+              }}
+              className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+              aria-label={translate(
+                'auto.components.tab.bar.TabBarQuickCommandsButton.196593b6a9',
+                'Remove {{value0}}',
+                { value0: command.label }
+              )}
+            >
+              <Trash2 className="size-3" />
+            </button>
+          </>
+        )}
       </span>
     </div>
   )
