@@ -195,6 +195,10 @@ export function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
         pushTarget
       })
     },
+    // Why: merge-into-target is desktop-local only for now; the web client never shows the menu item.
+    mergeWorktreeIntoTarget: async () => {
+      throw new Error('Merging a worktree into another branch is not available in the web client.')
+    },
     rebaseFromBase: async ({ worktreePath, baseRef }) => {
       const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
       await callRuntimeResult('git.rebaseFromBase', {

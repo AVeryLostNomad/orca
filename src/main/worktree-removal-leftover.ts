@@ -1,4 +1,5 @@
-import { lstat } from 'node:fs/promises'
+import { lstat, readdir, rmdir } from 'node:fs/promises'
+import { worktreeInUseError } from './git/worktree-trash-removal'
 import { join } from 'node:path'
 import type { RemoveWorktreeResult } from '../shared/worktree/create-types'
 import type { GitWorktreeInfo } from '../shared/worktree/types'
@@ -57,7 +58,34 @@ export async function assertUnregisteredCheckoutGone(
 ): Promise<void> {
   if (await worktreeCheckoutExists(worktreePath)) {
     assertWorktreeDoesNotContainRegisteredWorktree(worktreePath, registeredWorktrees)
+    // Why: Git for Windows unregisters, deletes every file, then fails on the folder itself when a shell's
+    // cwd is inside it. An empty folder is that half-finished delete; anything with files may be the
+    // user's (kept files, or a new folder put at the path), so only the empty case is finished here.
+    if (await removeEmptyLeftoverFolder(worktreePath)) {
+      return
+    }
     throw unregisteredFolderRefusal(worktreePath)
+  }
+}
+
+/** True once an empty leftover folder is gone; false (untouched) when it holds anything. */
+async function removeEmptyLeftoverFolder(worktreePath: string): Promise<boolean> {
+  const entries = await readdir(worktreePath).catch(() => null)
+  if (entries === null || entries.length > 0) {
+    return false
+  }
+  try {
+    // rmdir refuses non-empty directories, so a file created since readdir is never lost.
+    await rmdir(worktreePath)
+    return true
+  } catch (error) {
+    if (getErrorCode(error) === 'ENOTEMPTY') {
+      return false
+    }
+    if (['EPERM', 'EBUSY', 'EACCES'].includes(getErrorCode(error) ?? '')) {
+      throw worktreeInUseError(worktreePath, error)
+    }
+    throw error
   }
 }
 

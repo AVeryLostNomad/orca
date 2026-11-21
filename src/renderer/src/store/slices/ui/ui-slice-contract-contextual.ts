@@ -37,6 +37,7 @@ export type UISliceContextual = {
     | 'create-worktree'
     | 'edit-meta'
     | 'delete-worktree'
+    | 'merge-worktree'
     | 'preserved-branch-review'
     | 'forget-ssh-workspace'
     | 'confirm-add-project-from-folder'

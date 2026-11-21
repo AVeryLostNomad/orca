@@ -1,4 +1,4 @@
-// Drain legacy trash left by interrupted background deletion; current releases create none.
+// Drain trash left by interrupted background deletion (Windows removal renames checkouts here first).
 
 import { lstat, readdir, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -12,7 +12,7 @@ import { getRepoRoutingConnectionId } from '../shared/execution-host'
 
 export const WORKTREE_TRASH_DIR_NAME = '.orca-worktree-trash'
 
-// Only names produced by the retired rename scheme qualify for cleanup.
+// Only names produced by Orca's rename scheme (worktree-trash-removal.ts) qualify for cleanup.
 const TRASH_ENTRY_PATTERN = /^wt-\d+-[0-9a-f]{8}$/
 
 const TRASH_SWEEP_MAX_CONTAINERS = 200

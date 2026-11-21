@@ -18,9 +18,16 @@ import {
 } from './removed-workspace-unsaved-files'
 import { forgetDesktopCreatedServerTabsOf } from '@/lib/desktop-created-server-tabs'
 import type { WorktreeStateBeforeRemoval } from './worktree-state-before-removal'
+import { logSlowRemovalStep } from './log-slow-removal-step'
 
 /** After backend success: unregister browsers before other teardown, then dispose SSH relay only after terminals so mounted panes cannot hit a missing relay. */
-export async function tearDownRemovedWorktreeRendererState(args: {
+export async function tearDownRemovedWorktreeRendererState(args: TearDownArgs): Promise<void> {
+  await logSlowRemovalStep(args.worktreeId, 'renderer teardown', () =>
+    tearDownRemovedWorktreeRendererStateUntimed(args)
+  )
+}
+
+type TearDownArgs = {
   set: WorktreeSliceSet
   get: WorktreeSliceGet
   worktreeId: string
@@ -30,7 +37,9 @@ export async function tearDownRemovedWorktreeRendererState(args: {
   /** The catalog the host's removal produced, when the host stamps it. */
   catalogVersion?: WorktreeCatalogVersion
   confirmedDiscards?: ConfirmedUnsavedDiscards
-}): Promise<void> {
+}
+
+async function tearDownRemovedWorktreeRendererStateUntimed(args: TearDownArgs): Promise<void> {
   const { set, get, worktreeId, hostId, requiredExecutionHostId, beforeRemoval } = args
   // Record removal version before await so earlier listings cannot restore its row.
   if (hostId && args.catalogVersion) {

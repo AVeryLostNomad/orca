@@ -1395,6 +1395,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "서버 {{value0}}개",
+          "tooltip": "이 작업 공간에서 실행 중인 웹 서버",
+          "openInOrca": "브라우저 탭에서 열기",
+          "openInSystem": "시스템 브라우저에서 열기",
+          "copyAddress": "주소 복사",
+          "stop": "프로세스 중지"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "브라우저를 열지 못했습니다",
+          "copied": "{{value0}} 복사됨",
+          "stopped": "{{value0}}의 프로세스를 중지했습니다"
+        }
+      },
       "hostPicker": {
         "searchHosts": "호스트 검색…",
         "noHostsMatch": "일치하는 호스트가 없습니다.",
@@ -5969,6 +5984,22 @@
           "d1113f4660": "브라우저를 열지 못했습니다.",
           "fed49903c9": "{{value0}} 실시간 {{value1}}"
         },
+        "MergeWorktreeDialog": {
+          "merged": "{{value0}}을(를) {{value1}}에 병합했습니다",
+          "mergeTitle": "{{value0}} 병합 대상…",
+          "rebaseTitle": "{{value0}} 리베이스 대상…",
+          "mergeDescription": "이 브랜치를 대상 브랜치에 로컬로 병합합니다. 푸시하지 않습니다.",
+          "rebaseDescription": "이 브랜치를 대상에 리베이스한 뒤 대상을 빨리 감기합니다. 푸시하지 않습니다.",
+          "merge": "병합",
+          "rebase": "리베이스",
+          "targetBranch": "대상 브랜치",
+          "keepWorktree": "병합 후 워크트리 유지",
+          "cancel": "취소",
+          "confirmMerge": "병합",
+          "confirmRebase": "리베이스",
+          "confirmMergeAndRemove": "병합 후 워크트리 제거",
+          "confirmRebaseAndRemove": "리베이스 후 워크트리 제거"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "그룹을 만들고 이 프로젝트를 그룹으로 이동하세요.",
           "6664418e98": "새로운 프로젝트 그룹",
@@ -5981,6 +6012,8 @@
           "503ec0f8e6": "프로젝트의 새 그룹",
           "3350101edb": "경로 복사",
           "copyWorktreeName": "워크트리 이름 복사",
+          "mergeInto": "병합 대상…",
+          "rebaseOnto": "리베이스 대상…",
           "f4475537d8": "삭제",
           "f5ac91531d": "Orca에서 프로젝트 제거",
           "b42391d8bf": "삭제 중…",

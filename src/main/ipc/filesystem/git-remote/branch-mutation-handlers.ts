@@ -8,6 +8,11 @@ import { ipcGitWorktreeTarget, materializeWorktreePushTargetRemote } from '../..
 import type { FilesystemHandlerContext } from '../filesystem-handler-context'
 import { requireReachableGitRoute } from '../../../providers/execution-host-provider-dispatch'
 import { getConnectionExecutionHostId } from '../../../../shared/execution-host'
+import { mergeWorktreeIntoTarget } from '../../../git/worktree-merge-into-target'
+import type {
+  WorktreeMergeIntoTargetArgs,
+  WorktreeMergeIntoTargetResult
+} from '../../../../shared/worktree-merge-types'
 
 export function registerGitRemoteBranchMutationHandlers(context: FilesystemHandlerContext): void {
   const { store } = context
@@ -157,6 +162,25 @@ export function registerGitRemoteBranchMutationHandlers(context: FilesystemHandl
         ...gitOptions,
         admissionTier: 'interactive'
       })
+    }
+  )
+
+  ipcMain.handle(
+    'git:mergeWorktreeIntoTarget',
+    async (_event, args: WorktreeMergeIntoTargetArgs): Promise<WorktreeMergeIntoTargetResult> => {
+      if (args.mode !== 'merge' && args.mode !== 'rebase') {
+        throw new Error(`Unknown merge mode: ${String(args.mode)}`)
+      }
+      const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
+        store,
+        args.worktreePath,
+        worktreePath
+      )
+      return mergeWorktreeIntoTarget(
+        { sourceWorktreePath: worktreePath, targetRef: args.targetRef, mode: args.mode },
+        { ...gitOptions, admissionTier: 'interactive' }
+      )
     }
   )
 }

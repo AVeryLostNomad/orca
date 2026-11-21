@@ -10,6 +10,10 @@ import type {
 } from '../../shared/git-stash'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { GitPushTarget } from '../../shared/worktree/types'
+import type {
+  WorktreeMergeIntoTargetArgs,
+  WorktreeMergeIntoTargetResult
+} from '../../shared/worktree-merge-types'
 import type { GitStageWorktreeScope } from '../../shared/git-stage-worktree-scope'
 import type { HostedReviewProvider } from '../../shared/hosted-review'
 import type { ResolvedSourceControlAiGenerationParams } from '../../shared/source-control-ai'
@@ -51,6 +55,9 @@ export type GitOperationApi = {
     baseRef: string
     connectionId?: string
   }) => Promise<void>
+  mergeWorktreeIntoTarget: (
+    args: WorktreeMergeIntoTargetArgs
+  ) => Promise<WorktreeMergeIntoTargetResult>
   commit: (args: {
     worktreePath: string
     message: string

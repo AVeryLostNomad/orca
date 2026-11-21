@@ -216,6 +216,7 @@ export function buildDefaultSettings(args: {
     skipDeleteWorktreeConfirm: false,
     alwaysForceDeleteWorktrees: false,
     alwaysForceDeletePreservedBranches: false,
+    keepWorktreeAfterMerge: false,
     skipCloseTerminalWithRunningProcessConfirm: false,
     skipDeleteAutomationConfirm: false,
     skipDeleteArtifactConfirm: false,

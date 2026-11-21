@@ -1395,6 +1395,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "{{value0}} 個のサーバー",
+          "tooltip": "このワークスペースで実行中の Web サーバー",
+          "openInOrca": "ブラウザータブで開く",
+          "openInSystem": "システムのブラウザーで開く",
+          "copyAddress": "アドレスをコピー",
+          "stop": "プロセスを停止"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "ブラウザーを開けませんでした",
+          "copied": "{{value0}} をコピーしました",
+          "stopped": "{{value0}} のプロセスを停止しました"
+        }
+      },
       "hostPicker": {
         "searchHosts": "ホストを検索…",
         "noHostsMatch": "一致するホストはありません。",
@@ -5988,6 +6003,22 @@
           "fed49903c9": "{{value0}} ライブ {{value1}}",
           "unknownProcess": "不明なプロセス"
         },
+        "MergeWorktreeDialog": {
+          "merged": "{{value0}} を {{value1}} にマージしました",
+          "mergeTitle": "{{value0}} のマージ先…",
+          "rebaseTitle": "{{value0}} のリベース先…",
+          "mergeDescription": "このブランチをターゲットブランチにローカルでマージします。プッシュはしません。",
+          "rebaseDescription": "このブランチをターゲットにリベースし、ターゲットをそこまで早送りします。プッシュはしません。",
+          "merge": "マージ",
+          "rebase": "リベース",
+          "targetBranch": "ターゲットブランチ",
+          "keepWorktree": "マージ後もワークツリーを残す",
+          "cancel": "キャンセル",
+          "confirmMerge": "マージ",
+          "confirmRebase": "リベース",
+          "confirmMergeAndRemove": "マージしてワークツリーを削除",
+          "confirmRebaseAndRemove": "リベースしてワークツリーを削除"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "グループを作成し、このプロジェクトをそのグループに移動します。",
           "6664418e98": "新規プロジェクトグループ",
@@ -6000,6 +6031,8 @@
           "503ec0f8e6": "プロジェクトからの新規グループ",
           "3350101edb": "パスのコピー",
           "copyWorktreeName": "ワークツリー名をコピー",
+          "mergeInto": "マージ先…",
+          "rebaseOnto": "リベース先…",
           "f4475537d8": "削除",
           "f5ac91531d": "Orca からプロジェクトを削除",
           "b42391d8bf": "削除中…",

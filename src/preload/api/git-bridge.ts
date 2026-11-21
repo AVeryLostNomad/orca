@@ -5,6 +5,10 @@ import type { GitPushTarget } from '../../shared/worktree/types'
 import type { GitStageWorktreeScope } from '../../shared/git-stage-worktree-scope'
 import type { GitHistoryOptions, GitHistoryResult } from '../../shared/git-history'
 import type { GitStashPushRequest } from '../../shared/git-stash'
+import type {
+  WorktreeMergeIntoTargetArgs,
+  WorktreeMergeIntoTargetResult
+} from '../../shared/worktree-merge-types'
 import type { PreloadApi } from '../api-types'
 
 export const gitApi = {
@@ -106,6 +110,10 @@ export const gitApi = {
     baseRef: string
     connectionId?: string
   }): Promise<void> => ipcRenderer.invoke('git:rebaseFromBase', args),
+  mergeWorktreeIntoTarget: (
+    args: WorktreeMergeIntoTargetArgs
+  ): Promise<WorktreeMergeIntoTargetResult> =>
+    ipcRenderer.invoke('git:mergeWorktreeIntoTarget', args),
   branchDiff: (args: {
     worktreePath: string
     compare: {

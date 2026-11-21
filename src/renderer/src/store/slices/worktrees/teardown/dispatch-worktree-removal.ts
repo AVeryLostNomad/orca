@@ -11,6 +11,7 @@ import {
   settleLostWorktreeRemovalReply
 } from './host-worktree-removal-state'
 import { worktreeRemovalReplyTimeoutMs } from '../../../../../../shared/worktree/archive-hook-removal-gate'
+import { logSlowRemovalStep } from './log-slow-removal-step'
 
 /** Carry hostId across every removal transport: repoId::path alone repeats across hosts and cannot identify the confirmed copy (STA-4343). */
 export async function dispatchWorktreeRemoval(args: {
@@ -25,7 +26,9 @@ export async function dispatchWorktreeRemoval(args: {
   assertCurrent: () => void
 }): Promise<RemoveWorktreeResult> {
   try {
-    const result = await requestWorktreeRemoval(args)
+    const result = await logSlowRemovalStep(args.worktreeId, 'host removal', () =>
+      requestWorktreeRemoval(args)
+    )
     showNestedWorktreePreservedBranchesToast(result?.nestedPreservedBranches)
     return result
   } catch (error) {

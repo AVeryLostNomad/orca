@@ -1395,6 +1395,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "{{value0}} 个服务器",
+          "tooltip": "此工作区中正在运行的 Web 服务器",
+          "openInOrca": "在浏览器标签页中打开",
+          "openInSystem": "在系统浏览器中打开",
+          "copyAddress": "复制地址",
+          "stop": "停止进程"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "无法打开浏览器",
+          "copied": "已复制 {{value0}}",
+          "stopped": "已停止 {{value0}} 上的进程"
+        }
+      },
       "hostPicker": {
         "searchHosts": "搜索主机…",
         "noHostsMatch": "没有匹配的主机。",
@@ -5969,6 +5984,22 @@
           "d1113f4660": "无法打开浏览器",
           "fed49903c9": "{{value0}} 直播 {{value1}}"
         },
+        "MergeWorktreeDialog": {
+          "merged": "已将 {{value0}} 合并到 {{value1}}",
+          "mergeTitle": "将 {{value0}} 合并到…",
+          "rebaseTitle": "将 {{value0}} 变基到…",
+          "mergeDescription": "在本地将此分支合并到目标分支。不会推送。",
+          "rebaseDescription": "将此分支变基到目标分支，然后将目标快进到此分支。不会推送。",
+          "merge": "合并",
+          "rebase": "变基",
+          "targetBranch": "目标分支",
+          "keepWorktree": "合并后保留工作树",
+          "cancel": "取消",
+          "confirmMerge": "合并",
+          "confirmRebase": "变基",
+          "confirmMergeAndRemove": "合并并移除工作树",
+          "confirmRebaseAndRemove": "变基并移除工作树"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "创建一个组并将该项目移入其中。",
           "6664418e98": "新项目组",
@@ -5981,6 +6012,8 @@
           "503ec0f8e6": "来自项目的新组",
           "3350101edb": "复制路径",
           "copyWorktreeName": "复制工作树名称",
+          "mergeInto": "合并到…",
+          "rebaseOnto": "变基到…",
           "f4475537d8": "删除",
           "f5ac91531d": "从 Orca 中删除项目",
           "b42391d8bf": "正在删除...",

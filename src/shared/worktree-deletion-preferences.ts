@@ -5,4 +5,6 @@ export type WorktreeDeletionPreferences = {
   alwaysForceDeleteWorktrees?: boolean
   /** Opt-in: delete preserved local branches after workspace removal. */
   alwaysForceDeletePreservedBranches?: boolean
+  /** Merge/Rebase into a target removes the worktree unless the user last chose to keep it. */
+  keepWorktreeAfterMerge?: boolean
 }

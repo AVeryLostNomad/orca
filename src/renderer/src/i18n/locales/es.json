@@ -1395,6 +1395,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "{{value0}} servidores",
+          "tooltip": "Servidores web en ejecución en este espacio de trabajo",
+          "openInOrca": "Abrir en pestaña del navegador",
+          "openInSystem": "Abrir en el navegador del sistema",
+          "copyAddress": "Copiar dirección",
+          "stop": "Detener proceso"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "No se pudo abrir el navegador",
+          "copied": "Copiado {{value0}}",
+          "stopped": "Proceso detenido en {{value0}}"
+        }
+      },
       "plainSshTerminal": {
         "open": "Abrir terminal SSH normal",
         "unmanaged": "SSH normal — no administrado. No es un espacio de trabajo de Orca: aquí no se rastrean agentes ni pestañas, y este terminal no se restaura. Al cerrarlo finaliza la sesión SSH.",
@@ -6003,6 +6018,22 @@
           "d1113f4660": "No se pudo abrir el navegador",
           "fed49903c9": "{{value0}} en vivo {{value1}}"
         },
+        "MergeWorktreeDialog": {
+          "merged": "{{value0}} fusionado en {{value1}}",
+          "mergeTitle": "Fusionar {{value0}} en…",
+          "rebaseTitle": "Rebase de {{value0}} sobre…",
+          "mergeDescription": "Fusiona esta rama en la rama de destino localmente. No se envía nada.",
+          "rebaseDescription": "Hace rebase de esta rama sobre el destino y luego avanza el destino hasta ella. No se envía nada.",
+          "merge": "Fusionar",
+          "rebase": "Rebase",
+          "targetBranch": "Rama de destino",
+          "keepWorktree": "Conservar el worktree después de fusionar",
+          "cancel": "Cancelar",
+          "confirmMerge": "Fusionar",
+          "confirmRebase": "Rebase",
+          "confirmMergeAndRemove": "Fusionar y eliminar worktree",
+          "confirmRebaseAndRemove": "Rebase y eliminar worktree"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "Crea un grupo y mueve este proyecto a él.",
           "6664418e98": "Nuevo grupo de proyecto",
@@ -6015,6 +6046,8 @@
           "503ec0f8e6": "Nuevo grupo del proyecto",
           "3350101edb": "Copiar ruta",
           "copyWorktreeName": "Copiar nombre del worktree",
+          "mergeInto": "Fusionar en…",
+          "rebaseOnto": "Rebase sobre…",
           "f4475537d8": "Eliminar",
           "f5ac91531d": "Quitar proyecto de Orca",
           "b42391d8bf": "Eliminando…",

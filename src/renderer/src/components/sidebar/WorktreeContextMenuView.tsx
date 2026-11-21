@@ -20,8 +20,11 @@ import {
   Workflow,
   FolderInput,
   FolderPlus,
-  FolderTree
+  FolderTree,
+  GitBranch,
+  GitMerge
 } from 'lucide-react'
+import { canMergeWorktreeIntoTarget } from './worktree-merge-eligibility'
 import { WorktreeRowOpenInSubMenu } from './WorktreeRowOpenInSubMenu'
 import { WorktreeDeveloperMenu } from './WorktreeDeveloperMenu'
 import { WorkspaceSleepMenuItems } from './WorkspaceSleepMenuItems'
@@ -53,8 +56,10 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
     handleCopyPath,
     handleCreateGroupFromRepo,
     handleDelete,
+    handleMergeInto,
     handleMoveProjectToGroup,
     handleOpenParent,
+    handleRebaseOnto,
     handleOpenParentPicker,
     handleRemoveParentLink,
     handleRemoveProjectFromGroup,
@@ -227,6 +232,22 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
           {shouldRevealWorktreeDeveloperMenu({ developerMenuRevealed, isMultiContext }) ? (
             <>
               <WorktreeDeveloperMenu worktreeId={worktree.id} disabled={isDeleting} />
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          {!isMultiContext && canMergeWorktreeIntoTarget({ worktree, repo, folderWorkspaceId }) ? (
+            <>
+              <DropdownMenuItem onSelect={handleMergeInto} disabled={isDeleting}>
+                <GitMerge className="size-3.5" />
+                {translate('auto.components.sidebar.WorktreeContextMenu.mergeInto', 'Merge into…')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRebaseOnto} disabled={isDeleting}>
+                <GitBranch className="size-3.5" />
+                {translate(
+                  'auto.components.sidebar.WorktreeContextMenu.rebaseOnto',
+                  'Rebase onto…'
+                )}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
           ) : null}

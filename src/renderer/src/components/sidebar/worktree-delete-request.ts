@@ -29,6 +29,8 @@ export type WorktreeDeleteWithToastOptions = {
   confirmedDiscards?: ConfirmedUnsavedDiscards
   /** Throws when the confirmed workspace is gone; runs before every destructive send. */
   assertBeforeDispatch?: () => void
+  /** Explicit user intent (e.g. merge-then-close) lets running terminals not block removal; dirty files still do. */
+  allowUnverifiedPtyStop?: boolean
 }
 
 export function toWorktreeDeleteIdentities(

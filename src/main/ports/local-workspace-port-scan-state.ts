@@ -29,12 +29,15 @@ export type RawListeningPort = {
   socketId?: string
   commandLine?: string
   cwd?: string
+  /** Parent chain of `pid`, nearest first, when the platform scan can supply it (Windows). */
+  ancestorPids?: number[]
 }
 
 export type ProcessMetadata = {
   processName?: string
   commandLine?: string
   cwd?: string
+  ancestorPids?: number[]
 }
 
 type RememberedListenerMetadata = ProcessMetadata & {

@@ -41,9 +41,13 @@ export function normalizeWorkspacePortProbes(
   }))
 }
 
+/** Workspace terminal (PTY root) pids, mapped to the worktree whose terminal spawned them. */
+export type TerminalOwnerByPid = ReadonlyMap<number, string>
+
 function attributePortToNormalizedWorkspaces(
-  port: Pick<RawListeningPort, 'cwd' | 'commandLine'>,
-  worktrees: readonly NormalizedWorkspacePortProbe[]
+  port: Pick<RawListeningPort, 'cwd' | 'commandLine' | 'pid' | 'ancestorPids'>,
+  worktrees: readonly NormalizedWorkspacePortProbe[],
+  terminalOwners?: TerminalOwnerByPid
 ): WorkspacePortOwner | undefined {
   const cwd = port.cwd ? normalizeComparablePath(port.cwd) : null
   const commandLine = port.commandLine ? normalizeComparableText(port.commandLine) : null
@@ -57,6 +61,11 @@ function attributePortToNormalizedWorkspaces(
     return toOwner(cwdMatch.worktree, 'cwd')
   }
 
+  const terminalMatch = matchTerminalLineage(port, worktrees, terminalOwners)
+  if (terminalMatch) {
+    return toOwner(terminalMatch.worktree, 'terminal')
+  }
+
   if (!commandLine) {
     return undefined
   }
@@ -66,12 +75,32 @@ function attributePortToNormalizedWorkspaces(
   )
   return commandMatch ? toOwner(commandMatch.worktree, 'command') : undefined
 }
+/** Nearest ancestor (or the listener itself) that is a registered workspace terminal wins. */
+function matchTerminalLineage(
+  port: Pick<RawListeningPort, 'pid' | 'ancestorPids'>,
+  worktrees: readonly NormalizedWorkspacePortProbe[],
+  terminalOwners: TerminalOwnerByPid | undefined
+): NormalizedWorkspacePortProbe | undefined {
+  if (!terminalOwners || terminalOwners.size === 0 || port.pid === undefined) {
+    return undefined
+  }
+  for (const pid of [port.pid, ...(port.ancestorPids ?? [])]) {
+    const worktreeId = terminalOwners.get(pid)
+    if (worktreeId) {
+      // Only workspaces in this scan's probe set may own a port.
+      return worktrees.find(({ worktree }) => worktree.id === worktreeId)
+    }
+  }
+  return undefined
+}
+
 export function enrichPort(
   port: RawListeningPort,
   worktrees: readonly NormalizedWorkspacePortProbe[],
-  urlWatcher: Pick<AdvertisedUrlWatcher, 'lookup'>
+  urlWatcher: Pick<AdvertisedUrlWatcher, 'lookup'>,
+  terminalOwners?: TerminalOwnerByPid
 ): WorkspacePort {
-  const owner = attributePortToNormalizedWorkspaces(port, worktrees)
+  const owner = attributePortToNormalizedWorkspaces(port, worktrees, terminalOwners)
   const base = {
     id: `${port.host}:${port.port}:${port.pid ?? 'unknown'}`,
     bindHost: port.host,
@@ -102,14 +131,15 @@ export function enrichPort(
 export function reconcileAdvertisedUrls(
   ports: RawListeningPort[],
   worktrees: readonly NormalizedWorkspacePortProbe[],
-  urlWatcher: Pick<AdvertisedUrlWatcher, 'reconcileScan'>
+  urlWatcher: Pick<AdvertisedUrlWatcher, 'reconcileScan'>,
+  terminalOwners?: TerminalOwnerByPid
 ): void {
   const observationsByWorktree = new Map<string, { port: number; pid?: number }[]>()
   for (const worktree of worktrees) {
     observationsByWorktree.set(worktree.worktree.id, [])
   }
   for (const port of ports) {
-    const owner = attributePortToNormalizedWorkspaces(port, worktrees)
+    const owner = attributePortToNormalizedWorkspaces(port, worktrees, terminalOwners)
     if (!owner) {
       continue
     }

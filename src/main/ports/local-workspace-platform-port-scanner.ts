@@ -1,6 +1,7 @@
 import { readFile, readdir, readlink } from 'node:fs/promises'
 import { LSOF_NONBLOCKING_ARGS } from '../../shared/lsof-nonblocking-args'
 import { getProcessOutputFields } from '../../shared/process-output-field-scanner'
+import { windowsAncestorPids } from './windows-process-lineage'
 import { readWindowsProcessTable } from '../windows/windows-process-table'
 import { runPortScanCommand } from './port-scan-command-client'
 import { parseDarwinNetstatListeners } from './darwin-netstat-listeners'
@@ -278,11 +279,14 @@ async function loadWindowsProcessMetadata(
   }
   try {
     // Native snapshots avoid ~700ms PowerShell startup, visible conhost windows and Group Policy failures.
-    for (const row of await readWindowsProcessTable()) {
+    const rows = await readWindowsProcessTable()
+    const byPid = new Map(rows.map((row) => [row.pid, row]))
+    for (const row of rows) {
       if (pids.has(row.pid)) {
         result.set(row.pid, {
           processName: row.name,
-          commandLine: row.command || undefined
+          commandLine: row.command || undefined,
+          ancestorPids: windowsAncestorPids(row, byPid)
         })
       }
     }

@@ -16,6 +16,7 @@ import { areWorktreePathsEqual } from './worktree-path-comparison'
 import { isPrunableGitFileWorktree } from '../worktree-prunable-git-file'
 import { removeStaleLocalWorktreeRegistration } from '../local-worktree-removal-recovery'
 import { sweepStaleWorktreeTrash, WORKTREE_TRASH_DIR_NAME } from '../worktree-trash'
+import { waitForPendingTrashDeletes } from './worktree-trash-removal'
 
 const execFileAsync = promisify(execFile)
 
@@ -71,6 +72,8 @@ describe('worktree removal against the real Git binary', () => {
 
     expect(existsSync(worktreePath)).toBe(false)
     expect(await isRegistered(worktreePath)).toBe(false)
+    // Windows moves the checkout to trash and deletes it in a child process after returning.
+    await waitForPendingTrashDeletes()
     expect(existsSync(join(workspaceRoot, 'repo', WORKTREE_TRASH_DIR_NAME))).toBe(false)
   })
 

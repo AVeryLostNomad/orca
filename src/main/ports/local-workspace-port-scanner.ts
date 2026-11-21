@@ -7,6 +7,8 @@ import {
   reconcileAdvertisedUrls
 } from './local-workspace-port-attribution'
 import { scanPlatformListeningPorts } from './local-workspace-platform-port-scanner'
+import { listRegisteredPtys } from '../memory/pty-registry'
+import type { TerminalOwnerByPid } from './local-workspace-port-attribution'
 import {
   getWorkspacePortScanCooldown,
   isWorkspacePortScanCommandTimeout,
@@ -36,12 +38,13 @@ export async function scanWorkspacePorts(
     const { ports: rawPorts, metadataAvailable } = await scanPlatformListeningPorts(options)
     recordWorkspacePortScanSuccess()
     const normalizedWorktrees = normalizeWorkspacePortProbes(worktrees)
+    const terminalOwners = collectTerminalOwnersByPid()
     // Missing metadata cannot prove listener loss; eviction would discard URLs only PTY output can restore (#11161).
     if (metadataAvailable) {
-      reconcileAdvertisedUrls(rawPorts, normalizedWorktrees, urlWatcher)
+      reconcileAdvertisedUrls(rawPorts, normalizedWorktrees, urlWatcher, terminalOwners)
     }
     const ports = rawPorts
-      .map((port) => enrichPort(port, normalizedWorktrees, urlWatcher))
+      .map((port) => enrichPort(port, normalizedWorktrees, urlWatcher, terminalOwners))
       .sort(compareWorkspacePorts)
       .slice(0, MAX_PORTS)
     return { platform: process.platform, scannedAt: Date.now(), ports }
@@ -52,4 +55,15 @@ export async function scanWorkspacePorts(
     warnWorkspacePortScanFailure(error)
     return makeUnavailableWorkspacePortScan(`Port scanning is unavailable on ${process.platform}.`)
   }
+}
+
+/** Local workspace terminals by their root process pid, for lineage attribution. */
+function collectTerminalOwnersByPid(): TerminalOwnerByPid {
+  const owners = new Map<number, string>()
+  for (const pty of listRegisteredPtys()) {
+    if (pty.pid !== null && pty.pid > 0 && pty.worktreeId) {
+      owners.set(pty.pid, pty.worktreeId)
+    }
+  }
+  return owners
 }

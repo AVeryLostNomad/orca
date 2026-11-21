@@ -1,4 +1,10 @@
-import { lstat } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import {
+  renameWorktreeToTrash,
+  restoreWorktreeFromTrash,
+  scheduleTrashDelete
+} from './worktree-trash-removal'
 import { pruneGitWorktrees } from './worktree-prune-guard'
 import type { RemoveWorktreeResult } from '../../shared/worktree/create-types'
 import { assertWorktreeUnlockedForRemoval } from '../../shared/worktree/removal'
@@ -68,15 +74,18 @@ async function performRemoveWorktree(
     ...removalGitEnv(),
     admissionExempt: true as const
   }
-  const args = [...longPathArgs, 'worktree', 'remove']
-  if (force) {
-    args.push('--force')
+  const removedViaTrash = await removeViaTrashIfEligible(repoPath, worktreePath, force, options)
+  if (!removedViaTrash) {
+    const args = [...longPathArgs, 'worktree', 'remove']
+    if (force) {
+      args.push('--force')
+    }
+    args.push(worktreePath)
+    await runUnderWorktreeDeleteLimit(async () => {
+      await gitExecFileAsync(args, execOptions)
+      await removeCheckoutLeftByGit(worktreePath, options)
+    })
   }
-  args.push(worktreePath)
-  await runUnderWorktreeDeleteLimit(async () => {
-    await gitExecFileAsync(args, execOptions)
-    await removeCheckoutLeftByGit(worktreePath, options)
-  })
 
   if (!branchName) {
     return {}
@@ -86,6 +95,102 @@ async function performRemoveWorktree(
   }
 
   return deleteBranchOfRemovedWorktree(repoPath, branchName, branchHead, options)
+}
+
+/**
+ * Native Windows only: rename the checkout aside, unregister it, and delete the files in a child process.
+ * Returns false (caller uses `git worktree remove`) whenever Git's own checks must decide: dirty or
+ * submodule checkouts without force, WSL paths, or other platforms where Git's delete is already fast.
+ */
+async function removeViaTrashIfEligible(
+  repoPath: string,
+  worktreePath: string,
+  force: boolean,
+  options: RemoveWorktreeOptions
+): Promise<boolean> {
+  if (process.platform !== 'win32' || options.wslDistro || parseWslPath(worktreePath)) {
+    return false
+  }
+  // Git validates the target before deleting; the rename must never act on anything Git would refuse.
+  if (!(await isWellFormedLinkedWorktree(repoPath, worktreePath, options))) {
+    return false
+  }
+  if (!force && !(await isCleanCheckoutWithoutSubmodules(worktreePath, options))) {
+    return false
+  }
+  const trashPath = await renameWorktreeToTrash(worktreePath)
+  try {
+    await pruneGitWorktrees(gitExecOptions(repoPath, options))
+    const stillRegistered = (await listWorktrees(repoPath, options)).some((worktree) =>
+      areWorktreePathsEqual(worktree.path, worktreePath)
+    )
+    if (stillRegistered) {
+      throw new Error(`Git kept ${worktreePath} registered after it was moved.`)
+    }
+  } catch (error) {
+    // Put the checkout back so a failed unregistration changes nothing on disk.
+    await restoreWorktreeFromTrash(trashPath, worktreePath)
+    throw error
+  }
+  scheduleTrashDelete(trashPath)
+  return true
+}
+
+/** A registered, non-main checkout directory whose .git file and admin `gitdir` point at each other. */
+async function isWellFormedLinkedWorktree(
+  repoPath: string,
+  worktreePath: string,
+  options: RemoveWorktreeOptions
+): Promise<boolean> {
+  try {
+    const registered = (await listWorktrees(repoPath, options)).find((worktree) =>
+      areWorktreePathsEqual(worktree.path, worktreePath)
+    )
+    if (!registered || registered.isMainWorktree || registered.isBare) {
+      return false
+    }
+    if (!(await lstat(worktreePath)).isDirectory()) {
+      return false
+    }
+    const markerPath = join(worktreePath, '.git')
+    if (!(await lstat(markerPath)).isFile()) {
+      return false
+    }
+    const adminDir = /^gitdir:\s*(.+)$/m.exec(await readFile(markerPath, 'utf8'))?.[1]?.trim()
+    if (!adminDir) {
+      return false
+    }
+    const adminPath = resolve(worktreePath, adminDir)
+    const backLink = (await readFile(join(adminPath, 'gitdir'), 'utf8')).trim()
+    // Relative links (worktree.useRelativePaths) are relative to the admin entry; resolve keeps absolute ones.
+    return areWorktreePathsEqual(resolve(adminPath, backLink), markerPath)
+  } catch {
+    return false
+  }
+}
+
+/** Mirror `git worktree remove`'s refusals: untracked/modified files, or a checkout with submodules. */
+async function isCleanCheckoutWithoutSubmodules(
+  worktreePath: string,
+  options: RemoveWorktreeOptions
+): Promise<boolean> {
+  try {
+    await lstat(join(worktreePath, '.gitmodules'))
+    return false
+  } catch (error) {
+    if (getErrorCode(error) !== 'ENOENT') {
+      return false
+    }
+  }
+  try {
+    const { stdout } = await gitExecFileAsync(
+      ['status', '--porcelain', '--untracked-files=all', '--ignore-submodules=none'],
+      gitExecOptions(worktreePath, options)
+    )
+    return stdout.trim() === ''
+  } catch {
+    return false
+  }
 }
 
 function deleteBranchOfRemovedWorktree(

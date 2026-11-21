@@ -2015,6 +2015,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "{{value0}} servidores",
+          "tooltip": "Servidores web em execução neste espaço de trabalho",
+          "openInOrca": "Abrir em aba do navegador",
+          "openInSystem": "Abrir no navegador do sistema",
+          "copyAddress": "Copiar endereço",
+          "stop": "Parar processo"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "Falha ao abrir o navegador",
+          "copied": "{{value0}} copiado",
+          "stopped": "Processo parado em {{value0}}"
+        }
+      },
       "onboarding": {
         "AgentStep": {
           "e6a369bd04": "Agentes populares",
@@ -10852,6 +10867,22 @@
           "toastWslDescription": "{{value0}} Esta configuração é executada no runtime de agente WSL selecionado.",
           "modalInstallDescription": "Instale a skill do Linear para seus agentes."
         },
+        "MergeWorktreeDialog": {
+          "merged": "{{value0}} mesclado em {{value1}}",
+          "mergeTitle": "Mesclar {{value0}} em…",
+          "rebaseTitle": "Rebase de {{value0}} sobre…",
+          "mergeDescription": "Mescla este branch no branch de destino localmente. Nada é enviado.",
+          "rebaseDescription": "Faz rebase deste branch sobre o destino e avança o destino até ele. Nada é enviado.",
+          "merge": "Mesclar",
+          "rebase": "Rebase",
+          "targetBranch": "Branch de destino",
+          "keepWorktree": "Manter o worktree após mesclar",
+          "cancel": "Cancelar",
+          "confirmMerge": "Mesclar",
+          "confirmRebase": "Rebase",
+          "confirmMergeAndRemove": "Mesclar e remover worktree",
+          "confirmRebaseAndRemove": "Rebase e remover worktree"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "Crie um grupo e mova este projeto para dentro dele.",
           "6664418e98": "Novo Grupo de Projeto",
@@ -10883,7 +10914,9 @@
           "sleepWithDescendants": "Suspender com Descendentes ({{value0}})",
           "sleepWithDescendantsDescription": "Fecha os painéis ativos neste espaço de trabalho e em todos os descendentes aninhados para liberar memória e CPU.",
           "deleteWithDescendants": "Excluir com Descendentes…",
-          "copyWorktreeName": "Copiar nome da worktree"
+          "copyWorktreeName": "Copiar nome da worktree",
+          "mergeInto": "Mesclar em…",
+          "rebaseOnto": "Rebase sobre…"
         },
         "WorktreeCard": {
           "a88c92d0e3": "{{value0}}/{{value1}} já existe.",

@@ -1791,6 +1791,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "{{value0}} servers",
+          "tooltip": "Web servers running in this workspace",
+          "openInOrca": "Open in browser tab",
+          "openInSystem": "Open in system browser",
+          "copyAddress": "Copy address",
+          "stop": "Stop process"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "Failed to open browser",
+          "copied": "Copied {{value0}}",
+          "stopped": "Stopped process on {{value0}}"
+        }
+      },
       "hostPicker": {
         "searchHosts": "Search hosts…",
         "noHostsMatch": "No hosts match.",
@@ -6561,6 +6576,22 @@
           "fed49903c9": "{{value0}} live {{value1}}",
           "unknownProcess": "Unknown process"
         },
+        "MergeWorktreeDialog": {
+          "merged": "Merged {{value0}} into {{value1}}",
+          "mergeTitle": "Merge {{value0}} into…",
+          "rebaseTitle": "Rebase {{value0}} onto…",
+          "mergeDescription": "Merges this branch into the target branch locally. Nothing is pushed.",
+          "rebaseDescription": "Rebases this branch onto the target, then fast-forwards the target to it. Nothing is pushed.",
+          "merge": "Merge",
+          "rebase": "Rebase",
+          "targetBranch": "Target branch",
+          "keepWorktree": "Keep worktree after merging",
+          "cancel": "Cancel",
+          "confirmMerge": "Merge",
+          "confirmRebase": "Rebase",
+          "confirmMergeAndRemove": "Merge & remove worktree",
+          "confirmRebaseAndRemove": "Rebase & remove worktree"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "Create a group and move this project into it.",
           "6664418e98": "New Project Group",
@@ -6573,6 +6604,8 @@
           "503ec0f8e6": "New group from project",
           "3350101edb": "Copy Path",
           "copyWorktreeName": "Copy Worktree Name",
+          "mergeInto": "Merge into…",
+          "rebaseOnto": "Rebase onto…",
           "f4475537d8": "Delete",
           "f5ac91531d": "Remove Project from Orca",
           "b42391d8bf": "Deleting…",

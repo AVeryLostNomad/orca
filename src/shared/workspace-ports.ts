@@ -5,7 +5,8 @@ export type WorkspacePortProbe = {
   path: string
 }
 
-export type WorkspacePortAttributionConfidence = 'cwd' | 'command' | 'none'
+/** `terminal`: the listener descends from one of the workspace's terminal processes. */
+export type WorkspacePortAttributionConfidence = 'cwd' | 'terminal' | 'command' | 'none'
 
 export type WorkspacePortOwner = {
   worktreeId: string

@@ -3,6 +3,7 @@ import type { useAppStore } from '@/store'
 import type { Repo } from '../../../../shared/repo-types'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../shared/worktree/types'
+import type { WorktreeMergeMode } from '../../../../shared/worktree-merge-types'
 import {
   createWorktreeContextMenuDeleteIntent,
   deferWorktreeContextMenuDeleteIntent
@@ -173,6 +174,15 @@ export function useWorktreeContextMenuCommands(args: {
     deferWorktreeContextMenuDeleteIntent(intent, restoreSidebarPosition)
     args.setMenuOpenState(false)
   }, [args])
+  const openMergeDialog = useCallback(
+    (mode: WorktreeMergeMode) => {
+      args.setMenuOpenState(false)
+      args.openModal('merge-worktree', { worktreeId: args.worktree.id, mode })
+    },
+    [args]
+  )
+  const handleMergeInto = useCallback(() => openMergeDialog('merge'), [openMergeDialog])
+  const handleRebaseOnto = useCallback(() => openMergeDialog('rebase'), [openMergeDialog])
   const handleOpenParent = useCallback(() => {
     if (args.validParentWorktreeId) {
       activateAndRevealWorktree(args.validParentWorktreeId, { navigationIntent: 'user-open' })
@@ -186,8 +196,10 @@ export function useWorktreeContextMenuCommands(args: {
     handleCreateGroupDialogOpenChange,
     handleCreateGroupFromRepo,
     handleDelete,
+    handleMergeInto,
     handleMoveProjectToGroup,
     handleOpenParent,
+    handleRebaseOnto,
     handleRemoveProjectFromGroup,
     handleRename,
     handleSleepSubtree,

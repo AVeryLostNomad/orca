@@ -1536,6 +1536,21 @@
       }
     },
     "components": {
+      "ports": {
+        "WorktreePortsToolbar": {
+          "serverCount": "{{value0}} serveurs",
+          "tooltip": "Serveurs web en cours d’exécution dans cet espace de travail",
+          "openInOrca": "Ouvrir dans un onglet du navigateur",
+          "openInSystem": "Ouvrir dans le navigateur du système",
+          "copyAddress": "Copier l’adresse",
+          "stop": "Arrêter le processus"
+        },
+        "useWorkspacePortActions": {
+          "openFailed": "Impossible d’ouvrir le navigateur",
+          "copied": "{{value0}} copié",
+          "stopped": "Processus arrêté sur {{value0}}"
+        }
+      },
       "plainSshTerminal": {
         "open": "Ouvrir un terminal SSH simple",
         "unmanaged": "SSH simple — non géré. Ce n’est pas un espace de travail Orca : les agents et onglets n’y sont pas suivis, et ce terminal n’est pas restauré. Le fermer met fin à la session SSH.",
@@ -6147,6 +6162,22 @@
           "d1113f4660": "Échec de l'ouverture du navigateur",
           "fed49903c9": "{{value0}} {{value1}} actif(s)"
         },
+        "MergeWorktreeDialog": {
+          "merged": "{{value0}} fusionné dans {{value1}}",
+          "mergeTitle": "Fusionner {{value0}} dans…",
+          "rebaseTitle": "Rebaser {{value0}} sur…",
+          "mergeDescription": "Fusionne cette branche dans la branche cible en local. Rien n’est poussé.",
+          "rebaseDescription": "Rebase cette branche sur la cible, puis avance la cible jusqu’à elle. Rien n’est poussé.",
+          "merge": "Fusionner",
+          "rebase": "Rebaser",
+          "targetBranch": "Branche cible",
+          "keepWorktree": "Conserver le worktree après la fusion",
+          "cancel": "Annuler",
+          "confirmMerge": "Fusionner",
+          "confirmRebase": "Rebaser",
+          "confirmMergeAndRemove": "Fusionner et supprimer le worktree",
+          "confirmRebaseAndRemove": "Rebaser et supprimer le worktree"
+        },
         "WorktreeContextMenu": {
           "c39c37676a": "Créez un groupe et déplacez-y ce projet.",
           "6664418e98": "Nouveau groupe de projets",
@@ -6159,6 +6190,8 @@
           "503ec0f8e6": "Nouveau groupe à partir du projet",
           "3350101edb": "Copier le chemin",
           "copyWorktreeName": "Copier le nom du worktree",
+          "mergeInto": "Fusionner dans…",
+          "rebaseOnto": "Rebaser sur…",
           "f4475537d8": "Supprimer",
           "f5ac91531d": "Retirer le projet d'Orca",
           "b42391d8bf": "Suppression…",

@@ -270,10 +270,28 @@ export async function withWorktreeRemoveStageSpan<T>(
   flow: 'folder' | 'remote' | 'local',
   fn: () => Promise<T>
 ): Promise<T> {
-  return withSpan(`worktree.remove.${stage}`, fn, {
-    attributes: { kind: 'worktree', 'worktree.flow': flow }
-  })
+  // Why: spans only reach telemetry; a local log lets users diagnose slow or failing deletes themselves.
+  const startedAt = performance.now()
+  try {
+    const result = await withSpan(`worktree.remove.${stage}`, fn, {
+      attributes: { kind: 'worktree', 'worktree.flow': flow }
+    })
+    const elapsedMs = Math.round(performance.now() - startedAt)
+    if (elapsedMs >= WORKTREE_REMOVE_SLOW_STAGE_LOG_MS) {
+      console.info(`[worktrees] remove ${flow}/${stage} took ${elapsedMs}ms`)
+    }
+    return result
+  } catch (error) {
+    console.warn(
+      `[worktrees] remove ${flow}/${stage} failed after ${Math.round(performance.now() - startedAt)}ms: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+    throw error
+  }
 }
+
+const WORKTREE_REMOVE_SLOW_STAGE_LOG_MS = 250
 
 export type UpdaterSpanArgs = {
   readonly stage: 'check' | 'download' | 'install'
