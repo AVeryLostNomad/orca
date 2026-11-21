@@ -112,6 +112,18 @@ describe('local workspace port scanner parsing', () => {
     ])
   })
 
+  it('keeps IPv6 loopback listeners and skips UDP and connection rows from unfiltered netstat', () => {
+    const ports = parseNetstatListeningOutput(
+      [
+        'TCP    [::1]:5183             [::]:0                 LISTENING       77920',
+        'TCP    [::1]:5183             [::1]:55209            ESTABLISHED     77920',
+        'UDP    0.0.0.0:5353           *:*                                    3692'
+      ].join('\n')
+    )
+
+    expect(ports).toEqual([{ host: '::1', port: 5183, pid: 77920 }])
+  })
+
   it('parses Windows netstat rows without whitespace regex splitting', () => {
     const splitSpy = vi.spyOn(String.prototype, 'split')
     const ports = parseNetstatListeningOutput(

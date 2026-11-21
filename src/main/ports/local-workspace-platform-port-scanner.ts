@@ -167,7 +167,8 @@ async function scanDarwinLsofPorts(
 async function scanWindowsNetstatPorts(
   options: WorkspacePortScanOptions
 ): Promise<PlatformListeningPortScan> {
-  const { stdout, spawnMs } = await runPortScanCommand('netstat', ['-ano', '-p', 'tcp'])
+  // No `-p tcp`: it lists IPv4 only, hiding Node/Vite servers bound to `localhost`, which resolves to [::1].
+  const { stdout, spawnMs } = await runPortScanCommand('netstat', ['-ano'])
   const ports = parseNetstatListeningOutput(stdout)
   if (shouldSkipMetadataCommands(spawnMs, options)) {
     return { ports, metadataAvailable: false }
