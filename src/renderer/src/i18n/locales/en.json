@@ -14583,6 +14583,8 @@
             "97e7124eac": "Could not refresh Source Control. Try again.",
             "b8c2e1a904": "{{value0}} → {{value1}}",
             "a4e93c21d7": "Current branch: {{value0}}",
+            "rightClickToCopy": "Right click to copy",
+            "branchNameCopied": "Branch name copied",
             "c7d4e2f801": "Change base ref: {{value0}}",
             "f3a1b8c204": "upstream",
             "createPrIntentGenerateDetailsFailed": "Could not generate review details. Retry Create PR.",

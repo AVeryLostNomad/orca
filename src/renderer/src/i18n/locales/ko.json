@@ -13712,6 +13712,8 @@
             "97e7124eac": "Source Control을 새로 고칠 수 없습니다. 다시 시도하세요.",
             "b8c2e1a904": "{{value0}} → {{value1}}",
             "a4e93c21d7": "현재 브랜치: {{value0}}",
+            "rightClickToCopy": "우클릭하여 복사",
+            "branchNameCopied": "브랜치 이름 복사됨",
             "c7d4e2f801": "베이스 ref 변경: {{value0}}",
             "f3a1b8c204": "upstream",
             "createPrIntentGenerateDetailsFailed": "검토 세부 정보를 생성할 수 없습니다. PR 생성을 다시 시도하세요.",

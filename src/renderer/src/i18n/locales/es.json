@@ -13744,6 +13744,8 @@
             "97e7124eac": "No se pudo actualizar Source Control. Vuelve a intentarlo.",
             "b8c2e1a904": "{{value0}} → {{value1}}",
             "a4e93c21d7": "Rama actual: {{value0}}",
+            "rightClickToCopy": "Clic derecho para copiar",
+            "branchNameCopied": "Nombre de rama copiado",
             "c7d4e2f801": "Cambiar ref base: {{value0}}",
             "f3a1b8c204": "upstream",
             "createPrIntentGenerateDetailsFailed": "No se pudieron generar los detalles de revisión. Reintentar Crear PR.",

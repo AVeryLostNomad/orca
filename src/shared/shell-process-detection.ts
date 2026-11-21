@@ -24,6 +24,11 @@ export function isShellProcess(processName: string): boolean {
 // Git Bash has no command marks; MSYSTEM:PWD prompt repaint is its agent-to-shell signal.
 const MSYS_PROMPT_TITLE_RE = /^(?:MINGW(?:32|64)|MSYS|UCRT64|CLANG(?:32|64|ARM64)):\//
 
+/** Git Bash's default `MINGW64:/full/path` window title. */
+export function isMsysPromptTitle(title: string): boolean {
+  return MSYS_PROMPT_TITLE_RE.test(title.trim())
+}
+
 /** A shell name, a Git Bash prompt title, or the tab's neutral default title; blank is no evidence. */
 export function titleShowsNoAgent(title: string, defaultTitle?: string): boolean {
   const trimmed = title.trim()

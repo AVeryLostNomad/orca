@@ -1,5 +1,6 @@
 import React from 'react'
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import type { GitBranchCompareSummary } from '../../../../../../shared/git-diff-compare-types'
 import type { GitBranchLineTotal } from '../../../../../../shared/git-status-types'
 import { cn } from '@/lib/utils'
@@ -118,6 +119,18 @@ function HeadIdentity({ display }: { display: WorktreeGitIdentityDisplay }): Rea
     { value0: display.branchName }
   )
 
+  const copyBranchName = (event: React.MouseEvent): void => {
+    event.preventDefault()
+    void window.api.ui.writeClipboardText(display.branchName).then(() => {
+      toast.success(
+        translate(
+          'auto.components.right.sidebar.SourceControl.branchNameCopied',
+          'Branch name copied'
+        )
+      )
+    })
+  }
+
   // Keep full refs keyboard-discoverable; block layout lets truncate clip long names before they overlap totals.
   return (
     <Tooltip>
@@ -127,12 +140,19 @@ function HeadIdentity({ display }: { display: WorktreeGitIdentityDisplay }): Rea
           tabIndex={0}
           aria-label={branchAriaLabel}
           data-testid="source-control-head-identity"
+          onContextMenu={copyBranchName}
         >
           {display.branchName}
         </span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6} className="max-w-72 break-all font-mono">
-        {display.branchName}
+      <TooltipContent side="bottom" sideOffset={6} className="max-w-72 break-all">
+        <div className="font-mono">{display.branchName}</div>
+        <div className="text-muted-foreground">
+          {translate(
+            'auto.components.right.sidebar.SourceControl.rightClickToCopy',
+            'Right click to copy'
+          )}
+        </div>
       </TooltipContent>
     </Tooltip>
   )

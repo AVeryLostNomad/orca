@@ -13844,6 +13844,8 @@
             "97e7124eac": "Impossible d'actualiser le contrôle de code source. Réessayez.",
             "b8c2e1a904": "{{value0}} → {{value1}}",
             "a4e93c21d7": "Branche actuelle : {{value0}}",
+            "rightClickToCopy": "Clic droit pour copier",
+            "branchNameCopied": "Nom de branche copié",
             "c7d4e2f801": "Modifier la ref de base : {{value0}}",
             "f3a1b8c204": "upstream",
             "createPrIntentGenerateDetailsFailed": "Impossible de générer les détails de revue. Réessayez Créer une PR.",

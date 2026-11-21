@@ -9260,6 +9260,8 @@
             "97e7124eac": "Não foi possível atualizar o Controle de Versão. Tente novamente.",
             "b8c2e1a904": "{{value0}} → {{value1}}",
             "a4e93c21d7": "Branch atual: {{value0}}",
+            "rightClickToCopy": "Clique com o botão direito para copiar",
+            "branchNameCopied": "Nome do branch copiado",
             "c7d4e2f801": "Alterar ref base: {{value0}}",
             "f3a1b8c204": "upstream",
             "createPrIntentGenerateDetailsFailed": "Não foi possível gerar os detalhes da revisão. Tente novamente Criar PR.",

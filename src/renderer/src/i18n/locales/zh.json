@@ -13712,6 +13712,8 @@
             "97e7124eac": "无法刷新 Source Control。请重试。",
             "b8c2e1a904": "{{value0}} → {{value1}}",
             "a4e93c21d7": "当前分支：{{value0}}",
+            "rightClickToCopy": "右键单击以复制",
+            "branchNameCopied": "已复制分支名称",
             "c7d4e2f801": "更改基引用：{{value0}}",
             "f3a1b8c204": "upstream",
             "createPrIntentGenerateDetailsFailed": "无法生成评审详情。请重试创建 PR。",
