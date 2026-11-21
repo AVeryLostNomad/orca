@@ -18,6 +18,8 @@ import type { WorkspacePortScanResult } from '../../../../shared/workspace-ports
 import { buildExecutionHostRegistry } from '../../../../shared/execution-host-registry'
 
 const WORKSPACE_PORT_SCAN_INTERVAL_MS = 30_000
+// Interval ticks can land a few ms before the cadence mark; without slack each such tick skips, doubling the gap.
+const WORKSPACE_PORT_SCAN_CADENCE_SLACK_MS = 1_000
 const WORKSPACE_PORT_ADVERTISED_URL_SETTLE_MS = 1_000
 type WorkspacePortScannerRefreshOptions = {
   force?: boolean
@@ -94,7 +96,9 @@ export function WorkspacePortScanner({ enabled = true }: { enabled?: boolean }):
             const key = workspacePortScanKeyForTarget(target)
             const lastStartedAt = lastRefreshStartedAtByKeyRef.current.get(key)
             return (
-              lastStartedAt === undefined || now - lastStartedAt >= WORKSPACE_PORT_SCAN_INTERVAL_MS
+              lastStartedAt === undefined ||
+              now - lastStartedAt >=
+                WORKSPACE_PORT_SCAN_INTERVAL_MS - WORKSPACE_PORT_SCAN_CADENCE_SLACK_MS
             )
           })
       if (targets.length === 0) {
@@ -236,12 +240,20 @@ export function WorkspacePortScanner({ enabled = true }: { enabled?: boolean }):
       },
       intervalMs: WORKSPACE_PORT_SCAN_INTERVAL_MS
     })
+    // Hidden windows still track this machine's dev servers (a cheap worker-thread netstat/lsof);
+    // remote hosts stay paused because their scans cost SSH/RPC round trips.
+    const backgroundInterval = setInterval(() => {
+      if (!isWindowVisible()) {
+        void refresh({ targets: [LOCAL_TARGET] })
+      }
+    }, WORKSPACE_PORT_SCAN_INTERVAL_MS)
 
     return () => {
       generationRef.current += 1
       inFlightRef.current = null
       setWorkspacePortScanRefreshing(false)
       stopVisibleInterval()
+      clearInterval(backgroundInterval)
     }
   }, [
     enabled,

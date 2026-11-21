@@ -310,6 +310,10 @@ export default function TabGroupPanel({
               />
             ) : null}
             <div className="min-w-0 flex-1 h-full">{tabBar}</div>
+            {/* Workspace-wide controls belong to exactly one strip: the top-right group's. */}
+            {reserveClosedExplorerToggleSpace ? (
+              <WorktreePortsToolbar worktreeId={worktreeId} />
+            ) : null}
             <div
               className={actionChromeClassName}
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -325,10 +329,7 @@ export default function TabGroupPanel({
             </div>
             {/* Workspace-wide controls belong to exactly one strip: the top-right group's. */}
             {reserveClosedExplorerToggleSpace ? (
-              <>
-                <WorktreePortsToolbar worktreeId={worktreeId} />
-                <UnityEditorToolbar worktreeId={worktreeId} />
-              </>
+              <UnityEditorToolbar worktreeId={worktreeId} />
             ) : null}
             {/* Why: Electron drag hit-test respects no-drag only on DOM descendants, not z-index siblings, so this no-drag spacer keeps the floating right-sidebar toggle + window controls clickable. */}
             {reserveClosedExplorerToggleSpace && !rightSidebarOpen ? (

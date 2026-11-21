@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { AppWindow, Copy, ExternalLink, Globe, Square } from 'lucide-react'
 import {
   DropdownMenu,
@@ -19,8 +19,14 @@ import { useWorkspacePortActions } from './use-workspace-port-actions'
 
 const EMPTY_PORTS: readonly WorkspacePort[] = []
 
+// Terminal lineage also claims agent helpers (status servers, browser debug ports); only a printed URL marks those as dev servers.
+function isLikelyDevServer(port: WorkspacePort): boolean {
+  return port.kind !== 'workspace' || port.owner.confidence !== 'terminal' || !!port.advertisedUrl
+}
+
 const PILL_CLASS =
-  'my-auto ml-1 flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-[12px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent data-[state=open]:bg-accent data-[state=open]:text-foreground'
+  // mr-2.5 plus the quick-command group's ml-1.5 leaves a clear 16px gap before the run button.
+  'my-auto ml-1.5 mr-2.5 flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-[12px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent data-[state=open]:bg-accent data-[state=open]:text-foreground'
 
 // SAFETY: React's CSSProperties lacks Electron's -webkit-app-region; the tab strip is a window drag region.
 const NO_DRAG_STYLE = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
@@ -39,10 +45,11 @@ export function WorktreePortsToolbar({
       getWorkspacePortsByWorktreeId(s.workspacePortScan?.result ?? null).get(worktreeId) ??
       EMPTY_PORTS
   )
-  if (!visible || ports.length === 0) {
+  const devServers = useMemo(() => ports.filter(isLikelyDevServer), [ports])
+  if (!visible || devServers.length === 0) {
     return null
   }
-  return <WorktreePortsToolbarView worktreeId={worktreeId} ports={ports} />
+  return <WorktreePortsToolbarView worktreeId={worktreeId} ports={devServers} />
 }
 
 export function WorktreePortsToolbarView({

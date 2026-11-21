@@ -4,6 +4,10 @@ import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import { callHostRoute } from '@/runtime/host-route-call'
 import type { HostRoute } from '@/runtime/runtime-client-target'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
+import {
+  WORKSPACE_PORT_ATTRIBUTION_CONFIDENCES,
+  type WorkspacePortAttributionConfidence
+} from '../../../shared/workspace-ports'
 import type {
   WorkspacePort,
   WorkspacePortHostScanResult,
@@ -56,9 +60,14 @@ function isWorkspacePortOwner(value: unknown): boolean {
     typeof value.repoId === 'string' &&
     typeof value.displayName === 'string' &&
     typeof value.path === 'string' &&
-    (value.confidence === 'cwd' || value.confidence === 'command' || value.confidence === 'none')
+    // Derived from the shared list: a hand-copied enum here once rejected every scan containing a new value.
+    WORKSPACE_PORT_CONFIDENCE_SET.has(value.confidence as WorkspacePortAttributionConfidence)
   )
 }
+
+const WORKSPACE_PORT_CONFIDENCE_SET = new Set<WorkspacePortAttributionConfidence>(
+  WORKSPACE_PORT_ATTRIBUTION_CONFIDENCES
+)
 
 function isWorkspacePort(value: unknown): value is WorkspacePort {
   if (
