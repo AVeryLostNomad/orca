@@ -19,6 +19,7 @@ import {
   githubAccountBindingForCwd,
   githubAccountCommitIdentityForCwd,
   githubAccountGitCredentialForCwd,
+  githubAccountLoginForCwd,
   githubAccountRefForCwd,
   githubAccountTokenForCwd,
   invalidateGithubAccountToken,
@@ -231,6 +232,15 @@ describe('githubAccountCommitIdentityForCwd', () => {
       name: 'me',
       email: '42+me@users.noreply.github.com'
     })
+  })
+
+  it('returns a gh keyring pin login without any network call', async () => {
+    const repoPath = join(dir, 'work')
+    configureGhAccount(repoPath, { login: 'me', id: 42 })
+
+    expect(await githubAccountLoginForCwd(repoPath)).toBe('me')
+    expect(await githubAccountLoginForCwd(join(dir, 'unpinned'))).toBeNull()
+    expect(ghExec).not.toHaveBeenCalled()
   })
 
   it('caches the identity per account ref', async () => {

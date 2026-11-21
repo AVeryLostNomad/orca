@@ -17,7 +17,8 @@ import {
   isBranchSafeHostedLogin,
   resolveLocalGitUsername,
   resolveLocalGitUsernameDetailed,
-  resetGhLoginCacheForTests
+  resetGhLoginCacheForTests,
+  setPinnedGithubLoginResolver
 } from './git-username'
 
 function makeExecError(
@@ -109,6 +110,30 @@ describe('resolveLocalGitUsername', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it("prefers the project's pinned GitHub account over config and the global gh login", async () => {
+    originRemoteUrl = 'https://github.com/stablyai/orca.git'
+    gitConfig['github.user'] = 'config-demo'
+    ghExecFileAsyncMock.mockResolvedValue({ stdout: 'gh-demo\n', stderr: '' })
+    setPinnedGithubLoginResolver(async (repoPath) => (repoPath === '/repo' ? 'pinned-demo' : null))
+
+    await expect(resolveLocalGitUsernameDetailed('/repo')).resolves.toEqual({
+      username: 'pinned-demo',
+      authoritative: true
+    })
+    expect(ghExecFileAsyncMock).not.toHaveBeenCalled()
+    await expect(resolveLocalGitUsername('/other')).resolves.toBe('config-demo')
+  })
+
+  it('falls back to normal resolution when the pin resolver fails or returns an unsafe login', async () => {
+    gitConfig['github.user'] = 'config-demo'
+    setPinnedGithubLoginResolver(async () => {
+      throw new Error('token lookup failed')
+    })
+    await expect(resolveLocalGitUsername('/repo')).resolves.toBe('config-demo')
+    setPinnedGithubLoginResolver(async () => 'bad..login')
+    await expect(resolveLocalGitUsername('/repo')).resolves.toBe('config-demo')
   })
 
   it('prefers explicit GitHub user config before checking GitHub CLI login', async () => {

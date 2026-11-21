@@ -67,6 +67,7 @@ export function invalidateGithubAccountToken(ref: string): void {
   // the cached name/email may belong to someone else now.
   identityCache.delete(ref)
   identityInFlight.delete(ref)
+  loginCache.delete(ref)
 }
 
 /** @internal - exposed for tests only */
@@ -75,6 +76,7 @@ export function _resetGithubAccountEnv(): void {
   tokenInFlight.clear()
   identityCache.clear()
   identityInFlight.clear()
+  loginCache.clear()
   getReposSource = null
   ghTokenExec = null
   getPatAccountsSource = null
@@ -183,6 +185,8 @@ export type GithubAccountCommitIdentity = { name: string; email: string }
 
 const identityCache = new Map<string, GithubAccountCommitIdentity>()
 const identityInFlight = new Map<string, Promise<GithubAccountCommitIdentity | null>>()
+// Why: the same `gh api user` profile fetch yields the login; PAT pins need it for branch prefixes.
+const loginCache = new Map<string, string>()
 
 async function fetchAccountCommitIdentity(
   refString: string
@@ -210,6 +214,7 @@ async function fetchAccountCommitIdentity(
     if (!login) {
       return null
     }
+    loginCache.set(refString, login)
     const name = typeof user.name === 'string' && user.name.trim() ? user.name.trim() : login
     // Why: the id+login noreply form is the one GitHub maps to accounts created
     // after 2017; a public profile email wins when the user exposes one.
@@ -262,6 +267,20 @@ export async function githubAccountCommitIdentityForCwd(
     return null
   }
   return resolveGithubAccountCommitIdentity(ref)
+}
+
+/** The pinned account's GitHub login (branch-prefix source), or null when the project has no pin. */
+export async function githubAccountLoginForCwd(cwd: string | undefined): Promise<string | null> {
+  const refString = githubAccountRefForCwd(cwd)
+  const parsed = refString ? parseGithubAccountRef(refString) : null
+  if (!refString || !parsed) {
+    return null
+  }
+  if (parsed.kind === 'gh-cli') {
+    return parsed.user
+  }
+  await resolveGithubAccountCommitIdentity(refString)
+  return loginCache.get(refString) ?? null
 }
 
 /** Sync path for PTY spawns: only pre-warmed identities inject (spawn cannot await). */

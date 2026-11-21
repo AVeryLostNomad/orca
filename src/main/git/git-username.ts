@@ -167,6 +167,25 @@ async function getGhLoginOutcome(): Promise<GhLoginOutcome> {
   return probe
 }
 
+type PinnedGithubLoginResolver = (repoPath: string) => Promise<string | null>
+let pinnedGithubLoginResolver: PinnedGithubLoginResolver | null = null
+
+/** Injected so a project's pinned GitHub account beats the global `gh` login without git → github imports. */
+export function setPinnedGithubLoginResolver(resolver: PinnedGithubLoginResolver | null): void {
+  pinnedGithubLoginResolver = resolver
+}
+
+async function resolvePinnedGithubLogin(repoPath: string): Promise<string> {
+  if (!pinnedGithubLoginResolver) {
+    return ''
+  }
+  try {
+    return normalizeConfiguredLogin((await pinnedGithubLoginResolver(repoPath)) ?? '')
+  } catch {
+    return ''
+  }
+}
+
 async function readGitStdout(repoPath: string, args: string[]): Promise<string> {
   try {
     const { stdout } = await gitExecFileAsync(args, {
@@ -241,10 +260,16 @@ async function localRepoHasEffectiveGitHubRemote(repoPath: string): Promise<bool
   return false
 }
 
-/** Resolve explicit config, effective GitHub login, then safe author name; unknown returns non-authoritative empty. */
+/** Resolve pinned project account, explicit config, effective GitHub login, then safe author name; unknown returns non-authoritative empty. */
 export async function resolveLocalGitUsernameDetailed(
   repoPath: string
 ): Promise<ResolvedGitUsername> {
+  // A per-project (or inherited group) account pin is the identity this repo acts as; it beats
+  // global git config, which otherwise reports the machine-wide login for every project.
+  const pinnedLogin = await resolvePinnedGithubLogin(repoPath)
+  if (pinnedLogin) {
+    return { username: pinnedLogin, authoritative: true }
+  }
   for (const key of EXPLICIT_USERNAME_CONFIG_KEYS) {
     try {
       const { stdout } = await gitExecFileAsync(['config', '--get', key], {
@@ -278,4 +303,5 @@ export function resetGhLoginCacheForTests(): void {
   cachedGhLogin = null
   ghLoginTimedOutAt = null
   ghLoginProbeInFlight = null
+  pinnedGithubLoginResolver = null
 }

@@ -12,10 +12,12 @@ import {
   githubAccountCommitIdentityForCwd,
   githubAccountGitCredentialForCwd,
   githubAccountBindingForCwd,
+  githubAccountLoginForCwd,
   githubAccountTokenForCwd,
   invalidateGithubAccountToken,
   prewarmGithubAccountTokens
 } from '../github/github-account-env'
+import { setPinnedGithubLoginResolver } from '../git/git-username'
 import { applyInheritedProjectAccountPins } from '../../shared/project-account-pins'
 import { registerGitHubAccountHandlers } from './github-account-handlers'
 import { registerGitHubIssueMutationHandlers } from './github-issue-mutation-handlers'
@@ -37,6 +39,7 @@ export function registerGitHubHandlers(store: Store, stats: StatsCollector): voi
   setGhAccountBindingResolver(githubAccountBindingForCwd)
   setGitAccountCredentialResolver(githubAccountGitCredentialForCwd, invalidateGithubAccountToken)
   setGitAccountIdentityResolver(githubAccountCommitIdentityForCwd)
+  setPinnedGithubLoginResolver(githubAccountLoginForCwd)
   prewarmGithubAccountTokens()
 
   registerGitHubPRRefreshHandlers(store, stats)
